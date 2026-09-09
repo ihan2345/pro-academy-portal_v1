@@ -1,0 +1,57 @@
+{
+  "name": "proacademy-portal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "jobs": "NODE_OPTIONS=--conditions=react-server tsx workers/job-runner.ts",
+    "build:cloudflare": "opennextjs-cloudflare build",
+    "preview:cloudflare": "opennextjs-cloudflare preview",
+    "check": "npm run typecheck && npm test && npm run build",
+    "test:external": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-external.ts",
+    "format:check": "prettier --check src tests workers scripts docs README.md",
+    "build:jobs": "esbuild workers/job-runner.ts --bundle --platform=node --target=node24 --format=esm --packages=external --outfile=output/runner.mjs",
+    "typecheck:jobs": "tsc --noEmit -p workers/cloudflare/tsconfig.json"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.3.7",
+    "@js-temporal/polyfill": "^0.5.1",
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.57.0",
+    "lucide-react": "^0.468.0",
+    "next": "^16.1.0",
+    "nodemailer": "^10.0.1",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "server-only": "^0.0.1",
+    "stripe": "^18.5.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260908.1",
+    "@electric-sql/pglite": "^0.3.10",
+    "@opennextjs/cloudflare": "^1.6.0",
+    "@playwright/test": "^1.55.0",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22.18.0",
+    "@types/nodemailer": "^7.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "esbuild": "^0.28.2",
+    "prettier": "^3.9.6",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.0",
+    "wrangler": "^4.35.0"
+  },
+  "overrides": {
+    "sharp": "^0.35.4"
+  }
+}

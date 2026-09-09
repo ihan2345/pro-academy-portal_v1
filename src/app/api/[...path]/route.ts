@@ -1,0 +1,467 @@
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { randomBytes } from "node:crypto";
+import { z } from "zod";
+import { sessionDb, sessionUser, serviceDb } from "@/lib/server/supabase";
+import { isDemo, required } from "@/lib/server/config";
+import {
+  HttpError,
+  assertRole,
+  requireOrigin,
+  checkSecret,
+  hashToken,
+  parentCancellation,
+} from "@/lib/server/security";
+import {
+  trainingSchema,
+  attendanceSchema,
+  cancelSchema,
+  adminSchemas,
+  importSchema,
+} from "@/lib/server/schemas";
+import {
+  stripeClient,
+  verifyStripe,
+  persistStripeEvent,
+  syncSubscription,
+  syncInvoicePeriods,
+} from "@/lib/server/stripe";
+import { renderReport } from "@/lib/pdf";
+import { subscriptionPreviewLoader } from "@/lib/server/stripe-preview";
+import { demoData } from "@/lib/demo";
+const json = (value: unknown, status = 200) =>
+  NextResponse.json(value, {
+    status,
+    headers: { "Cache-Control": "private, no-store" },
+  });
+const adminReads = new Set([
+  "players",
+  "parents",
+  "parent_players",
+  "staff_profiles",
+  "plans",
+  "subscriptions",
+  "locations",
+  "parent_invitations",
+  "notification_jobs",
+  "notification_deliveries",
+  "report_snapshots",
+  "report_files",
+  "report_deliveries",
+  "audit_log",
+  "system_settings",
+  "job_runs",
+  "stripe_webhook_events",
+]);
+async function invite(parentId: string, actorId: string) {
+  const token = randomBytes(32).toString("hex");
+  const result = await serviceDb().rpc("create_parent_invitation", {
+    input: {
+      parent_id: parentId,
+      actor_id: actorId,
+      token_hash: hashToken(token),
+      url: `${required("APP_URL")}/einladung?token=${token}`,
+    },
+  });
+  if (result.error) throw result.error;
+  return result.data;
+}
+async function handler(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> },
+) {
+  const path = (await context.params).path.join("/");
+  try {
+    if (path.startsWith("parent/cancel") || path === "parent-cancellation")
+      parentCancellation();
+    if (path === "stripe/webhook" && request.method === "POST") {
+      const signature = request.headers.get("stripe-signature");
+      if (!signature) throw new HttpError(400, "Stripe-Signatur fehlt.");
+      let event;
+      try {
+        event = await verifyStripe(await request.text(), signature);
+      } catch {
+        throw new HttpError(400, "Stripe-Signatur ungültig.");
+      }
+      return json(await persistStripeEvent(event));
+    }
+    if (path === "cron" && request.method === "POST") {
+      if (
+        !checkSecret(
+          request.headers.get("authorization")?.replace(/^Bearer /, "") ?? null,
+          process.env.CRON_SECRET ?? "",
+        )
+      )
+        throw new HttpError(401, "Nicht autorisiert.");
+      const result = await fetch(`${required("JOB_RUNNER_URL")}/run`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${required("CRON_SECRET")}` },
+        // Allow container cold start plus the runner's four-minute deadline.
+        signal: AbortSignal.timeout(300000),
+      });
+      return json(await result.json(), result.status);
+    }
+    if (path.startsWith("reports/") && isDemo() && request.method === "GET") {
+      const report = demoData.reports.find((r) => r.id === path.split("/")[1]);
+      if (!report) throw new HttpError(404, "Bericht nicht gefunden.");
+      const bytes = await renderReport({
+        player_name: "Max Beispiel · DEMO",
+        product_name: report.product_name,
+        starts_at:
+          report.id === "report-demo-2"
+            ? "2026-06-11T22:00:00Z"
+            : "2026-07-11T22:00:00Z",
+        ends_at:
+          report.id === "report-demo-2"
+            ? "2026-07-11T22:00:00Z"
+            : "2026-08-11T22:00:00Z",
+        included_units: report.units,
+        completed: report.completed,
+        minutes: report.minutes,
+        created_at: report.created_at,
+        version: report.version,
+        whatsapp: demoData.whatsapp,
+        events: Array.from({ length: report.completed }, (_, i) => ({
+          id: `DEMO-${i + 1}`,
+          title: "Technik & Spielintelligenz · Beispieldaten",
+          starts_at: new Date(
+            Date.parse(
+              report.id === "report-demo-2"
+                ? "2026-06-13T14:30:00Z"
+                : "2026-07-13T14:30:00Z",
+            ) +
+              i * 2 * 86400000,
+          ).toISOString(),
+          ends_at: new Date(
+            Date.parse(
+              report.id === "report-demo-2"
+                ? "2026-06-13T16:00:00Z"
+                : "2026-07-13T16:00:00Z",
+            ) +
+              i * 2 * 86400000,
+          ).toISOString(),
+          status: "attended_auto" as const,
+        })),
+      });
+      return new NextResponse(new Uint8Array(bytes), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition":
+            'attachment; filename="ProAcademy-Demobericht.pdf"',
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+    if (request.method !== "GET") requireOrigin(request);
+    if (isDemo())
+      throw new HttpError(
+        503,
+        "Diese Funktion benötigt die eingerichtete Testumgebung. Die Demo verwendet ausschließlich lokale Beispieldaten.",
+      );
+    if (path === "auth/login" && request.method === "POST") {
+      const { email } = z
+        .object({ email: z.email() })
+        .parse(await request.json());
+      if (
+        process.env.EMAIL_TEST_MODE !== "false" &&
+        email.toLowerCase() !==
+          (process.env.EMAIL_TEST_RECIPIENT ?? "").toLowerCase()
+      )
+        throw new HttpError(
+          400,
+          "Im Testbetrieb ist nur die konfigurierte Test-E-Mail-Adresse zugelassen.",
+        );
+      const store = await cookies(),
+        hash = store.get("pa_invitation")?.value;
+      let invitationValid = false;
+      if (hash) {
+        const { data, error } = await serviceDb()
+          .from("parent_invitations")
+          .select("id")
+          .eq("token_hash", hash)
+          .ilike("email", email)
+          .is("consumed_at", null)
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle();
+        if (error) throw error;
+        invitationValid = !!data;
+      }
+      const db = await sessionDb();
+      await db.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: invitationValid,
+          emailRedirectTo: `${required("APP_URL")}/auth/callback`,
+        },
+      });
+      return json({ ok: true });
+    }
+    const session = await sessionUser();
+    if (!session?.role) throw new HttpError(401, "Bitte melde dich an.");
+    const { db, user, role } = session;
+    if (path === "auth/logout" && request.method === "POST") {
+      await db.auth.signOut();
+      return json({ ok: true });
+    }
+    if (path === "stripe/portal" && request.method === "POST") {
+      const { data: parent, error } = await db
+        .from("parents")
+        .select("stripe_customer_id")
+        .eq("auth_user_id", user.id)
+        .single();
+      if (error || !parent?.stripe_customer_id)
+        throw new HttpError(404, "Noch kein Stripe-Kundenkonto zugeordnet.");
+      const result = await stripeClient().billingPortal.sessions.create({
+        customer: parent.stripe_customer_id,
+        return_url: `${required("APP_URL")}/konto`,
+        configuration: required("STRIPE_PORTAL_CONFIGURATION_ID"),
+      });
+      return json({ url: result.url });
+    }
+    if (path.startsWith("reports/") && request.method === "GET") {
+      const id = z.uuid().parse(path.split("/")[1]);
+      if (role === "staff")
+        throw new HttpError(403, "Keine Berechtigung für Berichte.");
+      const { data: file, error } = await db
+        .from("report_files")
+        .select("storage_path")
+        .eq("snapshot_id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!file) throw new HttpError(404, "Bericht nicht gefunden.");
+      const { data: signed, error: signError } = await db.storage
+        .from("reports")
+        .createSignedUrl(file.storage_path, 60, { download: true });
+      if (signError) throw signError;
+      return NextResponse.redirect(signed.signedUrl, 303);
+    }
+    if (path.startsWith("team/")) {
+      assertRole(role, "team");
+      if (request.method !== "POST")
+        throw new HttpError(405, "Methode nicht erlaubt.");
+      let result;
+      if (path === "team/events") {
+        result = await db.rpc("save_training", {
+          input: trainingSchema.parse(await request.json()),
+        });
+      } else if (path === "team/attendance") {
+        const input = attendanceSchema.parse(await request.json());
+        result = await db.rpc("set_attendance", {
+          participant: input.participant,
+          new_status: input.new_status,
+          correction_reason: input.reason,
+          send_correction: input.send_correction,
+        });
+      } else if (path === "team/cancel") {
+        const input = cancelSchema.parse(await request.json());
+        result = await db.rpc("cancel_training", {
+          event: input.id,
+          cancellation_reason: input.reason,
+        });
+      } else throw new HttpError(404, "Nicht gefunden.");
+      if (result.error) throw new HttpError(400, result.error.message);
+      return json({ ok: true, id: result.data });
+    }
+    if (path.startsWith("admin/")) {
+      assertRole(role, "admin");
+      const action = path.slice(6);
+      if (request.method === "GET") {
+        if (action === "stripe-customers") {
+          const stripe = stripeClient();
+          const loadSubscriptions = subscriptionPreviewLoader(stripe);
+          const page = await stripe.customers.list({
+            limit: 25,
+            ...(request.nextUrl.searchParams.get("after")
+              ? { starting_after: request.nextUrl.searchParams.get("after")! }
+              : {}),
+          });
+          const rows = await Promise.all(
+            page.data.map(async (c) => {
+              const { data: parents, error } = await db
+                .from("parents")
+                .select("id,full_name,contact_email")
+                .ilike("contact_email", c.email ?? "");
+              if (error) throw error;
+              const subscriptions = await loadSubscriptions(c.id);
+              return {
+                id: c.id,
+                name: c.name,
+                email: c.email,
+                suggestions: parents,
+                ambiguous: (parents?.length ?? 0) > 1,
+                subscriptions,
+              };
+            }),
+          );
+          return json({
+            rows,
+            has_more: page.has_more,
+            next_cursor: page.data.at(-1)?.id,
+          });
+        }
+        const table = action === "einladungen" ? "parent_invitations" : action;
+        if (!adminReads.has(table)) throw new HttpError(404, "Nicht gefunden.");
+        const select =
+          table === "parent_invitations"
+            ? "id,parent_id,email,expires_at,consumed_at,created_at"
+            : table === "notification_jobs"
+              ? "id,kind,recipient,status,attempts,available_at,last_error,created_at"
+              : table === "stripe_webhook_events"
+                ? "id,stripe_event_id,type,status,attempts,last_error,created_at"
+                : "*";
+        const { data: rows, error } = await db
+          .from(table)
+          .select(select)
+          .order("created_at", { ascending: false })
+          .range(
+            Number(request.nextUrl.searchParams.get("offset") ?? 0),
+            Number(request.nextUrl.searchParams.get("offset") ?? 0) + 99,
+          );
+        if (error) throw error;
+        return json({ rows });
+      }
+      if (request.method === "POST") {
+        if (action === "roles") {
+          const input = z
+            .object({
+              id: z.uuid(),
+              role: z.enum(["parent", "staff", "admin"]),
+            })
+            .parse(await request.json());
+          const result = await db.rpc("change_role", {
+            target: input.id,
+            new_role: input.role,
+          });
+          if (result.error) throw new HttpError(400, result.error.message);
+          return json({ ok: true });
+        }
+        if (action === "notification-retry") {
+          const input = z
+            .object({
+              id: z.uuid(),
+              checked_not_delivered: z.literal(true),
+              reason: z.string().min(5).max(500),
+            })
+            .parse(await request.json());
+          const result = await db.rpc("retry_notification", {
+            job: input.id,
+            checked_not_delivered: input.checked_not_delivered,
+            retry_reason: input.reason,
+          });
+          if (result.error) throw new HttpError(400, result.error.message);
+          return json({ ok: true });
+        }
+        if (action === "parent-unlink") {
+          const input = z
+            .object({ id: z.uuid(), reason: z.string().min(5) })
+            .parse(await request.json());
+          const result = await db.rpc("unlink_parent_player", {
+            link: input.id,
+            unlink_reason: input.reason,
+          });
+          if (result.error) throw new HttpError(400, result.error.message);
+          return json({ ok: true });
+        }
+        if (action === "invite") {
+          const { parent_id } = z
+            .object({ parent_id: z.uuid() })
+            .parse(await request.json());
+          return json({ id: await invite(parent_id, user.id) });
+        }
+        if (action === "stripe-link") {
+          const input = importSchema.parse(await request.json()),
+            { subscription } = await syncSubscription(input.subscription_id);
+          const customer =
+            typeof subscription.customer === "string"
+              ? subscription.customer
+              : subscription.customer.id;
+          if (
+            customer !== input.customer_id ||
+            !subscription.items.data.some((i) => i.id === input.item_id)
+          )
+            throw new HttpError(
+              400,
+              "Stripe-Kunde oder Abonnement-Item stimmt nicht überein.",
+            );
+          const { data: parent, error } = await serviceDb().rpc(
+            "link_stripe_family",
+            { input: { ...input, actor_id: user.id } },
+          );
+          if (error) throw new HttpError(400, error.message);
+          await syncSubscription(input.subscription_id);
+          for await (const invoice of stripeClient().invoices.list({
+            subscription: input.subscription_id,
+            status: "paid",
+            limit: 100,
+          }))
+            if (invoice.id)
+              await syncInvoicePeriods(invoice.id, input.subscription_id);
+          await invite(parent, user.id);
+          return json({ ok: true, parent_id: parent });
+        }
+        if (action === "report-resend") {
+          const input = z
+            .object({ id: z.uuid(), request_id: z.uuid() })
+            .parse(await request.json());
+          const result = await serviceDb().rpc("resend_report", {
+            snapshot: input.id,
+            request_id: input.request_id,
+            actor: user.id,
+          });
+          if (result.error) throw new HttpError(400, result.error.message);
+          return json({ ok: true });
+        }
+        if (action === "report-version") {
+          const input = z
+            .object({ period_id: z.uuid() })
+            .parse(await request.json());
+          const result = await serviceDb().rpc("capture_report", {
+            period: input.period_id,
+            force_version: true,
+            contact_number: process.env.WHATSAPP_NUMBER ?? "",
+          });
+          if (result.error) throw new HttpError(400, result.error.message);
+          return json({ ok: true, id: result.data });
+        }
+        if (adminSchemas[action]) {
+          const input = adminSchemas[action].parse(
+            await request.json(),
+          ) as Record<string, unknown>;
+          const result = await db
+            .from(action)
+            .upsert(input, {
+              onConflict:
+                action === "system_settings"
+                  ? "key"
+                  : action === "parent_players"
+                    ? "parent_id,player_id"
+                    : "id",
+            })
+            .select("id")
+            .single();
+          if (result.error) throw new HttpError(400, result.error.message);
+          return json({ ok: true, id: result.data.id });
+        }
+      }
+    }
+    throw new HttpError(404, "Nicht gefunden.");
+  } catch (error) {
+    if (error instanceof HttpError)
+      return json({ error: error.message }, error.status);
+    if (error instanceof z.ZodError)
+      return json({ error: error.issues.map((i) => i.message).join(" ") }, 400);
+    console.error("Portal request failed", {
+      path,
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    return json(
+      {
+        error:
+          "Die Anfrage konnte nicht abgeschlossen werden. Bitte prüfe die Testkonfiguration oder versuche es später erneut.",
+      },
+      500,
+    );
+  }
+}
+export const GET = handler;
+export const POST = handler;

@@ -1,0 +1,18 @@
+project_id = "proacademy-portal-test"
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+[db]
+port = 54322
+major_version = 17
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000/auth/callback"]
+[auth.email]
+enable_signup = true
+enable_confirmations = true

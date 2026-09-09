@@ -1,0 +1,9 @@
+node_modules
+.next
+.open-next
+.wrangler
+.env*
+.git
+test-results
+output
+tmp

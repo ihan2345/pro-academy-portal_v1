@@ -1,0 +1,4 @@
+// Network-only private portal: no child, auth, PDF or API response is cached.
+self.addEventListener('install',()=>self.skipWaiting());
+self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',event=>{if(event.request.mode==='navigate')event.respondWith(fetch(event.request).catch(()=>new Response('<!doctype html><html lang="de"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ProAcademy · Offline</title><body style="background:#0b0f1a;color:white;font:16px Arial;padding:40px"><h1>Du bist gerade offline.</h1><p>Verbinde dich mit dem Internet, um dein Trainingsportal sicher zu öffnen.</p><button onclick="location.reload()">Erneut versuchen</button></body></html>',{headers:{'Content-Type':'text/html; charset=utf-8'}})))});

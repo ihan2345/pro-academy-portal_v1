@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "proacademy-portal-test",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  "vars": { "APP_MODE": "test", "PARENT_CANCELLATION_ENABLED": "false", "EMAIL_TEST_MODE": "true" },
+  "env": {
+    "production": {
+      "name": "proacademy-portal",
+      "account_id": "7300475f02c8b8793bb7e6250d0d4690",
+      "workers_dev": true,
+      "preview_urls": false,
+      "routes": [],
+      "vars": {
+        "APP_MODE": "production",
+        "APP_URL": "https://proacademy-portal.proacademy-by-ak.workers.dev",
+        "NEXT_PUBLIC_APP_URL": "https://proacademy-portal.proacademy-by-ak.workers.dev",
+        "NEXT_PUBLIC_DEMO_MODE": "false",
+        "SUPABASE_ENVIRONMENT": "production",
+        "JOB_RUNNER_URL": "https://proacademy-jobs.proacademy-by-ak.workers.dev",
+        "PARENT_CANCELLATION_ENABLED": "false",
+        "EMAIL_TEST_MODE": "true",
+        "EMAIL_TEST_RECIPIENT": "ayh.kaan@icloud.com",
+        "MAIL_PROVIDER": "capture",
+        "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UDrgZRoswKHkM76cERxORbx"
+      }
+    }
+  }
+}
