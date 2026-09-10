@@ -14,6 +14,7 @@ import {
   durationLabel,
   STATUS_LABELS,
   isAttended,
+  isChargedAbsence,
   disciplineStats,
   attendanceStats,
   type Attendance,
@@ -29,6 +30,7 @@ export interface ReportSnapshot {
   minutes: number;
   created_at: string;
   version: number;
+  attendance_policy?: "charged_absences_v1";
   whatsapp: string;
   events: {
     id: string;
@@ -37,12 +39,15 @@ export interface ReportSnapshot {
     starts_at: string;
     ends_at: string;
     status: Attendance;
+    location_name?: string;
+    trainer_name?: string;
   }[];
 }
 const dark = rgb(0.043, 0.059, 0.102),
   lime = rgb(0.557, 1, 0.004),
   muted = rgb(0.46, 0.49, 0.54),
   purple = rgb(0.545, 0.325, 0.996);
+const red = rgb(0.75, 0.14, 0.2);
 export async function renderReport(
   snapshot: ReportSnapshot,
   mode: "report" | "stamp_card" = "report",
@@ -143,9 +148,21 @@ export async function renderReport(
   text(`${snapshot.completed} / ${snapshot.included_units}`, 40, y, 29, bold);
   text(durationLabel(snapshot.minutes), 305, y, 24, bold);
   y -= 22;
-  text("Einheiten absolviert", 40, y, 10, regular, muted);
+  const chargedPolicy = snapshot.attendance_policy === "charged_absences_v1";
+  text(
+    chargedPolicy ? "Einheiten angerechnet" : "Einheiten absolviert",
+    40,
+    y,
+    10,
+    regular,
+    muted,
+  );
   text("Absolvierte Trainingszeit", 305, y, 10, regular, muted);
-  const split = disciplineStats(snapshot.events);
+  // Older immutable reports retain the counting policy captured with them.
+  const countedEvents = chargedPolicy
+    ? snapshot.events
+    : snapshot.events.filter((e) => !isChargedAbsence(e.status));
+  const split = disciplineStats(countedEvents);
   const athletics = snapshot.athletics_units ?? 0;
   const groups =
     athletics > 0
@@ -154,12 +171,14 @@ export async function renderReport(
             label: "Fußball",
             units: snapshot.included_units - athletics,
             completed: split.football.completed,
+            charged: split.football.charged,
             planned: split.football.planned,
           },
           {
             label: "Athletik",
             units: athletics,
             completed: split.athletics.completed,
+            charged: split.athletics.charged,
             planned: split.athletics.planned,
           },
         ]
@@ -168,6 +187,7 @@ export async function renderReport(
             label: "",
             units: snapshot.included_units,
             completed: snapshot.completed,
+            charged: attendanceStats(countedEvents).charged,
             planned: attendanceStats(snapshot.events).planned,
           },
         ];
@@ -193,13 +213,26 @@ export async function renderReport(
       }
       const x = 60 + (i % 8) * 64,
         done = i < group.completed,
+        charged = done && i >= group.completed - group.charged,
         planned = card && !done && i < group.completed + group.planned;
       page.drawCircle({
         x,
         y,
         size: 19,
-        color: done ? lime : planned ? purple : rgb(0.96, 0.95, 0.98),
-        borderColor: done ? lime : planned ? purple : rgb(0.86, 0.84, 0.9),
+        color: charged
+          ? red
+          : done
+            ? lime
+            : planned
+              ? purple
+              : rgb(0.96, 0.95, 0.98),
+        borderColor: charged
+          ? red
+          : done
+            ? lime
+            : planned
+              ? purple
+              : rgb(0.86, 0.84, 0.9),
         borderWidth: 1,
       });
       text(
@@ -208,18 +241,20 @@ export async function renderReport(
         y - 4,
         done ? 10 : 11,
         bold,
-        done ? dark : planned ? rgb(1, 1, 1) : muted,
+        charged ? rgb(1, 1, 1) : done ? dark : planned ? rgb(1, 1, 1) : muted,
       );
     }
     y -= 42;
   }
-  if (card) {
+  if (card || chargedPolicy) {
     if (y < 160) {
       footer();
       nextPage();
     }
     text(
-      "OK = absolviert   PLAN = geplant   Zahl = noch offen",
+      chargedPolicy
+        ? "OK grün = teilgenommen   OK rot = Absage / nicht erschienen"
+        : "OK = absolviert   PLAN = geplant   Zahl = noch offen",
       40,
       y,
       9,
@@ -262,7 +297,11 @@ export async function renderReport(
       y - 6,
       10,
       regular,
-      isAttended(event.status) ? rgb(0.32, 0.5, 0.17) : purple,
+      chargedPolicy && isChargedAbsence(event.status)
+        ? red
+        : isAttended(event.status)
+          ? rgb(0.32, 0.5, 0.17)
+          : purple,
     );
     let title = clean(
       `${event.event_type === "Athletiktraining" ? "Athletik · " : ""}${event.title}`,
@@ -270,9 +309,72 @@ export async function renderReport(
     while (regular.widthOfTextAtSize(title, 9) > 340)
       title = title.slice(0, -2);
     text(title, 40, y - 23, 9, regular, muted);
-    y -= 42;
+    y -= 38;
   }
-  if (y < 130) {
+  const excused = snapshot.events.filter((event) => event.status === "excused");
+  if (chargedPolicy && excused.length) {
+    if (y < 160) {
+      footer();
+      nextPage();
+    }
+    text("ENTSCHULDIGT · OHNE ANRECHNUNG", 40, y, 11, bold, purple);
+    y -= 20;
+    text(
+      "Keine Einheit und keine Trainingszeit angerechnet.",
+      40,
+      y,
+      9,
+      regular,
+      muted,
+    );
+    y -= 23;
+    for (const event of excused) {
+      const details = [
+        `${formatDate(event.starts_at)} · ${formatTime(event.starts_at)} - ${formatTime(event.ends_at)} Uhr`,
+        event.title,
+        [
+          event.event_type,
+          event.location_name,
+          event.trainer_name && `Coach: ${event.trainer_name}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      ].filter(Boolean);
+      const lines: string[] = [];
+      for (const detail of details) {
+        let line = "";
+        for (const word of clean(detail).split(" ")) {
+          if (regular.widthOfTextAtSize(`${line} ${word}`, 9) > 505 && line) {
+            lines.push(line);
+            line = "";
+          }
+          // Long unbroken input is split too, without omitting appointment data.
+          for (const char of (line ? " " : "") + word) {
+            if (regular.widthOfTextAtSize(line + char, 9) > 505) {
+              lines.push(line);
+              line = "";
+            }
+            line += char;
+          }
+        }
+        if (line) lines.push(line);
+      }
+      if (y - lines.length * 14 < 65) {
+        footer();
+        nextPage();
+      }
+      for (const line of lines) {
+        if (y < 65) {
+          footer();
+          nextPage();
+        }
+        text(line, 40, y, 9, regular, muted);
+        y -= 14;
+      }
+      y -= 12;
+    }
+  }
+  if (y < 145) {
     footer();
     nextPage();
   }
@@ -281,6 +383,11 @@ export async function renderReport(
   y -= 19;
   for (const line of [
     "Noch offene Prüfungen zählen nicht als absolvierte Einheiten.",
+    ...(chargedPolicy
+      ? [
+          "Absagen zählen als Einheit; Trainingszeit nur bei tatsächlicher Teilnahme.",
+        ]
+      : []),
     card
       ? "Aktuelle Übersicht; kein abgeschlossener Monatsbericht."
       : "Nachträgliche Korrekturen können eine neue Berichtsversion auslösen.",

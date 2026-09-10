@@ -206,7 +206,7 @@ export function TeamView({
                     <span>
                       <Users size={15} />
                       {
-                        e.participants.filter((p) => p.status !== "cancelled")
+                        e.participants.filter((p) => !p.removed_from_event)
                           .length
                       }{" "}
                       Teilnehmer
@@ -295,7 +295,10 @@ export function TeamView({
                       status: "cancelled",
                       participants: e.participants.map((p) => ({
                         ...p,
-                        status: "cancelled" as const,
+                        status:
+                          p.status === "excused"
+                            ? ("excused" as const)
+                            : ("cancelled" as const),
                       })),
                     }
                   : e,
@@ -434,7 +437,7 @@ function EventEditor({
 }) {
   const [children, setChildren] = useState(
       event?.participants
-        .filter((p) => p.status !== "cancelled")
+        .filter((p) => !p.removed_from_event)
         .map((p) => p.player_id) ?? [],
     ),
     [eventType, setEventType] = useState(
@@ -506,8 +509,8 @@ function EventEditor({
           player_id: child,
           period_id: period.id,
           status:
-            (event?.participants.find((p) => p.player_id === child)?.status ===
-            "cancelled"
+            (event?.participants.find((p) => p.player_id === child)
+              ?.removed_from_event
               ? "planned"
               : event?.participants.find((p) => p.player_id === child)
                   ?.status) ?? ("planned" as const),
@@ -687,7 +690,7 @@ function EventEditor({
                         : "Kein Leistungszeitraum"}
                     </small>
                     <small>
-                      {stats.completed} absolviert · {stats.planned} geplant ·
+                      {stats.completed} angerechnet · {stats.planned} geplant ·
                       Anspruch {period?.included_units ?? 0}
                     </small>
                     <small>

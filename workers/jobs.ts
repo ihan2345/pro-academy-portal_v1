@@ -13,6 +13,7 @@ import {
 } from "../src/lib/mail";
 import {
   attendanceStats,
+  isRemovedParticipant,
   disciplineStats,
   formatDate,
   formatTime,
@@ -108,14 +109,17 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
         .single(),
       db
         .from("event_participants")
-        .select("status,training_events(starts_at,ends_at,event_type)")
+        .select("*,training_events(starts_at,ends_at,event_type)")
         .eq("period_id", payload.period_id),
     ]);
     for (const r of results) if (r.error) throw r.error;
     const player = results[0].data!,
       event = results[1].data!,
       period = results[2].data!;
-    const participation = results[3].data as unknown as {
+    const participation = (results[3].data ?? []).filter(
+      (p) =>
+        !isRemovedParticipant(p as Parameters<typeof isRemovedParticipant>[0]),
+    ) as unknown as {
       status: Attendance;
       training_events: {
         starts_at: string;
@@ -156,10 +160,10 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
       text = `Hallo,\ndas nächste Training von ${player.first_name} ist geplant:\n${formatDate(start)}, ${formatTime(start)} bis ${formatTime(end)} Uhr\n${event.locations?.name}, ${event.locations?.address}\nTrainer: ${event.staff_profiles?.display_name}\nÄnderungen oder Stornierungen sind aktuell nur über unser Team möglich. Bitte kontaktiere uns per WhatsApp.\n${contact}`;
     } else if (kind === "attendance") {
       subject = `Training absolviert: ${player.first_name}`;
-      text = `Das Training von ${player.first_name} am ${formatDate(start)} von ${formatTime(start)} bis ${formatTime(end)} Uhr wurde als absolviert eingetragen.\nTrainingsdauer: ${durationMinutes(start, end)} Minuten. Aktueller Stand: ${progress}.\n${next ? `Nächste geplante Einheit: ${formatDate(next.training_events.starts_at)} um ${formatTime(next.training_events.starts_at)} Uhr.` : "Der nächste Termin wird von unserem Team geplant."}\nIst diese Angabe aus deiner Sicht nicht korrekt? Kontaktiere uns bitte über WhatsApp.\n${contact}`;
+      text = `Das Training von ${player.first_name} am ${formatDate(start)} von ${formatTime(start)} bis ${formatTime(end)} Uhr wurde als absolviert eingetragen.\nTrainingsdauer: ${durationMinutes(start, end)} Minuten. Angerechnete Einheiten: ${progress}.\n${next ? `Nächste geplante Einheit: ${formatDate(next.training_events.starts_at)} um ${formatTime(next.training_events.starts_at)} Uhr.` : "Der nächste Termin wird von unserem Team geplant."}\nIst diese Angabe aus deiner Sicht nicht korrekt? Kontaktiere uns bitte über WhatsApp.\n${contact}`;
     } else {
       subject = `Training aktualisiert: ${player.first_name}`;
-      text = `Unser Team hat das Training von ${player.first_name} am ${formatDate(start)} aktualisiert.\nAktueller Stand: ${progress}. Den aktuellen Termin- und Teilnahmestatus findest du im Elternportal.\nFragen oder Unstimmigkeiten? ${contact}`;
+      text = `Unser Team hat das Training von ${player.first_name} am ${formatDate(start)} aktualisiert.\nAngerechnete Einheiten: ${progress}. Absagen und nicht wahrgenommene Termine zählen als Einheit, entschuldigte Termine nicht. Trainingszeit zählt nur bei tatsächlicher Teilnahme. Den aktuellen Termin- und Teilnahmestatus findest du im Elternportal.\nFragen oder Unstimmigkeiten? ${contact}`;
     }
   }
   const to =

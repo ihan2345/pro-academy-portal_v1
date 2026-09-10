@@ -18,6 +18,8 @@ export function stampCardSnapshot(
       starts_at: event.starts_at,
       ends_at: event.ends_at,
       status: event.status,
+      location_name: event.location_name,
+      trainer_name: event.trainer_name,
     }))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const stats = attendanceStats(rows);
@@ -32,6 +34,7 @@ export function stampCardSnapshot(
     minutes: stats.minutes,
     created_at: createdAt,
     version: 1,
+    attendance_policy: "charged_absences_v1",
     whatsapp,
     events: rows,
   };

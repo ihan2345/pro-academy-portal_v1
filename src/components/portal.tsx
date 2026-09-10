@@ -51,6 +51,7 @@ import {
   STATUS_LABELS,
   whatsappLink,
   isAttended,
+  isChargedAbsence,
 } from "@/lib/domain";
 import { TeamView } from "./team";
 import { AdminView } from "./admin";
@@ -70,6 +71,8 @@ export function Brand() {
     </div>
   );
 }
+import { ExcusedNotes } from "./attendance-notes";
+
 export function Badge({
   children,
   tone = "neutral",
@@ -539,7 +542,7 @@ export function Portal({
                       <section className="stats-grid">
                         <Stat
                           icon={<CheckCheck />}
-                          title="Absolvierte Einheiten"
+                          title="Angerechnete Einheiten"
                           value={String(stats.completed)}
                           suffix={`/ ${period?.included_units ?? 0}`}
                           note="in diesem Leistungszeitraum"
@@ -575,21 +578,23 @@ export function Portal({
                         <div className="stamp-caption">
                           <b>
                             {stats.completed} von {period?.included_units ?? 0}{" "}
-                            Einheiten absolviert
+                            Einheiten angerechnet
                           </b>
                           <span>Jede Einheit zählt.</span>
                         </div>
                         <Stamps
                           period={period}
                           completed={stats.completed}
+                          charged={stats.charged}
                           planned={stats.planned}
                           splitStats={splitStats}
                         />
                         <StampLegend />
+                        <ExcusedNotes events={rows} />
                         <div className="panel-bottom">
                           <span>
                             {stats.neutral > 0
-                              ? `${stats.neutral} ${stats.neutral === 1 ? "Einheit entschuldigt oder ausgefallen" : "Einheiten entschuldigt oder ausgefallen"}`
+                              ? `${stats.neutral} ${stats.neutral === 1 ? "Einheit entschuldigt, ohne Anrechnung" : "Einheiten entschuldigt, ohne Anrechnung"}`
                               : "Dein Fortschritt wird automatisch aktualisiert."}
                           </span>
                           <Link href="/stempelkarte">
@@ -665,17 +670,19 @@ export function Portal({
                       <Stamps
                         period={period}
                         completed={stats.completed}
+                        charged={stats.charged}
                         planned={stats.planned}
                         splitStats={splitStats}
                       />
                       <StampLegend />
+                      <ExcusedNotes events={rows} />
                       <p>
                         {stats.completed} von {period?.included_units ?? 0}{" "}
-                        Einheiten absolviert · {durationLabel(stats.minutes)}
+                        Einheiten angerechnet · {durationLabel(stats.minutes)}
                       </p>
                       {stats.completed > (period?.included_units ?? 0) && (
                         <p>
-                          Zusätzlich absolviert:{" "}
+                          Zusätzlich angerechnet:{" "}
                           {stats.completed - (period?.included_units ?? 0)}{" "}
                           Einheiten.
                         </p>
@@ -942,10 +949,12 @@ export function Stamps({
   completed,
   planned,
   splitStats,
+  charged = 0,
 }: {
   period?: Period;
   completed: number;
   planned: number;
+  charged?: number;
   splitStats?: ReturnType<typeof disciplineStats>;
 }) {
   if ((period?.athletics_units ?? 0) > 0 && splitStats) {
@@ -970,10 +979,11 @@ export function Stamps({
                   athletics_units: 0,
                 }}
                 completed={stats.completed}
+                charged={stats.charged}
                 planned={stats.planned}
               />
               {stats.completed > units && (
-                <p>Zusätzlich absolviert: {stats.completed - units}</p>
+                <p>Zusätzlich angerechnet: {stats.completed - units}</p>
               )}
             </section>
           );
@@ -983,14 +993,16 @@ export function Stamps({
   }
   return (
     <div className="stamps">
-      {stampSlots(period?.included_units ?? 0, completed, planned).map(
+      {stampSlots(period?.included_units ?? 0, completed, planned, charged).map(
         (state, i) => (
           <div className="stamp-item" key={i}>
             <div
               className={`stamp ${state}`}
-              aria-label={`Einheit ${i + 1}: ${state === "done" ? "absolviert" : state === "planned" ? "geplant" : "offen"}`}
+              aria-label={`Einheit ${i + 1}: ${state === "done" ? "absolviert" : state === "charged" ? "angerechnet, abgesagt oder nicht erschienen" : state === "planned" ? "geplant" : "offen"}`}
             >
-              {state === "done" ? (
+              {state === "charged" ? (
+                <span>OK</span>
+              ) : state === "done" ? (
                 <Check size={25} strokeWidth={2.6} />
               ) : state === "planned" ? (
                 <Clock size={23} />
@@ -1011,6 +1023,10 @@ export function StampLegend() {
       <span>
         <i className="legend-dot lime" />
         Absolviert
+      </span>
+      <span>
+        <i className="legend-dot red" />
+        Angerechnet (Absage)
       </span>
       <span>
         <i className="legend-dot purple" />
@@ -1131,11 +1147,13 @@ function Schedule({
                   <td>
                     <Badge
                       tone={
-                        isAttended(status)
-                          ? "success"
-                          : status === "planned"
-                            ? "purple"
-                            : "neutral"
+                        isChargedAbsence(status)
+                          ? "danger"
+                          : isAttended(status)
+                            ? "success"
+                            : status === "planned"
+                              ? "purple"
+                              : "neutral"
                       }
                     >
                       {isAttended(status) ? (
@@ -1265,7 +1283,15 @@ function EventDetail({
   return (
     <Modal title="Dein Training" close={close}>
       <div className="event-detail">
-        <Badge tone={status === "planned" ? "purple" : "success"}>
+        <Badge
+          tone={
+            isChargedAbsence(status)
+              ? "danger"
+              : isAttended(status)
+                ? "success"
+                : "purple"
+          }
+        >
           {STATUS_LABELS[status]}
         </Badge>
         <h3>{event.title}</h3>

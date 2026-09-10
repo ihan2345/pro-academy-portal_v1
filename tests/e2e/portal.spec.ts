@@ -10,7 +10,7 @@ test("parent dashboard, multiple children, stamp semantics and WhatsApp details"
   await expect(page.getByLabel("Einheit 3: absolviert")).toBeVisible();
   await expect(page.getByLabel("Einheit 4: geplant")).toBeVisible();
   await page.getByLabel("Kind auswählen").selectOption("lena");
-  await expect(page.getByText("1 von 4 Einheiten absolviert")).toBeVisible();
+  await expect(page.getByText("1 von 4 Einheiten angerechnet")).toBeVisible();
   await page.getByLabel("Kind auswählen").selectOption("max");
   await page
     .getByRole("button", { name: "Termindetails", exact: true })
@@ -143,9 +143,9 @@ test("admin and coach stamp cards: child selection, PDF export and mobile layout
     await expect(
       page.getByRole("heading", { name: "Stempelkarten." }),
     ).toBeVisible();
-    await expect(page.getByText("3 von 8 Einheiten absolviert")).toBeVisible();
+    await expect(page.getByText("3 von 8 Einheiten angerechnet")).toBeVisible();
     await page.getByLabel("Kind auswählen").selectOption("lena");
-    await expect(page.getByText("1 von 4 Einheiten absolviert")).toBeVisible();
+    await expect(page.getByText("1 von 4 Einheiten angerechnet")).toBeVisible();
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "PDF exportieren" }).click();
     expect((await download).suggestedFilename()).toContain("Stempelkarte");

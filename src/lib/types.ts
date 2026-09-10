@@ -40,6 +40,7 @@ export interface Training {
     period_id: string | null;
     status: Attendance;
     reason?: string | null;
+    removed_from_event?: boolean;
   }[];
 }
 export interface Report {

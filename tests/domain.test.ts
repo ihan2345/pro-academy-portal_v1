@@ -57,7 +57,7 @@ it("preserves stripe half-open periods without 30 day arithmetic", () => {
   expect(periodLabel(p.starts_at, p.ends_at)).toBe("12.09.2026 – 11.10.2026");
   expect(() => periodFromStripe(2, 1)).toThrow();
 });
-it("counts completed minutes only and neutral statuses separately", () => {
+it("counts absences as units but never as attended minutes", () => {
   const rows = [
     "attended_auto",
     "attended_manual",
@@ -71,12 +71,21 @@ it("counts completed minutes only and neutral statuses separately", () => {
     ends_at: utc("2026-09-09", "18:00"),
   }));
   expect(attendanceStats(rows)).toEqual({
-    completed: 2,
+    completed: 4,
+    charged: 2,
     planned: 1,
     minutes: 180,
-    neutral: 3,
+    neutral: 1,
   });
   expect(stampSlots(4, 2, 1)).toEqual(["done", "done", "planned", "open"]);
+  expect(stampSlots(6, 4, 1, 2)).toEqual([
+    "done",
+    "done",
+    "charged",
+    "charged",
+    "planned",
+    "open",
+  ]);
   expect(LEGACY_PLAN_UNITS).toEqual({
     FirstTouch: 4,
     GameChanger: 8,

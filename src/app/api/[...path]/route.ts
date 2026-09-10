@@ -27,7 +27,10 @@ import {
   syncInvoicePeriods,
 } from "@/lib/server/stripe";
 import { renderReport } from "@/lib/pdf";
-import { subscriptionPreviewLoader } from "@/lib/server/stripe-preview";
+import {
+  stripeCustomerPage,
+  subscriptionPreviewLoader,
+} from "@/lib/server/stripe-preview";
 import { demoData } from "@/lib/demo";
 import { isAllowedTestLogin } from "@/lib/server/auth-test-access";
 import {
@@ -316,12 +319,23 @@ async function handler(
         if (action === "stripe-customers") {
           const stripe = stripeClient();
           const loadSubscriptions = subscriptionPreviewLoader(stripe);
-          const page = await stripe.customers.list({
-            limit: 25,
-            ...(request.nextUrl.searchParams.get("after")
-              ? { starting_after: request.nextUrl.searchParams.get("after")! }
-              : {}),
-          });
+          const { q, after } = z
+            .object({
+              q: z
+                .string()
+                .trim()
+                .max(120)
+                .refine(
+                  (value) => !value || value.length >= 3,
+                  "Bitte mindestens 3 Zeichen eingeben.",
+                ),
+              after: z.string().min(1).max(1000).optional(),
+            })
+            .parse({
+              q: request.nextUrl.searchParams.get("q") ?? "",
+              after: request.nextUrl.searchParams.get("after") ?? undefined,
+            });
+          const page = await stripeCustomerPage(stripe, q, after);
           const rows = await Promise.all(
             page.data.map(async (c) => {
               const { data: parents, error } = await db
@@ -343,7 +357,7 @@ async function handler(
           return json({
             rows,
             has_more: page.has_more,
-            next_cursor: page.data.at(-1)?.id,
+            next_cursor: page.next_cursor,
           });
         }
         const table = action === "einladungen" ? "parent_invitations" : action;

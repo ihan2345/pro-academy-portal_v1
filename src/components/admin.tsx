@@ -571,7 +571,40 @@ function StripeImport({
 }) {
   const [customers, setCustomers] = useState<RecordRow[]>([]),
     [current, setCurrent] = useState<RecordRow | null>(null),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [query, setQuery] = useState(""),
+    [activeQuery, setActiveQuery] = useState(""),
+    [loaded, setLoaded] = useState(false),
+    [nextCursor, setNextCursor] = useState<string | null>(null);
+  async function loadCustomers(term: string, cursor?: string) {
+    setBusy(true);
+    try {
+      const params = new URLSearchParams();
+      if (term) params.set("q", term);
+      if (cursor) params.set("after", cursor);
+      const result = await api(
+        `admin/stripe-customers${params.size ? `?${params}` : ""}`,
+        undefined,
+        "GET",
+      );
+      setCustomers((previous) =>
+        cursor
+          ? [
+              ...new Map(
+                [...previous, ...result.rows].map((c) => [c.id, c]),
+              ).values(),
+            ]
+          : result.rows,
+      );
+      setActiveQuery(term);
+      setLoaded(true);
+      setNextCursor(result.has_more ? result.next_cursor : null);
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <section className="panel account-panel">
@@ -586,26 +619,58 @@ function StripeImport({
           <button
             className="primary-button"
             disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                const result = await api(
-                  "admin/stripe-customers",
-                  undefined,
-                  "GET",
-                );
-                setCustomers(result.rows);
-              } catch (e) {
-                notify((e as Error).message);
-              } finally {
-                setBusy(false);
-              }
+            onClick={() => {
+              setQuery("");
+              void loadCustomers("");
             }}
           >
             <RefreshCw size={17} />
-            {busy ? "Wird geladen …" : "Testkunden laden"}
+            Kunden laden
           </button>
         </div>
+        <form
+          className="stripe-customer-search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (query.trim().length >= 3) void loadCustomers(query.trim());
+          }}
+        >
+          <label className="search-input">
+            <Search size={18} />
+            <input
+              type="search"
+              aria-label="Eltern nach Name oder E-Mail suchen"
+              placeholder="Name oder E-Mail des Elternteils"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              maxLength={120}
+              disabled={busy}
+            />
+          </label>
+          <button
+            className="primary-button"
+            disabled={busy || query.trim().length < 3}
+          >
+            Suchen
+          </button>
+        </form>
+        <p>Suche im gesamten Stripe-Kundenbestand ab 3 Zeichen.</p>
+        <p role="status" aria-live="polite">
+          {busy
+            ? "Kunden werden geladen …"
+            : loaded
+              ? activeQuery
+                ? `${customers.length} Treffer geladen für „${activeQuery}“.`
+                : `${customers.length} Kunden geladen.`
+              : "Kunden laden oder direkt nach einem Elternteil suchen."}
+        </p>
+        {loaded && !busy && !customers.length && (
+          <p>
+            Keine Kunden gefunden. Prüfe den Namen oder suche nach der E-Mail.
+            Ganz neue Stripe-Kunden erscheinen möglicherweise erst etwas später
+            in der Suche; verwende dafür „Kunden laden“.
+          </p>
+        )}
         {data.demo && (
           <div className="info-note">
             <AlertCircle size={20} />
@@ -634,6 +699,15 @@ function StripeImport({
             </button>
           </div>
         ))}
+        {nextCursor && (
+          <button
+            className="secondary-button"
+            disabled={busy}
+            onClick={() => void loadCustomers(activeQuery, nextCursor)}
+          >
+            Weitere Kunden laden
+          </button>
+        )}
       </section>
       {current && (
         <Modal

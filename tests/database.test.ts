@@ -588,3 +588,138 @@ it("finishes notification atomically and rejects a second completion with the sa
     )[0].payload.url,
   ).toBeUndefined();
 });
+
+it("charges cancellations and no-shows without minutes, preserves excuses and excludes editor removals", async () => {
+  const period1 = "71000000-0000-0000-0000-000000000001";
+  const period2 = "71000000-0000-0000-0000-000000000002";
+  for (const [period, child, item] of [
+    [period1, ids.child1, "charge-si-1"],
+    [period2, ids.child2, "charge-si-2"],
+  ]) {
+    await db.query(
+      `insert into entitlement_periods(id,player_id,subscription_id,stripe_customer_id,stripe_item_id,stripe_price_id,product_name,starts_at,ends_at,included_units) values($1,$2,$3,'cus_test_1',$4,'price_test','GameChanger','2024-07-12T00:00:00+02','2024-08-12T00:00:00+02',8)`,
+      [period, child, ids.sub, item],
+    );
+  }
+  const create = async (children = [ids.child1]) => {
+    const config = {
+      ...input(children),
+      starts_at: "2024-07-15T14:30:00Z",
+      ends_at: "2024-07-15T16:00:00Z",
+    };
+    const [row] = await asUser<{ save_training: string }>(
+      ids.staff,
+      "select save_training($1)",
+      [JSON.stringify(config)],
+    );
+    const participants = await adminQuery<{ id: string; player_id: string }>(
+      "select id,player_id from event_participants where event_id=$1",
+      [row.save_training],
+    );
+    return { event: row.save_training, config, participants };
+  };
+  const events = [];
+  for (const status of ["attended_manual", "cancelled", "absent", "excused"]) {
+    const event = await create();
+    events.push(event);
+    await asUser(
+      ids.staff,
+      "select set_attendance($1,$2,'Test Wertungsregel',false)",
+      [event.participants[0].id, status],
+    );
+  }
+  const removal = await create([ids.child1, ids.child2]);
+  await asUser(ids.staff, "select save_training($1)", [
+    JSON.stringify({
+      ...removal.config,
+      id: removal.event,
+      revision: 1,
+      player_ids: [ids.child2],
+    }),
+  ]);
+  const removed = (
+    await adminQuery<{ removed_from_event: boolean }>(
+      "select removed_from_event from event_participants where event_id=$1 and player_id=$2",
+      [removal.event, ids.child1],
+    )
+  )[0];
+  expect(removed.removed_from_event).toBe(true);
+  await expect(
+    asUser(
+      ids.staff,
+      "select set_attendance($1,'attended_manual','Cannot charge removed child',false)",
+      [removal.participants.find((p) => p.player_id === ids.child1)!.id],
+    ),
+  ).rejects.toThrow("entfernt");
+
+  const group = await create([ids.child1, ids.child2]);
+  const excusedId = group.participants.find(
+    (p) => p.player_id === ids.child1,
+  )!.id;
+  const cancelledId = group.participants.find(
+    (p) => p.player_id === ids.child2,
+  )!.id;
+  await asUser(
+    ids.staff,
+    "select set_attendance($1,'excused','Entschuldigt vor Gesamtabsage',false)",
+    [excusedId],
+  );
+  await asUser(
+    ids.staff,
+    "select cancel_training($1,'Gesamter Termin abgesagt')",
+    [group.event],
+  );
+  expect(
+    (
+      await adminQuery<{ status: string }>(
+        "select status from event_participants where id=$1",
+        [excusedId],
+      )
+    )[0].status,
+  ).toBe("excused");
+  await asUser(
+    ids.staff,
+    "select set_attendance($1,'excused','Entschuldigt nach Gesamtabsage',true)",
+    [cancelledId],
+  );
+  expect(
+    (
+      await adminQuery<{ status: string }>(
+        "select status from event_participants where id=$1",
+        [cancelledId],
+      )
+    )[0].status,
+  ).toBe("excused");
+
+  const capture = async () => {
+    const [{ capture_report: id }] = await adminQuery<{
+      capture_report: string;
+    }>("select capture_report($1,true)", [period1]);
+    return (
+      await adminQuery<{ snapshot: any }>(
+        "select snapshot from report_snapshots where id=$1",
+        [id],
+      )
+    )[0].snapshot;
+  };
+  const report = await capture();
+  expect(report).toMatchObject({
+    completed: 3,
+    minutes: 90,
+    attendance_policy: "charged_absences_v1",
+  });
+  expect(report.events).toHaveLength(5);
+  expect(report.events.every((e: any) => e.id !== removal.event)).toBe(true);
+  expect(report.events.find((e: any) => e.status === "excused")).toMatchObject({
+    location_name: expect.any(String),
+    trainer_name: "Test Coach",
+  });
+  expect(JSON.stringify(report)).not.toContain("Geheime interne Notiz");
+  await asUser(
+    ids.staff,
+    "select set_attendance($1,'excused','Absage nachträglich entschuldigt',true)",
+    [events[1].participants[0].id],
+  );
+  expect(await capture()).toMatchObject({ completed: 2, minutes: 90 });
+  expect(report.completed).toBe(3);
+});

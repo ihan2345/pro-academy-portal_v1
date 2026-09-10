@@ -13,6 +13,7 @@ import {
   STATUS_LABELS,
 } from "@/lib/domain";
 import { stampCardSnapshot } from "@/lib/stamp-card";
+import { ExcusedNotes } from "./attendance-notes";
 import { Stamps, StampLegend } from "./portal";
 
 type Card = {
@@ -286,17 +287,19 @@ export function StampCards({
             <Stamps
               period={period}
               completed={stats.completed}
+              charged={stats.charged}
               planned={stats.planned}
               splitStats={disciplineStats(card.snapshot.events)}
             />
             <StampLegend />
+            <ExcusedNotes events={card.snapshot.events} />
             <p>
               {stats.completed} von {card.snapshot.included_units} Einheiten
-              absolviert · {durationLabel(stats.minutes)}
+              angerechnet · {durationLabel(stats.minutes)}
             </p>
             {stats.completed > card.snapshot.included_units && (
               <p>
-                Zusätzlich absolviert:{" "}
+                Zusätzlich angerechnet:{" "}
                 {stats.completed - card.snapshot.included_units} Einheiten
               </p>
             )}

@@ -1241,6 +1241,20 @@ small {
   color: #9196a0;
   margin: 20px 0;
 }
+.stripe-customer-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+.stripe-customer-search .search-input {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.stripe-customer-search input {
+  min-width: 0;
+  width: 100%;
+}
 .account-person {
   display: flex;
   gap: 13px;
@@ -2611,4 +2625,49 @@ label {
   .stamp-card-table td { padding: 2px 0; border: 0; }
   .stamp-card-table td:first-child { font-weight: 600; }
   .stamp-card-table td:last-child { color: #7650b9; }
+}
+
+/* Charged absences consume a unit, without adding attended training time. */
+.stamp.charged {
+  background: #c02636;
+  border-color: #c02636;
+  color: #fff;
+}
+.stamp.charged span {
+  font-weight: 800;
+  font-size: 18px;
+}
+.legend-dot.red {
+  background: #c02636;
+}
+.badge.danger {
+  background: #ffedef;
+  color: #a51e2b;
+}
+.excused-notes {
+  margin: 20px 0;
+  padding: 18px;
+  border-left: 4px solid #9563e9;
+  background: #f6f2fc;
+  color: #263244;
+  border-radius: 8px;
+}
+.excused-notes h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.excused-notes p {
+  font-size: 14px;
+}
+.excused-notes ul {
+  padding-left: 20px;
+  margin-bottom: 0;
+}
+.excused-notes li {
+  margin: 12px 0;
+}
+.excused-notes li span {
+  display: block;
+  font-size: 14px;
+  margin-top: 4px;
 }

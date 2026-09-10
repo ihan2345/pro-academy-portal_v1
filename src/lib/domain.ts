@@ -24,6 +24,18 @@ export const LEGACY_PLAN_UNITS = {
 } as const;
 export const isAttended = (status: Attendance) =>
   status === "attended_auto" || status === "attended_manual";
+export const isChargedAbsence = (status: Attendance) =>
+  status === "cancelled" || status === "absent";
+export const countsAsUnit = (status: Attendance) =>
+  isAttended(status) || isChargedAbsence(status);
+/** Legacy editor removals predate the dedicated migration column. */
+export const isRemovedParticipant = (row: {
+  removed_from_event?: boolean;
+  status: Attendance;
+  reason?: string | null;
+}) =>
+  row.removed_from_event ??
+  (row.status === "cancelled" && row.reason === "Aus Termin entfernt");
 export function calculateAutoAttendanceAt(
   eventEnd: string | Date,
   timezone = TIMEZONE,
@@ -131,25 +143,32 @@ export function attendanceStats(
   rows: { status: Attendance; starts_at: string; ends_at: string }[],
 ) {
   const completed = rows.filter((row) => isAttended(row.status));
+  const charged = rows.filter((row) => isChargedAbsence(row.status)).length;
   return {
-    completed: completed.length,
+    completed: completed.length + charged,
+    charged,
     planned: rows.filter((row) => row.status === "planned").length,
     minutes: completed.reduce(
       (n, row) => n + durationMinutes(row.starts_at, row.ends_at),
       0,
     ),
-    neutral: rows.filter((row) =>
-      ["cancelled", "excused", "absent"].includes(row.status),
-    ).length,
+    neutral: rows.filter((row) => row.status === "excused").length,
   };
 }
 export function stampSlots(
   units: number,
   completed: number,
   planned: number,
-): ("done" | "planned" | "open")[] {
+  charged = 0,
+): ("done" | "charged" | "planned" | "open")[] {
   return Array.from({ length: units }, (_, i) =>
-    i < completed ? "done" : i < completed + planned ? "planned" : "open",
+    i < completed - charged
+      ? "done"
+      : i < completed
+        ? "charged"
+        : i < completed + planned
+          ? "planned"
+          : "open",
   );
 }
 export function reportDueAt(

@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceDb } from "./service-db";
 import { assertRole, HttpError } from "./security";
+import { isRemovedParticipant } from "../domain";
 import { stampCardSnapshot } from "../stamp-card";
 import type { Period, Player } from "../types";
 import type { ReportSnapshot } from "../pdf";
@@ -29,7 +30,7 @@ export async function loadStampCard(
     db
       .from("event_participants")
       .select(
-        "status,training_events!inner(id,title,event_type,starts_at,ends_at)",
+        "*,training_events!inner(id,title,event_type,starts_at,ends_at,locations(name),staff_profiles(display_name))",
       )
       .eq("period_id", periodId)
       .eq("player_id", period.player_id)
@@ -45,13 +46,23 @@ export async function loadStampCard(
       400,
       "Zu viele Einträge für einen einzelnen Stempelkartenexport.",
     );
-  const events = (eventsResult.data ?? []).map((row) => ({
-    ...(row.training_events as unknown as Omit<
-      ReportSnapshot["events"][number],
-      "status"
-    >),
-    status: row.status,
-  }));
+  const events = (eventsResult.data ?? [])
+    .filter(
+      (row) =>
+        !isRemovedParticipant(
+          row as Parameters<typeof isRemovedParticipant>[0],
+        ),
+    )
+    .map((row) => ({
+      ...(row.training_events as unknown as Omit<
+        ReportSnapshot["events"][number],
+        "status"
+      >),
+      status: row.status,
+      location_name: (row.training_events as any).locations?.name ?? "",
+      trainer_name:
+        (row.training_events as any).staff_profiles?.display_name ?? "",
+    }));
   return {
     playerId: period.player_id as string,
     snapshot: stampCardSnapshot(

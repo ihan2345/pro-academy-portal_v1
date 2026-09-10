@@ -1,6 +1,37 @@
 import "server-only";
 import type Stripe from "stripe";
 
+export async function stripeCustomerPage(
+  stripe: Pick<Stripe, "customers">,
+  query = "",
+  cursor?: string,
+) {
+  const term = query.trim();
+  if (term) {
+    // Keep user input inside a quoted value, including quotes and backslashes.
+    const value = term.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const page = await stripe.customers.search({
+      query: `name~"${value}" OR email~"${value}"`,
+      limit: 25,
+      ...(cursor ? { page: cursor } : {}),
+    });
+    return {
+      data: page.data,
+      has_more: page.has_more,
+      next_cursor: page.next_page ?? null,
+    };
+  }
+  const page = await stripe.customers.list({
+    limit: 25,
+    ...(cursor ? { starting_after: cursor } : {}),
+  });
+  return {
+    data: page.data,
+    has_more: page.has_more,
+    next_cursor: page.has_more ? (page.data.at(-1)?.id ?? null) : null,
+  };
+}
+
 // Keep the product cache within one admin request, shared across its customers.
 export function subscriptionPreviewLoader(
   stripe: Pick<Stripe, "subscriptions" | "products">,

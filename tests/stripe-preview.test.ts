@@ -1,6 +1,59 @@
 import { describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
-import { subscriptionPreviewLoader } from "../src/lib/server/stripe-preview";
+import {
+  stripeCustomerPage,
+  subscriptionPreviewLoader,
+} from "../src/lib/server/stripe-preview";
+
+describe("Stripe customer lookup", () => {
+  it("loads older customers with the list cursor and stops at the last page", async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce({ data: [{ id: "cus_first" }], has_more: true })
+      .mockResolvedValueOnce({ data: [{ id: "cus_older" }], has_more: false });
+    const stripe = { customers: { list } } as unknown as Stripe;
+    const first = await stripeCustomerPage(stripe);
+    const second = await stripeCustomerPage(stripe, "", first.next_cursor!);
+    expect(list.mock.calls[1][0]).toEqual({
+      limit: 25,
+      starting_after: "cus_first",
+    });
+    expect(second.data[0].id).toBe("cus_older");
+    expect(second.next_cursor).toBeNull();
+  });
+
+  it("searches Stripe beyond the loaded list and uses its separate search cursor", async () => {
+    const search = vi.fn().mockResolvedValue({
+      data: [{ id: "cus_matching_older_customer" }],
+      has_more: true,
+      next_page: "search_next",
+    });
+    const list = vi.fn();
+    const stripe = { customers: { search, list } } as unknown as Stripe;
+    const first = await stripeCustomerPage(stripe, "  Ayhan  ");
+    await stripeCustomerPage(stripe, "Ayhan", first.next_cursor!);
+    expect(search).toHaveBeenLastCalledWith({
+      query: 'name~"Ayhan" OR email~"Ayhan"',
+      limit: 25,
+      page: "search_next",
+    });
+    expect(first.data[0].id).toBe("cus_matching_older_customer");
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("quotes names literally so user input cannot add a Stripe query clause", async () => {
+    const search = vi.fn().mockResolvedValue({ data: [], has_more: false });
+    const stripe = { customers: { search } } as unknown as Stripe;
+    const term = 'Ayhan\\" OR email:"other@example.com';
+    const result = await stripeCustomerPage(stripe, term);
+    expect(search).toHaveBeenCalledWith({
+      query:
+        'name~"Ayhan\\\\\\" OR email:\\"other@example.com" OR email~"Ayhan\\\\\\" OR email:\\"other@example.com"',
+      limit: 25,
+    });
+    expect(result.next_cursor).toBeNull();
+  });
+});
 
 function fixture(product: string | object = "prod_current") {
   const list = vi.fn(async (params: Stripe.SubscriptionListParams) => {

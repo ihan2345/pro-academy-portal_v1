@@ -4,7 +4,7 @@ import { demoData } from "../demo";
 import type { PortalData, Training, Report } from "../types";
 import { isDemo } from "./config";
 import { sessionUser } from "./supabase";
-import { periodLabel, disciplineStats } from "../domain";
+import { periodLabel, disciplineStats, isRemovedParticipant } from "../domain";
 import { canOpenPortalSection, portalHome } from "../portal-access";
 export async function loadPortal(section: string): Promise<PortalData> {
   if (isDemo())
@@ -62,7 +62,10 @@ export async function loadPortal(section: string): Promise<PortalData> {
       address: e.locations?.address ?? "",
       trainer_name: e.staff_profiles?.display_name ?? "",
       internal_note: e.event_private_notes?.note ?? "",
-      participants: e.event_participants,
+      participants: e.event_participants.filter(
+        (p: Parameters<typeof isRemovedParticipant>[0]) =>
+          !isRemovedParticipant(p),
+      ),
     })) as Training[],
     reports: reports.map((r) => ({
       id: r.id,
@@ -76,10 +79,20 @@ export async function loadPortal(section: string): Promise<PortalData> {
       units: r.snapshot.included_units,
       minutes: r.snapshot.minutes,
       athletics_units: r.snapshot.athletics_units ?? 0,
-      football_completed: disciplineStats(r.snapshot.events ?? []).football
-        .completed,
-      athletics_completed: disciplineStats(r.snapshot.events ?? []).athletics
-        .completed,
+      football_completed: disciplineStats(
+        (r.snapshot.events ?? []).filter(
+          (e: { status: string }) =>
+            r.snapshot.attendance_policy === "charged_absences_v1" ||
+            !["cancelled", "absent"].includes(e.status),
+        ),
+      ).football.completed,
+      athletics_completed: disciplineStats(
+        (r.snapshot.events ?? []).filter(
+          (e: { status: string }) =>
+            r.snapshot.attendance_policy === "charged_absences_v1" ||
+            !["cancelled", "absent"].includes(e.status),
+        ),
+      ).athletics.completed,
     })) as Report[],
     locations: locations as PortalData["locations"],
     trainers: trainers.map((t) => ({ id: t.id, name: t.display_name })),
