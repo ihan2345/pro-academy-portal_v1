@@ -74,8 +74,9 @@ Diese Ausnahme galt ausschließlich für den einmaligen Versandprozess. `.env.lo
 - [ ] Als ayh.kaan@googlemail.com über eine tatsächlich empfangene Login-Mail im Browser anmelden und Leon, Kontingent, nächsten Termin und Bericht selbst prüfen.
 - [ ] Sitzung nach Neuladen sowie nach tatsächlichem Ablauf/Erneuerung prüfen. Die zuvor beobachtete erneute Anmeldeaufforderung auf Cloudflare ist noch nicht abschließend erklärt.
 - [x] Separates Coachkonto für Muhsin Ayhan unter `proacademy.by.ak@gmail.com` mit Rolle `staff` angelegt. Alle 16 Beispieltrainings zugeordnet; Trainingsinhalte und Teilnahmen unverändert geprüft. Altes Coachprofil deaktiviert, bestehende Adminrolle und Elternkonto unverändert.
-- [ ] Neue Coachadresse für das Login auf Cloudflare freigeben: Konfiguration lokal vorbereitet, Deployment noch nicht beauftragt.
-- [ ] Einladung zum Coachportal senden und Eingang bestätigen: Nachricht vorbereitet; Versand folgt nach Freigabe des Logins.
+- [x] Neue Coachadresse nach ausdrücklicher Freigabe auf Cloudflare für das Login freigegeben (10.09.2026, Worker-Version `0f7a9c95-e0f3-4f42-af6a-68be9e98804a`). Loginseite HTTP 200; regulärer Benachrichtigungsempfänger unverändert iCloud.
+- [x] Einladung „Deine Einladung zum ProAcademy-Coachportal“ einmalig per Proton an `proacademy.by.ak@gmail.com` gesendet, Versandauftrag `sent`, ein Versuch. Link zur Anmeldung; persönlichen Magic Link fordert der Coach dort selbst an.
+- [ ] Eingang der Coach-Einladung und anschließenden Login-Mail im Postfach bestätigen.
 - [ ] Mit dem separaten Coachkonto anmelden und Mitarbeiterrechte einschließlich gesperrter Admin-/Elternbereiche prüfen.
 - [ ] Automatischer Cloudflare-Hintergrundlauf einschließlich Container-Versand: bleibt bewusst deaktiviert und ist durch die einzelnen SMTP-Tests nicht abgenommen.
 - [ ] Tatsächliche Stripe-Abrechnung, Kundenportal und Stripe-Ereignisverarbeitung: nicht Teil dieses Beispiels; keine Zahlung ausgelöst.
