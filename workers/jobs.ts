@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { serviceDb } from "../src/lib/server/service-db";
 import { processStripeInbox } from "../src/lib/server/stripe";
 import { processReports } from "../src/lib/server/reports";
+import { renderReport, type ReportSnapshot } from "../src/lib/pdf";
 import {
   CaptureProvider,
   ProtonProvider,
@@ -47,7 +48,33 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
     text = "",
     url = app,
     attachments: Email["attachments"];
-  if (kind === "invitation") {
+  if (kind === "stamp_card") {
+    // Recheck recipient linkage at delivery time; never send a queued card to a removed parent.
+    const { data: links, error } = await db
+      .from("parent_players")
+      .select("parents!inner(id,contact_email,archived_at)")
+      .eq("player_id", payload.player_id)
+      .eq("parent_id", payload.parent_id)
+      .is("parents.archived_at", null);
+    if (error) throw error;
+    const parent = links?.[0]?.parents as unknown as
+      { contact_email: string } | undefined;
+    if (!parent || parent.contact_email !== job.recipient)
+      throw new Error(
+        "Empfängerzuordnung der Stempelkarte hat sich geändert; Versand prüfen.",
+      );
+    const snapshot = (job.payload as { snapshot: ReportSnapshot }).snapshot;
+    subject = `Stempelkarte für ${snapshot.player_name}`;
+    text = `Hallo,\nim Anhang findest du die Stempelkarte für ${snapshot.player_name}.\nDatenstand: ${formatDate(snapshot.created_at)}, ${formatTime(snapshot.created_at)} Uhr. Die Übersicht enthält absolvierte und geplante Einheiten für den angegebenen Leistungszeitraum.\nDies ist eine aktuelle Stempelkarte; bestehende Monatsberichte bleiben unverändert.`;
+    url = `${app}/stempelkarte`;
+    attachments = [
+      {
+        filename: "ProAcademy-Stempelkarte.pdf",
+        content: Buffer.from(await renderReport(snapshot, "stamp_card")),
+        contentType: "application/pdf",
+      },
+    ];
+  } else if (kind === "invitation") {
     subject = "Deine Einladung zur ProAcademy";
     text = `Hallo ${payload.parent_name},\nwillkommen in deinem Elternportal. Deine persönliche Einladung ist sieben Tage gültig.\n${payload.url}`;
     url = payload.url;

@@ -1,5 +1,7 @@
 # ProAcademy Eltern- und Trainingsportal
 
+**Zukünftige Funktionen:** [V2.0 – dauerhafte Checkliste für die nächste Version](V2.0.md). Dort sammeln wir vorgemerkte Optimierungen getrennt von der aktuellen Veröffentlichung.
+
 **Deployment-Sperre (aktuelle Nutzeranweisung): Änderungen nur lokal umsetzen und prüfen. Kein Deployment ohne einen neuen ausdrücklichen Deploy-Befehl des Nutzers.**
 
 **Veröffentlichungsvorgabe vom 10.09.2026:** Vorerst ausschließlich unter `https://proacademy-portal.proacademy-by-ak.workers.dev` veröffentlichen. `portal.proacademy-ak.com` bleibt für dieses Portal deaktiviert, bis der Nutzer ausdrücklich anders anweist. Keine Custom-Domain-Route und keinen DNS-Eintrag dafür anlegen. Build-URL, Supabase-Weiterleitungen und Stripe-Webhook auf die Worker-Adresse ausrichten.
@@ -192,3 +194,9 @@ npx wrangler deploy --config workers/cloudflare/wrangler.jsonc --dry-run
 Das finale Image enthält den vollständig gebündelten Node-Runner (CommonJS) ohne npm-/Next.js-Abhängigkeitsbaum. Es erhält keine `.env`-Dateien und läuft als Benutzer `node`. Die notwendigen Laufzeitwerte werden über Worker-Secrets übergeben: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `PROTON_SMTP_TOKEN`, `CRON_SECRET`. Die übrigen Werte stehen in der Gateway-Konfiguration. Der Token muss mit dem Portal-`CRON_SECRET` übereinstimmen. Keine Geheimnisse in Image, Git oder Befehlsargumente schreiben.
 
 Erst nach Bereitstellung und erfolgreicher Container-Verbindungsprüfung: den geschützten Endpunkt `https://proacademy-jobs.proacademy-by-ak.workers.dev` als `JOB_RUNNER_URL` verwenden, Jobabläufe abnehmen und Verarbeitung explizit aktivieren. Mail-Capture nicht auf echten wartenden Versandaufträgen laufen lassen: es markiert sie als verarbeitet, ohne eine E-Mail zuzustellen. Die Versandabnahme erfolgt mit `MAIL_PROVIDER=proton` und `EMAIL_TEST_MODE=true` an den eigenen bestätigten Empfänger. Der allgemeine Elternversand bleibt bis zur Freigabe gesperrt.
+
+## Stempelkarten für das Team
+
+Admin und Coach haben eigene Stempelkartenansichten unter `/admin/stempelkarten` beziehungsweise `/team/stempelkarten`. Dort lassen sich Kinder suchen, Leistungszeiträume auswählen und aktuelle Karten als PDF exportieren. Der PDF-Export erstellt keinen Monatsbericht und verändert keine vorhandenen Berichtsversionen.
+
+Der gezielte Mailversand erlaubt ausschließlich zugeordnete, nicht archivierte Elternkontakte. Er legt einen Auftrag vom Typ `stamp_card` mit dem Datenstand zum Anforderungszeitpunkt und dem auslösenden Mitarbeiter an. Wiederholungen derselben Anfrage werden dedupliziert; der Hintergrunddienst prüft die Empfängerzuordnung vor der Verarbeitung erneut und verwendet die bestehende Testempfängerbegrenzung. Bei deaktiviertem Hintergrunddienst bleibt der Auftrag ausstehend. Für diese Funktion müssen bei einer ausdrücklich freigegebenen Veröffentlichung sowohl Portal als auch Jobrunner aktualisiert werden.

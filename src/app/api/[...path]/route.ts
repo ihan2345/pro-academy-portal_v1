@@ -30,6 +30,11 @@ import { renderReport } from "@/lib/pdf";
 import { subscriptionPreviewLoader } from "@/lib/server/stripe-preview";
 import { demoData } from "@/lib/demo";
 import { isAllowedTestLogin } from "@/lib/server/auth-test-access";
+import {
+  loadStampCard,
+  stampCardRecipients,
+  queueStampCard,
+} from "@/lib/server/stamp-cards";
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
     status,
@@ -231,6 +236,51 @@ async function handler(
         .createSignedUrl(file.storage_path, 60, { download: true });
       if (signError) throw signError;
       return NextResponse.redirect(signed.signedUrl, 303);
+    }
+    if (["team/stamp-card", "team/stamp-card-send"].includes(path)) {
+      assertRole(role, "team");
+      if (path === "team/stamp-card" && request.method === "GET") {
+        const periodId = z
+          .uuid()
+          .parse(request.nextUrl.searchParams.get("period_id"));
+        const card = await loadStampCard(db, role, periodId);
+        if (request.nextUrl.searchParams.get("download") === "pdf") {
+          const bytes = await renderReport(card.snapshot, "stamp_card");
+          return new NextResponse(new Uint8Array(bytes), {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": `attachment; filename="ProAcademy-Stempelkarte-${periodId}.pdf"`,
+              "Cache-Control": "private, no-store",
+            },
+          });
+        }
+        return json({
+          snapshot: card.snapshot,
+          recipients: await stampCardRecipients(role, card.playerId),
+          testRecipient:
+            process.env.EMAIL_TEST_MODE !== "false"
+              ? (process.env.EMAIL_TEST_RECIPIENT ?? "")
+              : null,
+        });
+      }
+      if (path === "team/stamp-card-send" && request.method === "POST") {
+        const input = z
+          .object({
+            period_id: z.uuid(),
+            parent_id: z.uuid(),
+            request_id: z.uuid(),
+          })
+          .strict()
+          .parse(await request.json());
+        const id = await queueStampCard(db, role, user.id, input);
+        return json({
+          ok: true,
+          id,
+          message:
+            "Versand vorgemerkt. Die E-Mail wird vom Hintergrunddienst verarbeitet.",
+        });
+      }
+      throw new HttpError(405, "Methode nicht erlaubt.");
     }
     if (path.startsWith("team/")) {
       assertRole(role, "team");

@@ -2590,3 +2590,25 @@ label {
   font-size: 13px;
   color: var(--muted);
 }
+
+.stamp-card-filters, .stamp-card-mail { padding: 24px; margin-bottom: 24px; }
+.stamp-card-filters > label { display: block; margin-bottom: 16px; }
+.stamp-card-mail label { display: block; margin: 16px 0; }
+.stamp-card-mail select, .stamp-card-filters select, .stamp-card-filters input { width: 100%; min-width: 0; }
+
+.staff-stamp-card { margin-bottom: 24px; }
+.staff-stamp-card > .secondary-button { margin: 18px 25px 0; }
+.stamp-card-table { width: 100%; border-collapse: collapse; text-align: left; }
+.stamp-card-table th { color: #858094; font-size: 12px; font-weight: 500; background: #fcfcfd; }
+.stamp-card-table th, .stamp-card-table td { padding: 16px 24px; border-top: 1px solid #eff0f4; }
+.stamp-card-table td { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.stamp-card-table td small { color: #858094; }
+@media (max-width: 600px) {
+  .stamp-card-filters .form-grid { grid-template-columns: 1fr; }
+  .stamp-card-table thead { display: none; }
+  .stamp-card-table tbody, .stamp-card-table tr, .stamp-card-table td { display: block; }
+  .stamp-card-table tr { padding: 16px 24px; border-top: 1px solid #eff0f4; }
+  .stamp-card-table td { padding: 2px 0; border: 0; }
+  .stamp-card-table td:first-child { font-weight: 600; }
+  .stamp-card-table td:last-child { color: #7650b9; }
+}

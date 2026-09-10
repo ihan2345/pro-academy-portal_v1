@@ -9,6 +9,7 @@ export function canOpenPortalSection(role: PortalRole, section: string) {
   if (section === "konto") return true;
   if (section === "admin" || section.startsWith("admin/"))
     return role === "admin";
-  if (section === "team") return role === "staff";
+  if (section === "team" || section.startsWith("team/"))
+    return role === "staff";
   return role === "parent";
 }

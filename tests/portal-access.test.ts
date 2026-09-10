@@ -78,3 +78,12 @@ it("leitet nicht angemeldete Nutzer weiterhin zur Anmeldung", async () => {
   await expect(loadPortal("admin")).rejects.toThrow("redirect:/login");
   expect(auth.from).not.toHaveBeenCalled();
 });
+
+it("keeps team stamp cards in the correct role navigation", () => {
+  expect(canOpenPortalSection("staff", "team/stempelkarten")).toBe(true);
+  expect(canOpenPortalSection("admin", "admin/stempelkarten")).toBe(true);
+  expect(canOpenPortalSection("parent", "team/stempelkarten")).toBe(false);
+  expect(canOpenPortalSection("parent", "admin/stempelkarten")).toBe(false);
+  expect(canOpenPortalSection("staff", "admin/stempelkarten")).toBe(false);
+  expect(canOpenPortalSection("admin", "team/stempelkarten")).toBe(false);
+});

@@ -15,6 +15,7 @@ import {
   STATUS_LABELS,
   isAttended,
   disciplineStats,
+  attendanceStats,
   type Attendance,
 } from "./domain";
 export interface ReportSnapshot {
@@ -42,11 +43,15 @@ const dark = rgb(0.043, 0.059, 0.102),
   lime = rgb(0.557, 1, 0.004),
   muted = rgb(0.46, 0.49, 0.54),
   purple = rgb(0.545, 0.325, 0.996);
-export async function renderReport(snapshot: ReportSnapshot) {
+export async function renderReport(
+  snapshot: ReportSnapshot,
+  mode: "report" | "stamp_card" = "report",
+) {
+  const card = mode === "stamp_card";
   const pdf = await PDFDocument.create();
   const logo = await pdf.embedPng(brandLogoPngBase64);
   pdf.setTitle(
-    `Trainingsbericht ${snapshot.player_name} · ${periodLabel(snapshot.starts_at, snapshot.ends_at)}`,
+    `${card ? "Stempelkarte" : "Trainingsbericht"} ${snapshot.player_name} · ${periodLabel(snapshot.starts_at, snapshot.ends_at)}`,
   );
   pdf.setAuthor("ProAcademy by Ayhan & Karaman");
   const regular = await pdf.embedFont(StandardFonts.Helvetica),
@@ -81,9 +86,18 @@ export async function renderReport(snapshot: ReportSnapshot) {
       height: 80,
     });
     text("BY AYHAN & KARAMAN", 122, 783, 9, bold, rgb(0.7, 0.73, 0.77));
-    text("TRAININGSBERICHT", 365, 787, 12, bold, rgb(1, 1, 1));
     text(
-      `Version ${snapshot.version} · ${formatDate(snapshot.created_at)}`,
+      card ? "STEMPELKARTE" : "TRAININGSBERICHT",
+      365,
+      787,
+      12,
+      bold,
+      rgb(1, 1, 1),
+    );
+    text(
+      card
+        ? `Stand ${formatDate(snapshot.created_at)} · ${formatTime(snapshot.created_at)}`
+        : `Version ${snapshot.version} · ${formatDate(snapshot.created_at)}`,
       365,
       768,
       9,
@@ -104,9 +118,18 @@ export async function renderReport(snapshot: ReportSnapshot) {
     text(`Seite ${pdf.getPageCount()}`, 505, 31, 8, regular, muted);
   }
   nextPage();
-  text(snapshot.player_name, 40, y, 25, bold);
+  const fitSize = (value: string, size: number) =>
+    Math.min(size, 515 / Math.max(bold.widthOfTextAtSize(clean(value), 1), 1));
+  text(snapshot.player_name, 40, y, fitSize(snapshot.player_name, 25), bold);
   y -= 25;
-  text(snapshot.product_name, 40, y, 12, bold, purple);
+  text(
+    snapshot.product_name,
+    40,
+    y,
+    fitSize(snapshot.product_name, 12),
+    bold,
+    purple,
+  );
   y -= 22;
   text(
     `Leistungszeitraum ${periodLabel(snapshot.starts_at, snapshot.ends_at)}`,
@@ -131,11 +154,13 @@ export async function renderReport(snapshot: ReportSnapshot) {
             label: "Fußball",
             units: snapshot.included_units - athletics,
             completed: split.football.completed,
+            planned: split.football.planned,
           },
           {
             label: "Athletik",
             units: athletics,
             completed: split.athletics.completed,
+            planned: split.athletics.planned,
           },
         ]
       : [
@@ -143,6 +168,7 @@ export async function renderReport(snapshot: ReportSnapshot) {
             label: "",
             units: snapshot.included_units,
             completed: snapshot.completed,
+            planned: attendanceStats(snapshot.events).planned,
           },
         ];
   y -= 30;
@@ -160,26 +186,47 @@ export async function renderReport(snapshot: ReportSnapshot) {
     for (let i = 0; i < group.units; i++) {
       // At most eight stamps on each A4 row, including the new 12-unit PRO pass.
       if (i > 0 && i % 8 === 0) y -= 48;
+      if (y < 120) {
+        footer();
+        nextPage();
+        y -= 25;
+      }
       const x = 60 + (i % 8) * 64,
-        done = i < group.completed;
+        done = i < group.completed,
+        planned = card && !done && i < group.completed + group.planned;
       page.drawCircle({
         x,
         y,
         size: 19,
-        color: done ? lime : rgb(0.96, 0.95, 0.98),
-        borderColor: done ? lime : rgb(0.86, 0.84, 0.9),
+        color: done ? lime : planned ? purple : rgb(0.96, 0.95, 0.98),
+        borderColor: done ? lime : planned ? purple : rgb(0.86, 0.84, 0.9),
         borderWidth: 1,
       });
       text(
-        done ? "OK" : String(i + 1),
-        x - (done ? 8 : i >= 9 ? 6 : 3),
+        done ? "OK" : planned ? "PLAN" : String(i + 1),
+        x - (done ? 8 : planned ? 13 : i >= 9 ? 6 : 3),
         y - 4,
         done ? 10 : 11,
         bold,
-        done ? dark : muted,
+        done ? dark : planned ? rgb(1, 1, 1) : muted,
       );
     }
     y -= 42;
+  }
+  if (card) {
+    if (y < 160) {
+      footer();
+      nextPage();
+    }
+    text(
+      "OK = absolviert   PLAN = geplant   Zahl = noch offen",
+      40,
+      y,
+      9,
+      regular,
+      muted,
+    );
+    y -= 22;
   }
   y -= 8;
   text("TRAININGSÜBERSICHT", 40, y, 10, bold);
@@ -234,7 +281,9 @@ export async function renderReport(snapshot: ReportSnapshot) {
   y -= 19;
   for (const line of [
     "Noch offene Prüfungen zählen nicht als absolvierte Einheiten.",
-    "Nachträgliche Korrekturen können eine neue Berichtsversion auslösen.",
+    card
+      ? "Aktuelle Übersicht; kein abgeschlossener Monatsbericht."
+      : "Nachträgliche Korrekturen können eine neue Berichtsversion auslösen.",
   ]) {
     text(line, 40, y, 9, regular, muted);
     y -= 15;

@@ -54,6 +54,7 @@ import {
 } from "@/lib/domain";
 import { TeamView } from "./team";
 import { AdminView } from "./admin";
+import { StampCards } from "./stamp-cards";
 export function Brand() {
   return (
     <div className="brand">
@@ -207,6 +208,7 @@ export function Portal({
       title: "Trainingsplanung",
       icon: CalendarDays,
     },
+    { href: "/admin/stempelkarten", title: "Stempelkarten", icon: Goal },
     { href: "/admin/spieler", title: "Spieler & Eltern", icon: Users },
     { href: "/admin/mitarbeiter", title: "Mitarbeiter", icon: UserRound },
     { href: "/admin/standorte", title: "Standorte", icon: MapPin },
@@ -225,6 +227,7 @@ export function Portal({
     : team
       ? [
           { href: "/team", title: "Trainingsplanung", icon: CalendarDays },
+          { href: "/team/stempelkarten", title: "Stempelkarten", icon: Goal },
           { href: "/konto", title: "Mein Konto", icon: Settings },
         ]
       : nav;
@@ -379,7 +382,10 @@ export function Portal({
           </div>
         </header>
         <main className="main-content">
-          {section === "konto" && data.role !== "parent" ? (
+          {(admin || team) &&
+          ["admin/stempelkarten", "team/stempelkarten"].includes(section) ? (
+            <StampCards data={data} notify={setToast} />
+          ) : section === "konto" && data.role !== "parent" ? (
             <>
               <div className="page-heading">
                 <div>
@@ -931,7 +937,7 @@ function Stat({
     </article>
   );
 }
-function Stamps({
+export function Stamps({
   period,
   completed,
   planned,
@@ -999,7 +1005,7 @@ function Stamps({
     </div>
   );
 }
-function StampLegend() {
+export function StampLegend() {
   return (
     <div className="stamp-legend">
       <span>

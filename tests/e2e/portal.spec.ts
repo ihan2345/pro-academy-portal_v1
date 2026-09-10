@@ -133,3 +133,40 @@ test("admin screens render and forms validate", async ({ page }) => {
   await page.getByRole("button", { name: "Testkunden laden" }).click();
   await expect(page.getByRole("status")).toContainText("Testumgebung");
 });
+
+test("admin and coach stamp cards: child selection, PDF export and mobile layout", async ({
+  page,
+  isMobile,
+}) => {
+  for (const area of ["admin", "team"]) {
+    await page.goto(`/${area}/stempelkarten`);
+    await expect(
+      page.getByRole("heading", { name: "Stempelkarten." }),
+    ).toBeVisible();
+    await expect(page.getByText("3 von 8 Einheiten absolviert")).toBeVisible();
+    await page.getByLabel("Kind auswählen").selectOption("lena");
+    await expect(page.getByText("1 von 4 Einheiten absolviert")).toBeVisible();
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "PDF exportieren" }).click();
+    expect((await download).suggestedFilename()).toContain("Stempelkarte");
+    await expect(
+      page.getByRole("button", { name: "Per E-Mail vormerken" }),
+    ).toHaveCount(0);
+    await page.getByLabel("Kind suchen").fill("unbekanntes Kind");
+    await expect(
+      page.getByText("Keine passenden Kinder gefunden."),
+    ).toBeVisible();
+    await page.getByLabel("Kind suchen").fill("");
+    await page.getByLabel("Kind auswählen").selectOption("max");
+    if (isMobile)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        ),
+      ).toBe(false);
+    await page.screenshot({
+      path: `test-results/stamp-cards-${area}-${isMobile ? "mobile" : "desktop"}.png`,
+      fullPage: true,
+    });
+  }
+});
