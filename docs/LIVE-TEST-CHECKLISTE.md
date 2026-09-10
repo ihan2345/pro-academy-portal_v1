@@ -92,7 +92,7 @@ Die offizielle Domain bleibt deaktiviert. Keine neuen Deployments ohne ausdrück
 
 Die Einladung verwendet die Worker-Adresse. Die Googlemail-Freigabe für das dortige Login wurde am 10.09.2026 veröffentlicht (Anwendungscommit `bbb56e7`, Worker-Version `ab4ebb1b-0fc0-4b6c-a8e8-27d78277e528`). Beide Branches `start` und `main` enthalten die Anpassung. Geprüft: neue Anmeldesperre aktiv, nicht freigegebene Adresse vor Mailversand abgewiesen, Login HTTP 200, Hintergrundjobs weiterhin gesperrt. Die Einladung ist gültig und noch nicht verbraucht; Leon, seine 16 Trainings und sein Bericht sind unverändert vorhanden. Für die spätere Bereinigung ist die Einladung samt zusätzlichem Versandauftrag unter `parentInvitation` im privaten Testmanifest erfasst.
 
-## Stempelkarten für Admin und Coach – lokal vorbereitet
+## Stempelkarten für Admin und Coach – veröffentlicht am 10.09.2026
 
 - [x] Eigene Navigation `/admin/stempelkarten` und `/team/stempelkarten`; Eltern bleiben im eigenen Portal.
 - [x] Kindersuche und Auswahl vorhandener Leistungszeiträume, einschließlich aktueller und vergangener Zeiträume.
@@ -101,7 +101,7 @@ Die Einladung verwendet die Worker-Adresse. Die Googlemail-Freigabe für das dor
 - [x] Versandvorbereitung an einen ausgewählten, aktuell zugeordneten Elternkontakt. Keine frei eingegebene Zieladresse. Testempfängerbegrenzung bleibt bestehen.
 - [x] Datenstand für den Mailanhang wird beim Vormerken gespeichert. Wiederholung derselben Versandanfrage erzeugt keinen zweiten Auftrag. Vor Verarbeitung wird die Elternzuordnung erneut geprüft.
 - [x] Rollen-/Empfängertests, PDF-Erzeugung und Desktop-/Handy-Prüfung erfolgreich. Kein tatsächlicher Mailversand für diese neue Funktion ausgeführt.
-- [ ] Nach ausdrücklichem Deploy-Befehl Portal und Hintergrunddienst mit dem neuen Stempelkarten-Versandtyp veröffentlichen. Der Hintergrunddienst bleibt bis zur separaten Freigabe deaktiviert.
+- [x] Nach ausdrücklichem Deploy-Befehl auf `start` und `main` gesichert und veröffentlicht: Portal `c9643df4-0562-4463-8116-35d385f5ffdc`, Hintergrunddienst `5dbe03b2-5242-4ca0-960b-e7c6049c43da`, Anwendungscommit `a90aa4a`. Hintergrundprüfung für Supabase, Stripe, SMTP und PDF erfolgreich; `/run` weiterhin HTTP 503. Die neuen Seiten verlangen Anmeldung, der PDF-Endpunkt verweigert unangemeldete Zugriffe mit HTTP 401. Kein Versand und keine Datenänderung durch die Prüfungen.
 - [ ] Anschließend PDF-Export und einen einzelnen freigegebenen Stempelkartenversand mit dem echten Coachkonto persönlich abnehmen.
 
 Bedienung: **Stempelkarten → Kind und Leistungszeitraum wählen → PDF exportieren** oder **Empfänger auswählen → Per E-Mail vormerken**. Ein vorgemerkter Auftrag ist noch keine zugestellte E-Mail. Bei deaktiviertem Hintergrunddienst bleibt er ausstehend.

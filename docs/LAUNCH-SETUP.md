@@ -264,3 +264,17 @@ Livetest-Vorgaben: eindeutig markierter Testspieler, Testtrainer und Teststandor
 Nach erneutem ausdrücklichem Deploy-Befehl den validierten Anwendungsstand `bbb56e7` auf `start` und `main` gepusht und auf der Worker-Adresse veröffentlicht. Aktive Portal-Version: `ab4ebb1b-0fc0-4b6c-a8e8-27d78277e528`. `AUTH_TEST_EMAILS=ayh.kaan@googlemail.com` ergänzt die bestehende Adminanmeldung; `EMAIL_TEST_RECIPIENT=ayh.kaan@icloud.com` und die Versand-/Jobsperren bleiben unverändert. Typprüfung, 118 Tests und Cloudflare-Build erfolgreich; vorhandenes geprüftes Bundle verwendet. Nach Deployment neue Anmeldesperre anhand einer nicht freigegebenen Adresse geprüft (vor SMTP abgewiesen), Login HTTP 200, Hintergrund `/run` HTTP 503.
 
 Die inzwischen ausgeführten echten Supabase-, Cloudflare-API-, PDF- und SMTP-Prüfungen einschließlich bestätigtem Postfacheingang stehen in [LIVE-TEST-CHECKLISTE.md](LIVE-TEST-CHECKLISTE.md). Muhsin Ayhan hat ein Coachprofil bei unveränderter Adminrolle; Sportzentrum Schürenkamp ist eingerichtet. Die Beispielfamilie nutzt Googlemail. Ihre bereits versendete Einladung ist gültig und noch nicht angenommen; persönliche Elternanmeldung und Sitzungserneuerung stehen zur Abnahme aus. Kind, 16 Trainings und Bericht sind erhalten. Testdaten nicht entfernt, keine offizielle Domain aktiviert, kein globaler Hintergrundlauf freigegeben.
+
+
+## Stempelkarten für Admin und Coach veröffentlicht (10.09.2026)
+
+Nach ausdrücklichem Commit-, Push- und Deployment-Befehl Anwendungsstand `a90aa4a` auf `start` und `main` gesichert. Enthalten sind Stempelkartenansichten für Admin und Coach, aktueller PDF-Export und gezielte Versandaufträge an zugeordnete Eltern sowie die dauerhafte V2.0-Checkliste.
+
+- Portal: `c9643df4-0562-4463-8116-35d385f5ffdc`, ausschließlich auf der bisherigen Worker-Adresse.
+- Hintergrunddienst: `5dbe03b2-5242-4ca0-960b-e7c6049c43da`.
+- Neues Container-Image: `sha256:b49a13c82872331d7b15dedaf9794a8fc390f1a87c43dbbabf9c2835fa06a625`.
+- Validierung: 132 Tests, Desktop-/Handy-Abnahme, PDF-Sichtprüfung, Typprüfung, Cloudflare-Build und Jobrunner-Build erfolgreich. Vorhandenes geprüftes Portal-Bundle verwendet.
+- Cloud-Prüfung des neuen Containers: Supabase, Stripe, SMTP und PDF erfolgreich, ohne Versand oder Datenbankänderungen. `/run` liefert weiterhin HTTP 503.
+- Portal-Smokecheck: Login HTTP 200, neue Admin-/Coachseiten leiten ohne Sitzung zur Anmeldung, neuer PDF-Endpunkt ohne Sitzung HTTP 401.
+
+`JOBS_ENABLED=false`, `MAIL_PROVIDER=capture`, `EMAIL_TEST_MODE=true` und der allgemeine Testempfänger iCloud bleiben erhalten. Die Coach- und Elternadressen bleiben für Login-Mails freigegeben. Die offizielle Domain bleibt deaktiviert. Persönliche Abnahme der neuen Stempelkartenansichten und ein separat freigegebener tatsächlicher Stempelkartenversand stehen noch aus.
