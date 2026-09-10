@@ -24,6 +24,7 @@
         "PARENT_CANCELLATION_ENABLED": "false",
         "EMAIL_TEST_MODE": "true",
         "EMAIL_TEST_RECIPIENT": "ayh.kaan@icloud.com",
+        "AUTH_TEST_EMAILS": "ayh.kaan@googlemail.com",
         "MAIL_PROVIDER": "capture",
         "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UDrgZRoswKHkM76cERxORbx"
       }

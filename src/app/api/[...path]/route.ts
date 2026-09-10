@@ -29,6 +29,7 @@ import {
 import { renderReport } from "@/lib/pdf";
 import { subscriptionPreviewLoader } from "@/lib/server/stripe-preview";
 import { demoData } from "@/lib/demo";
+import { isAllowedTestLogin } from "@/lib/server/auth-test-access";
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
     status,
@@ -162,14 +163,10 @@ async function handler(
       const { email } = z
         .object({ email: z.email() })
         .parse(await request.json());
-      if (
-        process.env.EMAIL_TEST_MODE !== "false" &&
-        email.toLowerCase() !==
-          (process.env.EMAIL_TEST_RECIPIENT ?? "").toLowerCase()
-      )
+      if (!isAllowedTestLogin(email))
         throw new HttpError(
           400,
-          "Im Testbetrieb ist nur die konfigurierte Test-E-Mail-Adresse zugelassen.",
+          "Im Testbetrieb sind nur die freigegebenen Test-E-Mail-Adressen zugelassen.",
         );
       const store = await cookies(),
         hash = store.get("pa_invitation")?.value;

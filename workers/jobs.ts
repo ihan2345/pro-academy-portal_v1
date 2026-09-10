@@ -38,7 +38,7 @@ export const captureProvider = new CaptureProvider(async (mail) => {
     { mode: 0o600 },
   );
 });
-async function compose(job: Record<string, unknown>): Promise<Email> {
+export async function compose(job: Record<string, unknown>): Promise<Email> {
   const db = serviceDb(),
     payload = job.payload as Record<string, string>,
     app = process.env.APP_URL ?? "",
