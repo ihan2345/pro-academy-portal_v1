@@ -251,6 +251,8 @@ TypeScript-Prüfung im Produktionsbuild, alle 114 Tests und OpenNext-Cloudflare-
 
 Nach Veröffentlichung geprüft: Login und Logo HTTP 200, geschützte Trainingsplanung unangemeldet HTTP 307, Admin-API ohne Anmeldung HTTP 401. Bestehende echte Cloud-Admin-Sitzung öffnet Trainingsplanung mit eigenem Menü; `/team` leitet zu `/admin` um. Offizielle Domain weiterhin ohne A-/CNAME-Eintrag. Lokale Vorschau neu gestartet und geöffnet.
 
+Beim anschließenden erneuten Aufruf der Cloud-Trainingsplanung erschien die Anmeldung. Die Ursache ist noch nicht belegt; die Erneuerung einer länger bestehenden Sitzung bleibt ein offener Abnahmepunkt. Der Cloud-Tab bleibt auf der Anmeldeseite geöffnet; keine Login-Mail automatisch angefordert.
+
 Der Nutzer erlaubt nun ausdrücklich markierte Testdatensätze im bestehenden Supabase-Projekt für einen echten Test mit anschließender gezielter Bereinigung. Dies ersetzt für diesen abgegrenzten Test die frühere Vorgabe, fiktive Daten ausschließlich in einem separaten Testprojekt anzulegen. Das bestehende Skript `test:external` bleibt ausschließlich für ein entbehrliches Testprojekt bestimmt und darf hierfür nicht unverändert ausgeführt werden.
 
 Vorprüfung des Livetests: jeweils null Spieler, Eltern, Mitarbeiterprofile, Standorte, Abos, Trainings und Benachrichtigungsaufträge. Hintergrund-Endpunkt `/run` weiterhin HTTP 503. In diesem Veröffentlichungsschritt noch keine Testdaten angelegt und keine E-Mails gesendet.
