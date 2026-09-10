@@ -8,7 +8,7 @@ Die Daten liegen im tatsächlichen Supabase-Projekt. Terminplanung und Statusän
 
 | Eintrag | Inhalt | Nach dem Test |
 | --- | --- | --- |
-| Coach | Muhsin Ayhan, ayh.kaan@icloud.com | Behalten; bestehende Adminrechte bleiben erhalten |
+| Coach | Muhsin Ayhan, proacademy.by.ak@gmail.com, Rolle Mitarbeiter | Behalten; Adminzugang ayh.kaan@icloud.com bleibt separat erhalten |
 | Trainingsort | Sportzentrum Schürenkamp, Grenzstraße 1, 45881 Gelsenkirchen, Deutschland | Behalten |
 | Test-Elternteil | Daniel Becker · LIVE-TEST, ayh.kaan@googlemail.com | Nach Abnahme bereinigen |
 | Testkind | Leon Becker · LIVE-TEST, Jahrgang 2015, U12 | Nach Abnahme bereinigen |
@@ -73,7 +73,10 @@ Diese Ausnahme galt ausschließlich für den einmaligen Versandprozess. `.env.lo
 - [x] Anpassung für Googlemail-Testanmeldung nach ausdrücklicher Freigabe auf Cloudflare veröffentlicht. Adminanmeldung über iCloud bleibt möglich; die allgemeine Versandbegrenzung ist unverändert.
 - [ ] Als ayh.kaan@googlemail.com über eine tatsächlich empfangene Login-Mail im Browser anmelden und Leon, Kontingent, nächsten Termin und Bericht selbst prüfen.
 - [ ] Sitzung nach Neuladen sowie nach tatsächlichem Ablauf/Erneuerung prüfen. Die zuvor beobachtete erneute Anmeldeaufforderung auf Cloudflare ist noch nicht abschließend erklärt.
-- [ ] Reine Mitarbeiterrolle mit eigenem, von Admin getrenntem Konto prüfen, falls diese Abnahme gewünscht ist. Muhsin nutzt in diesem Test die vorhandene Adminrolle mit Coachprofil.
+- [x] Separates Coachkonto für Muhsin Ayhan unter `proacademy.by.ak@gmail.com` mit Rolle `staff` angelegt. Alle 16 Beispieltrainings zugeordnet; Trainingsinhalte und Teilnahmen unverändert geprüft. Altes Coachprofil deaktiviert, bestehende Adminrolle und Elternkonto unverändert.
+- [ ] Neue Coachadresse für das Login auf Cloudflare freigeben: Konfiguration lokal vorbereitet, Deployment noch nicht beauftragt.
+- [ ] Einladung zum Coachportal senden und Eingang bestätigen: Nachricht vorbereitet; Versand folgt nach Freigabe des Logins.
+- [ ] Mit dem separaten Coachkonto anmelden und Mitarbeiterrechte einschließlich gesperrter Admin-/Elternbereiche prüfen.
 - [ ] Automatischer Cloudflare-Hintergrundlauf einschließlich Container-Versand: bleibt bewusst deaktiviert und ist durch die einzelnen SMTP-Tests nicht abgenommen.
 - [ ] Tatsächliche Stripe-Abrechnung, Kundenportal und Stripe-Ereignisverarbeitung: nicht Teil dieses Beispiels; keine Zahlung ausgelöst.
 - [ ] Nach Abnahme Testfamilie, Kontrollkind, Trainings, synthetische Abozuordnungen, Testberichte und Test-Authkonto gezielt bereinigen. Echten Coach, Standort, Originaltarife und Admin behalten.
