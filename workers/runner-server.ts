@@ -6,6 +6,7 @@ export function createRunnerServer(options: {
   enabled: () => boolean;
   run: () => Promise<{ ok: boolean; [key: string]: unknown }>;
   verify: () => Promise<unknown>;
+  acceptance?: { enabled: () => boolean; run: () => Promise<unknown> };
   onDeadline: () => void;
   maxRunMs?: number;
 }) {
@@ -22,7 +23,10 @@ export function createRunnerServer(options: {
     // The health endpoint contains no customer data and never performs work.
     if (req.method === "GET" && req.url === "/health")
       return reply(200, { ok: true, enabled: options.enabled(), running });
-    if (req.method !== "POST" || !["/run", "/verify"].includes(req.url ?? ""))
+    if (
+      req.method !== "POST" ||
+      !["/run", "/verify", "/test-run"].includes(req.url ?? "")
+    )
       return reply(404, { error: "Not found" });
     const given = Buffer.from(req.headers.authorization ?? ""),
       expected = Buffer.from(`Bearer ${options.secret}`);
@@ -32,6 +36,11 @@ export function createRunnerServer(options: {
       return reply(503, {
         error: "Jobs disabled until launch checks are complete",
       });
+    if (
+      req.url === "/test-run" &&
+      (options.enabled() || !options.acceptance?.enabled())
+    )
+      return reply(503, { error: "Bounded test disabled" });
     if (running) return reply(409, { error: "Job already running" });
     running = true;
     // Terminate the process on a stuck run. Never unlock while its work continues.
@@ -42,7 +51,11 @@ export function createRunnerServer(options: {
     deadline.unref();
     try {
       const result =
-        req.url === "/verify" ? await options.verify() : await options.run();
+        req.url === "/verify"
+          ? await options.verify()
+          : req.url === "/test-run"
+            ? await options.acceptance!.run()
+            : await options.run();
       if (!res.writableEnded)
         reply((result as { ok?: boolean }).ok === false ? 500 : 200, result);
     } catch {

@@ -26,6 +26,7 @@
     "APP_URL": "https://proacademy-portal.proacademy-by-ak.workers.dev",
     "APP_MODE": "production",
     "JOBS_ENABLED": "false",
+    "ACCEPTANCE_TEST_ENABLED": "false",
     "MAIL_PROVIDER": "capture",
     "EMAIL_TEST_MODE": "true",
     "EMAIL_TEST_RECIPIENT": "ayh.kaan@icloud.com",

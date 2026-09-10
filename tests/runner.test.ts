@@ -42,6 +42,24 @@ async function setup(
 }
 
 describe("Node job runner", () => {
+  it("isolates an explicitly enabled test from the normal runner and its lock", async () => {
+    const bounded = vi.fn(async () => ({ ok: true, sent: 0 }));
+    const { call, run } = await setup({
+      enabled: () => false,
+      acceptance: { enabled: () => true, run: bounded },
+    });
+    expect((await call("/test-run", "bad")).status).toBe(401);
+    expect((await call("/run")).status).toBe(503);
+    expect((await call("/test-run")).status).toBe(200);
+    expect(bounded).toHaveBeenCalledOnce();
+    expect(run).not.toHaveBeenCalled();
+    const disabled = await setup({ enabled: () => false });
+    expect((await disabled.call("/test-run")).status).toBe(503);
+    const normal = await setup({
+      acceptance: { enabled: () => true, run: bounded },
+    });
+    expect((await normal.call("/test-run")).status).toBe(503);
+  });
   it("rejects missing/invalid authentication and exposes only harmless health data", async () => {
     const { call, run, verify } = await setup();
     expect((await call("/run", "bad")).status).toBe(401);
@@ -105,6 +123,29 @@ describe("Node job runner", () => {
 });
 
 describe("Cloudflare runner gateway", () => {
+  it("keeps cron inactive during the bounded test and forwards no caller scope", async () => {
+    const { env, fetch, getByName } = setupGateway("false");
+    expect((await runnerRequest(request("/test-run"), env)).status).toBe(503);
+    expect(getByName).not.toHaveBeenCalled();
+    const enabled = { ...env, ACCEPTANCE_TEST_ENABLED: "true" };
+    await scheduledRun(enabled);
+    expect(getByName).not.toHaveBeenCalled();
+    expect(
+      (
+        await runnerRequest(
+          new Request("https://jobs.example/test-run", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${secret}` },
+            body: '{"recipient":"foreign@example.com"}',
+          }),
+          enabled,
+        )
+      ).status,
+    ).toBe(200);
+    const forwarded = (fetch.mock.calls as unknown as [Request][])[0][0];
+    expect(forwarded.url).toBe("http://runner/test-run");
+    expect(await forwarded.text()).toBe("");
+  });
   function setupGateway(enabled = "true") {
     const fetch = vi.fn(async () => new Response('{"ok":true}'));
     const getByName = vi.fn(() => ({ fetch }));

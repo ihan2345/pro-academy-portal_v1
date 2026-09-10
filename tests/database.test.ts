@@ -723,3 +723,75 @@ it("charges cancellations and no-shows without minutes, preserves excuses and ex
   expect(await capture()).toMatchObject({ completed: 2, minutes: 90 });
   expect(report.completed).toBe(3);
 });
+
+it("bounded auto-attendance validates scope, respects the buffer and leaves other due events alone", async () => {
+  const [{ id: child }] = await adminQuery<{ id: string }>(
+    "insert into players(first_name,last_name,birth_year) values('Bounded','Test',2015) returning id",
+  );
+  const [{ id: parent }] = await adminQuery<{ id: string }>(
+    "insert into parents(full_name,contact_email) values('Bounded Test','bounded@test.invalid') returning id",
+  );
+  await db.query(
+    "insert into parent_players(parent_id,player_id) values($1,$2)",
+    [parent, child],
+  );
+  const [{ id: period }] = await adminQuery<{ id: string }>(
+    "insert into entitlement_periods(player_id,subscription_id,stripe_customer_id,stripe_item_id,stripe_price_id,product_name,starts_at,ends_at,included_units) values($1,$2,'cus_bounded','si_bounded','price_bounded','Test',now()-interval '10 days',now()+interval '10 days',12) returning id",
+    [child, ids.sub],
+  );
+  const participants: string[] = [];
+  for (const minutes of [2880, 2880, 10]) {
+    const [{ id: event }] = await adminQuery<{ id: string }>(
+      "insert into training_events(title,starts_at,ends_at,location_id,trainer_id,auto_attendance_at,notify_parents) values('Bounded Test',now()-make_interval(mins=>$1)-interval '1 hour',now()-make_interval(mins=>$1),$2,$3,now(),false) returning id",
+      [minutes, ids.location, ids.staff],
+    );
+    await db.query(
+      "insert into event_private_notes(id,note) values($1,'LIVE-TEST-BOUNDED: selected fixture')",
+      [event],
+    );
+    const [{ id: participant }] = await adminQuery<{ id: string }>(
+      "insert into event_participants(event_id,player_id,period_id) values($1,$2,$3) returning id",
+      [event, child, period],
+    );
+    participants.push(participant);
+  }
+  const call = async (
+    participant: string,
+    recipient = "bounded@test.invalid",
+  ) =>
+    (
+      await adminQuery<{ result: any }>(
+        "select confirm_acceptance_attendance($1,$2,$3,$4) result",
+        [participant, child, parent, recipient],
+      )
+    )[0].result;
+  await expect(
+    asUser(ids.admin, "select confirm_acceptance_attendance($1,$2,$3,$4)", [
+      participants[0],
+      child,
+      parent,
+      "bounded@test.invalid",
+    ]),
+  ).rejects.toThrow(/permission denied/);
+  await expect(call(participants[0], "foreign@test.invalid")).rejects.toThrow(
+    /Testempfänger/,
+  );
+  expect(await call(participants[2])).toEqual({ confirmed: 0, job_id: null });
+  const first = await call(participants[0]);
+  expect(first.confirmed).toBe(1);
+  expect(first.job_id).toBeTruthy();
+  expect(await call(participants[0])).toEqual({
+    confirmed: 0,
+    job_id: first.job_id,
+  });
+  const other = await adminQuery<{ status: string }>(
+    "select status from event_participants where id=$1",
+    [participants[1]],
+  );
+  expect(other[0].status).toBe("planned");
+  const jobs = await adminQuery<{ recipient: string }>(
+    "select recipient from notification_jobs where payload->>'participant_id'=$1",
+    [participants[0]],
+  );
+  expect(jobs).toEqual([{ recipient: "bounded@test.invalid" }]);
+});

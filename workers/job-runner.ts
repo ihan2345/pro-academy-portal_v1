@@ -1,6 +1,7 @@
 import { runJobs } from "./jobs";
 import { createRunnerServer } from "./runner-server";
 import { verifyRunnerConnections } from "./verify-connections";
+import { acceptanceTestEnabled, runAcceptanceTest } from "./acceptance-test";
 try {
   process.loadEnvFile(".env.local");
 } catch {
@@ -11,6 +12,10 @@ const server = createRunnerServer({
   enabled: () => process.env.JOBS_ENABLED === "true",
   run: runJobs,
   verify: verifyRunnerConnections,
+  acceptance: {
+    enabled: acceptanceTestEnabled,
+    run: () => runAcceptanceTest(),
+  },
   onDeadline: () => process.exit(1),
 });
 server.listen(Number(process.env.JOB_RUNNER_PORT ?? 3001), "0.0.0.0", () =>

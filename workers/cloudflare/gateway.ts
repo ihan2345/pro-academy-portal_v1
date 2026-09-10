@@ -1,6 +1,7 @@
 export interface RunnerEnv {
   CRON_SECRET: string;
   JOBS_ENABLED: string;
+  ACCEPTANCE_TEST_ENABLED?: string;
   RUNNER: {
     getByName(name: string): { fetch(request: Request): Promise<Response> };
   };
@@ -23,12 +24,20 @@ async function authorized(request: Request, secret: string) {
 
 export async function runnerRequest(request: Request, env: RunnerEnv) {
   const path = new URL(request.url).pathname;
-  if (request.method !== "POST" || !["/run", "/verify"].includes(path))
+  if (
+    request.method !== "POST" ||
+    !["/run", "/verify", "/test-run"].includes(path)
+  )
     return new Response("Not found", { status: 404 });
   if (!(await authorized(request, env.CRON_SECRET)))
     return new Response("Unauthorized", { status: 401 });
   if (path === "/run" && env.JOBS_ENABLED !== "true")
     return new Response("Jobs disabled", { status: 503 });
+  if (
+    path === "/test-run" &&
+    (env.JOBS_ENABLED !== "false" || env.ACCEPTANCE_TEST_ENABLED !== "true")
+  )
+    return new Response("Bounded test disabled", { status: 503 });
   // One stable instance for every trigger. Arbitrary URL paths cannot create instances.
   return env.RUNNER.getByName("proacademy-jobs").fetch(
     new Request(`http://runner${path}`, {
