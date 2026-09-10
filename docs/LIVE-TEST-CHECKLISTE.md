@@ -70,7 +70,7 @@ Diese Ausnahme galt ausschließlich für den einmaligen Versandprozess. `.env.lo
 
 - [x] Persönliche Einladung an `ayh.kaan@googlemail.com` erzeugt und einmalig per Proton versendet (Betreff „Deine Einladung zur ProAcademy“). Es existierte zuvor keine Einladung. Eltern-/Kindzuordnung und Adminrolle unverändert; Einladung noch nicht angenommen. Ihr Postfacheingang ist noch zu bestätigen.
 
-- [ ] Anpassung für Googlemail-Testanmeldung auf Cloudflare veröffentlichen. Sie ist lokal fertig; der ausdrückliche Deploy-Befehl ist noch ausstehend. Die allgemeine Versandbegrenzung wird dadurch nicht erweitert.
+- [x] Anpassung für Googlemail-Testanmeldung nach ausdrücklicher Freigabe auf Cloudflare veröffentlicht. Adminanmeldung über iCloud bleibt möglich; die allgemeine Versandbegrenzung ist unverändert.
 - [ ] Als ayh.kaan@googlemail.com über eine tatsächlich empfangene Login-Mail im Browser anmelden und Leon, Kontingent, nächsten Termin und Bericht selbst prüfen.
 - [ ] Sitzung nach Neuladen sowie nach tatsächlichem Ablauf/Erneuerung prüfen. Die zuvor beobachtete erneute Anmeldeaufforderung auf Cloudflare ist noch nicht abschließend erklärt.
 - [ ] Reine Mitarbeiterrolle mit eigenem, von Admin getrenntem Konto prüfen, falls diese Abnahme gewünscht ist. Muhsin nutzt in diesem Test die vorhandene Adminrolle mit Coachprofil.
@@ -86,4 +86,4 @@ Die Haupt-Testdaten bleiben bis zur persönlichen Abnahme bestehen. Historische 
 
 Die offizielle Domain bleibt deaktiviert. Keine neuen Deployments ohne ausdrücklichen Befehl.
 
-Die Einladung verwendet die Worker-Adresse. Die Googlemail-Freigabe für das dortige Login wartet weiterhin auf Veröffentlichung; ohne diese Anpassung wird die Adresse noch vom Testfilter abgewiesen. Dieser offene Schritt wurde vor dem Versand ausdrücklich benannt. Für die spätere Bereinigung ist die Einladung samt zusätzlichem Versandauftrag unter `parentInvitation` im privaten Testmanifest erfasst.
+Die Einladung verwendet die Worker-Adresse. Die Googlemail-Freigabe für das dortige Login wurde am 10.09.2026 veröffentlicht (Anwendungscommit `bbb56e7`, Worker-Version `ab4ebb1b-0fc0-4b6c-a8e8-27d78277e528`). Beide Branches `start` und `main` enthalten die Anpassung. Geprüft: neue Anmeldesperre aktiv, nicht freigegebene Adresse vor Mailversand abgewiesen, Login HTTP 200, Hintergrundjobs weiterhin gesperrt. Die Einladung ist gültig und noch nicht verbraucht; Leon, seine 16 Trainings und sein Bericht sind unverändert vorhanden. Für die spätere Bereinigung ist die Einladung samt zusätzlichem Versandauftrag unter `parentInvitation` im privaten Testmanifest erfasst.
