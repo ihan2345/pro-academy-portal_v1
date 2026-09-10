@@ -242,3 +242,17 @@ Die Wechsel-Links zwischen Eltern-, Mitarbeiter- und Adminportal wurden entfernt
 Typecheck und alle 114 Tests erfolgreich, einschließlich 22 Prüfungen der Rollen-Navigation und Weiterleitungen. In der echten lokalen Admin-Sitzung bestätigt: Trainingsplanung mit Admin-Menü, eigene Kontoseite ohne Elternnavigation, Weiterleitung von /team und / nach /admin. Lokalen Entwicklungsserver wieder gestartet und Browser abschließend auf /admin/trainingsplanung zurückgestellt. Keine Daten geändert und keine E-Mails versendet.
 
 **Nicht deployt.** Die veröffentlichte Portal-Version bleibt 78581525-4e69-43fa-ad7d-f912c7756f84. Veröffentlichung dieser und weiterer Änderungen ausschließlich nach einem neuen ausdrücklichen Deploy-Befehl.
+
+## Freigegebene Veröffentlichung und Vorbereitung des Livetests (10.09.2026)
+
+Der Nutzer hat Commit/Push zuerst nach `start`, danach nach `main` und das Deployment ausdrücklich freigegeben. Beide bisherigen Git-Historien wurden ohne Force-Push zusammengeführt; die vollständige Projekt-README ersetzt dabei die einzige Überschrift aus dem ursprünglichen `main`. Veröffentlichter Anwendungsstand: `6a97dd9`.
+
+TypeScript-Prüfung im Produktionsbuild, alle 114 Tests und OpenNext-Cloudflare-Build erfolgreich. Zuvor doppelte generierte Next-Typdateien aus dem lokalen Build-Cache entfernt. Öffentliche Assets auf bekannte Dienstgeheimnisse geprüft: keine Treffer. Portal erfolgreich auf der bestehenden Worker-Adresse veröffentlicht, Version `d2782a3e-965d-40a0-9c0a-c25a3fc348cd`. Keine Änderungen am Hintergrunddienst oder seinen Versand- und Jobsperren.
+
+Nach Veröffentlichung geprüft: Login und Logo HTTP 200, geschützte Trainingsplanung unangemeldet HTTP 307, Admin-API ohne Anmeldung HTTP 401. Bestehende echte Cloud-Admin-Sitzung öffnet Trainingsplanung mit eigenem Menü; `/team` leitet zu `/admin` um. Offizielle Domain weiterhin ohne A-/CNAME-Eintrag. Lokale Vorschau neu gestartet und geöffnet.
+
+Der Nutzer erlaubt nun ausdrücklich markierte Testdatensätze im bestehenden Supabase-Projekt für einen echten Test mit anschließender gezielter Bereinigung. Dies ersetzt für diesen abgegrenzten Test die frühere Vorgabe, fiktive Daten ausschließlich in einem separaten Testprojekt anzulegen. Das bestehende Skript `test:external` bleibt ausschließlich für ein entbehrliches Testprojekt bestimmt und darf hierfür nicht unverändert ausgeführt werden.
+
+Vorprüfung des Livetests: jeweils null Spieler, Eltern, Mitarbeiterprofile, Standorte, Abos, Trainings und Benachrichtigungsaufträge. Hintergrund-Endpunkt `/run` weiterhin HTTP 503. In diesem Veröffentlichungsschritt noch keine Testdaten angelegt und keine E-Mails gesendet.
+
+Livetest-Vorgaben: eindeutig markierter Testspieler, Testtrainer und Teststandort; alle erzeugten IDs für spätere gezielte Bereinigung festhalten. Ausschließlich eigene Empfängeradresse `ayh.kaan@icloud.com`; bestehende Adminrolle erhalten. Einzelne Testaufträge gezielt verarbeiten, keine globale Warteschlange oder automatischen Jobs freigeben, keine echten Stripe-Kunden oder Zahlungen verändern. Planung, Teilnahmebestätigung, Kontingent und PDF aus einem abgeschlossenen Beispielzeitraum prüfen. Eine zusätzliche Elternanmeldung benötigt eine zweite eigene Adresse. Bereinigung erst nach Prüfung der Ergebnisse; technische Audit-Einträge und zugestellte Mails bleiben nachvollziehbar erhalten. Künftige Deployments benötigen weiterhin einen ausdrücklichen Deploy-Befehl.
