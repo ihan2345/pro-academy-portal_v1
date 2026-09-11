@@ -1,0 +1,23 @@
+{
+  "stand": "10.09.2026",
+  "project_directory": "/Users/karayla/Documents/ChatGPT/pabyak-calendar-webapp/docs/plattform-handbuecher",
+  "export_directory": "/Users/karayla/Desktop/Schreibtisch – MacBook Air von Kaan/PROACADEMY/Portal/Plattform-Handbuecher",
+  "sha256": {
+    "inhalte.json": "7f91dfa1ea5d1b6c29ee41c843038b753433858673c814050c952b298fda7512",
+    "00-Start-hier.pdf": "a905c880398810bcd66d3330a2d768d15bedebe8c6986c8cceb0ec0357a843a3",
+    "00-Start-hier.md": "634c181c46287604836e5f90737b944ae4e8462f3fa8787cfc713a2006ea3023",
+    "01-Supabase.pdf": "952878d794f35a7d9293ae97dc25774489fb3854a88a0aa8d357129d5bd89915",
+    "01-Supabase.md": "f4a9ddcb72d37229290791cdb009a577b5cfe29ac0403d73911a3f1cb97ef553",
+    "02-Stripe.pdf": "8ceb4a5f203d1007f18d842e7be4c9d1abc39007de9fe5d3f40af88fcf34e35f",
+    "02-Stripe.md": "3ae024f9673b9d09944d98c3366877ae0cf87a2c9295cfa3ac50a9f19ddb4197",
+    "03-Cloudflare.pdf": "53d2df6e059fbd8035b319a90a582ca1a19a69f73286b47a619eaa0656848001",
+    "03-Cloudflare.md": "c5b0324e98d523b01f63e5722f7c2a78efcda8257671ad2211570798580d1bbd",
+    "04-Proton-Mail.pdf": "29584f391f137f85ab66aa9275a2317949b774673a9713c798a19482568cf6ab",
+    "04-Proton-Mail.md": "2f6aec04235d3d4d85f99c09ccdbc59a99bcc20e55065f51f8f44d6237935a7f",
+    "05-GitHub-und-Git.pdf": "f9dad0ffdd5ba390938083da7beabcc2e9c7af65075fccfc44dd1742a0af2cbc",
+    "05-GitHub-und-Git.md": "f75536bf6ff038ea560972f0646b92afc71c833b91ba51038af2f78f7c9fa9fe",
+    "06-Docker.pdf": "1d0d46a434f85fad5e2007e32142c543187cee9c31ab558225b4a5920ba0c4b9",
+    "06-Docker.md": "2f54e5a9e2adc907e0548a85b1ffe1767e2632b0f11c1a9329079e9af30af09d",
+    "README.md": "f03818924597b93c6c8e47c2ae200e78e63e5992dcf96daa85296c5579953eee"
+  }
+}

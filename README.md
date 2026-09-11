@@ -1,5 +1,9 @@
 # ProAcademy Eltern- und Trainingsportal
 
+**Benutzerhandbuch:** [PDF für Coaches und Admins](docs/ProAcademy-Benutzerhandbuch.pdf) · [durchsuchbare Textfassung](docs/BENUTZERHANDBUCH.md). Große Schrift, Schrittfolgen und Bildschirmbilder mit Beispieldaten.
+
+**Externe Plattformen:** [Handbuchsammlung für Supabase, Stripe, Cloudflare, Proton, GitHub und Docker](docs/plattform-handbuecher/README.md) · [Übersicht als PDF](docs/plattform-handbuecher/00-Start-hier.pdf). Separate PDFs und Textfassungen; bei der Erstellung automatisch in den gewünschten Desktop-Ordner `Portal/Plattform-Handbuecher` kopiert.
+
 **Zukünftige Funktionen:** [V2.0 – dauerhafte Checkliste für die nächste Version](V2.0.md). Dort sammeln wir vorgemerkte Optimierungen getrennt von der aktuellen Veröffentlichung.
 
 **Deployment-Sperre (aktuelle Nutzeranweisung): Änderungen nur lokal umsetzen und prüfen. Kein Deployment ohne einen neuen ausdrücklichen Deploy-Befehl des Nutzers.**
@@ -155,7 +159,7 @@ Die Datenbanktests führen alle Migrationen in PGlite (echter Postgres in WASM) 
 - UTC-Speicherung, sämtliche fachlichen Grenzen in Europe/Berlin, Sommer-/Winterzeit berücksichtigt.
 - Zeiträume sind halboffen: `[current_period_start, current_period_end)`. Ende in der Anzeige = letzte Millisekunde vor dem neuen Zeitraum, niemals pauschal +30 Tage.
 - Ende 12:00 → Folgetag 06:00 entspricht ausdrücklich dem vorgegebenen Mitternachtsbeispiel. Die SQL-Funktion berechnet den verbindlichen Zeitpunkt; TypeScript wird gegen dieselben Testfälle geprüft.
-- Nur `attended_auto` und `attended_manual` zählen. Storno, entschuldigt und abwesend verbrauchen keine absolvierte Einheit.
+- Neue Wertungsregel (lokal vorbereitet, Migration 007 noch nicht live): `attended_auto`, `attended_manual`, `cancelled` und `absent` verbrauchen eine Einheit. Absagen/Nichterscheinen erhalten ein rotes OK. Nur tatsächliche Teilnahme zählt zur Trainingszeit. `excused` verbraucht nichts und erscheint mit öffentlichen Termindaten als Notiz. Geplante Termine bleiben offen.
 - Elternstornierung bleibt auf UI, API und DB-Ebene gesperrt. Das Flag ist dokumentiert, aktiviert im MVP aber keine Mutation, auch wenn es versehentlich auf true gesetzt wird.
 - Terminstornierung löscht keine Termine. Korrekturen benötigen einen Grund. Änderungen an der Zeit bereits bestätigter Termine erfordern zunächst die Korrektur der Teilnahmen, damit historische Minuten nicht unbemerkt verändert werden.
 - Berichte und Versandhistorien sind unveränderlich. Neuversand und neue Version sind getrennte Vorgänge.

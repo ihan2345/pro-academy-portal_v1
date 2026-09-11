@@ -1,0 +1,717 @@
+{
+  "title": "ProAcademy Benutzerhandbuch",
+  "date": "10.09.2026",
+  "portal": "https://proacademy-portal.proacademy-by-ak.workers.dev",
+  "pages": [
+    {
+      "title": "Das Portal einfach bedienen",
+      "role": "BENUTZERHANDBUCH",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Für Coaches, Mitarbeiter und Admins. Schritt für Schritt durch die wichtigsten Aufgaben."
+        },
+        {
+          "type": "cover"
+        },
+        {
+          "type": "sub",
+          "text": "Hier findest du schnell die richtige Seite"
+        },
+        {
+          "type": "p",
+          "text": "<b>Anmelden und orientieren</b> · Seiten 2-3<br/><b>Kinder und Eltern vorbereiten</b> · Seiten 4-6, nur Admin<br/><b>Trainings planen und bearbeiten</b> · Seiten 7-11<br/><b>Stempelkarten, E-Mails und Berichte</b> · Seiten 12-14<br/><b>Hilfe und tägliche Checkliste</b> · Seiten 15-16"
+        },
+        {
+          "type": "tip",
+          "text": "<b>Aktueller Testbetrieb, Stand 10.09.2026:</b> Automatische Bestätigungen, Berichte und Benachrichtigungen laufen noch nicht selbstständig. Login-Mails funktionieren. Versandaufträge bleiben bis zur Freigabe ausstehend."
+        },
+        {
+          "type": "p",
+          "text": "Die Bilder zeigen Beispieldaten. Namen und Termine können bei dir anders aussehen. Die Anleitung beschreibt den veröffentlichten Stand der Webapp."
+        }
+      ]
+    },
+    {
+      "title": "Zum ersten Mal anmelden",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Öffne die Einladung von ProAcademy in deinem E-Mail-Postfach. Nutze den Link zum Portal."
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Trage auf der Anmeldeseite genau die E-Mail-Adresse ein, für die du eingeladen wurdest. Klicke auf <b>„Anmeldelink anfordern“</b>."
+        },
+        {
+          "type": "image",
+          "name": "anmeldung",
+          "height": 290
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Öffne die neue Login-Mail. Öffne den persönlichen Link <b>auf demselben Gerät und im selben Browser</b>, in dem du ihn angefordert hast."
+        },
+        {
+          "type": "tip",
+          "text": "Du brauchst kein Passwort. Der Anmeldelink ist persönlich und nur einmal gültig. Auf der Anmeldeseite steht derzeit „Elternportal“; dieselbe Anmeldung gilt auch für Coach und Admin."
+        },
+        {
+          "type": "p",
+          "text": "Keine Mail gefunden? Prüfe auch Spam und die Postfachansicht „Wichtiges“. Weitere Hilfe: Seite 15."
+        }
+      ]
+    },
+    {
+      "title": "Menü und eigene Rolle",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nach der Anmeldung öffnet sich dein eigener Bereich. Welche Menüpunkte du siehst, hängt von deiner Rolle ab."
+        },
+        {
+          "type": "menu"
+        },
+        {
+          "type": "sub",
+          "text": "Wer übernimmt welche Aufgabe?"
+        },
+        {
+          "type": "table",
+          "rows": [
+            [
+              "Aufgabe",
+              "Coach",
+              "Admin"
+            ],
+            [
+              "Trainings planen und korrigieren",
+              "Ja",
+              "Ja"
+            ],
+            [
+              "Alle Stempelkarten ansehen / PDF exportieren",
+              "Ja",
+              "Ja"
+            ],
+            [
+              "Stempelkarten-Mail vormerken",
+              "Ja",
+              "Ja"
+            ],
+            [
+              "Kinder und Elternkonten verwalten",
+              "Nein",
+              "Ja"
+            ],
+            [
+              "Abo-Zuordnung und Monatsberichte verwalten",
+              "Nein",
+              "Ja"
+            ]
+          ]
+        },
+        {
+          "type": "tip",
+          "text": "Auf dem Handy öffnest du das Menü mit dem Symbol aus drei Strichen. Mit dem Pfeil-Symbol an der Seitenleiste klappst du das Menü ein oder aus."
+        },
+        {
+          "type": "p",
+          "text": "Du siehst keine Links in fremde Rollenbereiche. Wenn dir eine Admin-Funktion fehlt, wende dich an die Leitung. Zum Beenden auf <b>„Abmelden“</b> klicken."
+        }
+      ]
+    },
+    {
+      "title": "Ein Kind neu anlegen",
+      "role": "NUR ADMIN",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ein neues Kind wird einmal als Spieler angelegt. Vorher über die Suche prüfen, ob es bereits vorhanden ist."
+        },
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Öffne <b>„Spieler &amp; Eltern“</b>. Klicke auf <b>„Neu anlegen“</b>."
+        },
+        {
+          "type": "image",
+          "name": "kind-anlegen",
+          "height": 285
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Trage <b>Vorname, Nachname, Geburtsjahr und Altersklasse</b> ein. Beispiel: Max Beispiel, 2015, U12."
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Klicke auf <b>„Speichern“</b>. Prüfe danach den neuen Eintrag in der Liste."
+        },
+        {
+          "type": "tip",
+          "text": "Das Anlegen des Kindes allein reicht noch nicht für ein Training. Das Kind braucht zusätzlich einen passenden Leistungszeitraum aus der Abo-Zuordnung. Die Zuordnung zum Elternkonto folgt auf Seite 5."
+        }
+      ]
+    },
+    {
+      "title": "Eltern und Kind verbinden",
+      "role": "NUR ADMIN",
+      "blocks": [
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Öffne <b>„Spieler &amp; Eltern“ → „Eltern verwalten“</b>. Falls nötig, lege das Elternkonto über „Neu anlegen“ mit Name und Kontakt-E-Mail an."
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Gehe zum Abschnitt <b>„Eltern und Kinder zuordnen“</b>."
+        },
+        {
+          "type": "image",
+          "name": "eltern-kind",
+          "height": 245
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Wähle das richtige <b>Elternkonto</b> und das richtige <b>Kind</b>. Prüfe beide Namen und die Kontakt-E-Mail sorgfältig."
+        },
+        {
+          "type": "step",
+          "n": 4,
+          "text": "Setze den Haken bei <b>„Zugriff bewusst freigeben“</b>. Klicke auf <b>„Zuordnung bestätigen“</b>."
+        },
+        {
+          "type": "tip",
+          "text": "Diese Zuordnung gibt dem Elternkonto Zugriff auf die Daten dieses Kindes. Mehrere Eltern können demselben Kind zugeordnet sein. Eine falsche Zuordnung kann über „Zuordnung aufheben“ mit Begründung entfernt werden."
+        },
+        {
+          "type": "p",
+          "text": "Das ist etwas anderes als ein Kind einem Training zuzuordnen. Die Auswahl der Trainingsteilnehmer steht auf Seite 8."
+        }
+      ]
+    },
+    {
+      "title": "Abo und Einladung vorbereiten",
+      "role": "NUR ADMIN · NACH FREIGABE",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Der <b>Leistungszeitraum</b> legt fest, in welchem Zeitraum und mit welchem Kontingent das Kind trainieren kann. Er ist nicht immer ein Kalendermonat."
+        },
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Öffne <b>„Stripe-Zuordnung“</b>. Über den derzeit so benannten Button <b>„Testkunden laden“</b> werden Kunden aus der eingerichteten Stripe-Umgebung geladen."
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Beim richtigen Kunden auf <b>„Zuordnen“</b> klicken. Prüfe Elternname, bestätigte Kontakt-E-Mail und Kind."
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Die passende <b>Stripe-Abonnement-ID</b> und <b>Stripe-Abonnement-Item-ID</b> müssen eindeutig feststehen. Bei Unklarheit die Leitung hinzuziehen; keine Kennungen schätzen."
+        },
+        {
+          "type": "step",
+          "n": 4,
+          "text": "Setze den Prüf-Haken und klicke auf <b>„Zuordnen &amp; Einladung einplanen“</b>. Danach kontrollieren, ob beim Kind der richtige Leistungszeitraum erscheint."
+        },
+        {
+          "type": "sub",
+          "text": "Bestehendes Elternkonto erneut einladen"
+        },
+        {
+          "type": "p",
+          "text": "Unter <b>„Einladungen“</b> kann ein Admin mit der vorhandenen Eltern-ID eine Einladung einplanen. Die Eltern-ID ist eine technische Kennung und muss von der Leitung bereitgestellt werden, wenn sie nicht bekannt ist."
+        },
+        {
+          "type": "tip",
+          "text": "<b>Im aktuellen Test:</b> Kundenimport und echte Elterneinladungen erst nach ausdrücklicher Freigabe der Leitung. Der Buttonname „Testkunden laden“ bedeutet nicht, dass die eingerichtete Stripe-Umgebung ein Testkonto ist."
+        },
+        {
+          "type": "p",
+          "text": "<b>Mitarbeiter-Einladung:</b> Neue Coach-Zugänge richtet derzeit die Leitung ein. Das Formular „Einladungen“ ist für Eltern bestimmt; ein einfacher Coach-Einladungsdialog ist für V2 vorgemerkt."
+        }
+      ]
+    },
+    {
+      "title": "Ein Training planen",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Öffne <b>„Trainingsplanung“</b>. Wähle den Tag oder die Woche und klicke auf <b>„Termin erstellen“</b>."
+        },
+        {
+          "type": "image",
+          "name": "training-basis",
+          "height": 350
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Prüfe <b>Trainingstitel, Datum, Beginn und Ende</b>. Alle angezeigten Trainingszeiten gelten für Deutschland: Europe/Berlin."
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Wähle <b>Standort, Trainer und Terminart</b>. Nutze „Athletiktraining“ nur, wenn das passende Kontingent vorhanden ist."
+        },
+        {
+          "type": "tip",
+          "text": "Das Ende muss nach dem Beginn liegen. „Training endet am Folgetag“ brauchst du nur bei einem tatsächlichen Termin über Mitternacht. Danach die Kinder auswählen: Seite 8."
+        }
+      ]
+    },
+    {
+      "title": "Kinder zum Training auswählen",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Im geöffneten Termin findest du den Abschnitt <b>„Kinder zuordnen“</b>."
+        },
+        {
+          "type": "image",
+          "name": "training-kinder",
+          "height": 180
+        },
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Suche das Kind nach seinem Namen. Setze bei jedem teilnehmenden Kind einen Haken. Ein Termin kann mehrere Kinder enthalten."
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Prüfe unter dem Namen den Leistungszeitraum und die Angaben <b>„angerechnet“, „geplant“ und „Anspruch“</b>."
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Ergänze bei Bedarf eine <b>„Interne Notiz“</b>. Sie ist nur für das Team sichtbar und gehört nicht in Elternmails oder Stempelkarten-PDFs."
+        },
+        {
+          "type": "step",
+          "n": 4,
+          "text": "Entscheide über <b>„Eltern per E-Mail benachrichtigen“</b>. Mit Haken wird eine Planungsnachricht vorgemerkt."
+        },
+        {
+          "type": "step",
+          "n": 5,
+          "text": "Klicke auf <b>„Termin speichern“</b>. Warte auf die Rückmeldung und prüfe den Termin anschließend in der Übersicht."
+        },
+        {
+          "type": "tip",
+          "text": "Fehlt ein passender Leistungszeitraum, lässt sich der Termin nicht speichern. Prüfe Datum und Trainingsart. Der Admin prüft anschließend die Abo-Zuordnung. Nicht einfach einen anderen Zeitraum oder ein anderes Kind auswählen."
+        }
+      ]
+    },
+    {
+      "title": "Termin ändern oder absagen",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "sub",
+          "text": "Einen bestehenden Termin ändern"
+        },
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Suche den Termin in <b>„Trainingsplanung“</b>. Klicke auf <b>„Termin bearbeiten“</b> oder auf den Trainingstitel."
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Ändere die erforderlichen Angaben. Prüfe Datum, Uhrzeit, Standort, Trainer und die ausgewählten Kinder."
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Prüfe den Haken für die Elternbenachrichtigung. Mit Haken wird bei einem bestehenden Termin eine Änderungsnachricht vorgemerkt. Klicke auf <b>„Termin speichern“</b>."
+        },
+        {
+          "type": "sub",
+          "text": "Den gesamten Termin absagen"
+        },
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Öffne <b>„Termin bearbeiten“ → „Termin stornieren“</b>."
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Trage einen verständlichen <b>Stornierungsgrund</b> ein und klicke auf <b>„Stornierung bestätigen“</b>."
+        },
+        {
+          "type": "tip",
+          "text": "Eine Termin-Stornierung betrifft alle zugeordneten Kinder. Fehlt nur ein einzelnes Kind, nutze „Ausnahmen eintragen“ statt den gesamten Termin zu stornieren."
+        },
+        {
+          "type": "p",
+          "text": "Bei bereits angerechneten Teilnahmen sind Änderungen an Zeit oder Trainingsart zunächst gesperrt. Die betroffene Teilnahme muss zuerst begründet korrigiert werden. Bei Unsicherheit die Leitung hinzuziehen."
+        },
+        {
+          "type": "p",
+          "text": "Der Verlauf bleibt erhalten. Eine Absage löscht den Termin nicht unsichtbar aus der Dokumentation."
+        }
+      ]
+    },
+    {
+      "title": "Teilnahme und Ausnahmen",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Reguläre Teilnahme wird im freigegebenen Betrieb automatisch bestätigt. Fehlende oder abweichende Teilnahme trägst du als Ausnahme ein."
+        },
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Beim richtigen Termin auf <b>„Ausnahmen eintragen“</b> klicken."
+        },
+        {
+          "type": "image",
+          "name": "teilnahme",
+          "height": 295
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Beim richtigen Kind den <b>Status</b> auswählen, etwa „Entschuldigt“, „Nicht erschienen“ oder „Absolviert (manuell)“."
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Eine verständliche <b>Begründung</b> eintragen. Bei Bedarf <b>„Korrekturmail einplanen“</b> auswählen und <b>„Korrektur bestätigen“</b> klicken."
+        },
+        {
+          "type": "tip",
+          "text": "Ein zukünftiges Training darf nicht als absolviert bestätigt werden. Wird eine bisher offene Teilnahme als absolviert bestätigt, entsteht eine Abschlussmail auch ohne Haken bei der Korrekturmail."
+        }
+      ]
+    },
+    {
+      "title": "Was zählt als Stempel?",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "table",
+          "rows": [
+            [
+              "Status",
+              "Einheit / Trainingszeit"
+            ],
+            [
+              "Absolviert / Absolviert (manuell)",
+              "Ja / Ja"
+            ],
+            [
+              "Geplant",
+              "Nein / Nein"
+            ],
+            [
+              "Entschuldigt",
+              "Nein / Nein"
+            ],
+            [
+              "Nicht erschienen",
+              "Ja, rotes OK / Nein"
+            ],
+            [
+              "Abgesagt / Storniert",
+              "Ja, rotes OK / Nein"
+            ]
+          ]
+        },
+        {
+          "type": "sub",
+          "text": "Automatische Bestätigung verstehen"
+        },
+        {
+          "type": "p",
+          "text": "Nach dem Trainingsende laufen <b>12 aktive Pufferstunden</b>. Zwischen 00:00 und 06:00 Uhr pausiert diese Zeit. Beispiel: Ende am Dienstag um 18:00 Uhr → Frist am Mittwoch um 12:00 Uhr. Die Bestätigung erfolgt beim nächsten aktiven Hintergrundlauf."
+        },
+        {
+          "type": "sub",
+          "text": "Ein vergangenes Training nachtragen"
+        },
+        {
+          "type": "p",
+          "text": "Du kannst einen vergangenen Termin anlegen, wenn ein passender Leistungszeitraum vorhanden ist. Er startet zunächst als „geplant“. Ist die Frist schon vorbei, kann der nächste aktive Hintergrundlauf ihn als absolviert bestätigen."
+        },
+        {
+          "type": "tip",
+          "text": "Eine Nachtragung kann eine Planungsmail und danach eine Abschlussmail erzeugen. Ein bereits vorhandener Monatsbericht ändert sich dadurch nicht automatisch. Informiere den Admin, wenn ein Bericht betroffen ist."
+        },
+        {
+          "type": "p",
+          "text": "<b>Aktueller Testbetrieb:</b> Der Hintergrundlauf ist deaktiviert. Automatische Bestätigungen erfolgen deshalb derzeit nicht von allein. Gezielte Tests werden mit der Leitung abgestimmt."
+        }
+      ]
+    },
+    {
+      "title": "Stempelkarte ansehen und exportieren",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Öffne <b>„Stempelkarten“</b>. Suche das Kind und wähle den gewünschten <b>Leistungszeitraum</b>."
+        },
+        {
+          "type": "image",
+          "name": "stempelkarte",
+          "height": 315
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Prüfe die Farben: <b>Grün = teilgenommen</b>, <b>rotes OK = Absage / nicht erschienen</b>, <b>Lila = geplant</b>, <b>hell = offen</b>. Darunter steht die Trainingsübersicht. Fußball und Athletik werden bei passenden Tarifen getrennt angezeigt."
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Mit <b>„Aktualisieren“</b> lädst du den aktuellen Stand. Mit <b>„PDF exportieren“</b> wird die Stempelkarte heruntergeladen."
+        },
+        {
+          "type": "tip",
+          "text": "Das PDF findest du meist im Ordner „Downloads“. Es zeigt den Stand zum Exportzeitpunkt. Bestehende Monatsberichte werden dadurch nicht verändert."
+        }
+      ]
+    },
+    {
+      "title": "Stempelkarte per E-Mail",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "step",
+          "n": 1,
+          "text": "Öffne die richtige Stempelkarte wie auf Seite 12. Prüfe Kind und Leistungszeitraum."
+        },
+        {
+          "type": "step",
+          "n": 2,
+          "text": "Gehe zum Abschnitt <b>„Stempelkarte per E-Mail“</b>. Wähle unter <b>„Empfänger auswählen“</b> das richtige Elternkonto."
+        },
+        {
+          "type": "step",
+          "n": 3,
+          "text": "Klicke auf <b>„Per E-Mail vormerken“</b>. Prüfe in der Rückfrage die Zieladresse und bestätige den Versandauftrag."
+        },
+        {
+          "type": "tip",
+          "text": "Zur Auswahl stehen nur Elternkontakte, die diesem Kind zugeordnet sind. Es gibt kein freies Adressfeld. Fehlt der richtige Kontakt, muss der Admin zuerst die Zuordnung prüfen."
+        },
+        {
+          "type": "sub",
+          "text": "„Vorgemerkt“ bedeutet noch nicht „angekommen“"
+        },
+        {
+          "type": "p",
+          "text": "Die App speichert einen Versandauftrag mit dem Datenstand zum Zeitpunkt der Anforderung. Der Hintergrunddienst erstellt daraus das PDF und verarbeitet die Mail später."
+        },
+        {
+          "type": "p",
+          "text": "<b>Aktueller Test:</b> Die Zieladresse ist auf die konfigurierte Testadresse begrenzt. Sie wird in der Ansicht angezeigt. Der Hintergrunddienst ist deaktiviert; neue Aufträge bleiben ausstehend."
+        },
+        {
+          "type": "p",
+          "text": "Nach Freigabe des regulären Versands wird die Nachricht an den zugeordneten Elternkontakt verarbeitet. Vor dem Versand wird die Zuordnung erneut geprüft."
+        },
+        {
+          "type": "p",
+          "text": "Bei einer Elternnachfrage den Admin um Prüfung unter <b>„Protokolle &amp; Berichte“</b> bitten. Nicht mehrfach klicken, nur weil die Mail noch nicht im Postfach liegt."
+        }
+      ]
+    },
+    {
+      "title": "Monatsberichte und Versand prüfen",
+      "role": "NUR ADMIN",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Öffne <b>„Protokolle &amp; Berichte“</b>. Hier unterscheidest du zwischen PDF-Berichten und Versandaufträgen."
+        },
+        {
+          "type": "sub",
+          "text": "Im Reiter „PDF-Berichte“"
+        },
+        {
+          "type": "table",
+          "rows": [
+            [
+              "Aktion",
+              "Bedeutung"
+            ],
+            [
+              "PDF öffnen",
+              "Vorhandenen Bericht ansehen."
+            ],
+            [
+              "Erneut senden",
+              "Dasselbe vorhandene PDF erneut zum Versand vormerken."
+            ],
+            [
+              "Neue Version",
+              "Einen neuen Bericht mit aktuellem Datenstand anfordern. Die alte Version bleibt erhalten."
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Ein Monatsbericht gehört zu einem abgeschlossenen Leistungszeitraum. Ein später nachgetragenes oder korrigiertes Training verändert das vorhandene PDF nicht automatisch. Prüfe, ob eine <b>neue Version</b> erforderlich ist."
+        },
+        {
+          "type": "sub",
+          "text": "Im Reiter „E-Mail-Aufträge“"
+        },
+        {
+          "type": "p",
+          "text": "<b>pending:</b> wartet auf Verarbeitung.<br/><b>processing:</b> wird verarbeitet.<br/><b>sent:</b> Versand wurde protokolliert; Postfacheingang bei Bedarf bestätigen lassen.<br/><b>failed / uncertain:</b> Fehler oder unklarer Ausgang; zuerst Versandhistorie und Leitung prüfen lassen."
+        },
+        {
+          "type": "tip",
+          "text": "„Nach Prüfung wiederholen“ erst verwenden, wenn geklärt ist, dass die Nachricht nicht zugestellt wurde. Bei unklarem Ausgang nicht blind erneut senden."
+        },
+        {
+          "type": "p",
+          "text": "Coaches haben keinen Zugriff auf diese Admin-Berichte. Für Elternfragen können sie die Stempelkartenansicht und deren PDF-Export nutzen."
+        }
+      ]
+    },
+    {
+      "title": "Wenn etwas nicht klappt",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "sub",
+          "text": "Die Login-Mail fehlt"
+        },
+        {
+          "type": "p",
+          "text": "Adresse auf Tippfehler prüfen. Auch Spam und „Wichtiges“ ansehen. Im Testbetrieb muss die eigene Adresse freigegeben sein. Wenn nötig, die Leitung kontaktieren."
+        },
+        {
+          "type": "sub",
+          "text": "Der Link führt wieder zur Anmeldung"
+        },
+        {
+          "type": "p",
+          "text": "Fordere einen neuen Link an. Öffne ihn im selben Browser und auf demselben Gerät. Alte Links sind möglicherweise bereits verbraucht. Einen neuen Link nicht zwischen verschiedenen Browsern hin- und herwechseln."
+        },
+        {
+          "type": "sub",
+          "text": "Das Kind fehlt oder lässt sich nicht buchen"
+        },
+        {
+          "type": "p",
+          "text": "Suche zurücksetzen und Namen prüfen. Datum, Leistungszeitraum und Trainingsart kontrollieren. Der Admin prüft Kind, Elternzuordnung und Abo-Zuordnung."
+        },
+        {
+          "type": "sub",
+          "text": "Der Stempelstand scheint falsch"
+        },
+        {
+          "type": "p",
+          "text": "Kind und Zeitraum prüfen. Absagen zählen als Einheit, aber ohne Trainingszeit. Entschuldigungen erscheinen mit Termindaten unter „Entschuldigt · ohne Anrechnung“ und im PDF."
+        },
+        {
+          "type": "sub",
+          "text": "Die E-Mail ist vorgemerkt, kommt aber nicht an"
+        },
+        {
+          "type": "p",
+          "text": "Im aktuellen Testbetrieb ist das erwartet, solange der Hintergrunddienst deaktiviert ist. Der Admin prüft den Auftrag. Eine vorgemerkte Mail ist keine Zustellbestätigung."
+        },
+        {
+          "type": "tip",
+          "text": "Für eine Rückfrage bereithalten: Name des Kindes, Trainingstag, Uhrzeit, gewünschte Aktion und genaue Fehlermeldung. Einen Screenshot nur über den vereinbarten internen Weg teilen. Persönliche Anmeldelinks nicht weitergeben."
+        }
+      ]
+    },
+    {
+      "title": "Die kurze Alltags-Checkliste",
+      "role": "COACH + ADMIN",
+      "blocks": [
+        {
+          "type": "sub",
+          "text": "Vor dem Training"
+        },
+        {
+          "type": "check",
+          "text": "Mit dem eigenen Konto angemeldet."
+        },
+        {
+          "type": "check",
+          "text": "Richtiger Tag, Uhrzeit, Standort und Trainer geprüft."
+        },
+        {
+          "type": "check",
+          "text": "Die richtigen Kinder ausgewählt und Leistungszeitraum geprüft."
+        },
+        {
+          "type": "check",
+          "text": "Termin gespeichert und in der Übersicht kontrolliert."
+        },
+        {
+          "type": "sub",
+          "text": "Nach dem Training"
+        },
+        {
+          "type": "check",
+          "text": "Fehlende Kinder und andere Ausnahmen eingetragen."
+        },
+        {
+          "type": "check",
+          "text": "Bei Korrekturen eine verständliche Begründung angegeben."
+        },
+        {
+          "type": "check",
+          "text": "Benachrichtigung bewusst geprüft; im Test nichts als zugestellt vorausgesetzt."
+        },
+        {
+          "type": "sub",
+          "text": "Bei einer Elternfrage"
+        },
+        {
+          "type": "check",
+          "text": "Stempelkarte mit richtigem Kind und Zeitraum geöffnet."
+        },
+        {
+          "type": "check",
+          "text": "Trainingsübersicht und Teilnahmestatus geprüft."
+        },
+        {
+          "type": "check",
+          "text": "Bei Bedarf PDF exportiert oder Mailauftrag vorgemerkt."
+        },
+        {
+          "type": "check",
+          "text": "Admin informiert, wenn Abo, Elternzugriff oder Monatsbericht betroffen ist."
+        },
+        {
+          "type": "tip",
+          "text": "<b>Merksatz:</b> Erst Kind und Zeitraum prüfen. Dann ändern, speichern und die Rückmeldung kontrollieren."
+        },
+        {
+          "type": "p",
+          "text": "Auf gemeinsam genutzten Geräten zum Schluss <b>abmelden</b>. Dieses Handbuch kannst du ausdrucken oder als PDF auf dem Handy speichern."
+        }
+      ]
+    }
+  ]
+}

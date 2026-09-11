@@ -1,0 +1,1456 @@
+{
+  "date": "10.09.2026",
+  "export_directory": "/Users/karayla/Desktop/Schreibtisch – MacBook Air von Kaan/PROACADEMY/Portal/Plattform-Handbuecher",
+  "manuals": [
+    {
+      "file": "00-Start-hier",
+      "name": "Start hier: die Plattformen",
+      "pages": [
+        {
+          "title": "Welcher Dienst macht was?",
+          "role": "FÜR ALLE",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Diese Sammlung erklärt die Technik hinter dem Portal in einfacher Sprache. Für die tägliche Trainingsplanung bleibt das separate Benutzerhandbuch der Webapp zuständig."
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Dienst",
+                  "Aufgabe bei ProAcademy"
+                ],
+                [
+                  "Supabase",
+                  "Anmeldung, Rollen, Kinder, Termine und gespeicherte PDFs."
+                ],
+                [
+                  "Stripe",
+                  "Kunden, Abos, Rechnungen und Zahlungsstatus."
+                ],
+                [
+                  "Cloudflare",
+                  "Stellt das Portal und den Hintergrunddienst online bereit."
+                ],
+                [
+                  "Proton Mail",
+                  "Versendet Login-Mails und freigegebene Portal-Mails."
+                ],
+                [
+                  "GitHub / Git",
+                  "Speichert den Programmcode mit Änderungshistorie."
+                ],
+                [
+                  "Docker",
+                  "Verpackt den Hintergrunddienst für den Cloudbetrieb."
+                ]
+              ]
+            },
+            {
+              "type": "tip",
+              "text": "<b>Für Mitarbeiter:</b> Du musst diese Dienste nicht selbst einrichten. Ein Coach-Zugang im Portal erteilt keinen Zugang zu deren Verwaltungsoberflächen."
+            }
+          ]
+        },
+        {
+          "title": "So hängen die Abläufe zusammen",
+          "role": "FÜR ALLE",
+          "blocks": [
+            {
+              "type": "step",
+              "n": 1,
+              "text": "<b>Anmelden:</b> Das Portal startet die Anmeldung. Supabase prüft den Zugang und verschickt die Login-Mail über Proton. Danach bestimmt die gespeicherte Portalrolle den erlaubten Bereich."
+            },
+            {
+              "type": "step",
+              "n": 2,
+              "text": "<b>Training speichern:</b> Das Portal schreibt Termin und Teilnahme nach Supabase. Ein passender Mailauftrag kann dabei in der Warteschlange entstehen."
+            },
+            {
+              "type": "step",
+              "n": 3,
+              "text": "<b>Aufträge bearbeiten:</b> Der Hintergrunddienst bei Cloudflare verarbeitet freigegebene Aufgaben. Er erstellt Berichte, speichert PDFs in Supabase und übergibt E-Mails an Proton."
+            },
+            {
+              "type": "step",
+              "n": 4,
+              "text": "<b>Abo abgleichen:</b> Stripe meldet Änderungen an das Portal. Die Nachricht wird zunächst gespeichert und später vom Hintergrunddienst verarbeitet."
+            },
+            {
+              "type": "sub",
+              "text": "Verbindlicher Stand: 10.09.2026"
+            },
+            {
+              "type": "p",
+              "text": "Die Supabase-Datenbank und das Stripe-Konto sind echte Produktionssysteme. Automatische Jobs bleiben gesperrt; Portal-Mails stehen auf Erfassung statt allgemeinem Versand. Freigegebene Login-Testadressen werden separat behandelt."
+            },
+            {
+              "type": "tip",
+              "text": "Es gilt ausschließlich <link href=\"https://proacademy-portal.proacademy-by-ak.workers.dev\" color=\"#6840BC\">die Worker-Adresse</link>. <b>portal.proacademy-ak.com bleibt inaktiv.</b> Veröffentlichen nur auf einen ausdrücklichen Deploy-Befehl."
+            },
+            {
+              "type": "check",
+              "text": "Bei einem Fehler: Uhrzeit, betroffene Seite, Aktion und Fehlermeldung notieren. Anmeldelinks, Tokens und Passwörter nicht weitergeben."
+            },
+            {
+              "type": "p",
+              "text": "Lies zuerst die Seiten 1 und 2 des passenden Handbuchs. Die Befehle auf den späteren Seiten sind für die zuständige technische Administration bestimmt."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "01-Supabase",
+      "name": "Supabase",
+      "pages": [
+        {
+          "title": "Die Datenzentrale verstehen",
+          "role": "ÜBERBLICK FÜR ALLE",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Supabase speichert die Daten des Portals und übernimmt die Anmeldung. Hier lässt sich technisch prüfen, ob ein Konto, eine Zuordnung oder ein Auftrag vorhanden ist."
+            },
+            {
+              "type": "p",
+              "text": "<link href=\"https://supabase.com/dashboard/project/vgxaatawsbzgsmqiaepj\" color=\"#6840BC\">ProAcademy-Projekt im Dashboard öffnen</link>"
+            },
+            {
+              "type": "tip",
+              "text": "<b>Das richtige Projekt:</b> vgxaatawsbzgsmqiaepj. Auch wenn der Anzeigename noch „test“ enthält: Dies ist die Datenbank für den späteren Launch. Sie ist kein löschbares Übungsprojekt."
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Bereich",
+                  "Wofür er gebraucht wird"
+                ],
+                [
+                  "Authentication / Users",
+                  "Anmeldekonten und Login-Probleme prüfen."
+                ],
+                [
+                  "Table Editor",
+                  "Gespeicherte Datensätze ansehen."
+                ],
+                [
+                  "SQL Editor",
+                  "Gezielte technische Abfragen ausführen."
+                ],
+                [
+                  "Storage / reports",
+                  "Privat gespeicherte PDF-Berichte."
+                ],
+                [
+                  "Database / Backups",
+                  "Verfügbare Sicherungen kontrollieren."
+                ]
+              ]
+            },
+            {
+              "type": "p",
+              "text": "<b>Mitarbeiter und Coaches:</b> Kinder, Termine und Stempelkarten über das Portal bearbeiten. Direkte Änderungen in Tabellen können Prüfungen und Mailabläufe umgehen."
+            }
+          ]
+        },
+        {
+          "title": "Anmeldung, Rolle und Kind",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "sub",
+              "text": "Drei verschiedene Dinge"
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Baustein",
+                  "Bedeutung"
+                ],
+                [
+                  "Anmeldekonto",
+                  "Die E-Mail-Adresse ist in Supabase Auth bekannt."
+                ],
+                [
+                  "Portalrolle",
+                  "profiles legt parent, staff oder admin fest. Für Coaches ist außerdem ein aktives Mitarbeiterprofil nötig."
+                ],
+                [
+                  "Kindzuordnung",
+                  "parent_players verbindet ein Elternprofil mit den erlaubten Kindern."
+                ]
+              ]
+            },
+            {
+              "type": "step",
+              "n": 1,
+              "text": "<b>Kein Login möglich:</b> Im Portal die richtige E-Mail-Adresse prüfen. Bei einer neuen Einladung den vorgesehenen Einladungsablauf benutzen; ein Auth-Konto allein erstellt keine vollständige Elternzuordnung."
+            },
+            {
+              "type": "step",
+              "n": 2,
+              "text": "<b>Falscher Bereich sichtbar:</b> Die Administration prüft Rolle und Mitarbeiterstatus. Eltern-, Coach- und Admin-Konten nicht durch bloßes Austauschen ihrer E-Mail-Adressen vermischen."
+            },
+            {
+              "type": "step",
+              "n": 3,
+              "text": "<b>Kind fehlt:</b> Elternprofil und Kindverknüpfung prüfen lassen. Das Kind muss dafür nicht gelöscht oder neu angelegt werden."
+            },
+            {
+              "type": "tip",
+              "text": "<b>Braucht das ein Deployment?</b> Änderungen an vorhandenen Daten und Rollen normalerweise nicht. Eine Änderung an Programmcode oder der derzeitigen Login-Testfreigabe in der Cloud-Konfiguration muss gesondert veröffentlicht werden."
+            },
+            {
+              "type": "p",
+              "text": "Login-Rückleitungen müssen zur verwendeten Portaladresse passen. Supabase erlaubt nur konfigurierte Rückleitungsziele; für den Cloudbetrieb ist der Callback unter der Worker-Adresse maßgeblich."
+            },
+            {
+              "type": "source",
+              "text": "<link href=\"https://supabase.com/docs/guides/auth/redirect-urls\" color=\"#6840BC\">Supabase: Redirect URLs</link>"
+            }
+          ]
+        },
+        {
+          "title": "Termine, Mails und Berichte finden",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Tabelle / Bereich",
+                  "Was dort steht"
+                ],
+                [
+                  "players / parents",
+                  "Kinder und Elternkontakte."
+                ],
+                [
+                  "training_events",
+                  "Termin, Zeit, Standort und Trainer."
+                ],
+                [
+                  "event_participants",
+                  "Teilnahme und Zuordnung zum Leistungszeitraum."
+                ],
+                [
+                  "entitlement_periods",
+                  "Gespeicherte Zeiträume und Einheiten."
+                ],
+                [
+                  "notification_jobs",
+                  "Noch zu bearbeitende und bearbeitete Mailaufträge."
+                ],
+                [
+                  "notification_deliveries",
+                  "Versuch, Anbieter und Ergebnis einer Mailübergabe."
+                ],
+                [
+                  "report_snapshots / report_files",
+                  "Berichtsinhalt, Version und private PDF-Datei."
+                ]
+              ]
+            },
+            {
+              "type": "sub",
+              "text": "Mailstatus richtig lesen"
+            },
+            {
+              "type": "p",
+              "text": "<b>pending:</b> wartet. <b>processing:</b> wird bearbeitet. <b>sent:</b> Verarbeitung meldet Erfolg; zusätzlich Anbieter und tatsächlichen Empfang prüfen. <b>failed:</b> Fehler. <b>uncertain:</b> Versand unklar, vor einem neuen Versuch manuell klären."
+            },
+            {
+              "type": "tip",
+              "text": "Im aktuellen Betrieb sind automatische Jobs gesperrt und der Mailanbieter steht auf capture. Ein gespeicherter Auftrag oder ein Capture-Ergebnis beweist keinen Eingang im Postfach."
+            },
+            {
+              "type": "p",
+              "text": "PDF-Berichte bleiben als Version erhalten. Korrekturen erfolgen über den vorgesehenen Portalprozess. Historische Dateien und Protokolle nicht überschreiben. Downloadlinks zu privaten PDFs sind zeitlich begrenzt."
+            }
+          ]
+        },
+        {
+          "title": "Einfache Prüfungen und Sicherung",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "<b>Nur für berechtigte Administration:</b> Projekt öffnen, SQL Editor wählen und die folgende Abfrage ausführen. Sie zählt Aufträge und verändert keine Daten."
+            },
+            {
+              "type": "code",
+              "text": "select status, count(*) as anzahl\nfrom public.notification_jobs\ngroup by status\norder by status;",
+              "language": "sql"
+            },
+            {
+              "type": "p",
+              "text": "Dasselbe Prinzip zeigt, welche Stripe-Nachrichten noch auf Verarbeitung warten:"
+            },
+            {
+              "type": "code",
+              "text": "select status, count(*) as anzahl\nfrom public.stripe_webhook_events\ngroup by status\norder by status;",
+              "language": "sql"
+            },
+            {
+              "type": "tip",
+              "text": "<b>Backup:</b> Unter Database / Backups Datum und verfügbaren Wiederherstellungszeitraum prüfen. Ob und wie lange Sicherungen verfügbar sind, hängt vom eingerichteten Tarif ab. Das wurde durch dieses Handbuch nicht erneut live geprüft."
+            },
+            {
+              "type": "p",
+              "text": "Eine Datenbanksicherung enthält keine eigentlichen Storage-Dateien. Die privaten PDFs brauchen eine zusätzliche Dateisicherung. Eine Wiederherstellung gehört in die Hände der technischen Administration."
+            },
+            {
+              "type": "source",
+              "text": "<link href=\"https://supabase.com/docs/guides/platform/backups\" color=\"#6840BC\">Supabase: Database Backups</link>"
+            },
+            {
+              "type": "check",
+              "text": "Richtiges Projekt, Konto, Rolle und Kindzuordnung geprüft."
+            },
+            {
+              "type": "check",
+              "text": "Mailauftrag und tatsächlichen Empfang getrennt bewertet."
+            },
+            {
+              "type": "check",
+              "text": "Datenbank- und PDF-Sicherung einschließlich Wiederherstellung eingeplant."
+            },
+            {
+              "type": "source",
+              "text": "Projektgrundlage: supabase/migrations, src/lib/server/auth-test-access.ts und docs/ARCHITECTURE.md."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "02-Stripe",
+      "name": "Stripe",
+      "pages": [
+        {
+          "title": "Abos und Zahlungen verstehen",
+          "role": "ÜBERBLICK FÜR ALLE",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Stripe verwaltet Verträge und Zahlungen. Das Portal übernimmt daraus die passenden Leistungszeiträume für die Stempelkarten. Eine Zahlung ist kein Trainingsstempel."
+            },
+            {
+              "type": "p",
+              "text": "<link href=\"https://dashboard.stripe.com/acct_1RlAPDRoswKHkM76/dashboard\" color=\"#6840BC\">ProAcademy Stripe-Dashboard öffnen</link>"
+            },
+            {
+              "type": "tip",
+              "text": "<b>Richtiges Konto:</b> acct_1RlAPDRoswKHkM76. Im Projekt ist ein Live-Zugang hinterlegt. Der Name „Testkunde“ macht daraus keinen Stripe-Testmodus."
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Begriff / Kennung",
+                  "Einfach erklärt"
+                ],
+                [
+                  "Customer · cus_",
+                  "Der zahlende Kunde."
+                ],
+                [
+                  "Subscription · sub_",
+                  "Das laufende Abo."
+                ],
+                [
+                  "Subscription Item · si_",
+                  "Eine einzelne Position dieses Abos."
+                ],
+                [
+                  "Price · price_",
+                  "Der konkrete Preis und die zugeordnete Tarifvariante."
+                ],
+                [
+                  "Invoice · in_",
+                  "Eine Rechnung."
+                ],
+                [
+                  "Event · evt_",
+                  "Eine Nachricht über eine Änderung."
+                ]
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Coaches klären Trainingsfragen im Portal. Änderungen an Zahlungen, Kündigungen oder Tarifen übernimmt die dafür berechtigte Verwaltung."
+            }
+          ]
+        },
+        {
+          "title": "Die ProAcademy-Tariflogik",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Tarif",
+                  "Bestand",
+                  "Neu ab 01.09.2026"
+                ],
+                [
+                  "FirstTouch",
+                  "4 Fußball",
+                  "4 Fußball"
+                ],
+                [
+                  "GameChanger",
+                  "8 Fußball",
+                  "8 Fußball"
+                ],
+                [
+                  "Pro-Player",
+                  "10 Fußball",
+                  "12 Fußball"
+                ],
+                [
+                  "Pro-Player Jahresabo",
+                  "10 je Monat",
+                  "Bestandsvariante"
+                ],
+                [
+                  "NEXT LEVEL",
+                  "8 Fußball + 4 Athletik",
+                  "Sondertarif"
+                ]
+              ]
+            },
+            {
+              "type": "p",
+              "text": "<b>Bestandskunden behalten ihren bisherigen Tarif</b>, solange das bestehende Abo fortbesteht. Alte Varianten bleiben für sie verfügbar, werden aber nicht öffentlich für Neukunden angeboten."
+            },
+            {
+              "type": "p",
+              "text": "Entscheidend ist die <b>Preis-ID</b>. Derselbe oder ein ähnlicher Produktname reicht zur Zuordnung nicht aus. Ein neuer Abschluss mit einem alten Preis ab dem Stichtag wird zur manuellen Prüfung markiert."
+            },
+            {
+              "type": "p",
+              "text": "<b>Jahresabo:</b> Die Zahlung erfolgt jährlich, das Trainingskontingent wird monatlich geführt. Es gibt keinen frei vorziehbaren Jahrestopf."
+            },
+            {
+              "type": "p",
+              "text": "<b>NEXT LEVEL:</b> Die zwölf Einheiten bestehen aus zwei getrennten Anteilen. Eine Athletikeinheit ersetzt keine Fußball-Einheit und umgekehrt."
+            },
+            {
+              "type": "tip",
+              "text": "Beispiel: Ein altes Pro-Player-Abo erhält auch nach September weiter 10 Einheiten. Der aktuelle Pro-Player-Tarif erhält 12. Eine Verlängerung allein ist kein Tarifwechsel."
+            },
+            {
+              "type": "source",
+              "text": "Projektgrundlage: docs/TARIFF-RULES.md und Migration 202609090006_stripe_catalog.sql."
+            }
+          ]
+        },
+        {
+          "title": "Eine Elternanfrage prüfen",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "step",
+              "n": 1,
+              "text": "<b>Kunde suchen:</b> Im Stripe-Dashboard unter Kunden nach der Abrechnungsadresse suchen. Name und Kunden-ID mit der Zuordnung im Portal vergleichen."
+            },
+            {
+              "type": "step",
+              "n": 2,
+              "text": "<b>Abo öffnen:</b> Abo-Status, konkrete Preis-ID und Beginn sowie Ende des Abrechnungszeitraums ansehen. Bei mehreren Positionen die richtige Abo-Position prüfen."
+            },
+            {
+              "type": "step",
+              "n": 3,
+              "text": "<b>Rechnung ansehen:</b> Bei Zahlungsfragen die betreffende Rechnung öffnen. Eine fehlgeschlagene Zahlung nicht durch eine erfundene erfolgreiche Zahlung im Portal ersetzen."
+            },
+            {
+              "type": "step",
+              "n": 4,
+              "text": "<b>Zuordnung prüfen:</b> Die Portalverwaltung gleicht Kunde, Abo, Position, Kind und Elternzugang ab. Rechnungsadresse und Login-Adresse dürfen unterschiedlich sein."
+            },
+            {
+              "type": "sub",
+              "text": "Warum kann „Abo verwalten“ scheitern?"
+            },
+            {
+              "type": "p",
+              "text": "Der Aufruf braucht einen echten Stripe-Kunden im Konto, zum verwendeten Schlüssel passende Daten und eine Kundenportal-Konfiguration. Die künstlichen Stripe-Referenzen des bisherigen Beispielkindes ersetzen keinen echten Stripe-Kunden."
+            },
+            {
+              "type": "p",
+              "text": "Das Stripe-Kundenportal zeigt Zahlungs- und Abo-Funktionen entsprechend seiner Konfiguration. Welche Änderungen Eltern ausführen dürfen, wird dort festgelegt."
+            },
+            {
+              "type": "source",
+              "text": "<link href=\"https://docs.stripe.com/customer-management\" color=\"#6840BC\">Stripe: Customer portal</link>"
+            },
+            {
+              "type": "tip",
+              "text": "Keine pauschale Umstellung aller Bestandsabos durchführen. Einen unklaren Fall mit Kunden-ID, Preis-ID und Zeitraum an die zuständige Verwaltung geben."
+            }
+          ]
+        },
+        {
+          "title": "Testen und Nachrichten verstehen",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "sub",
+              "text": "Ein einfacher Stripe-Test"
+            },
+            {
+              "type": "step",
+              "n": 1,
+              "text": "Die technische Administration richtet eine getrennte Stripe-Sandbox mit passendem Testzugang ein. Die produktive Portalverbindung wird dafür nicht nebenbei umgestellt."
+            },
+            {
+              "type": "step",
+              "n": 2,
+              "text": "Einen Testkunden und ein passendes Testabo anlegen. Dieses gezielt mit einem Beispielkind in einer getrennten Testkonfiguration verbinden."
+            },
+            {
+              "type": "step",
+              "n": 3,
+              "text": "Als Testelternteil „Abo verwalten“ öffnen. Kunde, Abo, Rückkehr ins Portal und fehlende Zugriffe auf fremde Kinder prüfen. Ergebnis und verwendete Umgebung notieren."
+            },
+            {
+              "type": "p",
+              "text": "Stripe-Testzahlungen bewegen kein echtes Geld. Für einen solchen Test werden Testdaten und die dazugehörigen Testschlüssel verwendet."
+            },
+            {
+              "type": "source",
+              "text": "<link href=\"https://docs.stripe.com/testing\" color=\"#6840BC\">Stripe: Testing</link>"
+            },
+            {
+              "type": "sub",
+              "text": "Webhook bedeutet Änderungsnachricht"
+            },
+            {
+              "type": "p",
+              "text": "Stripe sendet Abo- und Rechnungsereignisse an <b>/api/stripe/webhook</b> der Worker-Adresse. Das Portal prüft die Signatur und speichert die Nachricht in Supabase. Erst die spätere Jobverarbeitung übernimmt den fachlichen Abgleich."
+            },
+            {
+              "type": "tip",
+              "text": "Ein HTTP-Ergebnis 200 bestätigt die Annahme der Nachricht. Bei gesperrten Jobs ist damit noch kein Abo-Abgleich abgeschlossen. Im Stripe-Dashboard unter Workbench / Webhooks die Zustellversuche ansehen; eine Wiederholung ist eine bewusste Aktion."
+            },
+            {
+              "type": "check",
+              "text": "Live oder Sandbox eindeutig erkannt; richtiger Kunde und Preis geprüft."
+            },
+            {
+              "type": "check",
+              "text": "Kundenportal geöffnet und Portal-Zuordnung geprüft."
+            },
+            {
+              "type": "check",
+              "text": "Webhook-Annahme und anschließende Verarbeitung getrennt geprüft."
+            },
+            {
+              "type": "p",
+              "text": "Für diese einfachen Prüfungen sind keine Terminalbefehle nötig. Zahlungsänderungen nicht als technischen Verbindungstest benutzen."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "03-Cloudflare",
+      "name": "Cloudflare",
+      "pages": [
+        {
+          "title": "Hier läuft das Portal online",
+          "role": "ÜBERBLICK FÜR ALLE",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Cloudflare stellt die veröffentlichte Webapp bereit. Außerdem läuft dort der Hintergrunddienst, der freigegebene Aufträge verarbeitet."
+            },
+            {
+              "type": "p",
+              "text": "<link href=\"https://dash.cloudflare.com/7300475f02c8b8793bb7e6250d0d4690/workers-and-pages\" color=\"#6840BC\">Cloudflare-Konto öffnen</link>"
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Dienst",
+                  "Aufgabe"
+                ],
+                [
+                  "proacademy-portal",
+                  "Webseiten, Anmeldung im Portal und Schnittstellen."
+                ],
+                [
+                  "proacademy-jobs",
+                  "Geschützter Zugang zum Hintergrunddienst und dessen Container."
+                ]
+              ]
+            },
+            {
+              "type": "tip",
+              "text": "<b>Aktuelle Portaladresse:</b> <link href=\"https://proacademy-portal.proacademy-by-ak.workers.dev\" color=\"#6840BC\">ProAcademy-Portal öffnen</link><br/>Die offizielle Adresse portal.proacademy-ak.com bleibt deaktiviert. Keine Custom Domain oder Portal-Route dafür anlegen."
+            },
+            {
+              "type": "p",
+              "text": "In der Übersicht zuerst das richtige Konto wählen. Die Konto-ID endet auf <b>d0d4690</b>. Anschließend den gewünschten Worker öffnen; Portal und Hintergrunddienst haben eigene Einstellungen."
+            },
+            {
+              "type": "p",
+              "text": "<b>Für Mitarbeiter:</b> Wenn die Webapp nicht erreichbar ist, Adresse, Uhrzeit und Fehlermeldung an die Administration geben. Ein neuer Termin oder eine Datenkorrektur in Supabase braucht normalerweise keine neue App-Veröffentlichung."
+            }
+          ]
+        },
+        {
+          "title": "Die aktuellen Schalter verstehen",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Einstellung",
+                  "Aktueller Zweck"
+                ],
+                [
+                  "JOBS_ENABLED=false",
+                  "Automatische Jobverarbeitung gesperrt."
+                ],
+                [
+                  "MAIL_PROVIDER=capture",
+                  "Portal-Mails erfassen statt über SMTP versenden."
+                ],
+                [
+                  "EMAIL_TEST_MODE=true",
+                  "Testregeln für den Versand aktiv."
+                ],
+                [
+                  "EMAIL_TEST_RECIPIENT",
+                  "Vorgesehener Testempfänger für Portal-Mails."
+                ],
+                [
+                  "AUTH_TEST_EMAILS",
+                  "Zusätzlich freigegebene Login-Testadressen."
+                ],
+                [
+                  "workers_dev=true / routes=[]",
+                  "Worker-Link aktiv; keine konfigurierte Portal-Domainroute."
+                ]
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Der Zeitplan ist alle zehn Minuten eingerichtet. Solange <b>JOBS_ENABLED=false</b> gilt, führt er keine reguläre Verarbeitung aus. Ein Zeitplan allein bedeutet daher nicht, dass E-Mails gesendet werden."
+            },
+            {
+              "type": "tip",
+              "text": "<b>Login-Mails sind separat:</b> Supabase kann für freigegebene Testkonten Login-Mails senden, während die Portal-Warteschlange gesperrt bleibt."
+            },
+            {
+              "type": "p",
+              "text": "Nicht nur einen Schalter umlegen, um einen Fehler auszuprobieren: Nach einer Aktivierung können auch ältere fällige Aufträge verarbeitet werden. Erst Warteschlange, Empfänger und Freigabe prüfen."
+            },
+            {
+              "type": "source",
+              "text": "Projektgrundlage: wrangler.jsonc, workers/cloudflare/wrangler.jsonc und workers/cloudflare/index.ts."
+            }
+          ]
+        },
+        {
+          "title": "Status prüfen, ohne zu veröffentlichen",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "<b>Technische Administration:</b> Terminal im Projektordner öffnen. Die folgenden Befehle zeigen Konto und veröffentlichte Versionen an; sie veröffentlichen keine neue App."
+            },
+            {
+              "type": "code",
+              "text": "npx wrangler whoami\nnpx wrangler deployments list --env production",
+              "language": "sh"
+            },
+            {
+              "type": "p",
+              "text": "Die Versionen des Hintergrunddienstes werden separat abgefragt:"
+            },
+            {
+              "type": "code",
+              "text": "npx wrangler deployments list \\\n  --config workers/cloudflare/wrangler.jsonc",
+              "language": "sh"
+            },
+            {
+              "type": "source",
+              "text": "<link href=\"https://developers.cloudflare.com/workers/wrangler/commands/\" color=\"#6840BC\">Cloudflare: Wrangler commands</link>"
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Beobachtung",
+                  "Einordnung im Projekt"
+                ],
+                [
+                  "Loginseite erreichbar (200)",
+                  "Webseite erreichbar; noch kein vollständiger Login-Test."
+                ],
+                [
+                  "Weiterleitung zum Login (307)",
+                  "Bei geschützten Seiten ohne Anmeldung normal."
+                ],
+                [
+                  "401 oder 403",
+                  "Anmeldung, Rolle oder Anfrageberechtigung prüfen."
+                ],
+                [
+                  "Jobs /run liefert 503",
+                  "Bei gesperrten Jobs erwartetes Ergebnis."
+                ]
+              ]
+            },
+            {
+              "type": "tip",
+              "text": "<b>/verify und /run sind verschieden:</b> Der geschützte POST-Aufruf /verify prüft Verbindungen und PDF-Erzeugung ohne Versand oder Datenänderung. /run kann echte Aufträge verarbeiten. Nur die Administration verwendet diese Endpunkte mit dem geheimen Zugang."
+            },
+            {
+              "type": "p",
+              "text": "Worker-Protokolle im Dashboard helfen bei Fehlern. Keine Tokens, vollständigen Login-Links oder personenbezogenen Protokolle in öffentliche Nachrichten kopieren."
+            }
+          ]
+        },
+        {
+          "title": "Veröffentlichen: nur nach Befehl",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "<b>Diese Seite ist eine technische Ablaufhilfe, keine aktuelle Freigabe.</b> Veröffentlichung nur nach ausdrücklichem Deploy-Befehl. Zuerst Änderungen und Prüfungen abschließen."
+            },
+            {
+              "type": "step",
+              "n": 1,
+              "text": "<b>Lokal prüfen:</b> Im Projektordner Typprüfung und Tests ausführen. Bei Änderungen am Hintergrunddienst dessen Build und Typprüfung ergänzen."
+            },
+            {
+              "type": "code",
+              "text": "npm run typecheck\nnpm test\nnpm run build:jobs\nnpm run typecheck:jobs",
+              "language": "sh"
+            },
+            {
+              "type": "step",
+              "n": 2,
+              "text": "<b>Portal bauen:</b> Die Worker-Adresse muss auch beim Build gesetzt sein. Der Build erzeugt zunächst nur lokale Dateien."
+            },
+            {
+              "type": "code",
+              "text": "portal_url='https://proacademy-portal.proacademy-by-ak.workers.dev'\nNEXT_PUBLIC_APP_URL=\"$portal_url\" \\\nAPP_URL=\"$portal_url\" NEXT_PUBLIC_DEMO_MODE=false \\\nnpm run build:cloudflare -- --env production",
+              "language": "sh"
+            },
+            {
+              "type": "step",
+              "n": 3,
+              "text": "<b>Freigegebene Version veröffentlichen:</b> Bei geändertem Hintergrunddienst muss Docker laufen. Die beiden Ziele werden getrennt veröffentlicht."
+            },
+            {
+              "type": "code",
+              "text": "npx wrangler deploy \\\n  --config workers/cloudflare/wrangler.jsonc\nnpx wrangler deploy --env production",
+              "language": "sh"
+            },
+            {
+              "type": "tip",
+              "text": "Beim Portal ist <b>--env production</b> erforderlich. Ohne diese Angabe zeigt die Standardkonfiguration auf einen anderen Worker. Ein Rollback setzt Programmcode zurück, aber keine Datenbank und keine bereits versendeten Mails."
+            },
+            {
+              "type": "check",
+              "text": "Worker-Link, Login und betroffene Funktion nach Veröffentlichung geprüft."
+            },
+            {
+              "type": "check",
+              "text": "Versionsnummern dokumentiert; Domain und Versandschalter unverändert geprüft."
+            },
+            {
+              "type": "source",
+              "text": "Projektgrundlage: package.json und beide Wrangler-Konfigurationen."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "04-Proton-Mail",
+      "name": "Proton Mail",
+      "pages": [
+        {
+          "title": "Der Versanddienst für E-Mails",
+          "role": "ÜBERBLICK FÜR ALLE",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Proton stellt den Absender für die Portal-Mails bereit. Ob eine Mail entstehen soll und an wen sie geht, entscheidet zuvor Supabase Auth oder der Portal-Hintergrunddienst."
+            },
+            {
+              "type": "p",
+              "text": "<link href=\"https://mail.proton.me\" color=\"#6840BC\">Proton Mail öffnen</link>"
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Einrichtung",
+                  "Bei ProAcademy"
+                ],
+                [
+                  "Verwaltendes Postfach",
+                  "service@proacademy-ak.com"
+                ],
+                [
+                  "Vorgesehener Absender",
+                  "billing@proacademy-ak.com"
+                ],
+                [
+                  "Anzeigename",
+                  "ProAcademy"
+                ],
+                [
+                  "Versandserver",
+                  "smtp.protonmail.ch"
+                ],
+                [
+                  "Port und Verbindung",
+                  "587 mit STARTTLS"
+                ],
+                [
+                  "SMTP-Benutzer",
+                  "billing@proacademy-ak.com"
+                ]
+              ]
+            },
+            {
+              "type": "tip",
+              "text": "Die Absenderadresse billing@ gehört zur bestehenden Proton-Einrichtung. Ein SMTP-Token ist ein eigener Zugang für einen Dienst; es ist nicht das normale Passwort des Postfachs."
+            },
+            {
+              "type": "p",
+              "text": "Für Mitarbeiter genügt meist die Prüfung: richtige Empfängeradresse, Betreff, Zeitpunkt und Anhang. Änderungen an Tokens und Servereinstellungen übernimmt die zuständige Administration."
+            }
+          ]
+        },
+        {
+          "title": "Zwei getrennte Wege zur Mail",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "sub",
+              "text": "1. Anmeldung per Login-Link"
+            },
+            {
+              "type": "p",
+              "text": "Supabase Auth verwendet die in Supabase hinterlegten SMTP-Zugangsdaten. Deshalb kann eine Login-Mail funktionieren, obwohl der Hintergrunddienst für Trainingsmails gesperrt ist."
+            },
+            {
+              "type": "sub",
+              "text": "2. Einladungen, Training und PDF"
+            },
+            {
+              "type": "p",
+              "text": "Elterneinladungen und Trainingsmails werden als Aufträge in Supabase gespeichert. Der Hintergrunddienst verarbeitet sie später. Nur mit freigegebenem Versand und passender Konfiguration übergibt er die Mail tatsächlich an Proton."
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Zugang",
+                  "Verwendung"
+                ],
+                [
+                  "ProAcademy Supabase Auth",
+                  "Eigener SMTP-Token in den Supabase-Auth-Einstellungen."
+                ],
+                [
+                  "ProAcademy Portal Jobs",
+                  "Separater SMTP-Token für den Hintergrunddienst. In dessen sicherer Konfiguration: PROTON_SMTP_TOKEN."
+                ]
+              ]
+            },
+            {
+              "type": "tip",
+              "text": "Die Tokens getrennt benennen. So lässt sich ein defekter Zugang austauschen, ohne versehentlich beide Versandwege gleichzeitig zu unterbrechen."
+            },
+            {
+              "type": "p",
+              "text": "<b>Aktueller Stand:</b> Die allgemeine Portal-Verarbeitung ist gesperrt, der Mailanbieter steht auf capture. Frühere gezielte Testmails belegen die getestete Zustellung, aber keinen aktivierten allgemeinen Elternversand."
+            },
+            {
+              "type": "p",
+              "text": "Eine erfolgreiche SMTP-Verbindungsprüfung meldet nur, dass der Versandzugang erreichbar ist. Den tatsächlichen Eingang und einen PDF-Anhang prüft man im vorgesehenen Testpostfach."
+            },
+            {
+              "type": "source",
+              "text": "Projektgrundlage: docs/LAUNCH-SETUP.md, workers/cloudflare/wrangler.jsonc und docs/ARCHITECTURE.md."
+            }
+          ]
+        },
+        {
+          "title": "Einen SMTP-Token austauschen",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "<b>Nur bei Bedarf durch die Administration.</b> Bestehende Tokens nicht vorsorglich löschen. Ein Austausch kann die Anmeldung oder den Mailversand betreffen."
+            },
+            {
+              "type": "step",
+              "n": 1,
+              "text": "In Proton die Einstellungen und anschließend alle Einstellungen öffnen. Unter IMAP/SMTP den Bereich für SMTP-Tokens aufrufen."
+            },
+            {
+              "type": "step",
+              "n": 2,
+              "text": "Einen neuen Token erzeugen, eindeutig nach Dienst benennen und die Absenderadresse billing@proacademy-ak.com auswählen."
+            },
+            {
+              "type": "step",
+              "n": 3,
+              "text": "Den Token geschützt übernehmen. Für Login-Mails wird er in Supabase Auth / SMTP aktualisiert. Für Portal-Mails wird der Zugang des Hintergrunddienstes aktualisiert."
+            },
+            {
+              "type": "step",
+              "n": 4,
+              "text": "Den betroffenen Weg gezielt prüfen: technische Verbindung und, nach entsprechender Freigabe, eine Mail an das eigene Testpostfach. Den alten Token erst danach widerrufen."
+            },
+            {
+              "type": "source",
+              "text": "<link href=\"https://proton.me/support/smtp-submission\" color=\"#6840BC\">Proton: SMTP submission und Tokens</link>"
+            },
+            {
+              "type": "sub",
+              "text": "Konfigurationswerte zum Nachschlagen"
+            },
+            {
+              "type": "code",
+              "text": "PROTON_SMTP_HOST=smtp.protonmail.ch\nPROTON_SMTP_PORT=587\nPROTON_SMTP_USER=billing@proacademy-ak.com\nEMAIL_FROM=\"ProAcademy <billing@proacademy-ak.com>\"",
+              "language": "text"
+            },
+            {
+              "type": "tip",
+              "text": "Das sind Einstellungsnamen, kein vollständiger Einrichtungsbefehl. Der geheime Token gehört in die geschützte Konfiguration, niemals in dieses Handbuch, einen Screenshot oder GitHub."
+            }
+          ]
+        },
+        {
+          "title": "Wenn eine Mail fehlt",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "step",
+              "n": 1,
+              "text": "<b>Postfach prüfen:</b> Stimmen Adresse und Schreibweise? In allen Nachrichten, Spam und automatisch sortierten Kategorien nach dem Betreff suchen."
+            },
+            {
+              "type": "step",
+              "n": 2,
+              "text": "<b>Art der Mail klären:</b> Bei Login-Mails prüft die Administration Supabase Auth und die Login-Testfreigabe. Bei Elterneinladungen und Trainingsmails prüft sie den Auftrag und Versandversuch in Supabase."
+            },
+            {
+              "type": "step",
+              "n": 3,
+              "text": "<b>Aktuelle Versandregeln prüfen:</b> Wartet der Auftrag? Sind Jobs gesperrt? Steht der Anbieter auf capture? Wurde die Mail an den freigegebenen Testempfänger umgeleitet?"
+            },
+            {
+              "type": "step",
+              "n": 4,
+              "text": "<b>Fehler eingrenzen:</b> Absender, SMTP-Zugang und das Ergebnis des Versandversuchs prüfen lassen. Bei uncertain nicht sofort erneut senden; die erste Mail könnte bereits angekommen sein."
+            },
+            {
+              "type": "sub",
+              "text": "Was Mitarbeiter melden sollten"
+            },
+            {
+              "type": "p",
+              "text": "Mailart, erwarteter Empfänger, ungefährer Versandzeitpunkt, betroffener Termin oder Berichtszeitraum und ob ein Anhang fehlt. Keine Passwörter oder Einladungslinks weiterreichen."
+            },
+            {
+              "type": "tip",
+              "text": "Eine Änderung an SPF, DKIM oder DMARC betrifft die Zustellbarkeit der Domain. Das sind Einstellungen für die Administration und kein erster Schritt bei einer einzelnen fehlenden Mail."
+            },
+            {
+              "type": "check",
+              "text": "Richtige Adresse und alle Postfachbereiche geprüft."
+            },
+            {
+              "type": "check",
+              "text": "Login-Mail oder Portal-Mail eindeutig unterschieden."
+            },
+            {
+              "type": "check",
+              "text": "Warteschlange, Anbieter und Testempfänger geprüft."
+            },
+            {
+              "type": "check",
+              "text": "Empfang und PDF-Anhang nach einem freigegebenen Test bestätigt."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "05-GitHub-und-Git",
+      "name": "GitHub und Git",
+      "pages": [
+        {
+          "title": "Programmcode und Änderungen sichern",
+          "role": "ÜBERBLICK FÜR ALLE",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Git hält Änderungen am Projekt fest. GitHub speichert die hochgeladenen Versionen online. So lässt sich nachvollziehen, was geändert wurde und welche Version zur Veröffentlichung vorgesehen ist."
+            },
+            {
+              "type": "p",
+              "text": "<link href=\"https://github.com/ihan2345/pro-academy-portal_v1\" color=\"#6840BC\">Projekt auf GitHub öffnen</link>"
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Begriff",
+                  "Einfach erklärt"
+                ],
+                [
+                  "Repository / Repo",
+                  "Der Projektordner mit seiner Änderungshistorie."
+                ],
+                [
+                  "Branch",
+                  "Ein eigener Entwicklungsstand. Hier: start und main."
+                ],
+                [
+                  "Commit",
+                  "Eine lokal gespeicherte Gruppe von Änderungen."
+                ],
+                [
+                  "Push",
+                  "Überträgt lokale Commits zu GitHub."
+                ],
+                [
+                  "Deployment",
+                  "Veröffentlicht eine App-Version bei Cloudflare."
+                ]
+              ]
+            },
+            {
+              "type": "tip",
+              "text": "<b>GitHub ist keine vollständige Datensicherung des Portals.</b> Supabase-Daten, private PDF-Dateien, laufende Stripe-Abos und geheime Zugangsdaten sind dadurch nicht gesichert."
+            },
+            {
+              "type": "p",
+              "text": "Für Mitarbeiter ist GitHub vor allem eine Ablage für Handbücher und Änderungswünsche. Technische Änderungen und Veröffentlichungen übernimmt die zuständige Administration."
+            }
+          ]
+        },
+        {
+          "title": "Handbücher und Versionen finden",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "step",
+              "n": 1,
+              "text": "Das verlinkte Repository öffnen. Falls nötig mit dem eigenen berechtigten GitHub-Konto anmelden."
+            },
+            {
+              "type": "step",
+              "n": 2,
+              "text": "Oben im Dateibereich den Branch auswählen. <b>start</b> wird für die Entwicklung genutzt, <b>main</b> für den übernommenen Stand. Vor einem Vergleich prüfen, welchen Branch du gerade siehst."
+            },
+            {
+              "type": "step",
+              "n": 3,
+              "text": "README.md öffnen. Von dort führen Links zu Handbüchern und Projektdokumentation. Die geplanten späteren Verbesserungen stehen in <b>V2.0.md</b>."
+            },
+            {
+              "type": "step",
+              "n": 4,
+              "text": "Für die Änderungshistorie die Commit-Ansicht öffnen. Datum, Beschreibung und geänderte Dateien helfen bei der Suche. Eine Commit-ID bezeichnet genau einen gespeicherten Stand."
+            },
+            {
+              "type": "tip",
+              "text": "Ein neues Handbuch auf deinem Mac erscheint erst nach Commit und Push auf GitHub. Eine Datei auf GitHub beweist wiederum nicht, dass dieser Stand schon bei Cloudflare veröffentlicht wurde."
+            },
+            {
+              "type": "sub",
+              "text": "Was wohin gehört"
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "In das Projekt",
+                  "Getrennt und geschützt"
+                ],
+                [
+                  "Quellcode, Dokumentation, Tests",
+                  "Zugangstokens und Passwörter"
+                ],
+                [
+                  "Handbuch-PDFs und Textfassungen",
+                  "Kundenexporte und persönliche Berichte"
+                ],
+                [
+                  "V2.0-Wunschliste",
+                  "Datenbank- und Storage-Sicherungen"
+                ]
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Die aktuellen Plattform-Handbücher werden zusätzlich lokal in den gewünschten Portal-Ordner kopiert. Diese Kopie ist unabhängig von GitHub."
+            }
+          ]
+        },
+        {
+          "title": "Nützliche Befehle zum Nachsehen",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "<b>Technische Administration:</b> Terminal im Projektordner öffnen. Diese Befehle lesen den lokalen Git-Stand und ändern keinen Programmcode."
+            },
+            {
+              "type": "code",
+              "text": "git status --short\ngit branch --show-current\ngit log -5 --oneline\ngit diff",
+              "language": "sh"
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Befehl",
+                  "Was du ablesen kannst"
+                ],
+                [
+                  "status --short",
+                  "Welche Dateien noch geändert oder neu sind."
+                ],
+                [
+                  "branch --show-current",
+                  "Auf welchem Branch du arbeitest."
+                ],
+                [
+                  "log -5 --oneline",
+                  "Die letzten fünf gespeicherten Änderungen."
+                ],
+                [
+                  "diff",
+                  "Die noch nicht vorgemerkten Änderungen an bekannten Dateien."
+                ]
+              ]
+            },
+            {
+              "type": "p",
+              "text": "Neue, noch nicht erfasste Dateien werden in git diff nicht mit ihrem Inhalt angezeigt. Sie stehen bei git status mit zwei Fragezeichen."
+            },
+            {
+              "type": "tip",
+              "text": "Wenn Dateien mit Zusätzen wie „ 2.ts“ auftauchen, erst prüfen, ob es Kopien aus einer Ordnersynchronisierung sind. Nicht automatisch mit hochladen und nicht ungeprüft löschen."
+            },
+            {
+              "type": "p",
+              "text": "Der Befehl git fetch origin lädt Informationen vom entfernten Repository, verändert aber keine Arbeitsdateien. Zusammenführen oder Branchwechsel sind eigene Schritte."
+            },
+            {
+              "type": "source",
+              "text": "Projektgrundlage: aktueller Git-Workflow mit start/main und manuellen Cloudflare-Deployments."
+            }
+          ]
+        },
+        {
+          "title": "Änderungen bewusst hochladen",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "<b>Nur nach Auftrag für Commit und Push.</b> Vorher Inhalt prüfen und den vorgesehenen Branch bestätigen. Dateien gezielt auswählen, damit keine privaten Exporte mitkommen."
+            },
+            {
+              "type": "sub",
+              "text": "Beispiel: ein vorhandenes Handbuch ändern"
+            },
+            {
+              "type": "code",
+              "text": "git branch --show-current\ngit status --short\ngit add docs/BENUTZERHANDBUCH.md\ngit add docs/ProAcademy-Benutzerhandbuch.pdf\ngit diff --cached --stat\ngit commit -m \"Benutzerhandbuch aktualisieren\"\ngit push origin start",
+              "language": "sh"
+            },
+            {
+              "type": "p",
+              "text": "Dieses Beispiel setzt voraus, dass der aktuelle Branch <b>start</b> ist und genau diese beiden Dateien zum Auftrag gehören. Bei anderen Änderungen werden die passenden Dateien ausdrücklich ausgewählt."
+            },
+            {
+              "type": "source",
+              "text": "<link href=\"https://docs.github.com/en/get-started/using-git/pushing-commits-to-a-remote-repository\" color=\"#6840BC\">GitHub: Commits zum entfernten Repository übertragen</link>"
+            },
+            {
+              "type": "tip",
+              "text": "Ein Push überträgt den Code. Der derzeitige Projektablauf veröffentlicht anschließend separat bei Cloudflare. Eine spätere automatische Build-Verbindung könnte das ändern und muss dann ausdrücklich dokumentiert werden."
+            },
+            {
+              "type": "check",
+              "text": "Richtigen Branch und ausgewählte Dateien geprüft."
+            },
+            {
+              "type": "check",
+              "text": "Keine .env-Dateien, Tokens oder Kundendaten im Commit."
+            },
+            {
+              "type": "check",
+              "text": "Push erfolgreich; Commit auf GitHub sichtbar."
+            },
+            {
+              "type": "check",
+              "text": "Übernahme nach main und Deployment nur im beauftragten Umfang."
+            },
+            {
+              "type": "p",
+              "text": "Bei Konflikten oder abgelehntem Push die Administration einschalten. Kein force push und kein Zurücksetzen mit Datenverlust als einfache Fehlerlösung."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "06-Docker",
+      "name": "Docker",
+      "pages": [
+        {
+          "title": "Das Werkzeug für den Hintergrunddienst",
+          "role": "ÜBERBLICK FÜR ALLE",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "Docker verpackt den Hintergrunddienst mit seiner Laufzeit in ein ausführbares Paket. Dieses Paket wird bei Cloudflare als Container gestartet, wenn ein berechtigter Aufruf das erfordert."
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Begriff",
+                  "Einfach erklärt"
+                ],
+                [
+                  "Docker Desktop",
+                  "Das lokale Programm auf dem Mac."
+                ],
+                [
+                  "Image",
+                  "Das gebaute Paket mit dem Hintergrunddienst."
+                ],
+                [
+                  "Container",
+                  "Eine laufende Ausführung dieses Pakets."
+                ],
+                [
+                  "Dockerfile",
+                  "Die Bauanleitung für das Paket."
+                ],
+                [
+                  "Cloudflare Container",
+                  "Die Ausführung in der Cloud, unabhängig vom lokalen Mac."
+                ]
+              ]
+            },
+            {
+              "type": "tip",
+              "text": "<b>Docker ergänzt die externen Plattformen.</b> Es ist ein lokales Betriebswerkzeug. Ein ausgeschalteter Mac beendet nicht die bereits veröffentlichte Webapp bei Cloudflare."
+            },
+            {
+              "type": "p",
+              "text": "Coaches brauchen Docker nicht für ihre tägliche Arbeit. Die technische Administration benötigt es insbesondere beim Bauen und Veröffentlichen des Container-Hintergrunddienstes."
+            },
+            {
+              "type": "p",
+              "text": "Die Bauanleitung dieses Projekts liegt in <b>workers/Dockerfile</b>. Die Cloud-Konfiguration liegt in <b>workers/cloudflare/wrangler.jsonc</b>."
+            }
+          ]
+        },
+        {
+          "title": "Lokal und in der Cloud unterscheiden",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "step",
+              "n": 1,
+              "text": "<b>Auf dem Mac:</b> Docker Desktop startet die lokale Container-Umgebung. Ein offenes Fenster allein genügt nicht; Docker muss betriebsbereit sein."
+            },
+            {
+              "type": "step",
+              "n": 2,
+              "text": "<b>Beim Bauen:</b> Die Projektdateien werden nach der Dockerfile-Anleitung zu einem Image verarbeitet. Geheime Zugangsdaten gehören nicht in dieses Paket."
+            },
+            {
+              "type": "step",
+              "n": 3,
+              "text": "<b>Bei der Veröffentlichung:</b> Wrangler baut beziehungsweise überträgt das Container-Image für den Cloudflare-Hintergrunddienst. Dieser Schritt veröffentlicht und braucht einen entsprechenden Auftrag."
+            },
+            {
+              "type": "step",
+              "n": 4,
+              "text": "<b>Im Cloudbetrieb:</b> Der Worker steuert den Container. Der derzeitige Aufbau erlaubt höchstens eine Instanz. Automatische Jobverarbeitung ist aktuell gesperrt."
+            },
+            {
+              "type": "tip",
+              "text": "Ein Container, der nach erledigter Arbeit stoppt oder wegen gesperrter Jobs gar nicht startet, ist in diesem Projekt nicht automatisch ein Fehler."
+            },
+            {
+              "type": "sub",
+              "text": "Was Docker nicht ersetzt"
+            },
+            {
+              "type": "p",
+              "text": "Die Datenbank bleibt in Supabase. Abos bleiben in Stripe. Der Mailversand läuft über Proton. Die öffentliche Portaladresse wird über Cloudflare bereitgestellt."
+            },
+            {
+              "type": "p",
+              "text": "Auch ein erfolgreich gebautes Image bestätigt noch keinen Eltern-Login, keine korrekte Kindzuordnung und keinen tatsächlichen Mail-Eingang. Diese Abläufe werden separat geprüft."
+            },
+            {
+              "type": "source",
+              "text": "Projektgrundlage: workers/Dockerfile, workers/cloudflare/index.ts und workers/cloudflare/wrangler.jsonc."
+            }
+          ]
+        },
+        {
+          "title": "Docker einfach prüfen",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "<b>Technische Administration am Mac:</b> Der erste Befehl öffnet Docker Desktop. Warte, bis Docker bereit ist. Die weiteren Befehle zeigen nur den lokalen Zustand."
+            },
+            {
+              "type": "code",
+              "text": "open -a Docker\ndocker info --format '{{.ServerVersion}}'\ndocker ps\ndocker ps -a\ndocker images",
+              "language": "sh"
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Befehl",
+                  "Ergebnis"
+                ],
+                [
+                  "docker info",
+                  "Prüft die Verbindung zur lokalen Docker-Umgebung."
+                ],
+                [
+                  "docker ps",
+                  "Zeigt lokal laufende Container."
+                ],
+                [
+                  "docker ps -a",
+                  "Zeigt auch lokal gestoppte Container."
+                ],
+                [
+                  "docker images",
+                  "Zeigt die lokal vorhandenen Images."
+                ]
+              ]
+            },
+            {
+              "type": "source",
+              "text": "<link href=\"https://docs.docker.com/reference/cli/docker/container/ls/\" color=\"#6840BC\">Docker: Container auflisten</link>"
+            },
+            {
+              "type": "tip",
+              "text": "Eine leere Liste bei docker ps bedeutet nur, dass lokal kein Container läuft. Die Container bei Cloudflare erscheinen dort nicht."
+            },
+            {
+              "type": "p",
+              "text": "<b>Cannot connect to the Docker daemon:</b> Docker Desktop starten und den Start abwarten. Bleibt der Fehler, den lokalen Docker-Status prüfen lassen. Nicht Supabase-Zugangsdaten ändern."
+            },
+            {
+              "type": "p",
+              "text": "Diese Befehle verarbeiten keine Portal-Aufträge und senden keine Trainingsmails."
+            }
+          ]
+        },
+        {
+          "title": "Build, Fehler und Abschlussprüfung",
+          "role": "ADMINISTRATION",
+          "blocks": [
+            {
+              "type": "sub",
+              "text": "Lokale Prüfung des Hintergrunddienstes"
+            },
+            {
+              "type": "p",
+              "text": "Im Projektordner ausführen. Diese beiden Projektbefehle bauen beziehungsweise prüfen den Runner-Code lokal; sie starten keinen Versand und veröffentlichen kein Cloud-Image."
+            },
+            {
+              "type": "code",
+              "text": "npm run build:jobs\nnpm run typecheck:jobs",
+              "language": "sh"
+            },
+            {
+              "type": "sub",
+              "text": "Wenn etwas nicht funktioniert"
+            },
+            {
+              "type": "table",
+              "rows": [
+                [
+                  "Problem",
+                  "Nächster sinnvoller Schritt"
+                ],
+                [
+                  "Docker nicht erreichbar",
+                  "Docker Desktop und docker info prüfen."
+                ],
+                [
+                  "Build bricht ab",
+                  "Erste konkrete Fehlermeldung im Build-Protokoll prüfen lassen."
+                ],
+                [
+                  "Cloud-Job antwortet mit 503",
+                  "Zuerst die absichtliche Jobsperre prüfen, nicht lokal Docker neu installieren."
+                ],
+                [
+                  "Mail fehlt trotz Docker",
+                  "Mailauftrag, Anbieter und Empfänger prüfen; siehe Proton-Handbuch."
+                ]
+              ]
+            },
+            {
+              "type": "tip",
+              "text": "Das Aufräumen von Docker-Volumes oder kompletten Umgebungen kann lokale Daten entfernen. Für einfache Verbindungsfehler sind solche Löschbefehle nicht erforderlich."
+            },
+            {
+              "type": "check",
+              "text": "Docker betriebsbereit; lokale Prüfungen erfolgreich."
+            },
+            {
+              "type": "check",
+              "text": "Build und Veröffentlichung klar unterschieden."
+            },
+            {
+              "type": "check",
+              "text": "Falls veröffentlicht: Jobs-Version und Cloud-Protokolle geprüft."
+            },
+            {
+              "type": "check",
+              "text": "Versand bleibt nur im ausdrücklich freigegebenen Umfang aktiv."
+            },
+            {
+              "type": "p",
+              "text": "Der genaue Veröffentlichungsbefehl steht im Cloudflare-Handbuch. Dafür gibt es keine zusätzliche automatische Freigabe durch einen erfolgreichen Docker-Start."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

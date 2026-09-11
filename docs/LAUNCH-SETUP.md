@@ -278,3 +278,9 @@ Nach ausdrücklichem Commit-, Push- und Deployment-Befehl Anwendungsstand `a90aa
 - Portal-Smokecheck: Login HTTP 200, neue Admin-/Coachseiten leiten ohne Sitzung zur Anmeldung, neuer PDF-Endpunkt ohne Sitzung HTTP 401.
 
 `JOBS_ENABLED=false`, `MAIL_PROVIDER=capture`, `EMAIL_TEST_MODE=true` und der allgemeine Testempfänger iCloud bleiben erhalten. Die Coach- und Elternadressen bleiben für Login-Mails freigegeben. Die offizielle Domain bleibt deaktiviert. Persönliche Abnahme der neuen Stempelkartenansichten und ein separat freigegebener tatsächlicher Stempelkartenversand stehen noch aus.
+
+## Lokal vorbereitet: Wertung von Absagen (10.09.2026)
+
+Noch nicht in Supabase angewendet und nicht veröffentlicht. Nutzerregel: Absagen/Stornos und Nichterscheinen zählen als angerechnete Einheiten mit rotem OK; nur tatsächliche Teilnahme erhöht die Trainingsminuten. Entschuldigungen verbrauchen keine Einheit und stehen mit öffentlichen Termindaten in Portal, Stempelkarte und neuen PDFs. Migration `202609100007_charged_absences.sql` trennt Kinderentfernungen aus der Terminplanung von echten Absagen; bestehende Entschuldigungen bleiben bei einer Gesamtabsage bestehen und können auch nachträglich eingetragen werden. Neue Berichte kennzeichnen die Wertungsregel; vorhandene Berichts- und Mail-Snapshots bleiben unverändert.
+
+Verifikation: 133 Tests, Typecheck, Runner-Build und Runner-Typecheck erfolgreich; zwei Desktop-/Mobil-E2E für Admin/Coach-Stempelkarten erfolgreich. Sechs zusätzliche Browseransichten mit isolierten Beispieldaten auf rotes OK, unveränderte tatsächliche Minuten, Entschuldigungsdetails und fehlenden horizontalen Überlauf geprüft. Neue PDF-Stempelkarte und Trainingsbericht visuell geprüft. Keine echten Kundendaten verändert, kein Versand oder Deployment.
