@@ -123,6 +123,26 @@ describe("Node job runner", () => {
 });
 
 describe("Cloudflare runner gateway", () => {
+  it("runs only the restricted schedule while broad jobs and test delivery stay disabled", async () => {
+    const { env, fetch, getByName } = setupGateway("false");
+    const restricted = {
+      ...env,
+      STRIPE_SYNC_ONLY: "true",
+      ACCEPTANCE_TEST_ENABLED: "true",
+    };
+    expect(
+      (await runnerRequest(request("/run", "wrong"), restricted)).status,
+    ).toBe(401);
+    expect((await runnerRequest(request("/test-run"), restricted)).status).toBe(
+      503,
+    );
+    expect(getByName).not.toHaveBeenCalled();
+    await scheduledRun(restricted);
+    expect(getByName).toHaveBeenCalledOnce();
+    expect((fetch.mock.calls as unknown as [Request][])[0][0].url).toBe(
+      "http://runner/run",
+    );
+  });
   it("keeps cron inactive during the bounded test and forwards no caller scope", async () => {
     const { env, fetch, getByName } = setupGateway("false");
     expect((await runnerRequest(request("/test-run"), env)).status).toBe(503);

@@ -10,7 +10,7 @@
 
 **Veröffentlichungsvorgabe vom 10.09.2026:** Vorerst ausschließlich unter `https://proacademy-portal.proacademy-by-ak.workers.dev` veröffentlichen. `portal.proacademy-ak.com` bleibt für dieses Portal deaktiviert, bis der Nutzer ausdrücklich anders anweist. Keine Custom-Domain-Route und keinen DNS-Eintrag dafür anlegen. Build-URL, Supabase-Weiterleitungen und Stripe-Webhook auf die Worker-Adresse ausrichten.
 
-Eigenständige Next.js-App für Eltern, Mitarbeiter und Admins. Neu aufgebaut, ohne Code oder Datenbank der Marketing-Website. **Unter der Cloudflare-Worker-Adresse bereitgestellt; Supabase-Anmeldung und Adminzugriff erfolgreich geprüft. Stripe-Webhook verbunden und Signaturprüfung getestet. Automatische Hintergrundverarbeitung und Elternversand bleiben deaktiviert; noch keine Kunden importiert.** Siehe [aktuellen Einrichtungsstand](docs/LAUNCH-SETUP.md).
+Eigenständige Next.js-App für Eltern, Mitarbeiter und Admins. Neu aufgebaut, ohne Code oder Datenbank der Marketing-Website. **Unter der Cloudflare-Worker-Adresse bereitgestellt; Supabase-Anmeldung und Adminzugriff erfolgreich geprüft. Stripe-Webhook verbunden und Signaturprüfung getestet. 84 Familien mit 91 Kindern sind intern importiert. Nur der automatische Stripe-Abo-Abgleich ist aktiviert; Elternfreigabe, Versand und übrige Hintergrundverarbeitung bleiben gesperrt.** Siehe [aktuellen Einrichtungsstand](docs/LAUNCH-SETUP.md).
 
 ## Lokal öffnen
 

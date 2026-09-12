@@ -56,6 +56,7 @@ export async function syncSubscription(id: string) {
   const items = subscription.items.data.map((item) => ({
     id: item.id,
     price_id: item.price.id,
+    quantity: item.quantity,
     ...periodFromStripe(item.current_period_start, item.current_period_end),
   }));
   const { data, error } = await serviceDb().rpc("apply_stripe", {

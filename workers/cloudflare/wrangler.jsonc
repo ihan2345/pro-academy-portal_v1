@@ -26,6 +26,7 @@
     "APP_URL": "https://proacademy-portal.proacademy-by-ak.workers.dev",
     "APP_MODE": "production",
     "JOBS_ENABLED": "false",
+    "STRIPE_SYNC_ONLY": "true",
     "ACCEPTANCE_TEST_ENABLED": "false",
     "MAIL_PROVIDER": "capture",
     "EMAIL_TEST_MODE": "true",

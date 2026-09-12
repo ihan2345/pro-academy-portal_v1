@@ -294,3 +294,14 @@ Migration `202609120009_family_accounts.sql` angewendet. 84 Familien, 91 Kinder 
 157 Tests, 14 Desktop-/Mobil-Browserprüfungen, TypeScript, Runner- und Cloudflare-Build erfolgreich. Online-Datenbankrollen geprüft: Admin/Mitarbeiter sehen die 91 importierten Kinder, Eltern sehen keines davon; anonyme Zugriffe liefern keine Kinder. Login 200, geschützte Verwaltung 307, Admin-API 401 ohne Sitzung. Keine bestehende Cloud-Admin-Sitzung im Browser; kein neuer Anmeldelink angefordert.
 
 Nach Veröffentlichung `JOBS_ENABLED=false`, `ACCEPTANCE_TEST_ENABLED=false`, `MAIL_PROVIDER=capture`, `EMAIL_TEST_MODE=true` erneut direkt geprüft. Keine Freigabe für automatische Hintergrundläufe, Elternzugänge, Mailversand oder die offizielle Domain.
+
+
+## 12.09.2026 – ausschließlich automatischer Abo-Abgleich
+
+Auf ausdrücklichen Nutzerauftrag ausschließlich den Stripe-Abgleich aktiviert. Gateway und Container trennen den eingeschränkten Modus technisch von allen anderen Phasen: `STRIPE_SYNC_ONLY=true`, während `JOBS_ENABLED=false`, `ACCEPTANCE_TEST_ENABLED=false`, `MAIL_PROVIDER=capture` und `EMAIL_TEST_MODE=true` bestehen bleiben. Auch direkte Mailverarbeitung und der begrenzte Versandtest werden in diesem Modus abgewiesen. Die bestehenden zehnminütigen Cron-Trigger bleiben der einzige Zeitgeber. Kein Portal-Deployment, keine neue Domain und keine RLS- oder Auth-Änderung.
+
+Hintergrunddienst-Version `cbcc7502-d800-4a53-a17d-e552b6ec43db`, Container-Digest `sha256:0f977cf14a1a594aa8ea71357ea3fdcf4b65ad3371e0823f58004bd45924593a`. Der erste Aufruf traf während des Versionswechsels noch auf den alten, vollständig gesperrten Runner (503). Nach dem Wechsel erfolgreicher authentifizierter Lauf: `{"ok":true,"mode":"stripe-only","stripe":20}`; danach alle 22 gespeicherten Stripe-Ereignisse verarbeitet, keines mehr wartend. Lisa/Lenny Janz: neuer Zeitraum 12.09.–12.10.2026 mit vier Einheiten zusätzlich zum erhaltenen August/September-Zeitraum.
+
+164 automatisierte Tests, beide Typprüfungen, Runner- und Container-Build erfolgreich. Schutzprüfungen: anonymer Runnerzugriff 401, begrenzter Versandtest 503, öffentliche Admin-API 401, anonyme Supabase-Abfragen für Kinder und Leistungszeiträume ohne Datensätze. Vor-/Nachvergleich bestätigt unveränderte Eltern-Auth-Verknüpfungen, Familienzuordnungen, Profile, Kinder, Einladungen, sämtliche Versandaufträge und Zustellprotokolle, Berichte und Teilnahmen. Alle 84 Einladungsvormerkungen weiterhin `held`; keine Mail versendet. Nachweise liegen privat unter `output/stripe-only/`.
+
+Eine separate, saubere Kopie des Branches unter `/tmp/pabyak-stripe-only-20260912` wurde für Tests und Deployment verwendet, weil iCloud Teile des ursprünglichen Git-Verzeichnisses ausgelagert hatte. Vorhandene lokale Dateien wurden vor Rückübernahme gegen den unveränderten Commit geprüft. Sämtliche Code- und Dokumentationsänderungen liegen auch im ursprünglichen Arbeitsverzeichnis.

@@ -214,6 +214,7 @@ const flags = Object.fromEntries(
 if (
   !settings.success ||
   flags.JOBS_ENABLED !== "false" ||
+  flags.STRIPE_SYNC_ONLY === "true" ||
   flags.ACCEPTANCE_TEST_ENABLED !== "false"
 )
   throw Error("Background jobs must remain paused during internal import");

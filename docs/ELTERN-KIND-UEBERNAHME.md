@@ -19,7 +19,7 @@ Geburtsjahre sind optional. Leere Werte werden `null`; aus dem Alter wird kein J
 
 Pro neuer Familie existiert genau ein Auftrag mit `notification_jobs.status=held`, insgesamt 84. Seine Nutzlast enthält nur Eltern-ID und Name; keinen Link und keinen Token. `parents.notifications_held=true` hält neue und bereits wartende Nachrichten an die Kontaktadresse zurück. Der Versanddienst überspringt zurückgehaltene Aufträge. Der Wiederholen-Button kann `held` nicht freigeben.
 
-Der Hintergrunddienst bleibt zusätzlich vollständig gesperrt: `JOBS_ENABLED=false`, `ACCEPTANCE_TEST_ENABLED=false`, `MAIL_PROVIDER=capture`, `EMAIL_TEST_MODE=true`. Es wurde kein Joblauf ausgelöst. Damit sind auch automatische Stripe-Abgleiche und automatische Berichte noch nicht aktiviert. Die Listen verwenden den beim Import erneut geprüften Stripe-Stand.
+Nach gesonderter Nutzerfreigabe ist ausschließlich der Abo-Abgleich aktiviert: `STRIPE_SYNC_ONLY=true`. `JOBS_ENABLED=false`, `ACCEPTANCE_TEST_ENABLED=false`, `MAIL_PROVIDER=capture` und `EMAIL_TEST_MODE=true` bleiben bestehen. Alle zehn Minuten werden eingegangene Stripe-Ereignisse verarbeitet. Automatische Anwesenheiten, Berichte, Einladungen und die Mailwarteschlange werden nicht gestartet; direkter Versand und der frühere Versandtest sind zusätzlich gesperrt. Zugang und Sichtbarkeit bleiben unverändert. Details und Pausierung stehen in [OPERATIONS.md](OPERATIONS.md).
 
 Eine spätere Freigabe der Elternkonten und des Versands benötigt einen gesonderten Auftrag. Vorher müssen Ablauf, Empfänger und Aktualität der vorgemerkten Nachrichten geprüft werden. Erst dann dürfen frische Einladungslinks erzeugt werden. Alte Trainingshinweise und zurückgehaltene Einladungen nicht pauschal auf `pending` setzen. Die normale persönliche Admin-Anmeldung bleibt ein separater, vom Nutzer ausgelöster Vorgang; für diese Veröffentlichung wurde keine Anmeldemail angefordert.
 
@@ -40,4 +40,4 @@ Die privaten Ausgangssicherungen, Vorprüfung, Import-IDs und Abschlussprüfunge
 - Online-RLS unter echten Datenbankrollen: Admin und Mitarbeiter sehen jeweils die 91 importierten Kinder; ein bestehender Elternzugang sieht keines davon. Anonymer direkter Datenbankzugriff liefert keine Kinder.
 - Portal ohne Anmeldung: Login 200, Verwaltung zur Anmeldung umgeleitet, Admin-API 401. Im Browser war keine aktive Admin-Sitzung vorhanden; es wurde keine Login-Mail angefordert.
 
-Portal-Version: `588cdefa-c2b7-4870-ba8b-299a37655daf`. Hintergrunddienst: `3dbec021-0dd0-4741-b074-3d54dfa3f615`.
+Portal-Version: `588cdefa-c2b7-4870-ba8b-299a37655daf`. Hintergrunddienst (nur Abo-Abgleich): `cbcc7502-d800-4a53-a17d-e552b6ec43db`.

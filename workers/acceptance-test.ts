@@ -9,6 +9,7 @@ export function acceptanceTestEnabled(env: Environment = process.env) {
   return (
     env.ACCEPTANCE_TEST_ENABLED === "true" &&
     env.JOBS_ENABLED === "false" &&
+    env.STRIPE_SYNC_ONLY !== "true" &&
     env.MAIL_PROVIDER === "capture" &&
     env.EMAIL_TEST_MODE === "true" &&
     !!env.ACCEPTANCE_TEST_CONFIG

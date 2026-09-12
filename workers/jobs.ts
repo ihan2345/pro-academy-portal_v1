@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { serviceDb } from "../src/lib/server/service-db";
 import { processStripeInbox } from "../src/lib/server/stripe";
 import { processReports } from "../src/lib/server/reports";
+import { jobMode } from "./job-mode";
 import { renderReport, type ReportSnapshot } from "../src/lib/pdf";
 import {
   CaptureProvider,
@@ -196,6 +197,8 @@ export async function processMail(
     ? new ProtonProvider()
     : captureProvider,
 ) {
+  if (jobMode(process.env) === "stripe-only")
+    throw new Error("Mail processing is disabled in Stripe-only mode");
   const db = serviceDb(),
     { data: jobs, error } = await db.rpc("claim_notifications", {
       batch_size: 20,
@@ -247,6 +250,8 @@ export async function processMail(
   return sent;
 }
 export async function runJobs() {
+  const mode = jobMode(process.env);
+  if (mode === "disabled") throw new Error("Background jobs disabled");
   const db = serviceDb(),
     { data: run, error } = await db
       .from("job_runs")
@@ -254,7 +259,7 @@ export async function runJobs() {
       .select("id")
       .single();
   if (error) throw error;
-  const result: Record<string, number | string> = {},
+  const result: Record<string, number | string> = { mode },
     errors: string[] = [];
   const phases: Record<string, () => Promise<number>> = {
     stripe: processStripeInbox,
@@ -277,6 +282,7 @@ export async function runJobs() {
     },
   };
   for (const [name, task] of Object.entries(phases)) {
+    if (mode === "stripe-only" && name !== "stripe") continue;
     try {
       result[name] = await task();
     } catch (e) {

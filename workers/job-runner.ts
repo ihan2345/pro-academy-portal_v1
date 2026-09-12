@@ -2,6 +2,7 @@ import { runJobs } from "./jobs";
 import { createRunnerServer } from "./runner-server";
 import { verifyRunnerConnections } from "./verify-connections";
 import { acceptanceTestEnabled, runAcceptanceTest } from "./acceptance-test";
+import { jobMode } from "./job-mode";
 try {
   process.loadEnvFile(".env.local");
 } catch {
@@ -9,7 +10,7 @@ try {
 }
 const server = createRunnerServer({
   secret: process.env.CRON_SECRET ?? "",
-  enabled: () => process.env.JOBS_ENABLED === "true",
+  enabled: () => jobMode(process.env) !== "disabled",
   run: runJobs,
   verify: verifyRunnerConnections,
   acceptance: {

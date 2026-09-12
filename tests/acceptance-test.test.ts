@@ -76,6 +76,7 @@ describe("bounded acceptance run", () => {
   it.each([
     { ACCEPTANCE_TEST_ENABLED: "false" },
     { JOBS_ENABLED: "true" },
+    { STRIPE_SYNC_ONLY: "true" },
     { MAIL_PROVIDER: "proton" },
     { EMAIL_TEST_MODE: "false" },
     { ACCEPTANCE_TEST_CONFIG: "{}" },

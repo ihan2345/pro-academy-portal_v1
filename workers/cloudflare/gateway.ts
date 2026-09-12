@@ -1,6 +1,9 @@
-export interface RunnerEnv {
+import { jobMode, type JobFlags } from "../job-mode";
+
+export interface RunnerEnv extends JobFlags {
   CRON_SECRET: string;
   JOBS_ENABLED: string;
+  STRIPE_SYNC_ONLY?: string;
   ACCEPTANCE_TEST_ENABLED?: string;
   RUNNER: {
     getByName(name: string): { fetch(request: Request): Promise<Response> };
@@ -31,11 +34,13 @@ export async function runnerRequest(request: Request, env: RunnerEnv) {
     return new Response("Not found", { status: 404 });
   if (!(await authorized(request, env.CRON_SECRET)))
     return new Response("Unauthorized", { status: 401 });
-  if (path === "/run" && env.JOBS_ENABLED !== "true")
+  if (path === "/run" && jobMode(env) === "disabled")
     return new Response("Jobs disabled", { status: 503 });
   if (
     path === "/test-run" &&
-    (env.JOBS_ENABLED !== "false" || env.ACCEPTANCE_TEST_ENABLED !== "true")
+    (env.JOBS_ENABLED !== "false" ||
+      jobMode(env) !== "disabled" ||
+      env.ACCEPTANCE_TEST_ENABLED !== "true")
   )
     return new Response("Bounded test disabled", { status: 503 });
   // One stable instance for every trigger. Arbitrary URL paths cannot create instances.
@@ -48,7 +53,7 @@ export async function runnerRequest(request: Request, env: RunnerEnv) {
 }
 
 export async function scheduledRun(env: RunnerEnv) {
-  if (env.JOBS_ENABLED !== "true") return;
+  if (jobMode(env) === "disabled") return;
   const response = await runnerRequest(
     new Request("https://runner/run", {
       method: "POST",
