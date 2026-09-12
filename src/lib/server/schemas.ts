@@ -49,7 +49,7 @@ export const adminSchemas: Record<string, z.ZodType> = {
     id: id.optional(),
     first_name: name,
     last_name: name,
-    birth_year: z.number().int().min(1990).max(2100),
+    birth_year: z.number().int().min(1990).max(2100).nullable().optional(),
     team: z.string().max(40),
     archived_at: z.iso.datetime().nullable().optional(),
   }),

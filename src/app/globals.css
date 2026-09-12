@@ -427,12 +427,6 @@ small {
   background: #f0eafa;
   color: #8661be;
 }
-.badge.demo {
-  font-size: 9px;
-  background: #f5f0fc;
-  color: #8864b1;
-  letter-spacing: 0.6px;
-}
 .status-dot {
   display: inline-block;
   height: 5px;
@@ -1229,6 +1223,11 @@ small {
   grid-template-columns: 1fr 1fr;
   gap: 23px;
 }
+.billing-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
 .account-panel {
   padding: 27px;
   margin-bottom: 22px;
@@ -1641,7 +1640,7 @@ label {
   border-radius: 8px;
   color: #688444;
 }
-.auth-demo-link {
+.auth-back-link {
   display: block;
   margin-top: 25px;
   font-size: 12px;
@@ -1980,9 +1979,6 @@ label {
   }
   .topbar-right {
     gap: 12px;
-  }
-  .badge.demo {
-    font-size: 8px;
   }
   .topbar-divider {
     display: none;

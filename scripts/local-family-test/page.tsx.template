@@ -1,0 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { notFound } from 'next/navigation';
+export const dynamic='force-dynamic';
+export default function LocalAccounts() {
+ if(process.env.LOCAL_FAMILY_TEST!=='true' || process.env.NEXT_PUBLIC_SUPABASE_URL!=='http://127.0.0.1:55321') notFound();
+ const state=JSON.parse(readFileSync(resolve('../accounts.private.json'),'utf8'));
+ const accounts=state.accounts.sort((a:any,b:any)=>a.role==='admin'?-1:b.role==='admin'?1:b.children.length-a.children.length||a.name.localeCompare(b.name,'de'));
+ return <main style={{maxWidth:1100,margin:'30px auto',padding:20}}><h1>Lokaler Test mit echten Zuordnungsdaten</h1><p>84 Elternkonten · 91 Kinder · Datenstand 12.09.2026. Änderungen werden nur in dieser lokalen Datenbank gespeichert. Kein Mailversand und keine Verbindung zu Stripe.</p><p>Wähle die Verwaltung oder ein Elternkonto. Die Elternansicht verwendet eine echte lokale Anmeldung mit den normalen Zugriffsrechten.</p><p>Menzur: ein FirstTouch-Abo mit 4 Einheiten. Sevgi: ein gemeinsames Elternkonto für beide Kinder. Vorhandene Trainingstermine und Berichte wurden nicht importiert.</p><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(270px,1fr))',gap:16}}>{accounts.map((a:any)=><form key={a.key} method="post" action="/lokaler-test/session" style={{padding:20,border:'1px solid #ccc',borderRadius:12}}><input type="hidden" name="account" value={a.key}/><h2 style={{fontSize:19}}>{a.name}</h2><p>{a.role==='admin'?'Verwaltung':a.role==='staff'?'Trainingsplanung':a.children.join(' · ')}</p><button type="submit">{a.role==='admin'?'Verwaltung öffnen':a.role==='staff'?'Teamansicht öffnen':'Elternkonto öffnen'}</button></form>)}</div></main>;
+}

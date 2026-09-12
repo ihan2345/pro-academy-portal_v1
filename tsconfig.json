@@ -29,5 +29,11 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".open-next", "workers/cloudflare/index.ts"]
+  "exclude": [
+    "node_modules",
+    ".open-next",
+    "output",
+    "tmp",
+    "workers/cloudflare/index.ts"
+  ]
 }

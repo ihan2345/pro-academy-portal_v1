@@ -105,6 +105,11 @@ export async function processStripeInbox() {
           String(obj.id),
         );
         if (!customer.deleted) {
+          const accounts = await db
+            .from("parent_stripe_customers")
+            .update({ billing_email: customer.email })
+            .eq("stripe_customer_id", customer.id);
+          if (accounts.error) throw accounts.error;
           const updated = await db
             .from("parents")
             .update({ billing_email: customer.email })

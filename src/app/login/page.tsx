@@ -1,5 +1,4 @@
 import { LoginForm } from "@/components/login";
-import { isDemo } from "@/lib/server/config";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { canonicalLocalLogin } from "@/lib/server/local-login";
@@ -17,5 +16,5 @@ export default async function Login({
         : "";
   const target = canonicalLocalLogin((await headers()).get("host"));
   if (target) redirect(initialError ? `${target}?error=${error}` : target);
-  return <LoginForm demo={isDemo()} initialError={initialError} />;
+  return <LoginForm initialError={initialError} />;
 }

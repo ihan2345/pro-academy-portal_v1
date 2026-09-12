@@ -33,7 +33,7 @@ const entities: Record<
     fields: [
       { key: "first_name", label: "Vorname" },
       { key: "last_name", label: "Nachname" },
-      { key: "birth_year", label: "Geburtsjahr", type: "number" },
+      { key: "birth_year", label: "Geburtsjahr (optional)", type: "number" },
       { key: "team", label: "Altersklasse" },
     ],
   },
@@ -100,60 +100,19 @@ export function AdminView({
     setLoading(true);
     setError("");
     try {
-      if (data.demo) {
-        const source =
-          slug === "spieler"
-            ? data.players
-            : slug === "standorte"
-              ? data.locations
-              : slug === "mitarbeiter"
-                ? data.trainers.map((t) => ({ id: t.id, display_name: t.name }))
-                : slug === "produkte"
-                  ? [
-                      {
-                        id: "first",
-                        name: "FirstTouch",
-                        included_units: 4,
-                        stripe_price_id: "Nicht verknüpft",
-                      },
-                      {
-                        id: "game",
-                        name: "GameChanger",
-                        included_units: 8,
-                        stripe_price_id: "Nicht verknüpft",
-                      },
-                      {
-                        id: "pro",
-                        name: "Pro-Player",
-                        included_units: 10,
-                        stripe_price_id: "Nicht verknüpft",
-                      },
-                    ]
-                  : slug === "eltern"
-                    ? [
-                        {
-                          id: "demo-parent",
-                          full_name: "Sarah Beispiel",
-                          contact_email: data.email,
-                        },
-                      ]
-                    : [];
-        setRows(source as unknown as RecordRow[]);
-      } else {
-        const result = await api(
-          `admin/${config?.table ?? (slug === "einstellungen" ? "system_settings" : slug)}`,
-          undefined,
-          "GET",
+      const result = await api(
+        `admin/${config?.table ?? (slug === "einstellungen" ? "system_settings" : slug)}`,
+        undefined,
+        "GET",
+      );
+      setRows(result.rows ?? []);
+      if (slug === "einstellungen")
+        setReportTime(
+          String(
+            result.rows?.find((r: RecordRow) => r.key === "report_send_time")
+              ?.value ?? "08:00",
+          ),
         );
-        setRows(result.rows ?? []);
-        if (slug === "einstellungen")
-          setReportTime(
-            String(
-              result.rows?.find((r: RecordRow) => r.key === "report_send_time")
-                ?.value ?? "08:00",
-            ),
-          );
-      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -170,22 +129,17 @@ export function AdminView({
     const record: RecordRow = {};
     for (const f of config.fields)
       record[f.key] =
-        f.type === "number" ? Number(form.get(f.key)) : String(form.get(f.key));
+        f.type === "number"
+          ? f.key === "birth_year" && !String(form.get(f.key) ?? "").trim()
+            ? null
+            : Number(form.get(f.key))
+          : String(form.get(f.key));
     if (edit?.id) record.id = edit.id;
     try {
-      if (data.demo) {
-        setRows([
-          ...rows.filter((r) => r.id !== record.id),
-          { ...record, id: record.id ?? crypto.randomUUID() },
-        ]);
-        notify(
-          "Lokale Demonstration: Datensatz in dieser Ansicht gespeichert.",
-        );
-      } else {
-        await api(`admin/${config.table}`, record);
-        await load();
-        notify("Datensatz gespeichert und protokolliert.");
-      }
+      await api(`admin/${config.table}`, record);
+      await load();
+      notify("Datensatz gespeichert und protokolliert.");
+
       setEdit(null);
     } catch (e) {
       setError((e as Error).message);
@@ -285,9 +239,9 @@ export function AdminView({
           <div className="info-note">
             <ShieldCheck size={20} />
             <p>
-              {data.demo
-                ? "Demonstration mit fiktiven Familien. Verbindungen zu Supabase, Stripe und Proton werden erst nach Einrichtung der Testumgebung aktiv."
-                : "Rollen, Stripe-Zuordnungen und Systemkonfiguration sind ausschließlich für Admins freigegeben."}
+              {
+                "Rollen, Stripe-Zuordnungen und Systemkonfiguration sind ausschließlich für Admins freigegeben."
+              }
             </p>
           </div>
         </>
@@ -331,6 +285,7 @@ export function AdminView({
                   {config.fields.map((f) => (
                     <th key={f.key}>{f.label.toUpperCase()}</th>
                   ))}
+                  {slug === "eltern" && <th>STRIPE-KUNDEN</th>}
                   <th>AKTION</th>
                 </tr>
               </thead>
@@ -358,6 +313,18 @@ export function AdminView({
                               : String(r[f.key] ?? "—")}
                         </td>
                       ))}
+                      {slug === "eltern" && (
+                        <td>
+                          {(
+                            r.parent_stripe_customers as
+                              { stripe_customer_id: string }[] | undefined
+                          )?.map((c) => (
+                            <div key={c.stripe_customer_id}>
+                              {c.stripe_customer_id}
+                            </div>
+                          )) ?? "—"}
+                        </td>
+                      )}
                       <td>
                         <button
                           className="text-button"
@@ -452,9 +419,7 @@ export function AdminView({
           </div>
           <div className="account-row">
             <span>Versandmodus</span>
-            <Badge tone="demo">
-              {data.demo ? "Lokale Demo" : "Serverkonfiguration"}
-            </Badge>
+            <Badge tone="neutral">{"Serverkonfiguration"}</Badge>
           </div>
           <p className="muted">
             SMTP-Zugangsdaten, Stripe-Schlüssel und Cron-Secret werden
@@ -501,7 +466,9 @@ export function AdminView({
                     name={f.key}
                     type={f.type ?? "text"}
                     required={
-                      f.key !== "billing_email" && f.key !== "stripe_price_id"
+                      f.key !== "billing_email" &&
+                      f.key !== "stripe_price_id" &&
+                      f.key !== "birth_year"
                     }
                     defaultValue={String(
                       edit[f.key] ?? (f.key === "athletics_units" ? 0 : ""),
@@ -671,15 +638,7 @@ function StripeImport({
             in der Suche; verwende dafür „Kunden laden“.
           </p>
         )}
-        {data.demo && (
-          <div className="info-note">
-            <AlertCircle size={20} />
-            <p>
-              Für den Import muss zuerst ein Stripe-Testkonto konfiguriert
-              werden. Die Demo verändert keine Stripe-Daten.
-            </p>
-          </div>
-        )}
+
         {customers.map((c) => (
           <div className="account-row" key={String(c.id)}>
             <div>
@@ -691,7 +650,9 @@ function StripeImport({
               <Badge tone={c.ambiguous ? "purple" : "neutral"}>
                 {c.ambiguous
                   ? "Mehrdeutiger Treffer – prüfen"
-                  : "Manuelle Zuordnung erforderlich"}
+                  : (c.family_matches as RecordRow[] | undefined)?.length === 1
+                    ? "Name und E-Mail passen zu einem Elternkonto"
+                    : "Manuelle Zuordnung erforderlich"}
               </Badge>
             </div>
             <button className="secondary-button" onClick={() => setCurrent(c)}>
@@ -729,7 +690,9 @@ function StripeImport({
                   email: f.get("email"),
                   player_id: f.get("player"),
                 });
-                notify("Zuordnung gespeichert. Einladung wurde eingeplant.");
+                notify(
+                  "Zuordnung gespeichert. Einladung vorgemerkt, Versand gesperrt.",
+                );
                 setCurrent(null);
               } catch (e) {
                 notify((e as Error).message);
@@ -741,9 +704,19 @@ function StripeImport({
               Bestehende Eltern-ID (optional)
               <input
                 name="parent_id"
-                placeholder="Leer lassen für neues Elternkonto"
+                placeholder="Leer: passendes Konto verwenden oder neu anlegen"
+                defaultValue={String(
+                  (current.family_matches as RecordRow[] | undefined)
+                    ?.length === 1
+                    ? (current.family_matches as RecordRow[])[0].id
+                    : "",
+                )}
               />
             </label>
+            <p>
+              Gleicher Name und gleiche E-Mail verwenden dasselbe Elternkonto.
+              Weitere Stripe-Kunden-IDs werden diesem Konto hinzugefügt.
+            </p>
             <label>
               Name des Elternteils
               <input
@@ -785,7 +758,7 @@ function StripeImport({
               Elternkonto geprüft.
             </label>
             <button className="primary-button">
-              Zuordnen & Einladung einplanen
+              Zuordnen & Einladung vormerken
             </button>
           </form>
         </Modal>
@@ -808,7 +781,7 @@ function InviteForm({
         const f = new FormData(e.currentTarget);
         try {
           await api("admin/invite", { parent_id: f.get("parent_id") });
-          notify("Einladung wurde als Versandauftrag angelegt.");
+          notify("Einladung vorgemerkt. Der Versand bleibt gesperrt.");
         } catch (e) {
           notify((e as Error).message);
         }
@@ -817,7 +790,8 @@ function InviteForm({
       <h2>Eltern sicher einladen</h2>
       <p>
         Die Einladung nutzt die bestätigte Kontaktadresse und die bestehende
-        Stripe-Zuordnung des Elternkontos.
+        Stripe-Zuordnung des Elternkontos. Sie wird nur vorgemerkt. Der Versand
+        bleibt bis zu einer gesonderten Freigabe gesperrt.
       </p>
       <label>
         Eltern-ID
@@ -828,7 +802,7 @@ function InviteForm({
         />
       </label>
       <button className="primary-button">
-        <Mail size={17} /> Einladung einplanen
+        <Mail size={17} /> Einladung vormerken
       </button>
     </form>
   );
@@ -843,12 +817,10 @@ function Logs({
   const [tab, setTab] = useState("notification_jobs"),
     [rows, setRows] = useState<RecordRow[]>([]);
   useEffect(() => {
-    if (!data.demo)
-      api(`admin/${tab}`, undefined, "GET")
-        .then((r) => setRows(r.rows))
-        .catch((e) => notify(e.message));
-    else setRows([]);
-  }, [tab, data.demo]);
+    api(`admin/${tab}`, undefined, "GET")
+      .then((r) => setRows(r.rows))
+      .catch((e) => notify(e.message));
+  }, [tab]);
   const fields =
     tab === "audit_log"
       ? ["created_at", "actor_type", "action", "table_name", "record_id"]
@@ -875,13 +847,13 @@ function Logs({
         ))}
       </div>
       <RecordTable
-        rows={rows}
+        rows={rows.map((r) =>
+          r.status === "held"
+            ? { ...r, status: "Zurückgehalten – Versand gesperrt" }
+            : r,
+        )}
         fields={fields}
-        empty={
-          data.demo
-            ? "In der Demo werden keine echten Versand- oder Audit-Protokolle erzeugt."
-            : "Keine Einträge vorhanden."
-        }
+        empty={"Keine Einträge vorhanden."}
       />
       {tab === "notification_jobs" &&
         rows
@@ -975,16 +947,6 @@ function ParentLinks({
 }) {
   const [links, setLinks] = useState<RecordRow[]>([]);
   async function refresh() {
-    if (data.demo) {
-      setLinks(
-        data.players.map((p) => ({
-          id: `demo-${p.id}`,
-          parent_id: "demo-parent",
-          player_id: p.id,
-        })),
-      );
-      return;
-    }
     try {
       setLinks((await api("admin/parent_players", undefined, "GET")).rows);
     } catch (e) {
@@ -993,7 +955,7 @@ function ParentLinks({
   }
   useEffect(() => {
     void refresh();
-  }, [data.demo]);
+  }, []);
   return (
     <section className="panel account-panel" style={{ marginTop: 24 }}>
       <h2>Eltern und Kinder zuordnen</h2>
@@ -1011,19 +973,9 @@ function ParentLinks({
               player_id: String(f.get("child")),
             };
           try {
-            if (data.demo)
-              setLinks([
-                ...links.filter(
-                  (l) =>
-                    l.parent_id !== input.parent_id ||
-                    l.player_id !== input.player_id,
-                ),
-                { ...input, id: crypto.randomUUID() },
-              ]);
-            else {
-              await api("admin/parent_players", input);
-              await refresh();
-            }
+            await api("admin/parent_players", input);
+            await refresh();
+
             notify("Zuordnung gespeichert.");
           } catch (e) {
             notify((e as Error).message);
@@ -1074,8 +1026,7 @@ function ParentLinks({
               );
               if (!reason || reason.length < 5) return;
               try {
-                if (!data.demo)
-                  await api("admin/parent-unlink", { id: l.id, reason });
+                await api("admin/parent-unlink", { id: l.id, reason });
                 setLinks(links.filter((x) => x.id !== l.id));
                 notify("Zuordnung aufgehoben; Änderung protokolliert.");
               } catch (e) {

@@ -6,13 +6,12 @@ import {
   portalHome,
   type PortalRole,
 } from "../src/lib/portal-access";
-import { demoData } from "../src/lib/demo";
+import { portalFixture } from "./fixtures/portal";
 import { Portal } from "../src/components/portal";
 import { loadPortal } from "../src/lib/server/data";
 
 const auth = vi.hoisted(() => ({ session: vi.fn(), from: vi.fn() }));
 vi.mock("../src/lib/server/supabase", () => ({ sessionUser: auth.session }));
-vi.mock("../src/lib/server/config", () => ({ isDemo: () => false }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
   redirect: (url: string) => {
@@ -50,7 +49,7 @@ describe.each(cases)(
       (section) => {
         const html = renderToStaticMarkup(
           createElement(Portal, {
-            initial: { ...demoData, role, demo: false },
+            initial: { ...portalFixture, role },
             section,
           }),
         );

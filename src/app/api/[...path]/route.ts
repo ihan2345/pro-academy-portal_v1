@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { sessionDb, sessionUser, serviceDb } from "@/lib/server/supabase";
-import { isDemo, required } from "@/lib/server/config";
+import { required } from "@/lib/server/config";
 import {
   HttpError,
   assertRole,
   requireOrigin,
   checkSecret,
-  hashToken,
   parentCancellation,
 } from "@/lib/server/security";
 import {
@@ -31,7 +29,11 @@ import {
   stripeCustomerPage,
   subscriptionPreviewLoader,
 } from "@/lib/server/stripe-preview";
-import { demoData } from "@/lib/demo";
+import {
+  sameFamilyContact,
+  selectBillingCustomer,
+  subscriptionLinkIssue,
+} from "@/lib/family-accounts";
 import { isAllowedTestLogin } from "@/lib/server/auth-test-access";
 import {
   loadStampCard,
@@ -63,13 +65,10 @@ const adminReads = new Set([
   "stripe_webhook_events",
 ]);
 async function invite(parentId: string, actorId: string) {
-  const token = randomBytes(32).toString("hex");
-  const result = await serviceDb().rpc("create_parent_invitation", {
+  const result = await serviceDb().rpc("queue_parent_invitation", {
     input: {
       parent_id: parentId,
       actor_id: actorId,
-      token_hash: hashToken(token),
-      url: `${required("APP_URL")}/einladung?token=${token}`,
     },
   });
   if (result.error) throw result.error;
@@ -110,63 +109,9 @@ async function handler(
       });
       return json(await result.json(), result.status);
     }
-    if (path.startsWith("reports/") && isDemo() && request.method === "GET") {
-      const report = demoData.reports.find((r) => r.id === path.split("/")[1]);
-      if (!report) throw new HttpError(404, "Bericht nicht gefunden.");
-      const bytes = await renderReport({
-        player_name: "Max Beispiel · DEMO",
-        product_name: report.product_name,
-        starts_at:
-          report.id === "report-demo-2"
-            ? "2026-06-11T22:00:00Z"
-            : "2026-07-11T22:00:00Z",
-        ends_at:
-          report.id === "report-demo-2"
-            ? "2026-07-11T22:00:00Z"
-            : "2026-08-11T22:00:00Z",
-        included_units: report.units,
-        completed: report.completed,
-        minutes: report.minutes,
-        created_at: report.created_at,
-        version: report.version,
-        whatsapp: demoData.whatsapp,
-        events: Array.from({ length: report.completed }, (_, i) => ({
-          id: `DEMO-${i + 1}`,
-          title: "Technik & Spielintelligenz · Beispieldaten",
-          starts_at: new Date(
-            Date.parse(
-              report.id === "report-demo-2"
-                ? "2026-06-13T14:30:00Z"
-                : "2026-07-13T14:30:00Z",
-            ) +
-              i * 2 * 86400000,
-          ).toISOString(),
-          ends_at: new Date(
-            Date.parse(
-              report.id === "report-demo-2"
-                ? "2026-06-13T16:00:00Z"
-                : "2026-07-13T16:00:00Z",
-            ) +
-              i * 2 * 86400000,
-          ).toISOString(),
-          status: "attended_auto" as const,
-        })),
-      });
-      return new NextResponse(new Uint8Array(bytes), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition":
-            'attachment; filename="ProAcademy-Demobericht.pdf"',
-          "Cache-Control": "no-store",
-        },
-      });
-    }
+
     if (request.method !== "GET") requireOrigin(request);
-    if (isDemo())
-      throw new HttpError(
-        503,
-        "Diese Funktion benötigt die eingerichtete Testumgebung. Die Demo verwendet ausschließlich lokale Beispieldaten.",
-      );
+
     if (path === "auth/login" && request.method === "POST") {
       const { email } = z
         .object({ email: z.email() })
@@ -209,15 +154,29 @@ async function handler(
       return json({ ok: true });
     }
     if (path === "stripe/portal" && request.method === "POST") {
-      const { data: parent, error } = await db
-        .from("parents")
-        .select("stripe_customer_id")
-        .eq("auth_user_id", user.id)
-        .single();
-      if (error || !parent?.stripe_customer_id)
+      const body = await request.text();
+      const input = z
+        .object({ customer_id: z.string().startsWith("cus_").optional() })
+        .parse(body ? JSON.parse(body) : {});
+      const { data: accounts, error } = await db
+        .from("parent_stripe_customers")
+        .select("stripe_customer_id,parents!inner(auth_user_id,archived_at)")
+        .eq("parents.auth_user_id", user.id)
+        .is("parents.archived_at", null);
+      if (error) throw error;
+      if (!accounts?.length)
         throw new HttpError(404, "Noch kein Stripe-Kundenkonto zugeordnet.");
+      const customer = selectBillingCustomer(
+        accounts.map((a) => a.stripe_customer_id),
+        input.customer_id,
+      );
+      if (!customer)
+        throw new HttpError(
+          400,
+          "Bitte ein zugeordnetes Stripe-Kundenkonto auswählen.",
+        );
       const result = await stripeClient().billingPortal.sessions.create({
-        customer: parent.stripe_customer_id,
+        customer,
         return_url: `${required("APP_URL")}/konto`,
         configuration: required("STRIPE_PORTAL_CONFIGURATION_ID"),
       });
@@ -344,12 +303,16 @@ async function handler(
                 .ilike("contact_email", c.email ?? "");
               if (error) throw error;
               const subscriptions = await loadSubscriptions(c.id);
+              const matches = (parents ?? []).filter((p) =>
+                sameFamilyContact(p, c),
+              );
               return {
                 id: c.id,
                 name: c.name,
                 email: c.email,
                 suggestions: parents,
-                ambiguous: (parents?.length ?? 0) > 1,
+                family_matches: matches,
+                ambiguous: matches.length > 1,
                 subscriptions,
               };
             }),
@@ -369,7 +332,9 @@ async function handler(
               ? "id,kind,recipient,status,attempts,available_at,last_error,created_at"
               : table === "stripe_webhook_events"
                 ? "id,stripe_event_id,type,status,attempts,last_error,created_at"
-                : "*";
+                : table === "parents"
+                  ? "*,parent_stripe_customers(stripe_customer_id)"
+                  : "*";
         const { data: rows, error } = await db
           .from(table)
           .select(select)
@@ -427,23 +392,16 @@ async function handler(
           const { parent_id } = z
             .object({ parent_id: z.uuid() })
             .parse(await request.json());
-          return json({ id: await invite(parent_id, user.id) });
+          return json({ id: await invite(parent_id, user.id), status: "held" });
         }
         if (action === "stripe-link") {
           const input = importSchema.parse(await request.json()),
-            { subscription } = await syncSubscription(input.subscription_id);
-          const customer =
-            typeof subscription.customer === "string"
-              ? subscription.customer
-              : subscription.customer.id;
-          if (
-            customer !== input.customer_id ||
-            !subscription.items.data.some((i) => i.id === input.item_id)
-          )
-            throw new HttpError(
-              400,
-              "Stripe-Kunde oder Abonnement-Item stimmt nicht überein.",
+            subscription = await stripeClient().subscriptions.retrieve(
+              input.subscription_id,
             );
+          const issue = subscriptionLinkIssue(subscription, input);
+          if (issue) throw new HttpError(400, issue);
+          await syncSubscription(input.subscription_id);
           const { data: parent, error } = await serviceDb().rpc(
             "link_stripe_family",
             { input: { ...input, actor_id: user.id } },
@@ -457,8 +415,11 @@ async function handler(
           }))
             if (invoice.id)
               await syncInvoicePeriods(invoice.id, input.subscription_id);
-          await invite(parent, user.id);
-          return json({ ok: true, parent_id: parent });
+          return json({
+            ok: true,
+            parent_id: parent,
+            invitation_status: "held",
+          });
         }
         if (action === "report-resend") {
           const input = z

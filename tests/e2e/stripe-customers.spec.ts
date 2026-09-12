@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { login } from "./local-test";
+test.beforeEach(async ({page}) => { await login(page, "admin"); });
 
 test("Stripe customers: older pages, global name search and fresh search cursors", async ({
   page,

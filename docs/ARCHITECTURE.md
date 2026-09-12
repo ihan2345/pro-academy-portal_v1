@@ -4,7 +4,7 @@ Stand: 09.09.2026. Eigenständige Neuentwicklung, keinerlei Website-Code überno
 
 ## 1. Architektur
 
-Next.js App Router, React, TypeScript strict und Tailwind. Server Components prüfen Supabase-Sessions, Route Handler validieren Eingaben mit Zod. Supabase Postgres mit RLS ist die Datenquelle; privilegierte Transaktionen laufen über eng begrenzte RPCs. Supabase Auth übernimmt Magic Links; Storage speichert private, versionierte PDFs. Stripe wird ausschließlich serverseitig angesprochen. OpenNext erzeugt einen Cloudflare Worker. Ein separater Node-Jobrunner übernimmt Proton SMTP (STARTTLS) und Jobs; Cloudflare Cron löst HTTPS-Jobs aus. Kein SMTP aus dem Browser oder aus einem Sites-Worker. Ohne konfigurierte Konten steht ein klar markierter, isolierter Demo-Modus mit fiktiven Daten zur Verfügung; dieser erteilt niemals Backendrechte.
+Next.js App Router, React, TypeScript strict und Tailwind. Server Components prüfen Supabase-Sessions, Route Handler validieren Eingaben mit Zod. Supabase Postgres mit RLS ist die Datenquelle; privilegierte Transaktionen laufen über eng begrenzte RPCs. Supabase Auth übernimmt Magic Links; Storage speichert private, versionierte PDFs. Stripe wird ausschließlich serverseitig angesprochen. OpenNext erzeugt einen Cloudflare Worker. Ein separater Node-Jobrunner übernimmt Proton SMTP (STARTTLS) und Jobs; Cloudflare Cron löst HTTPS-Jobs aus. Kein SMTP aus dem Browser oder aus einem Sites-Worker. Die Anwendung setzt konfigurierte Konten und eine echte Anmeldung voraus; ein Demo-Modus ist nicht enthalten.
 
 ## 2. Datenmodell
 
@@ -16,7 +16,7 @@ Parent: ausschließlich eigene Zuordnungen lesen, eigene Stripe-Portalsession un
 
 ## 4. Seiten
 
-/ (Elternübersicht), /termine (geplant/vergangen + Details), /stempelkarte, /berichte, /konto, /login, /auth/callback, /einladung. /team (Tag/Woche, Editor, Ausnahmen). /admin (Übersicht), /admin/spieler, /admin/eltern, /admin/mitarbeiter, /admin/standorte, /admin/produkte, /admin/stripe, /admin/einladungen, /admin/protokolle, /admin/einstellungen. Gemeinsame responsive Navigation; mobile kompakte Navigation. Die Demo zeigt fiktive Eltern, zwei Kinder, mehrere Perioden und administratives Beispielmaterial.
+/ (Elternübersicht), /termine (geplant/vergangen + Details), /stempelkarte, /berichte, /konto, /login, /auth/callback, /einladung. /team (Tag/Woche, Editor, Ausnahmen). /admin (Übersicht), /admin/spieler, /admin/eltern, /admin/mitarbeiter, /admin/standorte, /admin/produkte, /admin/stripe, /admin/einladungen, /admin/protokolle, /admin/einstellungen. Gemeinsame responsive Navigation; mobile kompakte Navigation. Der lokale Test verwendet eine getrennte Datenbank und echte Anmeldung.
 
 ## 5. Stripe und Supabase
 
@@ -40,7 +40,7 @@ RLS auf allen App-Tabellen; explizite Policies, keine pauschalen authenticated-S
 
 ## 10. Tests
 
-Unit: Pufferzeit inklusive 00:00/06:00, deutscher Sommer-/Winterzeit und expliziter Mitternachtskonvention, Stripe-Perioden, Tarife, Stempel und Minuten. Integration: reale Postgres-Semantik in PGlite mit auth/storage-Testschema für Migrationen, Transaktionen, Jobs und RLS. Sicherheit: fremdes Kind/Datei, Staff/Admin, direkte Elternmutation, manipulierte Webhooks. Browser-E2E: Demo-Kindwechsel, Navigation, Termin anlegen, Ausnahmen, PDF und mobile Ansicht; externe Auth/Stripe/SMTP-End-to-End separat gegen eingerichtete Testkonten. Tests ohne externe Konten dürfen keinen erfolgreichen Cloud-Test behaupten.
+Unit: Pufferzeit inklusive 00:00/06:00, deutscher Sommer-/Winterzeit und expliziter Mitternachtskonvention, Stripe-Perioden, Tarife, Stempel und Minuten. Integration: reale Postgres-Semantik in PGlite mit auth/storage-Testschema für Migrationen, Transaktionen, Jobs und RLS. Sicherheit: fremdes Kind/Datei, Staff/Admin, direkte Elternmutation, manipulierte Webhooks. Browser-E2E: Kindwechsel, Zugriffsrechte, echte Speicherung ohne Geburtsjahr, PDF und mobile Ansicht gegen die lokale Datenbank; externe Auth/Stripe/SMTP-End-to-End separat gegen eingerichtete Testkonten. Tests ohne externe Konten dürfen keinen erfolgreichen Cloud-Test behaupten.
 
 ### Puffer-Grenzfall
 
@@ -48,7 +48,7 @@ Die Vorgabe 12:00 -> 06:00 am Folgetag priorisiert die genannten Beispiele: Wenn
 
 ## 11. Umgebungsvariablen
 
-Vollständig in .env.example: APP_URL, NEXT_PUBLIC_APP_URL, APP_MODE, NEXT_PUBLIC_DEMO_MODE, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, STRIPE_SECRET_KEY, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PORTAL_CONFIGURATION_ID, PROTON_SMTP_HOST/PORT/USER/TOKEN, EMAIL_FROM, EMAIL_TEST_MODE, EMAIL_TEST_RECIPIENT, MAIL_PROVIDER, WHATSAPP_NUMBER, PARENT_CANCELLATION_ENABLED, REPORT_SEND_TIME, CRON_SECRET, JOB_RUNNER_URL/PORT, DATABASE_URL. Test und Produktion getrennt.
+Vollständig in .env.example: APP_URL, NEXT_PUBLIC_APP_URL, APP_MODE, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, STRIPE_SECRET_KEY, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PORTAL_CONFIGURATION_ID, PROTON_SMTP_HOST/PORT/USER/TOKEN, EMAIL_FROM, EMAIL_TEST_MODE, EMAIL_TEST_RECIPIENT, MAIL_PROVIDER, WHATSAPP_NUMBER, PARENT_CANCELLATION_ENABLED, REPORT_SEND_TIME, CRON_SECRET, JOB_RUNNER_URL/PORT, DATABASE_URL. Test und Produktion getrennt.
 
 ## 12. Manuelle Einrichtung
 
@@ -58,7 +58,7 @@ Supabase-Testprojekt + Migration + Seed; Auth Redirects/Proton SMTP, Testbenutze
 
 1. Konzept: alle 13 Abschnitte vor Produktcode dokumentiert.
 2. Fundament: installierbares Next-Projekt, strict typecheck, Supabase-Migration + RLS, getestete Fachfunktionen.
-3. Portale: responsive Elternübersicht mit Kindwechsel, Stempeln/Terminen/Berichten; Mitarbeiterplanung und Ausnahmen; Admin-Verwaltung. Demo sichtbar und getrennt.
+3. Portale: responsive Elternübersicht mit Kindwechsel, Stempeln/Terminen/Berichten; Mitarbeiterplanung und Ausnahmen; Admin-Verwaltung. Ausschließlich angemeldeter Datenbankbetrieb.
 4. Integrationen: Magic Link/Einladung, Stripe Inbox/Sync/Portal, Outbox/SMTP, PDF/Storage, Jobs und Audit implementiert. Fehlende externe Konfiguration wird klar angezeigt.
 5. Abnahme lokal: Build, Unit/DB/Sicherheits- und verfügbare Browsertests erfolgreich; PDFs visuell geprüft; Anleitungen und ehrliche Testmatrix vorhanden.
 6. Externe Testabnahme (nach Einrichtung): Stripe CLI + nicht produktives Supabase + eigener SMTP-Testempfänger + Worker-Preview. Freigabe bleibt Voraussetzung für Livebetrieb.

@@ -1,28 +1,20 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { demoData } from "../demo";
 import type { PortalData, Training, Report } from "../types";
-import { isDemo } from "./config";
 import { sessionUser } from "./supabase";
 import { periodLabel, disciplineStats, isRemovedParticipant } from "../domain";
 import { canOpenPortalSection, portalHome } from "../portal-access";
 export async function loadPortal(section: string): Promise<PortalData> {
-  if (isDemo())
-    return {
-      ...demoData,
-      role: section.startsWith("admin")
-        ? "admin"
-        : section.startsWith("team")
-          ? "staff"
-          : "parent",
-    };
   const session = await sessionUser();
   if (!session?.role) redirect("/login");
   if (!canOpenPortalSection(session.role, section))
     redirect(portalHome(session.role));
   const { db } = session;
   const results = await Promise.all([
-    db.from("players").select("*").is("archived_at", null),
+    db
+      .from("players")
+      .select(session.role === "parent" ? "id,first_name,last_name,team" : "*")
+      .is("archived_at", null),
     db
       .from("entitlement_periods")
       .select("*,subscriptions(status)")
@@ -39,19 +31,31 @@ export async function loadPortal(section: string): Promise<PortalData> {
       .order("created_at", { ascending: false }),
     db.from("locations").select("*").eq("active", true),
     db.from("staff_profiles").select("*").eq("active", true),
+    session.role === "parent"
+      ? db
+          .from("parent_stripe_customers")
+          .select("stripe_customer_id")
+          .order("created_at")
+      : Promise.resolve({ data: [], error: null }),
   ]);
   for (const result of results)
     if (result.error)
       throw new Error("Portaldaten konnten nicht geladen werden");
-  const [players, periods, events, reports, locations, trainers] = results.map(
-    (r) => r.data ?? [],
-  );
+  const [
+    players,
+    periods,
+    events,
+    reports,
+    locations,
+    trainers,
+    billingCustomers,
+  ] = results.map((r) => r.data ?? []);
   return {
-    demo: false,
     role: session.role,
     user_name: session.name.split(" ")[0] || "Willkommen",
     email: session.user.email ?? "",
     players: players as PortalData["players"],
+    billing_customers: billingCustomers as PortalData["billing_customers"],
     periods: periods.map((p) => ({
       ...p,
       subscription_status: p.subscriptions?.status,

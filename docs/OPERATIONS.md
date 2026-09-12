@@ -2,7 +2,7 @@
 
 ## Vertrauensgrenzen
 
-Browser verwendet ausschließlich Session/Anon-Konfiguration. Supabase-RLS ist die letzte Schranke. Next-APIs autorisieren nochmals. Service Role wird für Stripe, Einladungs-Erzeugung, PDF-Verarbeitung und Jobs gebraucht; alle Admin-Aufrufe prüfen zuerst die echte Sessionrolle. Der Demo-Schalter führt zu Beispieldaten und sperrt externe Mutationen.
+Browser verwendet ausschließlich Session/Anon-Konfiguration. Supabase-RLS ist die letzte Schranke. Next-APIs autorisieren nochmals. Service Role wird für Stripe, Einladungs-Erzeugung, PDF-Verarbeitung und Jobs gebraucht; alle Admin-Aufrufe prüfen zuerst die echte Sessionrolle. Ein Demo-Modus existiert nicht. Ohne eingerichtete Anmeldung und Datenbank werden keine Portaldaten angezeigt.
 
 ## Jobs und Fehler
 
@@ -20,7 +20,7 @@ Alerts für ausbleibende Cron-Aufrufe (>20 Minuten), failed/uncertain Jobs, unge
 
 ## Testdaten
 
-Seed-Datei enthält nur Tarifkatalog und Standort. Familien sind im Demo ausschließlich fiktiv. DB-Integrationstests erzeugen isolierte UUIDs und `.invalid`-Adressen in einem temporären PGlite-Prozess. Reale Testkonten erst über Supabase/Stripe im eigenen Testprojekt anlegen. Entwicklungsartefakte, Testreports und Capture-E-Mails liegen in ignorierten Ordnern.
+Seed-Datei enthält nur Tarifkatalog und Standort. Fiktive Datensätze existieren ausschließlich als Testfixtures unter tests/; die Anwendung lädt sie nie. DB-Integrationstests erzeugen isolierte UUIDs und `.invalid`-Adressen in einem temporären PGlite-Prozess. Reale Testkonten erst über Supabase/Stripe im eigenen Testprojekt anlegen. Entwicklungsartefakte, Testreports und Capture-E-Mails liegen in ignorierten Ordnern.
 
 ## Sicherheits- und Betriebsänderungen
 

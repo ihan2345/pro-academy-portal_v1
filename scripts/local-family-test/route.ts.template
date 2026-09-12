@@ -1,0 +1,15 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { sessionDb } from '@/lib/server/supabase';
+export async function POST(request:NextRequest) {
+ if(process.env.LOCAL_FAMILY_TEST!=='true' || process.env.NEXT_PUBLIC_SUPABASE_URL!=='http://127.0.0.1:55321' || request.headers.get('host')!=='127.0.0.1:3107' || request.headers.get('origin')!=='http://127.0.0.1:3107') return new NextResponse('Local access only',{status:403});
+ const state=JSON.parse(readFileSync(resolve('../accounts.private.json'),'utf8'));
+ const key=(await request.formData()).get('account');
+ const account=state.accounts.find((a:any)=>a.key===key);
+ if(!account) return new NextResponse('Unbekanntes lokales Konto',{status:400});
+ const db=await sessionDb();
+ const {error}=await db.auth.signInWithPassword({email:account.email,password:state.password});
+ if(error) return new NextResponse('Lokale Anmeldung fehlgeschlagen',{status:400});
+ return NextResponse.redirect(new URL(account.role==='admin'?'/admin':account.role==='staff'?'/team':'/konto','http://127.0.0.1:3107'),303);
+}

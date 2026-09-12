@@ -18,7 +18,7 @@ export default function Error({
         <button className="primary-button" onClick={reset}>
           Erneut versuchen
         </button>
-        <Link className="auth-demo-link" href="/login">
+        <Link className="auth-back-link" href="/login">
           Zur Anmeldung
         </Link>
       </section>

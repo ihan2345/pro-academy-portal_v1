@@ -16,7 +16,7 @@ export const STATUS_LABELS: Record<Attendance, string> = {
   excused: "Entschuldigt",
   cancelled: "Abgesagt",
 };
-/** Legacy/demo values. Live entitlements always use the price-specific frozen snapshot. */
+/** Legacy tariff values. Live entitlements always use the price-specific frozen snapshot. */
 export const LEGACY_PLAN_UNITS = {
   FirstTouch: 4,
   GameChanger: 8,

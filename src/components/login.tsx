@@ -1,15 +1,8 @@
 "use client";
 import { useState } from "react";
 import { Mail, ArrowRight, ShieldCheck } from "lucide-react";
-import Link from "next/link";
 import { Brand } from "./portal";
-export function LoginForm({
-  demo,
-  initialError = "",
-}: {
-  demo: boolean;
-  initialError?: string;
-}) {
+export function LoginForm({ initialError = "" }: { initialError?: string }) {
   const [email, setEmail] = useState(""),
     [message, setMessage] = useState(initialError),
     [busy, setBusy] = useState(false),
@@ -60,7 +53,7 @@ export function LoginForm({
                 type="email"
                 autoComplete="email"
                 required
-                placeholder="name@beispiel.de"
+                placeholder="name@domain.de"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -87,11 +80,6 @@ export function LoginForm({
           />{" "}
           Dein Link ist persönlich und nur einmal gültig.
         </p>
-        {demo && (
-          <Link className="auth-demo-link" href="/">
-            Testportal mit Beispieldaten öffnen →
-          </Link>
-        )}
       </section>
     </main>
   );

@@ -22,7 +22,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Öffnen: http://127.0.0.1:3000. Der Demo-Modus ist sichtbar markiert. Fiktive Daten werden aus `src/lib/demo.ts` geladen. Trainingsänderungen bleiben lokal im Browser; Admin-Beispieländerungen gelten nur in der jeweiligen Ansicht. Die Links im Fußbereich wechseln zwischen Eltern-, Mitarbeiter- und Admin-Demo. **Dieser Rollenwechsel existiert nur für Beispieldaten und erteilt keine Serverrechte.** Zum Zurücksetzen im Browser den Local-Storage-Eintrag `proacademy-demo-v1` entfernen. Der Demostichtag ist 09.09.2026.
+Die Anwendung benötigt eine konfigurierte Supabase-Datenbank und eine echte Anmeldung. Ein Demo-Modus ist nicht enthalten. Der getrennte lokale Test mit den bestätigten Zuordnungen läuft unter http://127.0.0.1:3107/lokaler-test; Einrichtung und Neustart stehen in [scripts/local-family-test/README.md](scripts/local-family-test/README.md).
 
 ## Projektstruktur
 
@@ -71,7 +71,7 @@ values ('<STAFF_AUTH_UUID>', 'Test Trainer');
 ```
 
 10. Storage: Die Migration erstellt den Bucket `reports` mit `public=false`. Dies in der Oberfläche kontrollieren. Keine öffentlichen Downloads oder zusätzlichen Upload-Policies hinzufügen. Nur zugeordnete Eltern und Admins lesen; Staff erhält keinen PDF-Zugriff.
-11. `NEXT_PUBLIC_DEMO_MODE=false` setzen und den Next-Server neu starten. Admin über `/login` mit der eigenen Testadresse anmelden. Neue Eltern erhalten ihre Profile erst durch eine erfolgreich geprüfte Einladung.
+11. Den Next-Server neu starten und Admin über `/login` mit der eigenen Testadresse anmelden. Neue Eltern erhalten ihre Profile erst durch eine erfolgreich geprüfte Einladung.
 12. Spieler, Standorte und weitere Trainer im Adminbereich pflegen. Weitere Profile müssen zuerst in Supabase Auth angelegt sein. Rollenänderungen sind admin-only; eine Selbständerung der Adminrolle ist gesperrt.
 
 ## Stripe-Testkonto verbinden
@@ -133,7 +133,7 @@ OpenNext erstellt `.open-next/worker.js` und `.open-next/assets`. Die Anwendung 
 Erst nach ausdrücklicher Bereitstellungsfreigabe:
 
 1. Ein separates Test-Worker-Projekt einrichten; `wrangler.jsonc` auf Testnamen prüfen. Production und Preview getrennt benennen und betreiben.
-2. Alle benötigten Server-Secrets über Cloudflare Secret Store bzw. `wrangler secret put <NAME>` hinterlegen. Public Supabase-Werte und `NEXT_PUBLIC_DEMO_MODE=false` bereits **beim Build** konfigurieren. `.env.local` niemals hochladen.
+2. Alle benötigten Server-Secrets über Cloudflare Secret Store bzw. `wrangler secret put <NAME>` hinterlegen. Public Supabase-Werte bereits **beim Build** konfigurieren. `.env.local` niemals hochladen.
 3. Den Node-Jobrunner aus `workers/Dockerfile` auf einem privaten Node-/Containerhost bereitstellen. Das Image enthält keine `.env`-Dateien. Secrets zur Laufzeit injizieren; TLS und Zugriffsbeschränkung vor `/run` einrichten. **Proton SMTP läuft hier und nicht direkt in Cloudflare/Sites.**
 4. `JOB_RUNNER_URL` auf den HTTPS-Endpunkt des Runners setzen. Den Cron-Worker mit passendem `APP_URL` und demselben starken `CRON_SECRET` konfigurieren. Cron: alle zehn Minuten.
 5. Den Test-Worker mit OpenNext/Wrangler deployen. Keine Domain oder produktive Umgebung vor Freigabe verbinden.
@@ -152,7 +152,7 @@ npm run build:cloudflare
 npm audit
 ```
 
-Die Datenbanktests führen alle Migrationen in PGlite (echter Postgres in WASM) mit einem minimalen Supabase-Auth-/Storage-Testschema aus. Sie prüfen echte RLS-Policies und RPC-Transaktionen unter verschiedenen Rollen. Sie ersetzen keine echte Supabase-/GoTrue-/Storage-/Stripe-/SMTP-Testumgebung. Browser-E2E prüfen die explizite Demo und gesperrte APIs; keine echte Anmeldung wird vorgetäuscht.
+Die Datenbanktests führen alle Migrationen in PGlite (echter Postgres in WASM) mit einem minimalen Supabase-Auth-/Storage-Testschema aus. Sie prüfen echte RLS-Policies und RPC-Transaktionen unter verschiedenen Rollen. Sie ersetzen keine echte Supabase-/GoTrue-/Storage-/Stripe-/SMTP-Testumgebung. Browser-E2E prüfen echte lokale Anmeldung, Datenbankspeicherung, Zugriffsrechte, PDF-Export und gesperrte externe Aktionen. Vorher muss die getrennte lokale Testumgebung laufen.
 
 ## Fachliche Entscheidungen
 

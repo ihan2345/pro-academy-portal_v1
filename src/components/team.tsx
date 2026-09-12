@@ -48,11 +48,9 @@ export function TeamView({
   notify: (message: string) => void;
 }) {
   const [date, setDate] = useState(
-      data.demo
-        ? "2026-09-10"
-        : new Intl.DateTimeFormat("sv-SE", {
-            timeZone: "Europe/Berlin",
-          }).format(new Date()),
+      new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Europe/Berlin",
+      }).format(new Date()),
     ),
     [mode, setMode] = useState("week"),
     [editor, setEditor] = useState<Training | "new" | null>(null),
@@ -84,13 +82,12 @@ export function TeamView({
     mail: boolean,
   ) {
     try {
-      if (!data.demo)
-        await api("team/attendance", {
-          participant,
-          new_status: next,
-          reason,
-          send_correction: mail,
-        });
+      await api("team/attendance", {
+        participant,
+        new_status: next,
+        reason,
+        send_correction: mail,
+      });
       const events = data.events.map((e) =>
         e.id === event.id
           ? {
@@ -108,11 +105,7 @@ export function TeamView({
           p.id === participant ? { ...p, status: next, reason } : p,
         ),
       });
-      notify(
-        data.demo
-          ? "Ausnahme in den lokalen Testdaten gespeichert."
-          : "Teilnahme korrigiert. Die Statistik ist aktualisiert.",
-      );
+      notify("Teilnahme korrigiert. Die Statistik ist aktualisiert.");
     } catch (e) {
       notify((e as Error).message);
     }
@@ -262,10 +255,9 @@ export function TeamView({
           close={() => setEditor(null)}
           save={async (input, local) => {
             try {
-              if (!data.demo) {
-                const result = await api("team/events", input);
-                local.id = result.id;
-              }
+              const result = await api("team/events", input);
+              local.id = result.id;
+
               update({
                 ...data,
                 events: [
@@ -275,9 +267,7 @@ export function TeamView({
               });
               setEditor(null);
               notify(
-                data.demo
-                  ? "Termin in den lokalen Testdaten gespeichert. Es wurde keine E-Mail verschickt."
-                  : "Termin gespeichert. Benachrichtigungen wurden eingeplant.",
+                "Termin gespeichert. Benachrichtigungen wurden eingeplant.",
               );
             } catch (e) {
               notify((e as Error).message);
@@ -285,7 +275,7 @@ export function TeamView({
             }
           }}
           cancel={async (event, reason) => {
-            if (!data.demo) await api("team/cancel", { id: event.id, reason });
+            await api("team/cancel", { id: event.id, reason });
             update({
               ...data,
               events: data.events.map((e) =>
@@ -323,9 +313,7 @@ export function TeamView({
                 {Math.min(
                   720,
                   remainingActiveMinutes(
-                    data.demo
-                      ? "2026-09-09T10:00:00Z"
-                      : new Date().toISOString(),
+                    new Date().toISOString(),
                     exceptions.auto_attendance_at,
                   ),
                 )}{" "}
@@ -475,7 +463,7 @@ function EventEditor({
       if (end <= start)
         throw new Error("Das Ende muss nach dem Beginn liegen.");
       if (!children.length) throw new Error("Wähle mindestens ein Kind aus.");
-      const id = event?.id ?? `PA-DEMO-${crypto.randomUUID().slice(0, 6)}`;
+      const id = event?.id ?? crypto.randomUUID();
       const input = {
         id: event?.id,
         revision: (event as Training & { revision?: number })?.revision ?? 1,

@@ -3,7 +3,7 @@ export interface Player {
   id: string;
   first_name: string;
   last_name: string;
-  birth_year: number;
+  birth_year?: number | null;
   team: string;
 }
 export interface Period {
@@ -18,6 +18,7 @@ export interface Period {
   status: string;
   subscription_id: string;
   subscription_status?: string;
+  stripe_customer_id?: string;
 }
 export interface Training {
   id: string;
@@ -59,7 +60,6 @@ export interface Report {
   athletics_units?: number;
 }
 export interface PortalData {
-  demo: boolean;
   role: Role;
   user_name: string;
   email: string;
@@ -70,4 +70,5 @@ export interface PortalData {
   locations: { id: string; name: string; address: string }[];
   trainers: { id: string; name: string }[];
   whatsapp: string;
+  billing_customers?: { stripe_customer_id: string }[];
 }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { NextRequest } from "next/server";
-import { demoData } from "../src/lib/demo";
+import { portalFixture } from "./fixtures/portal";
 import { stampCardSnapshot } from "../src/lib/stamp-card";
 import {
   loadStampCard,
@@ -20,8 +20,8 @@ vi.mock("../src/lib/server/supabase", () => ({
   sessionDb: vi.fn(),
   serviceDb: () => ({ from: mocks.from }),
 }));
-const player = demoData.players[0],
-  period = demoData.periods[0];
+const player = portalFixture.players[0],
+  period = portalFixture.periods[0];
 const parent = {
   id: "parent-id",
   full_name: "Test Parent",
@@ -91,7 +91,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   saved = [];
   linked = true;
-  participantRows = demoData.events
+  participantRows = portalFixture.events
     .filter((event) =>
       event.participants.some((p) => p.player_id === player.id),
     )
@@ -100,7 +100,6 @@ beforeEach(() => {
       training_events: event,
     }));
   mocks.from.mockImplementation(query);
-  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
   vi.stubEnv("APP_URL", "https://portal.example.com");
 });

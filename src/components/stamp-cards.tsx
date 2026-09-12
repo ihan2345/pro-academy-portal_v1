@@ -12,7 +12,6 @@ import {
   periodLabel,
   STATUS_LABELS,
 } from "@/lib/domain";
-import { stampCardSnapshot } from "@/lib/stamp-card";
 import { ExcusedNotes } from "./attendance-notes";
 import { Stamps, StampLegend } from "./portal";
 
@@ -47,7 +46,7 @@ export function StampCards({
   const periods = data.periods
     .filter((p) => p.player_id === player?.id)
     .sort((a, b) => b.starts_at.localeCompare(a.starts_at));
-  const now = data.demo ? "2026-09-09T10:00:00Z" : new Date().toISOString();
+  const now = new Date().toISOString();
   const period =
     periods.find((p) => p.id === periodId) ??
     periods.find((p) => p.starts_at <= now && p.ends_at > now) ??
@@ -63,27 +62,7 @@ export function StampCards({
       setLoading(false);
       return;
     }
-    if (data.demo) {
-      const events = data.events.flatMap((event) => {
-        const participant = event.participants.find(
-          (p) => p.period_id === activeId && p.player_id === player.id,
-        );
-        return participant ? [{ ...event, status: participant.status }] : [];
-      });
-      setCard({
-        snapshot: stampCardSnapshot(
-          player,
-          period,
-          events,
-          "2026-09-09T10:00:00Z",
-          data.whatsapp,
-        ),
-        recipients: [],
-        testRecipient: null,
-      });
-      setLoading(false);
-      return;
-    }
+
     setLoading(true);
     fetch(`/api/team/stamp-card?period_id=${encodeURIComponent(activeId)}`, {
       cache: "no-store",
@@ -121,20 +100,14 @@ export function StampCards({
     setBusy(true);
     try {
       let blob: Blob;
-      if (data.demo) {
-        const { renderReport } = await import("@/lib/pdf");
-        blob = new Blob(
-          [new Uint8Array(await renderReport(card.snapshot, "stamp_card"))],
-          { type: "application/pdf" },
-        );
-      } else {
-        const response = await fetch(
-          `/api/team/stamp-card?period_id=${encodeURIComponent(activeId)}&download=pdf`,
-          { cache: "no-store" },
-        );
-        if (!response.ok) throw new Error((await response.json()).error);
-        blob = await response.blob();
-      }
+
+      const response = await fetch(
+        `/api/team/stamp-card?period_id=${encodeURIComponent(activeId)}&download=pdf`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) throw new Error((await response.json()).error);
+      blob = await response.blob();
+
       const url = URL.createObjectURL(blob),
         link = document.createElement("a");
       link.href = url;
@@ -318,12 +291,7 @@ export function StampCards({
           </section>
           <section className="panel stamp-card-mail">
             <h2>Stempelkarte per E-Mail</h2>
-            {data.demo ? (
-              <p>
-                Der Mailversand steht mit eingerichteter Anmeldung und
-                zugeordneten Eltern zur Verfügung.
-              </p>
-            ) : !card.recipients.length ? (
+            {!card.recipients.length ? (
               <p>
                 Diesem Kind ist noch kein aktives Elternkonto für den Versand
                 zugeordnet.

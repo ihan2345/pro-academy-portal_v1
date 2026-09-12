@@ -120,18 +120,7 @@ export function Portal({
     } catch {}
   }
   useEffect(() => {
-    if (initial.demo) {
-      try {
-        const saved = localStorage.getItem("proacademy-demo-v1");
-        if (saved) {
-          const parsed = JSON.parse(saved) as PortalData;
-          setData({ ...parsed, role: initial.role });
-        }
-        const child = localStorage.getItem("proacademy-selected");
-        if (child && initial.players.some((p) => p.id === child))
-          setSelected(child);
-      } catch {}
-    } else setData(initial);
+    setData(initial);
   }, [initial]);
   useEffect(() => {
     if (!toast) return;
@@ -144,13 +133,11 @@ export function Portal({
   }, []);
   function update(next: PortalData) {
     setData(next);
-    if (next.demo)
-      localStorage.setItem("proacademy-demo-v1", JSON.stringify(next));
-    else router.refresh();
+    router.refresh();
   }
   const player = data.players.find((p) => p.id === selected) ?? data.players[0];
   const periods = data.periods.filter((p) => p.player_id === player?.id);
-  const now = data.demo ? new Date("2026-09-09T10:00:00Z") : new Date();
+  const now = new Date();
   const period =
     periods.find((p) => p.id === selectedPeriod) ??
     periods.find(
@@ -234,9 +221,13 @@ export function Portal({
           { href: "/konto", title: "Mein Konto", icon: Settings },
         ]
       : nav;
-  async function openBilling() {
+  async function openBilling(customerId?: string) {
     try {
-      const response = await fetch("/api/stripe/portal", { method: "POST" });
+      const response = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(customerId ? { customer_id: customerId } : {}),
+      });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       window.location.assign(result.url);
@@ -362,11 +353,6 @@ export function Portal({
             </b>
           </div>
           <div className="topbar-right">
-            {data.demo && (
-              <Badge tone="demo">
-                <span className="status-dot" /> DEMO · TESTDATEN
-              </Badge>
-            )}
             <span className="topbar-date">
               {formatDate(now.toISOString(), {
                 day: "numeric",
@@ -535,9 +521,9 @@ export function Portal({
                               : "Noch nicht zugeordnet"}
                           </b>
                         </div>
-                        <button className="text-button" onClick={openBilling}>
+                        <Link className="text-button" href="/konto">
                           Abo verwalten <ArrowUpRight size={17} />
-                        </button>
+                        </Link>
                       </section>
                       <section className="stats-grid">
                         <Stat
@@ -812,9 +798,7 @@ export function Portal({
                             <b>
                               {p.first_name} {p.last_name}
                             </b>
-                            <Badge>
-                              {p.team} · {p.birth_year}
-                            </Badge>
+                            {p.team && <Badge>{p.team}</Badge>}
                           </div>
                         ))}
                         <p className="muted">
@@ -844,12 +828,42 @@ export function Portal({
                           Rechnungen, Rechnungsadresse und Zahlungsmethode
                           verwaltest du sicher über Stripe.
                         </p>
-                        <button
-                          className="primary-button"
-                          onClick={openBilling}
-                        >
-                          Stripe-Kundenportal öffnen <ArrowUpRight size={17} />
-                        </button>
+                        <div className="billing-account-actions">
+                          {(data.billing_customers?.length
+                            ? data.billing_customers
+                            : [{ stripe_customer_id: "" }]
+                          ).map((account, index) => {
+                            const customerId = account.stripe_customer_id;
+                            const childIds = new Set(
+                              data.periods
+                                .filter(
+                                  (p) => p.stripe_customer_id === customerId,
+                                )
+                                .map((p) => p.player_id),
+                            );
+                            const names = data.players
+                              .filter((p) => childIds.has(p.id))
+                              .map((p) => p.first_name)
+                              .join(" und ");
+                            return (
+                              <button
+                                key={customerId || "billing"}
+                                className="primary-button"
+                                onClick={() =>
+                                  openBilling(customerId || undefined)
+                                }
+                              >
+                                {data.billing_customers &&
+                                data.billing_customers.length > 1
+                                  ? names
+                                    ? `Abo für ${names} verwalten`
+                                    : `Abokonto ${index + 1} verwalten`
+                                  : "Stripe-Kundenportal öffnen"}{" "}
+                                <ArrowUpRight size={17} />
+                              </button>
+                            );
+                          })}
+                        </div>
                       </section>
                     </div>
                   )}
@@ -861,12 +875,6 @@ export function Portal({
             <button
               className="secondary-button"
               onClick={async () => {
-                if (data.demo) {
-                  localStorage.removeItem("proacademy-demo-v1");
-                  localStorage.removeItem("proacademy-selected");
-                  window.location.assign(portalHome(data.role));
-                  return;
-                }
                 const res = await fetch("/api/auth/logout", { method: "POST" });
                 if (res.ok) window.location.assign("/login");
                 else
@@ -874,7 +882,7 @@ export function Portal({
               }}
             >
               <LogOut size={17} />
-              {data.demo ? "Demo zurücksetzen" : "Sicher abmelden"}
+              {"Sicher abmelden"}
             </button>
           )}
           <footer className="content-footer">

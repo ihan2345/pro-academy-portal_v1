@@ -1,5 +1,5 @@
-import { calculateAutoAttendanceAt, localToUtc } from "./domain";
-import type { PortalData, Training } from "./types";
+import { calculateAutoAttendanceAt, localToUtc } from "../../src/lib/domain";
+import type { PortalData, Training } from "../../src/lib/types";
 const event = (
   id: string,
   day: string,
@@ -33,8 +33,7 @@ const event = (
     ],
   };
 };
-export const demoData: PortalData = {
-  demo: true,
+export const portalFixture: PortalData = {
   role: "parent",
   user_name: "Sarah",
   email: "sarah.beispiel@example.com",
@@ -64,7 +63,7 @@ export const demoData: PortalData = {
       ends_at: localToUtc("2026-09-12", "00:00"),
       included_units: 8,
       status: "active",
-      subscription_id: "sub_demo_max",
+      subscription_id: "sub_fixture_max",
     },
     {
       id: "period-lena",
@@ -74,7 +73,7 @@ export const demoData: PortalData = {
       ends_at: localToUtc("2026-09-18", "00:00"),
       included_units: 4,
       status: "active",
-      subscription_id: "sub_demo_lena",
+      subscription_id: "sub_fixture_lena",
     },
   ],
   events: [
@@ -121,7 +120,7 @@ export const demoData: PortalData = {
   ],
   reports: [
     {
-      id: "report-demo-1",
+      id: "report-fixture-1",
       player_id: "max",
       period_id: "past-max",
       version: 1,
@@ -133,7 +132,7 @@ export const demoData: PortalData = {
       minutes: 630,
     },
     {
-      id: "report-demo-2",
+      id: "report-fixture-2",
       player_id: "max",
       period_id: "past-max-2",
       version: 1,
