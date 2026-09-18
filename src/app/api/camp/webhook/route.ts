@@ -1,3 +1,4 @@
+import Stripe from "stripe";
 import { campProcessingEnabled } from "@/lib/camps/processing-config";
 import { campHostAllowed } from "@/lib/camps/runtime";
 import { campReadStripe, enqueueCampEvent } from "@/lib/camps/processing";
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
       Buffer.concat(chunks),
       request.headers.get("stripe-signature") ?? "",
       secret,
+      undefined,
+      Stripe.createSubtleCryptoProvider(),
     );
   } catch {
     return new Response(null, { status: 400 });

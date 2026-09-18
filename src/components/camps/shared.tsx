@@ -7,25 +7,7 @@ export function useCampLogin() {
   return useContext(CampLoginContext);
 }
 import { Brand } from "@/components/portal";
-export async function campApi(path: string, body?: unknown) {
-  const r = await fetch(
-    `/api/camp/${path}`,
-    body === undefined
-      ? { cache: "no-store" }
-      : {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-  );
-  if (!r.headers.get("content-type")?.includes("application/json"))
-    throw new Error(
-      "Die Camp-Seite wird gerade neu geladen. Bitte erneut versuchen.",
-    );
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.error ?? "Anfrage fehlgeschlagen.");
-  return data;
-}
+export { campApi } from "./api-client";
 export function CampFrame({ children }: { children: React.ReactNode }) {
   const loginHref = useCampLogin();
   return (

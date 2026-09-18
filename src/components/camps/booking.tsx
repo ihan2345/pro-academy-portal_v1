@@ -109,7 +109,11 @@ export function BookingForm({ campId }: { campId: string }) {
         parent,
         child,
       });
-      sessionStorage.setItem("camp_parent", JSON.stringify(parent));
+      try {
+        sessionStorage.setItem("camp_parent", JSON.stringify(parent));
+      } catch {
+        /* A blocked browser storage must not prevent checkout. */
+      }
       location.assign(result.url);
     } catch (e) {
       setError((e as Error).message);
@@ -118,7 +122,7 @@ export function BookingForm({ campId }: { campId: string }) {
   }
   return (
     <CampFrame>
-      <CampError message={error} />
+      {!data && <CampError message={error} />}
       {!data ? (
         <p>Camp wird geladen …</p>
       ) : (

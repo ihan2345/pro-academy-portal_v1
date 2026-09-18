@@ -46,7 +46,11 @@ export async function saveCampReview(raw: unknown, add: boolean) {
         : { group: "new", percent: 0 };
       const input = await prepareCampImport(
         db,
-        new Stripe(key, { timeout: 15000, maxNetworkRetries: 1 }),
+        new Stripe(key, {
+          httpClient: Stripe.createFetchHttpClient(),
+          timeout: 10000,
+          maxNetworkRetries: 1,
+        }),
         data,
         record.session_id,
         session.user.id,

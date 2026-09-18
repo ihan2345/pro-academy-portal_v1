@@ -24,7 +24,11 @@ export function campReadStripe() {
     process.env.CAMP_STRIPE_READ_KEY ?? process.env.STRIPE_SECRET_KEY ?? "";
   if (!/^(sk|rk)_live_/.test(key))
     throw new Error("Camp: Stripe-Lesezugang fehlt.");
-  return new Stripe(key, { timeout: 15000, maxNetworkRetries: 1 });
+  return new Stripe(key, {
+    httpClient: Stripe.createFetchHttpClient(),
+    timeout: 10000,
+    maxNetworkRetries: 1,
+  });
 }
 export async function campProcessingSources(
   campId?: string,

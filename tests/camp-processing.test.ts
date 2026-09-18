@@ -54,6 +54,9 @@ vi.mock("../scripts/camp/stripe-review-lib.mjs", () => ({
 }));
 vi.mock("stripe", () => ({
   default: class {
+    static createFetchHttpClient() {
+      return {};
+    }
     checkout = { sessions: { retrieve: fixture.retrieve, list: fixture.list } };
   },
 }));

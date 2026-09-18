@@ -18,7 +18,11 @@ export function campStripe() {
     (campLocalEnabled() || process.env.CAMP_LIVE_PAYMENTS_ENABLED !== "true")
   )
     throw new HttpError(503, "Live-Zahlungen sind noch nicht freigegeben.");
-  return new Stripe(key, { maxNetworkRetries: 2 });
+  return new Stripe(key, {
+    httpClient: Stripe.createFetchHttpClient(),
+    timeout: 10000,
+    maxNetworkRetries: 1,
+  });
 }
 export async function verifyOffer(
   priceId: string,
@@ -86,6 +90,7 @@ export async function verifyOffer(
         Authorization: `Bearer ${process.env.CAMP_STRIPE_SECRET_KEY}`,
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(10000),
     },
   );
   if (!raw.ok)
