@@ -25,23 +25,40 @@ export async function collectCampReview(stripe, links) {
           objectId(session.payment_link) !== source.payment_link_id
         )
           throw new Error("Session does not belong to approved source");
-        const paymentId = objectId(session.payment_intent);
+        const intentId = objectId(session.payment_intent);
+        const noCost =
+          !intentId &&
+          session.status === "complete" &&
+          session.amount_total === 0 &&
+          Number.isInteger(session.amount_subtotal) &&
+          session.amount_subtotal > 0 &&
+          session.total_details?.amount_discount === session.amount_subtotal;
+        // A completed 100%-discounted Checkout has no payment or charge.
+        const paymentId = intentId ?? (noCost ? session.id : null);
         if (!paymentId)
           throw new Error("Paid session without payment reference");
         const [lines, payment] = await Promise.all([
           stripe.checkout.sessions.listLineItems(session.id, { limit: 100 }),
-          stripe.paymentIntents.retrieve(paymentId),
+          intentId
+            ? stripe.paymentIntents.retrieve(intentId)
+            : Promise.resolve(null),
         ]);
-        const chargeId = objectId(payment.latest_charge);
-        if (!chargeId) throw new Error("Paid session without charge");
-        const charge = await stripe.charges.retrieve(chargeId);
+        const chargeId = objectId(payment?.latest_charge);
+        if (!chargeId && !noCost)
+          throw new Error("Paid session without charge");
+        const charge = chargeId
+          ? await stripe.charges.retrieve(chargeId)
+          : null;
         if (
-          !payment.livemode ||
-          !charge.livemode ||
-          objectId(charge.payment_intent) !== paymentId
+          !noCost &&
+          (!payment?.livemode ||
+            !charge?.livemode ||
+            objectId(charge.payment_intent) !== paymentId)
         )
           throw new Error("Payment identity mismatch");
-        const issues = [];
+        const issues = noCost
+          ? ["Kostenloser Checkout; Sonderrabatt manuell prüfen"]
+          : [];
         if (
           lines.has_more ||
           lines.data.length !== 1 ||
@@ -52,18 +69,19 @@ export async function collectCampReview(stripe, links) {
           issues.push("Artikel oder Menge bitte prüfen");
         if (
           session.currency !== "eur" ||
-          payment.currency !== "eur" ||
-          charge.currency !== "eur" ||
-          payment.status !== "succeeded" ||
-          !charge.paid ||
-          !Number.isInteger(session.amount_total) ||
-          session.amount_total <= 0 ||
-          payment.amount_received !== session.amount_total ||
-          charge.amount !== session.amount_total
+          (!noCost &&
+            (payment.currency !== "eur" ||
+              charge.currency !== "eur" ||
+              payment.status !== "succeeded" ||
+              !charge.paid ||
+              !Number.isInteger(session.amount_total) ||
+              session.amount_total <= 0 ||
+              payment.amount_received !== session.amount_total ||
+              charge.amount !== session.amount_total))
         )
           issues.push("Zahlungsbetrag oder Zahlungsstatus bitte prüfen");
-        if (charge.disputed) issues.push("Zahlung angefochten");
-        if (charge.amount_refunded && !charge.refunded)
+        if (charge?.disputed) issues.push("Zahlung angefochten");
+        if (charge?.amount_refunded && !charge.refunded)
           issues.push("Teilweise Erstattung bitte prüfen");
         const field = (label) => {
           const f = session.custom_fields?.find(
@@ -87,7 +105,7 @@ export async function collectCampReview(stripe, links) {
           clothing_size: field("Kleidergröße des Kindes"),
           amount: session.amount_total,
           currency: session.currency,
-          status: charge.refunded
+          status: charge?.refunded
             ? "refunded"
             : issues.length
               ? "review"

@@ -8,6 +8,7 @@ export function BookingResult({ sessionId }: { sessionId: string }) {
       status: string;
       booking_id: string;
       camp_id: string;
+      no_cost?: boolean;
     } | null>(null),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
@@ -34,7 +35,7 @@ export function BookingResult({ sessionId }: { sessionId: string }) {
           {result?.status === "paid"
             ? "Dein Kind ist dabei."
             : result?.status === "review"
-              ? "Zahlung eingegangen."
+              ? "Buchung wird geprüft."
               : result?.status === "refunded"
                 ? "Buchung erstattet."
                 : "Zahlung prüfen."}
@@ -43,7 +44,9 @@ export function BookingResult({ sessionId }: { sessionId: string }) {
           {result?.status === "paid"
             ? "Deine Zahlung ist eingegangen und der Camp-Platz ist bestätigt."
             : result?.status === "review"
-              ? "Die Zahlung ist gespeichert. Die Academy muss die Zuordnung oder Platzvergabe noch klären. Es ist noch kein Platz bestätigt."
+              ? result.no_cost
+                ? "Dein Checkout über 0 € ist abgeschlossen und gespeichert. Die Academy prüft den verwendeten Sonderrabatt. Es ist noch kein Platz bestätigt. Bitte nicht erneut buchen."
+                : "Die Zahlung ist gespeichert. Die Academy muss die Zuordnung oder Platzvergabe noch klären. Es ist noch kein Platz bestätigt."
               : result?.status === "refunded"
                 ? "Die Zahlung wurde vollständig erstattet. Diese Buchung belegt keinen Camp-Platz mehr."
                 : "Deine Buchung ist abgeschlossen, sobald die Zahlung bestätigt wurde."}

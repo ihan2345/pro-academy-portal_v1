@@ -72,6 +72,36 @@ function fixture() {
   return { session, stripe, charge, lines };
 }
 describe("read-only local Camp reconciliation", () => {
+  it("keeps free completed checkouts in review without blocking other paid bookings", async () => {
+    const { stripe, session } = fixture();
+    stripe.checkout.sessions.list.mockResolvedValue({
+      has_more: false,
+      data: [
+        {
+          ...session,
+          id: "cs_live_free",
+          payment_intent: null,
+          status: "complete",
+          amount_total: 0,
+          amount_subtotal: 20610,
+          total_details: { amount_discount: 20610 },
+        } as any,
+        session,
+      ],
+    });
+    const result = await collectCampReview(stripe, [source]);
+    expect(result.records).toHaveLength(2);
+    expect(result.records[0]).toMatchObject({
+      payment_id: "cs_live_free",
+      amount: 0,
+      status: "review",
+      issues: ["Kostenloser Checkout; Sonderrabatt manuell prüfen"],
+    });
+    expect(result.records[1].status).toBe("paid");
+    expect(stripe.paymentIntents.retrieve).toHaveBeenCalledTimes(1);
+    expect(stripe.paymentIntents.retrieve).toHaveBeenCalledWith("pi_paid");
+  });
+
   it("reads only the approved link and retains missing child details without inventing dates", async () => {
     const { stripe } = fixture();
     const result = await collectCampReview(stripe, [source]);

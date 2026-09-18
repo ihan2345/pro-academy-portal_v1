@@ -393,6 +393,13 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
     typeof s.payment_intent === "string"
       ? s.payment_intent
       : s.payment_intent?.id;
+  // Stripe creates no PaymentIntent for a completed, fully discounted order.
+  // Keep the Checkout Session as its unique accounting reference, never invent a pi_ ID.
+  const noCost =
+    !paymentId &&
+    s.status === "complete" &&
+    s.amount_total === 0 &&
+    off === b.expected_amount;
   const paymentLink =
     typeof s.payment_link === "string" ? s.payment_link : s.payment_link?.id;
   if (
@@ -401,33 +408,38 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
     line.quantity !== 1 ||
     s.currency !== b.currency ||
     s.amount_subtotal !== b.expected_amount ||
-    !paymentId
+    (!paymentId && !noCost)
   )
     throw new HttpError(400, "Zahlung passt nicht zu dieser Camp-Buchung.");
-  const pi = await stripe.paymentIntents.retrieve(paymentId, {
-    expand: ["latest_charge"],
-  });
-  const charge = typeof pi.latest_charge === "object" ? pi.latest_charge : null;
+  const pi = paymentId
+    ? await stripe.paymentIntents.retrieve(paymentId, {
+        expand: ["latest_charge"],
+      })
+    : null;
+  const charge =
+    pi && typeof pi.latest_charge === "object" ? pi.latest_charge : null;
   if (
-    !charge ||
-    pi.livemode !== live ||
-    charge.livemode !== live ||
-    pi.status !== "succeeded" ||
-    !charge.paid ||
-    pi.currency !== b.currency ||
-    charge.currency !== b.currency ||
-    pi.amount_received !== s.amount_total ||
-    charge.amount !== s.amount_total ||
-    (typeof charge.payment_intent === "string"
-      ? charge.payment_intent
-      : charge.payment_intent?.id) !== paymentId
+    !noCost &&
+    (!charge ||
+      !pi ||
+      pi.livemode !== live ||
+      charge.livemode !== live ||
+      pi.status !== "succeeded" ||
+      !charge.paid ||
+      pi.currency !== b.currency ||
+      charge.currency !== b.currency ||
+      pi.amount_received !== s.amount_total ||
+      charge.amount !== s.amount_total ||
+      (typeof charge.payment_intent === "string"
+        ? charge.payment_intent
+        : charge.payment_intent?.id) !== paymentId)
   )
     throw new HttpError(
       400,
       "Zahlungsnachweis ist nicht vollständig bestätigt.",
     );
-  const refunded = !!charge.refunded;
-  if (!refunded && (charge.disputed || charge.amount_refunded > 0)) {
+  const refunded = !!charge?.refunded;
+  if (!refunded && charge && (charge.disputed || charge.amount_refunded > 0)) {
     reviewReason = charge.disputed
       ? "Zahlung angefochten; manuell prüfen"
       : "Teilweise Erstattung; manuell prüfen";
@@ -465,10 +477,8 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
           typeof s.payment_link === "string"
             ? s.payment_link
             : s.payment_link?.id,
-        payment_id:
-          typeof s.payment_intent === "string"
-            ? s.payment_intent
-            : s.payment_intent?.id,
+        payment_id: paymentId ?? s.id,
+        proof_kind: noCost ? "no_cost_checkout" : "payment_intent",
         customer_id:
           typeof s.customer === "string" ? s.customer : s.customer?.id,
         quantity: line.quantity,
@@ -497,7 +507,7 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
           .upsert({ id: customerId, kind: "customer", camp_id: b.camp_id }),
       );
   }
-  return { ...result, camp_id: b.camp_id };
+  return { ...result, camp_id: b.camp_id, no_cost: noCost };
 }
 export async function invitationWish(id: string) {
   const db = serviceDb();
