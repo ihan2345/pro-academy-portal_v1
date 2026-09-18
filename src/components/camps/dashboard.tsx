@@ -61,7 +61,7 @@ const statusLabel: Record<string, string> = {
   archived: "Archiviert",
   paid: "Gebucht",
   review: "Klärung erforderlich",
-  cancelled: "Storniert",
+  cancelled: "Teilnahme entfernt",
   refunded: "Erstattet",
 };
 function berlin(value: string) {
@@ -328,6 +328,7 @@ export function CampDashboard({
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [creating, setCreating] = useState(false),
+    [showRemoved, setShowRemoved] = useState(false),
     [busy, setBusy] = useState(false),
     [readiness, setReadiness] = useState<{
       checks: { name: string; status: string; detail: string }[];
@@ -355,7 +356,7 @@ export function CampDashboard({
       setMessage(
         path === "reconcile"
           ? `${r.checked} Zahlungen geprüft.${r.errors.length ? " " + r.errors.join(" ") : ""}`
-          : "Gespeichert.",
+          : (r.message ?? "Gespeichert."),
       );
       await load();
     } catch (e) {
@@ -718,10 +719,28 @@ export function CampDashboard({
                       </select>
                     </label>
                   )}
-                  {!bookings.length && (
-                    <p>Noch keine Buchungen für dieses Camp.</p>
-                  )}
+                  {data.role === "admin" &&
+                    bookings.some((b) => b.status === "cancelled") && (
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={showRemoved}
+                          onChange={(e) => setShowRemoved(e.target.checked)}
+                        />
+                        Entfernte Teilnahmen anzeigen
+                      </label>
+                    )}
+                  {!bookings.filter(
+                    (b) =>
+                      b.status !== "cancelled" ||
+                      (data.role === "admin" && showRemoved),
+                  ).length && <p>Noch keine Buchungen für dieses Camp.</p>}
                   {bookings
+                    .filter(
+                      (b) =>
+                        b.status !== "cancelled" ||
+                        (data.role === "admin" && showRemoved),
+                    )
                     .filter((b) => !player || b.player_id === player)
                     .map((b) => {
                       const report = data.reports.find(
@@ -739,6 +758,27 @@ export function CampDashboard({
                                 : statusLabel[b.status]}
                             </span>
                           </div>
+                          {data.role === "admin" &&
+                            ["paid", "review", "refunded"].includes(
+                              b.status,
+                            ) && (
+                              <button
+                                className="secondary-button"
+                                disabled={busy}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `${b.child_data.first_name} ${b.child_data.last_name} aus diesem Camp entfernen? Der Platz wird freigegeben. Elternkonto, Spielerprofil und Zahlungsnachweis bleiben erhalten. Eine Erstattung wird nicht ausgelöst.`,
+                                    )
+                                  )
+                                    void action("remove-member", {
+                                      booking_id: b.id,
+                                    });
+                                }}
+                              >
+                                Aus Camp entfernen
+                              </button>
+                            )}
                           {b.paid_amount != null && (
                             <p>{money(b.paid_amount)}</p>
                           )}

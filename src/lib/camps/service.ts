@@ -369,6 +369,8 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
   await getCamp(b.camp_id);
   if (!asAdmin && b.browser_token_hash !== (await browserHash()))
     throw new HttpError(403, "Zahlung gehört nicht zu diesem Buchungsablauf.");
+  if (b.status === "cancelled")
+    return { status: "cancelled", booking_id: b.id, camp_id: b.camp_id };
   if (s.payment_status !== "paid")
     return { status: "pending", booking_id: b.id, camp_id: b.camp_id };
   const lines = await stripe.checkout.sessions.listLineItems(s.id, {
@@ -508,6 +510,34 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
       );
   }
   return { ...result, camp_id: b.camp_id, no_cost: noCost };
+}
+export async function removeCampMember(input: unknown) {
+  const session = await campSession(true);
+  if (session.role !== "admin")
+    throw new HttpError(403, "Nur Admins dürfen Camp-Teilnahmen entfernen.");
+  const { booking_id } = z.object({ booking_id: z.uuid() }).parse(input);
+  const db = serviceDb();
+  const booking = check(
+    await db
+      .from("camp_bookings")
+      .select("camp_id,status")
+      .eq("id", booking_id)
+      .maybeSingle(),
+  );
+  if (!booking) throw new HttpError(404, "Camp-Buchung nicht gefunden.");
+  await getCamp(booking.camp_id);
+  if (!["paid", "review", "refunded", "cancelled"].includes(booking.status))
+    throw new HttpError(400, "Die Buchung ist noch nicht abgeschlossen.");
+  check(
+    await db.rpc("camp_remove_member", {
+      booking_id,
+      actor_id: session.user.id,
+    }),
+  );
+  return {
+    ok: true,
+    message: "Teilnahme entfernt. Es wurde keine Erstattung ausgelöst.",
+  };
 }
 export async function invitationWish(id: string) {
   const db = serviceDb();

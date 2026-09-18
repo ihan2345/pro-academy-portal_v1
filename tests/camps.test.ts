@@ -38,6 +38,7 @@ beforeAll(async () => {
     readFileSync("supabase/camp/005-server-processing.sql", "utf8"),
   );
   await db.exec(readFileSync("supabase/camp/006-occupancy.sql", "utf8"));
+  await db.exec(readFileSync("supabase/camp/007-remove-member.sql", "utf8"));
   await db.query(
     `insert into camps(id,title,location,capacity,buffer_percent,min_age,max_age,days,status) values($1,'Testcamp','Platz',10,10,6,16,'[{"starts_at":"2027-10-10T09:00:00+02:00","ends_at":"2027-10-10T15:00:00+02:00"}]','open')`,
     [camp],
@@ -98,6 +99,140 @@ async function confirm(input: unknown) {
   ]);
 }
 describe("isolated Camp extension", () => {
+  it("removes a Camp member only as admin, frees snapshot occupancy and preserves payment/family history", async () => {
+    await db.exec("begin");
+    try {
+      const admin = "f0000000-0000-4000-8000-000000000001",
+        staff = "f0000000-0000-4000-8000-000000000002",
+        id = "f0000000-0000-4000-8000-000000000003";
+      await db.query<Record<string, any>>(
+        "insert into auth.users(id,email)values($1,'removal-admin@example.invalid'),($2,'removal-staff@example.invalid')",
+        [admin, staff],
+      );
+      await db.query<Record<string, any>>(
+        "insert into profiles(id,role)values($1,'admin'),($2,'staff') on conflict(id) do update set role=excluded.role",
+        [admin, staff],
+      );
+      await draft(id);
+      await confirm(payment(id));
+      const before = (
+        await db.query<Record<string, any>>(
+          "select * from camp_bookings where id=$1",
+          [id],
+        )
+      ).rows[0];
+      await db.query<Record<string, any>>(
+        "insert into camp_review_snapshots(camp_id,payment_link_id,records)values($1,'plink_removal',$2::jsonb)",
+        [
+          camp,
+          JSON.stringify([
+            { payment_id: before.stripe_payment_id, status: "paid" },
+          ]),
+        ],
+      );
+      const seats = Number(
+        (
+          await db.query<Record<string, any>>(
+            "select camp_occupied_seats($1) n",
+            [camp],
+          )
+        ).rows[0].n,
+      );
+      // A denied request must not abort the surrounding test transaction.
+      await db.exec("savepoint rejected");
+      await expect(
+        db.query<Record<string, any>>("select camp_remove_member($1,$2)", [
+          id,
+          staff,
+        ]),
+      ).rejects.toThrow("Admin required");
+      await db.exec("rollback to savepoint rejected");
+      await db.query<Record<string, any>>("select camp_remove_member($1,$2)", [
+        id,
+        admin,
+      ]);
+      await db.query<Record<string, any>>("select camp_remove_member($1,$2)", [
+        id,
+        admin,
+      ]);
+      expect(
+        Number(
+          (
+            await db.query<Record<string, any>>(
+              "select camp_occupied_seats($1) n",
+              [camp],
+            )
+          ).rows[0].n,
+        ),
+      ).toBe(seats - 1);
+      const removed = (
+        await db.query<Record<string, any>>(
+          "select * from camp_bookings where id=$1",
+          [id],
+        )
+      ).rows[0];
+      expect(removed).toMatchObject({
+        status: "cancelled",
+        parent_id: before.parent_id,
+        player_id: before.player_id,
+        stripe_payment_id: before.stripe_payment_id,
+      });
+      expect(
+        (
+          await db.query<Record<string, any>>(
+            "select id from players where id=$1",
+            [before.player_id],
+          )
+        ).rows,
+      ).toHaveLength(1);
+      expect(
+        (
+          await db.query<Record<string, any>>(
+            "select id from parent_players where parent_id=$1 and player_id=$2",
+            [before.parent_id, before.player_id],
+          )
+        ).rows,
+      ).toHaveLength(1);
+      expect(
+        (
+          await db.query<Record<string, any>>(
+            "select id from audit_log where record_id=$1 and action='CAMP_MEMBER_REMOVED'",
+            [id],
+          )
+        ).rows,
+      ).toHaveLength(1);
+      expect(
+        (
+          (await confirm(payment(id))).rows[0] as {
+            camp_confirm_payment: { status: string };
+          }
+        ).camp_confirm_payment,
+      ).toMatchObject({ status: "cancelled" });
+      await db.query<Record<string, any>>(
+        "update camp_review_snapshots set checked_at=now() where payment_link_id='plink_removal'",
+      );
+      expect(
+        Number(
+          (
+            await db.query<Record<string, any>>(
+              "select camp_occupied_seats($1) n",
+              [camp],
+            )
+          ).rows[0].n,
+        ),
+      ).toBe(seats - 1);
+      expect(
+        (
+          await db.query<Record<string, any>>(
+            "select has_function_privilege('authenticated','camp_remove_member(uuid,uuid)','EXECUTE') allowed",
+          )
+        ).rows[0].allowed,
+      ).toBe(false);
+    } finally {
+      await db.exec("rollback");
+    }
+  });
+
   it("keeps tariff rules and validates Camp shape", async () => {
     await expect(
       db.exec("insert into plans(name,included_units)values('Unknown',99)"),

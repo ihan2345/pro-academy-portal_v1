@@ -61,7 +61,7 @@ export async function campReview(campId: string) {
   const [bookings, drafts, families] = await Promise.all([
     db
       .from("camp_bookings")
-      .select("stripe_payment_id")
+      .select("stripe_payment_id,status")
       .eq("camp_id", campId)
       .not("stripe_payment_id", "is", null),
     db
@@ -81,6 +81,11 @@ export async function campReview(campId: string) {
   if (bookings.error || drafts.error || families.error)
     throw new HttpError(503, "Camp-Prüfung ist noch nicht eingerichtet.");
   const imported = new Set(bookings.data.map((b) => b.stripe_payment_id));
+  const removed = new Set(
+    bookings.data
+      .filter((b) => b.status === "cancelled")
+      .map((b) => b.stripe_payment_id),
+  );
   return {
     ...state,
     stale:
@@ -88,11 +93,12 @@ export async function campReview(campId: string) {
       Date.now() - Date.parse(state.checked_at) >
         (state.interval_seconds * 2 + 60) * 1000,
     sources: sources.filter((s) => s.camp_id === campId),
-    imported_count: imported.size,
+    imported_count: imported.size - removed.size,
     records: records
       .filter(
         (r) =>
           r.camp_id === campId &&
+          !removed.has(r.payment_id) &&
           (!imported.has(r.payment_id) || r.status !== "paid"),
       )
       .map((r) => ({

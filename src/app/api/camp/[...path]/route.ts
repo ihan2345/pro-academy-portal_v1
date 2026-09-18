@@ -16,6 +16,7 @@ import {
   saveCamp,
   invitationWish,
   reconcileCamp,
+  removeCampMember,
   getCamp,
 } from "@/lib/camps/service";
 import { campReadiness } from "@/lib/camps/readiness";
@@ -87,6 +88,7 @@ async function handler(
       } catch {
         throw new HttpError(400, "Ungültige Anfrage.");
       }
+      if (path === "remove-member") return json(await removeCampMember(body));
       if (path === "book") return json(await createBooking(body));
       if (path === "review-save")
         return json(await saveCampReview(body, false));
