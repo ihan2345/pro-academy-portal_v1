@@ -368,7 +368,15 @@ export function CampDashboard({
   const team = data?.role === "admin" || data?.role === "staff",
     camp = data?.camps.find((c) => c.id === selected),
     bookings = data?.bookings.filter((b) => b.camp_id === selected) ?? [],
-    paid = bookings.filter((b) => b.status === "paid");
+    paid = bookings.filter((b) => b.status === "paid"),
+    visibleMembers = bookings.filter(
+      (b) =>
+        (b.status === "paid" ||
+          (data?.role === "admin" &&
+            showRemoved &&
+            b.status === "cancelled")) &&
+        (!player || b.player_id === player),
+    );
   return (
     <div className="camp-dashboard">
       <div className="page-heading">
@@ -699,9 +707,7 @@ export function CampDashboard({
                 (!team && view === "overview")) && (
                 <section className="camp-panel">
                   <h2>
-                    {team
-                      ? "Teilnehmende Kinder & Buchungen"
-                      : "Meine Kinder & Berichte"}
+                    {team ? "Teilnehmende Kinder" : "Meine Kinder & Berichte"}
                   </h2>
                   {!team && (
                     <label>
@@ -721,7 +727,7 @@ export function CampDashboard({
                   )}
                   {data.role === "admin" &&
                     bookings.some((b) => b.status === "cancelled") && (
-                      <label>
+                      <label className="camp-inline-checkbox">
                         <input
                           type="checkbox"
                           checked={showRemoved}
@@ -730,135 +736,116 @@ export function CampDashboard({
                         Entfernte Teilnahmen anzeigen
                       </label>
                     )}
-                  {!bookings.filter(
-                    (b) =>
-                      b.status !== "cancelled" ||
-                      (data.role === "admin" && showRemoved),
-                  ).length && <p>Noch keine Buchungen für dieses Camp.</p>}
-                  {bookings
-                    .filter(
-                      (b) =>
-                        b.status !== "cancelled" ||
-                        (data.role === "admin" && showRemoved),
-                    )
-                    .filter((b) => !player || b.player_id === player)
-                    .map((b) => {
-                      const report = data.reports.find(
-                        (r) => r.booking_id === b.id,
-                      );
-                      return (
-                        <article className="camp-booking" key={b.id}>
-                          <div className="camp-actions">
-                            <h3>
-                              {b.child_data.first_name} {b.child_data.last_name}
-                            </h3>
-                            <span className="badge">
-                              {b.status === "draft"
-                                ? "Zahlung ausstehend"
-                                : statusLabel[b.status]}
-                            </span>
-                          </div>
-                          {data.role === "admin" &&
-                            ["paid", "review", "refunded"].includes(
-                              b.status,
-                            ) && (
-                              <button
-                                className="secondary-button"
-                                disabled={busy}
-                                onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      `${b.child_data.first_name} ${b.child_data.last_name} aus diesem Camp entfernen? Der Platz wird freigegeben. Elternkonto, Spielerprofil und Zahlungsnachweis bleiben erhalten. Eine Erstattung wird nicht ausgelöst.`,
-                                    )
+                  {!visibleMembers.length && (
+                    <p>Noch keine bestätigten Teilnahmen für dieses Camp.</p>
+                  )}
+                  {visibleMembers.map((b) => {
+                    const report = data.reports.find(
+                      (r) => r.booking_id === b.id,
+                    );
+                    return (
+                      <article className="camp-booking" key={b.id}>
+                        <div className="camp-actions">
+                          <h3>
+                            {b.child_data.first_name} {b.child_data.last_name}
+                          </h3>
+                          <span className="badge">{statusLabel[b.status]}</span>
+                        </div>
+                        {data.role === "admin" &&
+                          ["paid", "review", "refunded"].includes(b.status) && (
+                            <button
+                              className="secondary-button"
+                              disabled={busy}
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `${b.child_data.first_name} ${b.child_data.last_name} aus diesem Camp entfernen? Der Platz wird freigegeben. Elternkonto, Spielerprofil und Zahlungsnachweis bleiben erhalten. Eine Erstattung wird nicht ausgelöst.`,
                                   )
-                                    void action("remove-member", {
-                                      booking_id: b.id,
-                                    });
+                                )
+                                  void action("remove-member", {
+                                    booking_id: b.id,
+                                  });
+                              }}
+                            >
+                              Aus Camp entfernen
+                            </button>
+                          )}
+                        {b.paid_amount != null && <p>{money(b.paid_amount)}</p>}
+                        {team && (
+                          <details className="camp-details">
+                            <summary>Angaben & Camp-Bericht</summary>
+                            <p>
+                              {b.parent_data?.name} · {b.parent_data?.email} ·{" "}
+                              {b.parent_data?.phone}
+                            </p>
+                            <p>
+                              Geboren: {b.child_data.birth_date} ·{" "}
+                              {b.child_data.gender} · Größe{" "}
+                              {b.child_data.clothing_size}
+                            </p>
+                            {b.review_reason && (
+                              <CampError message={b.review_reason} />
+                            )}{" "}
+                            {b.invitation_requested_at && (
+                              <p>
+                                Portalzugang angefragt · Einladung ausstehend.
+                              </p>
+                            )}
+                            {b.status === "paid" && (
+                              <form
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const f = new FormData(e.currentTarget);
+                                  void action("report", {
+                                    booking_id: b.id,
+                                    content: f.get("content"),
+                                    visible_to_parent:
+                                      f.get("visible") === "on",
+                                  });
                                 }}
                               >
-                                Aus Camp entfernen
-                              </button>
-                            )}
-                          {b.paid_amount != null && (
-                            <p>{money(b.paid_amount)}</p>
-                          )}
-                          {team && (
-                            <details className="camp-details">
-                              <summary>Angaben & Camp-Bericht</summary>
-                              <p>
-                                {b.parent_data?.name} · {b.parent_data?.email} ·{" "}
-                                {b.parent_data?.phone}
-                              </p>
-                              <p>
-                                Geboren: {b.child_data.birth_date} ·{" "}
-                                {b.child_data.gender} · Größe{" "}
-                                {b.child_data.clothing_size}
-                              </p>
-                              {b.review_reason && (
-                                <CampError message={b.review_reason} />
-                              )}{" "}
-                              {b.invitation_requested_at && (
-                                <p>
-                                  Portalzugang angefragt · Einladung ausstehend.
-                                </p>
-                              )}
-                              {b.status === "paid" && (
-                                <form
-                                  onSubmit={(e) => {
-                                    e.preventDefault();
-                                    const f = new FormData(e.currentTarget);
-                                    void action("report", {
-                                      booking_id: b.id,
-                                      content: f.get("content"),
-                                      visible_to_parent:
-                                        f.get("visible") === "on",
-                                    });
-                                  }}
+                                <label>
+                                  Camp-Bericht
+                                  <textarea
+                                    name="content"
+                                    defaultValue={report?.content ?? ""}
+                                    rows={3}
+                                    required
+                                  />
+                                </label>
+                                <label className="camp-check">
+                                  <input
+                                    name="visible"
+                                    type="checkbox"
+                                    defaultChecked={
+                                      report?.visible_to_parent ?? false
+                                    }
+                                  />
+                                  Im Elternportal sichtbar
+                                </label>
+                                <button
+                                  className="secondary-button"
+                                  disabled={busy}
                                 >
-                                  <label>
-                                    Camp-Bericht
-                                    <textarea
-                                      name="content"
-                                      defaultValue={report?.content ?? ""}
-                                      rows={3}
-                                      required
-                                    />
-                                  </label>
-                                  <label className="camp-check">
-                                    <input
-                                      name="visible"
-                                      type="checkbox"
-                                      defaultChecked={
-                                        report?.visible_to_parent ?? false
-                                      }
-                                    />
-                                    Im Elternportal sichtbar
-                                  </label>
-                                  <button
-                                    className="secondary-button"
-                                    disabled={busy}
-                                  >
-                                    Bericht speichern
-                                  </button>
-                                </form>
-                              )}
-                            </details>
-                          )}
-                          {!team &&
-                            (report ? (
-                              <div className="camp-report">
-                                {report.content}
-                              </div>
-                            ) : (
-                              <p>
-                                {Date.parse(camp.days[0].starts_at) > Date.now()
-                                  ? "Dein Camp steht bevor. Den Ablauf findest du oben."
-                                  : "Der Camp-Bericht ist noch nicht verfügbar."}
-                              </p>
-                            ))}
-                        </article>
-                      );
-                    })}
+                                  Bericht speichern
+                                </button>
+                              </form>
+                            )}
+                          </details>
+                        )}
+                        {!team &&
+                          (report ? (
+                            <div className="camp-report">{report.content}</div>
+                          ) : (
+                            <p>
+                              {Date.parse(camp.days[0].starts_at) > Date.now()
+                                ? "Dein Camp steht bevor. Den Ablauf findest du oben."
+                                : "Der Camp-Bericht ist noch nicht verfügbar."}
+                            </p>
+                          ))}
+                      </article>
+                    );
+                  })}
                 </section>
               )}
             </>

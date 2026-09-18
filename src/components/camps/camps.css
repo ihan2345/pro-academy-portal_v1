@@ -318,3 +318,13 @@
   margin-top: 6px;
   color: #687384;
 }
+
+.camp-dashboard .camp-inline-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.camp-dashboard .camp-inline-checkbox input {
+  width: auto;
+  margin: 0;
+}

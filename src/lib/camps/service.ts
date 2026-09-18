@@ -582,6 +582,7 @@ export async function dashboard() {
         .select(
           "id,camp_id,player_id,parent_id,parent_data,child_data,customer_group,status,paid_amount,paid_at,review_reason,invitation_requested_at,stripe_session_id",
         )
+        .in("status", ["paid", "review", "cancelled", "refunded"])
         .order("created_at", { ascending: false }),
       db.from("camp_offers").select("*"),
       db

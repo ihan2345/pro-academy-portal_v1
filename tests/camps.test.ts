@@ -99,6 +99,28 @@ async function confirm(input: unknown) {
   ]);
 }
 describe("isolated Camp extension", () => {
+  it("never counts an unpaid checkout draft as an occupied place or creates its child", async () => {
+    await db.exec("begin");
+    try {
+      const before = (
+        await db.query<{ seats: number; children: number; parents: number }>(
+          "select camp_occupied_seats($1) seats,(select count(*)::int from players) children,(select count(*)::int from parents) parents",
+          [camp],
+        )
+      ).rows[0];
+      await draft("f1000000-0000-4000-8000-000000000001");
+      const after = (
+        await db.query<{ seats: number; children: number; parents: number }>(
+          "select camp_occupied_seats($1) seats,(select count(*)::int from players) children,(select count(*)::int from parents) parents",
+          [camp],
+        )
+      ).rows[0];
+      expect(after).toEqual(before);
+    } finally {
+      await db.exec("rollback");
+    }
+  });
+
   it("removes a Camp member only as admin, frees snapshot occupancy and preserves payment/family history", async () => {
     await db.exec("begin");
     try {
