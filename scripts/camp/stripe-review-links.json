@@ -1,0 +1,11 @@
+{
+  "interval_seconds": 300,
+  "links": [
+    {
+      "camp_id": "872b70ea-83e2-4d3b-94cf-eda4163de393",
+      "payment_link_id": "plink_1UDqBARoswKHkM76Y0jzuMP7",
+      "price_id": "price_1UDq7IRoswKHkM76K2s5oUdr",
+      "product_id": "prod_VEIiR7IlxJNrl9"
+    }
+  ]
+}

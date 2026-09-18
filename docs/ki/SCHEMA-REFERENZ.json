@@ -1,0 +1,3454 @@
+{
+  "document_type": "repository_schema_reference",
+  "generated_at": "2026-09-13T11:05:02.210Z",
+  "source_commit": "ba6fe1eefe7f070fd4eb273859f31d3f5cc970ff",
+  "scope": "Application schema reconstructed locally from migrations. No customer rows, credentials or full Supabase-managed auth/storage schema. Not a fresh production schema introspection.",
+  "migrations": [
+    {
+      "path": "supabase/migrations/202609090001_portal.sql",
+      "sha256": "eeb7e688265d7f4cc59958975b8361d6958cd42741c8914947dc2822b3f3ac49"
+    },
+    {
+      "path": "supabase/migrations/202609090002_integrations.sql",
+      "sha256": "0395995ed442e4286f6b6a03b99a484e81ce54df918b46b13603136cd8f8fb29"
+    },
+    {
+      "path": "supabase/migrations/202609090003_hardening.sql",
+      "sha256": "9e28cd1267cc72ce35c65583f67ecc5f640ce2409c384db489c90cfd8b4b0067"
+    },
+    {
+      "path": "supabase/migrations/202609090004_launch_baseline.sql",
+      "sha256": "d10815feae679140e47dc6509864e6c5aa68a0aa034e6981c5f96ab2c469aca6"
+    },
+    {
+      "path": "supabase/migrations/202609090005_tariff_variants.sql",
+      "sha256": "d3327c827bf094491137ae1e8082bad8c86c9f523291390a6a39671402234f03"
+    },
+    {
+      "path": "supabase/migrations/202609090006_stripe_catalog.sql",
+      "sha256": "51b87e63840e4c26a2f992568b740d3565fe7a6889f4f36e7d1c6ce349c4e3b7"
+    },
+    {
+      "path": "supabase/migrations/202609100007_charged_absences.sql",
+      "sha256": "59ce5afb7098309ff57f5c3da6a976fbfb9ec11bda7fae8ab714d9b7eab0fbdd"
+    },
+    {
+      "path": "supabase/migrations/202609100008_bounded_acceptance_test.sql",
+      "sha256": "b73dfe0d76e58557a8062fd7d67beb64f3a8437a6ea77f4413ab2123d577a7ba"
+    },
+    {
+      "path": "supabase/migrations/202609120009_family_accounts.sql",
+      "sha256": "4e16aac1f9ec9c924dc87304e06fc65434e55f6c417ea2999eac17cdcdca64c3"
+    }
+  ],
+  "enums": [
+    {
+      "name": "app_role",
+      "values": [
+        "parent",
+        "staff",
+        "admin"
+      ]
+    },
+    {
+      "name": "attendance_status",
+      "values": [
+        "planned",
+        "attended_auto",
+        "attended_manual",
+        "absent",
+        "excused",
+        "cancelled"
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "name": "audit_log",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=ar/postgres,service_role=ar/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "actor_type",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "'user'::text"
+        },
+        {
+          "name": "action",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "table_name",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "record_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "old_value",
+          "type": "jsonb",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "new_value",
+          "type": "jsonb",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "audit_log_actor_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (actor_id) REFERENCES profiles(id)"
+        },
+        {
+          "name": "audit_log_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "audit_log_pkey",
+          "definition": "CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.audit_log FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "entitlement_periods",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "player_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "subscription_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_customer_id",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_item_id",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_price_id",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "product_name",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "included_units",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "'active'::text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "athletics_units",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": "0"
+        },
+        {
+          "name": "tariff_generation",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "'legacy'::text"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "entitlement_periods_check",
+          "type": "c",
+          "definition": "CHECK ((ends_at > starts_at))"
+        },
+        {
+          "name": "entitlement_periods_check1",
+          "type": "c",
+          "definition": "CHECK (((athletics_units >= 0) AND (athletics_units <= included_units)))"
+        },
+        {
+          "name": "entitlement_periods_included_units_check",
+          "type": "c",
+          "definition": "CHECK ((included_units > 0))"
+        },
+        {
+          "name": "entitlement_periods_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "entitlement_periods_player_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (player_id) REFERENCES players(id)"
+        },
+        {
+          "name": "entitlement_periods_subscription_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (subscription_id) REFERENCES subscriptions(id)"
+        },
+        {
+          "name": "entitlement_periods_subscription_id_stripe_item_id_player_i_key",
+          "type": "u",
+          "definition": "UNIQUE (subscription_id, stripe_item_id, player_id, starts_at)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "entitlement_periods_pkey",
+          "definition": "CREATE UNIQUE INDEX entitlement_periods_pkey ON public.entitlement_periods USING btree (id)"
+        },
+        {
+          "name": "entitlement_periods_subscription_id_stripe_item_id_player_i_key",
+          "definition": "CREATE UNIQUE INDEX entitlement_periods_subscription_id_stripe_item_id_player_i_key ON public.entitlement_periods USING btree (subscription_id, stripe_item_id, player_id, starts_at)"
+        },
+        {
+          "name": "periods_player",
+          "definition": "CREATE INDEX periods_player ON public.entitlement_periods USING btree (player_id, starts_at, ends_at)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.entitlement_periods FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "immutable_period",
+          "definition": "CREATE TRIGGER immutable_period BEFORE UPDATE ON public.entitlement_periods FOR EACH ROW EXECUTE FUNCTION freeze_period()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.entitlement_periods FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "own_period",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(owns_player(player_id) OR is_team())",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "event_participants",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "player_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "period_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "status",
+          "type": "attendance_status",
+          "nullable": false,
+          "default_expression": "'planned'::attendance_status"
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "revision",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": "1"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "removed_from_event",
+          "type": "boolean",
+          "nullable": false,
+          "default_expression": "false"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "event_participants_event_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (event_id) REFERENCES training_events(id)"
+        },
+        {
+          "name": "event_participants_event_id_player_id_key",
+          "type": "u",
+          "definition": "UNIQUE (event_id, player_id)"
+        },
+        {
+          "name": "event_participants_period_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (period_id) REFERENCES entitlement_periods(id)"
+        },
+        {
+          "name": "event_participants_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "event_participants_player_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (player_id) REFERENCES players(id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "event_participants_event_id_player_id_key",
+          "definition": "CREATE UNIQUE INDEX event_participants_event_id_player_id_key ON public.event_participants USING btree (event_id, player_id)"
+        },
+        {
+          "name": "event_participants_pkey",
+          "definition": "CREATE UNIQUE INDEX event_participants_pkey ON public.event_participants USING btree (id)"
+        },
+        {
+          "name": "participants_due",
+          "definition": "CREATE INDEX participants_due ON public.event_participants USING btree (event_id) WHERE (status = 'planned'::attendance_status)"
+        },
+        {
+          "name": "participants_period",
+          "definition": "CREATE INDEX participants_period ON public.event_participants USING btree (period_id, status)"
+        },
+        {
+          "name": "participants_player",
+          "definition": "CREATE INDEX participants_player ON public.event_participants USING btree (player_id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.event_participants FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "participant_notify",
+          "definition": "CREATE TRIGGER participant_notify AFTER INSERT OR UPDATE ON public.event_participants FOR EACH ROW EXECUTE FUNCTION participant_notify()"
+        },
+        {
+          "name": "participant_validate",
+          "definition": "CREATE TRIGGER participant_validate BEFORE INSERT OR UPDATE ON public.event_participants FOR EACH ROW EXECUTE FUNCTION participant_validate()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.event_participants FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "own_participant",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(owns_player(player_id) OR is_team())",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "event_private_notes",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "''::text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "event_private_notes_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (id) REFERENCES training_events(id)"
+        },
+        {
+          "name": "event_private_notes_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "event_private_notes_pkey",
+          "definition": "CREATE UNIQUE INDEX event_private_notes_pkey ON public.event_private_notes USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.event_private_notes FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "team_notes",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_team()",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "job_runs",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "result",
+          "type": "jsonb",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "error",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "job_runs_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "job_runs_pkey",
+          "definition": "CREATE UNIQUE INDEX job_runs_pkey ON public.job_runs USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.job_runs FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "locations",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "address",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "nullable": false,
+          "default_expression": "true"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "locations_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "locations_pkey",
+          "definition": "CREATE UNIQUE INDEX locations_pkey ON public.locations USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.locations FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.locations FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_insert",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "INSERT",
+          "using_expression": null,
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "admin_update",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "UPDATE",
+          "using_expression": "is_admin()",
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "read_locations",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "true",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "notification_deliveries",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=ar/postgres,service_role=ar/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "job_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "attempt",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "recipient",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "provider",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "message_id",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "error",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "notification_deliveries_job_id_attempt_key",
+          "type": "u",
+          "definition": "UNIQUE (job_id, attempt)"
+        },
+        {
+          "name": "notification_deliveries_job_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (job_id) REFERENCES notification_jobs(id)"
+        },
+        {
+          "name": "notification_deliveries_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "notification_deliveries_job_id_attempt_key",
+          "definition": "CREATE UNIQUE INDEX notification_deliveries_job_id_attempt_key ON public.notification_deliveries USING btree (job_id, attempt)"
+        },
+        {
+          "name": "notification_deliveries_pkey",
+          "definition": "CREATE UNIQUE INDEX notification_deliveries_pkey ON public.notification_deliveries USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.notification_deliveries FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "notification_jobs",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "idempotency_key",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "recipient",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "'pending'::text"
+        },
+        {
+          "name": "attempts",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": "0"
+        },
+        {
+          "name": "available_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "locked_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "lease_token",
+          "type": "uuid",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "last_error",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "notification_jobs_idempotency_key_key",
+          "type": "u",
+          "definition": "UNIQUE (idempotency_key)"
+        },
+        {
+          "name": "notification_jobs_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "notification_jobs_status_check",
+          "type": "c",
+          "definition": "CHECK ((status = ANY (ARRAY['held'::text, 'pending'::text, 'processing'::text, 'sent'::text, 'failed'::text, 'uncertain'::text])))"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "notification_due",
+          "definition": "CREATE INDEX notification_due ON public.notification_jobs USING btree (status, available_at)"
+        },
+        {
+          "name": "notification_jobs_idempotency_key_key",
+          "definition": "CREATE UNIQUE INDEX notification_jobs_idempotency_key_key ON public.notification_jobs USING btree (idempotency_key)"
+        },
+        {
+          "name": "notification_jobs_pkey",
+          "definition": "CREATE UNIQUE INDEX notification_jobs_pkey ON public.notification_jobs USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "hold_family_notification",
+          "definition": "CREATE TRIGGER hold_family_notification BEFORE INSERT OR UPDATE ON public.notification_jobs FOR EACH ROW EXECUTE FUNCTION hold_family_notification()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.notification_jobs FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "parent_invitations",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "parent_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "token_hash",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "parent_invitations_created_by_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (created_by) REFERENCES profiles(id)"
+        },
+        {
+          "name": "parent_invitations_parent_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (parent_id) REFERENCES parents(id)"
+        },
+        {
+          "name": "parent_invitations_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "parent_invitations_token_hash_key",
+          "type": "u",
+          "definition": "UNIQUE (token_hash)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "invitation_expiry",
+          "definition": "CREATE INDEX invitation_expiry ON public.parent_invitations USING btree (expires_at) WHERE (consumed_at IS NULL)"
+        },
+        {
+          "name": "parent_invitations_pkey",
+          "definition": "CREATE UNIQUE INDEX parent_invitations_pkey ON public.parent_invitations USING btree (id)"
+        },
+        {
+          "name": "parent_invitations_token_hash_key",
+          "definition": "CREATE UNIQUE INDEX parent_invitations_token_hash_key ON public.parent_invitations USING btree (token_hash)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.parent_invitations FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "parent_players",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "parent_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "player_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "parent_players_parent_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (parent_id) REFERENCES parents(id)"
+        },
+        {
+          "name": "parent_players_parent_id_player_id_key",
+          "type": "u",
+          "definition": "UNIQUE (parent_id, player_id)"
+        },
+        {
+          "name": "parent_players_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "parent_players_player_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (player_id) REFERENCES players(id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "parent_players_parent_id_player_id_key",
+          "definition": "CREATE UNIQUE INDEX parent_players_parent_id_player_id_key ON public.parent_players USING btree (parent_id, player_id)"
+        },
+        {
+          "name": "parent_players_pkey",
+          "definition": "CREATE UNIQUE INDEX parent_players_pkey ON public.parent_players USING btree (id)"
+        },
+        {
+          "name": "parent_players_player",
+          "definition": "CREATE INDEX parent_players_player ON public.parent_players USING btree (player_id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.parent_players FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.parent_players FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_insert",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "INSERT",
+          "using_expression": null,
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "admin_update",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "UPDATE",
+          "using_expression": "is_admin()",
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "own_links",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(parent_id IN ( SELECT parents.id\n   FROM parents\n  WHERE (parents.auth_user_id = auth.uid())))",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "parent_stripe_customers",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=r/postgres,service_role=arwdDxtm/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "parent_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_customer_id",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "billing_email",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "parent_stripe_customers_parent_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (parent_id) REFERENCES parents(id)"
+        },
+        {
+          "name": "parent_stripe_customers_parent_id_stripe_customer_id_key",
+          "type": "u",
+          "definition": "UNIQUE (parent_id, stripe_customer_id)"
+        },
+        {
+          "name": "parent_stripe_customers_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "parent_stripe_customers_stripe_customer_id_check",
+          "type": "c",
+          "definition": "CHECK ((stripe_customer_id ~~ 'cus\\_%'::text))"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "parent_stripe_customer_lookup",
+          "definition": "CREATE INDEX parent_stripe_customer_lookup ON public.parent_stripe_customers USING btree (stripe_customer_id)"
+        },
+        {
+          "name": "parent_stripe_customers_parent_id_stripe_customer_id_key",
+          "definition": "CREATE UNIQUE INDEX parent_stripe_customers_parent_id_stripe_customer_id_key ON public.parent_stripe_customers USING btree (parent_id, stripe_customer_id)"
+        },
+        {
+          "name": "parent_stripe_customers_pkey",
+          "definition": "CREATE UNIQUE INDEX parent_stripe_customers_pkey ON public.parent_stripe_customers USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.parent_stripe_customers FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.parent_stripe_customers FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "own_customer",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(parent_id IN ( SELECT parents.id\n   FROM parents\n  WHERE ((parents.auth_user_id = auth.uid()) AND (parents.archived_at IS NULL))))",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "parents",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "auth_user_id",
+          "type": "uuid",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "full_name",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "contact_email",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "billing_email",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_customer_id",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "notifications_held",
+          "type": "boolean",
+          "nullable": false,
+          "default_expression": "false"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "parents_auth_user_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (auth_user_id) REFERENCES profiles(id)"
+        },
+        {
+          "name": "parents_auth_user_id_key",
+          "type": "u",
+          "definition": "UNIQUE (auth_user_id)"
+        },
+        {
+          "name": "parents_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "parents_auth",
+          "definition": "CREATE INDEX parents_auth ON public.parents USING btree (auth_user_id)"
+        },
+        {
+          "name": "parents_auth_user_id_key",
+          "definition": "CREATE UNIQUE INDEX parents_auth_user_id_key ON public.parents USING btree (auth_user_id)"
+        },
+        {
+          "name": "parents_customer_contact",
+          "definition": "CREATE UNIQUE INDEX parents_customer_contact ON public.parents USING btree (stripe_customer_id, lower(contact_email)) WHERE (stripe_customer_id IS NOT NULL)"
+        },
+        {
+          "name": "parents_family_identity",
+          "definition": "CREATE INDEX parents_family_identity ON public.parents USING btree (lower(btrim(contact_email)), family_name_key(full_name)) WHERE (archived_at IS NULL)"
+        },
+        {
+          "name": "parents_pkey",
+          "definition": "CREATE UNIQUE INDEX parents_pkey ON public.parents USING btree (id)"
+        },
+        {
+          "name": "parents_stripe_customer",
+          "definition": "CREATE INDEX parents_stripe_customer ON public.parents USING btree (stripe_customer_id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.parents FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "hold_existing_family_notifications",
+          "definition": "CREATE TRIGGER hold_existing_family_notifications AFTER INSERT OR UPDATE OF notifications_held, contact_email ON public.parents FOR EACH ROW EXECUTE FUNCTION hold_existing_family_notifications()"
+        },
+        {
+          "name": "sync_primary_stripe_customer",
+          "definition": "CREATE TRIGGER sync_primary_stripe_customer AFTER INSERT OR UPDATE OF stripe_customer_id, billing_email ON public.parents FOR EACH ROW EXECUTE FUNCTION sync_primary_stripe_customer()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.parents FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_insert",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "INSERT",
+          "using_expression": null,
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "admin_update",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "UPDATE",
+          "using_expression": "is_admin()",
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "own_parent",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "((auth_user_id = auth.uid()) AND (archived_at IS NULL))",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "plans",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_price_id",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "included_units",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "nullable": false,
+          "default_expression": "true"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "generation",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "'legacy'::text"
+        },
+        {
+          "name": "billing_interval",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "'month'::text"
+        },
+        {
+          "name": "athletics_units",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": "0"
+        },
+        {
+          "name": "is_public",
+          "type": "boolean",
+          "nullable": false,
+          "default_expression": "false"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "legacy_private",
+          "type": "c",
+          "definition": "CHECK (((generation <> 'legacy'::text) OR (NOT is_public)))"
+        },
+        {
+          "name": "plan_allowances",
+          "type": "c",
+          "definition": "CHECK ((((name = 'FirstTouch'::text) AND (included_units = 4) AND (athletics_units = 0) AND (generation = ANY (ARRAY['legacy'::text, 'current'::text])) AND (billing_interval = 'month'::text)) OR ((name = 'GameChanger'::text) AND (included_units = 8) AND (athletics_units = 0) AND (generation = ANY (ARRAY['legacy'::text, 'current'::text])) AND (billing_interval = 'month'::text)) OR ((name = 'Pro-Player'::text) AND (athletics_units = 0) AND (((generation = 'legacy'::text) AND (included_units = 10)) OR ((generation = 'current'::text) AND (included_units = 12) AND (billing_interval = 'month'::text)))) OR ((name = 'NEXT LEVEL'::text) AND (generation = 'special'::text) AND (included_units = 12) AND (athletics_units = 4) AND (billing_interval = 'month'::text))))"
+        },
+        {
+          "name": "plans_billing_interval_check",
+          "type": "c",
+          "definition": "CHECK ((billing_interval = ANY (ARRAY['month'::text, 'year'::text])))"
+        },
+        {
+          "name": "plans_generation_check",
+          "type": "c",
+          "definition": "CHECK ((generation = ANY (ARRAY['legacy'::text, 'current'::text, 'special'::text])))"
+        },
+        {
+          "name": "plans_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "plans_stripe_price_id_key",
+          "type": "u",
+          "definition": "UNIQUE (stripe_price_id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "plans_pkey",
+          "definition": "CREATE UNIQUE INDEX plans_pkey ON public.plans USING btree (id)"
+        },
+        {
+          "name": "plans_stripe_price_id_key",
+          "definition": "CREATE UNIQUE INDEX plans_stripe_price_id_key ON public.plans USING btree (stripe_price_id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.plans FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.plans FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_insert",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "INSERT",
+          "using_expression": null,
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "admin_update",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "UPDATE",
+          "using_expression": "is_admin()",
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "read_plans",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(is_public OR is_team())",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "players",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "first_name",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "last_name",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "birth_year",
+          "type": "integer",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "team",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "''::text"
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "players_birth_year_check",
+          "type": "c",
+          "definition": "CHECK (((birth_year >= 1990) AND (birth_year <= 2100)))"
+        },
+        {
+          "name": "players_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "players_pkey",
+          "definition": "CREATE UNIQUE INDEX players_pkey ON public.players USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.players FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.players FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_insert",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "INSERT",
+          "using_expression": null,
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "admin_update",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "UPDATE",
+          "using_expression": "is_admin()",
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "own_player",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(owns_player(id) OR is_team())",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "profiles",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "full_name",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "''::text"
+        },
+        {
+          "name": "role",
+          "type": "app_role",
+          "nullable": false,
+          "default_expression": "'parent'::app_role"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "profiles_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "profiles_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "profiles_pkey",
+          "definition": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "own_profile",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(id = auth.uid())",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "report_deliveries",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "snapshot_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "parent_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "job_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "report_deliveries_job_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (job_id) REFERENCES notification_jobs(id)"
+        },
+        {
+          "name": "report_deliveries_job_id_key",
+          "type": "u",
+          "definition": "UNIQUE (job_id)"
+        },
+        {
+          "name": "report_deliveries_parent_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (parent_id) REFERENCES parents(id)"
+        },
+        {
+          "name": "report_deliveries_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "report_deliveries_snapshot_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (snapshot_id) REFERENCES report_snapshots(id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "report_deliveries_job_id_key",
+          "definition": "CREATE UNIQUE INDEX report_deliveries_job_id_key ON public.report_deliveries USING btree (job_id)"
+        },
+        {
+          "name": "report_deliveries_pkey",
+          "definition": "CREATE UNIQUE INDEX report_deliveries_pkey ON public.report_deliveries USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.report_deliveries FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.report_deliveries FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "report_files",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=ar/postgres,service_role=ar/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "snapshot_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "storage_path",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "sha256",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "report_files_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "report_files_snapshot_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (snapshot_id) REFERENCES report_snapshots(id)"
+        },
+        {
+          "name": "report_files_snapshot_id_key",
+          "type": "u",
+          "definition": "UNIQUE (snapshot_id)"
+        },
+        {
+          "name": "report_files_storage_path_key",
+          "type": "u",
+          "definition": "UNIQUE (storage_path)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "report_files_pkey",
+          "definition": "CREATE UNIQUE INDEX report_files_pkey ON public.report_files USING btree (id)"
+        },
+        {
+          "name": "report_files_snapshot_id_key",
+          "definition": "CREATE UNIQUE INDEX report_files_snapshot_id_key ON public.report_files USING btree (snapshot_id)"
+        },
+        {
+          "name": "report_files_storage_path_key",
+          "definition": "CREATE UNIQUE INDEX report_files_storage_path_key ON public.report_files USING btree (storage_path)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.report_files FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.report_files FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "own_file",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(EXISTS ( SELECT 1\n   FROM report_snapshots s\n  WHERE ((s.id = report_files.snapshot_id) AND owns_player(s.player_id))))",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "report_snapshots",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=ar/postgres,service_role=ar/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "period_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "player_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": "1"
+        },
+        {
+          "name": "snapshot",
+          "type": "jsonb",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "report_snapshots_period_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (period_id) REFERENCES entitlement_periods(id)"
+        },
+        {
+          "name": "report_snapshots_period_id_version_key",
+          "type": "u",
+          "definition": "UNIQUE (period_id, version)"
+        },
+        {
+          "name": "report_snapshots_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "report_snapshots_player_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (player_id) REFERENCES players(id)"
+        },
+        {
+          "name": "report_snapshots_version_check",
+          "type": "c",
+          "definition": "CHECK ((version > 0))"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "report_player",
+          "definition": "CREATE INDEX report_player ON public.report_snapshots USING btree (player_id)"
+        },
+        {
+          "name": "report_snapshots_period_id_version_key",
+          "definition": "CREATE UNIQUE INDEX report_snapshots_period_id_version_key ON public.report_snapshots USING btree (period_id, version)"
+        },
+        {
+          "name": "report_snapshots_pkey",
+          "definition": "CREATE UNIQUE INDEX report_snapshots_pkey ON public.report_snapshots USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.report_snapshots FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.report_snapshots FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "own_report",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "owns_player(player_id)",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "staff_profiles",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "display_name",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "nullable": false,
+          "default_expression": "true"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "staff_profiles_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (id) REFERENCES profiles(id)"
+        },
+        {
+          "name": "staff_profiles_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "staff_profiles_pkey",
+          "definition": "CREATE UNIQUE INDEX staff_profiles_pkey ON public.staff_profiles USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.staff_profiles FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.staff_profiles FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_insert",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "INSERT",
+          "using_expression": null,
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "admin_update",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "UPDATE",
+          "using_expression": "is_admin()",
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "read_trainers",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "true",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "stripe_webhook_events",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "stripe_event_id",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_created",
+          "type": "bigint",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "'pending'::text"
+        },
+        {
+          "name": "attempts",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": "0"
+        },
+        {
+          "name": "locked_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "lease_token",
+          "type": "uuid",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "available_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "last_error",
+          "type": "text",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "stripe_webhook_events_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "stripe_webhook_events_stripe_event_id_key",
+          "type": "u",
+          "definition": "UNIQUE (stripe_event_id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "stripe_due",
+          "definition": "CREATE INDEX stripe_due ON public.stripe_webhook_events USING btree (status, available_at)"
+        },
+        {
+          "name": "stripe_webhook_events_pkey",
+          "definition": "CREATE UNIQUE INDEX stripe_webhook_events_pkey ON public.stripe_webhook_events USING btree (id)"
+        },
+        {
+          "name": "stripe_webhook_events_stripe_event_id_key",
+          "definition": "CREATE UNIQUE INDEX stripe_webhook_events_stripe_event_id_key ON public.stripe_webhook_events USING btree (stripe_event_id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.stripe_webhook_events FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "subscription_players",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "subscription_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_item_id",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "player_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "subscription_players_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "subscription_players_player_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (player_id) REFERENCES players(id)"
+        },
+        {
+          "name": "subscription_players_subscription_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (subscription_id) REFERENCES subscriptions(id)"
+        },
+        {
+          "name": "subscription_players_subscription_id_stripe_item_id_key",
+          "type": "u",
+          "definition": "UNIQUE (subscription_id, stripe_item_id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "subscription_players_pkey",
+          "definition": "CREATE UNIQUE INDEX subscription_players_pkey ON public.subscription_players USING btree (id)"
+        },
+        {
+          "name": "subscription_players_subscription_id_stripe_item_id_key",
+          "definition": "CREATE UNIQUE INDEX subscription_players_subscription_id_stripe_item_id_key ON public.subscription_players USING btree (subscription_id, stripe_item_id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.subscription_players FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.subscription_players FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "subscriptions",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "parent_id",
+          "type": "uuid",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_customer_id",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_subscription_id",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "billing_cycle_anchor",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "stripe_data",
+          "type": "jsonb",
+          "nullable": false,
+          "default_expression": "'{}'::jsonb"
+        },
+        {
+          "name": "needs_review",
+          "type": "boolean",
+          "nullable": false,
+          "default_expression": "false"
+        },
+        {
+          "name": "synced_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "subscriptions_parent_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (parent_id) REFERENCES parents(id)"
+        },
+        {
+          "name": "subscriptions_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "subscriptions_stripe_subscription_id_key",
+          "type": "u",
+          "definition": "UNIQUE (stripe_subscription_id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "subscriptions_pkey",
+          "definition": "CREATE UNIQUE INDEX subscriptions_pkey ON public.subscriptions USING btree (id)"
+        },
+        {
+          "name": "subscriptions_stripe_subscription_id_key",
+          "definition": "CREATE UNIQUE INDEX subscriptions_stripe_subscription_id_key ON public.subscriptions USING btree (stripe_subscription_id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.subscriptions FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.subscriptions FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "own_subscription",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(stripe_customer_id IN ( SELECT parent_stripe_customers.stripe_customer_id\n   FROM parent_stripe_customers))",
+          "with_check": null
+        }
+      ]
+    },
+    {
+      "name": "system_settings",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "key",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "value",
+          "type": "jsonb",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "system_settings_key_key",
+          "type": "u",
+          "definition": "UNIQUE (key)"
+        },
+        {
+          "name": "system_settings_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "system_settings_key_key",
+          "definition": "CREATE UNIQUE INDEX system_settings_key_key ON public.system_settings USING btree (key)"
+        },
+        {
+          "name": "system_settings_pkey",
+          "definition": "CREATE UNIQUE INDEX system_settings_pkey ON public.system_settings USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.system_settings FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.system_settings FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_insert",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "INSERT",
+          "using_expression": null,
+          "with_check": "is_admin()"
+        },
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "admin_update",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "UPDATE",
+          "using_expression": "is_admin()",
+          "with_check": "is_admin()"
+        }
+      ]
+    },
+    {
+      "name": "training_events",
+      "rls_enabled": true,
+      "rls_forced": false,
+      "grants": "{postgres=arwdDxtm/postgres,authenticated=arwd/postgres,service_role=arwd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": "gen_random_uuid()"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "location_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "trainer_id",
+          "type": "uuid",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "event_type",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "'Gruppentraining'::text"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "default_expression": "'scheduled'::text"
+        },
+        {
+          "name": "auto_attendance_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": null
+        },
+        {
+          "name": "notify_parents",
+          "type": "boolean",
+          "nullable": false,
+          "default_expression": "true"
+        },
+        {
+          "name": "revision",
+          "type": "integer",
+          "nullable": false,
+          "default_expression": "1"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "nullable": true,
+          "default_expression": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default_expression": "now()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "training_events_check",
+          "type": "c",
+          "definition": "CHECK ((ends_at > starts_at))"
+        },
+        {
+          "name": "training_events_check1",
+          "type": "c",
+          "definition": "CHECK ((ends_at <= (starts_at + '12:00:00'::interval)))"
+        },
+        {
+          "name": "training_events_created_by_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (created_by) REFERENCES profiles(id)"
+        },
+        {
+          "name": "training_events_location_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (location_id) REFERENCES locations(id)"
+        },
+        {
+          "name": "training_events_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "training_events_status_check",
+          "type": "c",
+          "definition": "CHECK ((status = ANY (ARRAY['scheduled'::text, 'cancelled'::text])))"
+        },
+        {
+          "name": "training_events_trainer_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (trainer_id) REFERENCES staff_profiles(id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "events_due",
+          "definition": "CREATE INDEX events_due ON public.training_events USING btree (auto_attendance_at) WHERE (status = 'scheduled'::text)"
+        },
+        {
+          "name": "events_start",
+          "definition": "CREATE INDEX events_start ON public.training_events USING btree (starts_at)"
+        },
+        {
+          "name": "training_events_pkey",
+          "definition": "CREATE UNIQUE INDEX training_events_pkey ON public.training_events USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_change",
+          "definition": "CREATE TRIGGER audit_change AFTER INSERT OR DELETE OR UPDATE ON public.training_events FOR EACH ROW EXECUTE FUNCTION audit_change()"
+        },
+        {
+          "name": "event_deadline",
+          "definition": "CREATE TRIGGER event_deadline BEFORE INSERT OR UPDATE OF ends_at ON public.training_events FOR EACH ROW EXECUTE FUNCTION event_deadline()"
+        },
+        {
+          "name": "touch_updated",
+          "definition": "CREATE TRIGGER touch_updated BEFORE UPDATE ON public.training_events FOR EACH ROW EXECUTE FUNCTION touch_updated()"
+        }
+      ],
+      "policies": [
+        {
+          "name": "admin_read",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "is_admin()",
+          "with_check": null
+        },
+        {
+          "name": "own_event",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "command": "SELECT",
+          "using_expression": "(owns_event(id) OR is_team())",
+          "with_check": null
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "name": "accept_invitation",
+      "identity_arguments": "invitation_hash text",
+      "arguments": "invitation_hash text",
+      "result_type": "uuid",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "allowance_windows",
+      "identity_arguments": "period_start timestamp with time zone, period_end timestamp with time zone, billing text",
+      "arguments": "period_start timestamp with time zone, period_end timestamp with time zone, billing text",
+      "result_type": "TABLE(starts_at timestamp with time zone, ends_at timestamp with time zone)",
+      "security_definer": false,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "apply_stripe",
+      "identity_arguments": "input jsonb",
+      "arguments": "input jsonb",
+      "result_type": "uuid",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "audit_change",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "trigger",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "auto_attendance",
+      "identity_arguments": "as_of timestamp with time zone",
+      "arguments": "as_of timestamp with time zone DEFAULT now()",
+      "result_type": "integer",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "calculate_auto_at",
+      "identity_arguments": "event_end timestamp with time zone, zone text",
+      "arguments": "event_end timestamp with time zone, zone text DEFAULT 'Europe/Berlin'::text",
+      "result_type": "timestamp with time zone",
+      "security_definer": false,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "cancel_training",
+      "identity_arguments": "event uuid, cancellation_reason text",
+      "arguments": "event uuid, cancellation_reason text",
+      "result_type": "void",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "capture_report",
+      "identity_arguments": "period uuid, force_version boolean, contact_number text",
+      "arguments": "period uuid, force_version boolean DEFAULT false, contact_number text DEFAULT ''::text",
+      "result_type": "uuid",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "change_role",
+      "identity_arguments": "target uuid, new_role app_role",
+      "arguments": "target uuid, new_role app_role",
+      "result_type": "void",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "claim_notifications",
+      "identity_arguments": "batch_size integer",
+      "arguments": "batch_size integer DEFAULT 20",
+      "result_type": "SETOF notification_jobs",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "claim_stripe",
+      "identity_arguments": "batch_size integer",
+      "arguments": "batch_size integer DEFAULT 20",
+      "result_type": "SETOF stripe_webhook_events",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "confirm_acceptance_attendance",
+      "identity_arguments": "participant uuid, player uuid, parent uuid, recipient text",
+      "arguments": "participant uuid, player uuid, parent uuid, recipient text",
+      "result_type": "jsonb",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "create_parent_invitation",
+      "identity_arguments": "input jsonb",
+      "arguments": "input jsonb",
+      "result_type": "uuid",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "current_role",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "app_role",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "event_deadline",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "trigger",
+      "security_definer": false,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "family_name_key",
+      "identity_arguments": "value text",
+      "arguments": "value text",
+      "result_type": "text",
+      "security_definer": false,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "finish_notification",
+      "identity_arguments": "input jsonb",
+      "arguments": "input jsonb",
+      "result_type": "void",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "freeze_period",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "trigger",
+      "security_definer": false,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "hold_existing_family_notifications",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "trigger",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres}"
+    },
+    {
+      "name": "hold_family_notification",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "trigger",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres}"
+    },
+    {
+      "name": "import_stripe_allowance",
+      "identity_arguments": "input jsonb",
+      "arguments": "input jsonb",
+      "result_type": "void",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "is_admin",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "boolean",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "is_team",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "boolean",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "link_stripe_family",
+      "identity_arguments": "input jsonb",
+      "arguments": "input jsonb",
+      "result_type": "uuid",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "owns_event",
+      "identity_arguments": "eid uuid",
+      "arguments": "eid uuid",
+      "result_type": "boolean",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "owns_player",
+      "identity_arguments": "pid uuid",
+      "arguments": "pid uuid",
+      "result_type": "boolean",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "participant_notify",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "trigger",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "participant_validate",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "trigger",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "queue_parent_invitation",
+      "identity_arguments": "input jsonb",
+      "arguments": "input jsonb",
+      "result_type": "uuid",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "register_report_file",
+      "identity_arguments": "snapshot uuid, path text, digest text",
+      "arguments": "snapshot uuid, path text, digest text",
+      "result_type": "void",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "resend_report",
+      "identity_arguments": "snapshot uuid, request_id uuid, actor uuid",
+      "arguments": "snapshot uuid, request_id uuid, actor uuid",
+      "result_type": "void",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "retry_notification",
+      "identity_arguments": "job uuid, checked_not_delivered boolean, retry_reason text",
+      "arguments": "job uuid, checked_not_delivered boolean, retry_reason text",
+      "result_type": "void",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres}"
+    },
+    {
+      "name": "save_training",
+      "identity_arguments": "input jsonb",
+      "arguments": "input jsonb",
+      "result_type": "uuid",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "set_attendance",
+      "identity_arguments": "participant uuid, new_status attendance_status, correction_reason text, send_correction boolean",
+      "arguments": "participant uuid, new_status attendance_status, correction_reason text, send_correction boolean DEFAULT false",
+      "result_type": "void",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "sync_primary_stripe_customer",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "trigger",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres}"
+    },
+    {
+      "name": "touch_updated",
+      "identity_arguments": "",
+      "arguments": "",
+      "result_type": "trigger",
+      "security_definer": false,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,service_role=X/postgres}"
+    },
+    {
+      "name": "unlink_parent_player",
+      "identity_arguments": "link uuid, unlink_reason text",
+      "arguments": "link uuid, unlink_reason text",
+      "result_type": "void",
+      "security_definer": true,
+      "settings": [
+        "search_path=public"
+      ],
+      "grants": "{postgres=X/postgres,authenticated=X/postgres}"
+    }
+  ],
+  "storage_policies": [
+    {
+      "name": "report_object_read",
+      "roles": [
+        "authenticated"
+      ],
+      "command": "SELECT",
+      "using_expression": "((bucket_id = 'reports'::text) AND (EXISTS ( SELECT 1\n   FROM (report_files f\n     JOIN report_snapshots s ON ((s.id = f.snapshot_id)))\n  WHERE ((f.storage_path = objects.name) AND (is_admin() OR owns_player(s.player_id))))))",
+      "with_check": null
+    }
+  ]
+}

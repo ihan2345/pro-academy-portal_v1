@@ -85,9 +85,11 @@ export function Badge({
 export function Portal({
   initial,
   section,
+  children,
 }: {
   initial: PortalData;
   section: string;
+  children?: React.ReactNode;
 }) {
   const [data, setData] = useState(initial),
     [selected, setSelected] = useState(initial.players[0]?.id ?? ""),
@@ -220,7 +222,16 @@ export function Portal({
           { href: "/team/stempelkarten", title: "Stempelkarten", icon: Goal },
           { href: "/konto", title: "Mein Konto", icon: Settings },
         ]
-      : nav;
+      : data.camp_enabled && data.camp_access && data.camp_access !== "active"
+        ? nav.filter(
+            (n) =>
+              n.href === "/konto" ||
+              n.href === "/berichte" ||
+              (data.camp_access === "past" && n.href === "/termine"),
+          )
+        : nav;
+  if (data.camp_enabled)
+    activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
   async function openBilling(customerId?: string) {
     try {
       const response = await fetch("/api/stripe/portal", {
@@ -371,8 +382,10 @@ export function Portal({
           </div>
         </header>
         <main className="main-content">
-          {(admin || team) &&
-          ["admin/stempelkarten", "team/stempelkarten"].includes(section) ? (
+          {children ? (
+            children
+          ) : (admin || team) &&
+            ["admin/stempelkarten", "team/stempelkarten"].includes(section) ? (
             <StampCards data={data} notify={setToast} />
           ) : section === "konto" && data.role !== "parent" ? (
             <>

@@ -5,6 +5,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 COPY workers ./workers
+COPY scripts/camp/stripe-review-lib.mjs ./scripts/camp/stripe-review-lib.mjs
 RUN ./node_modules/.bin/esbuild workers/job-runner.ts --bundle --platform=node --target=node24 --format=cjs --conditions=react-server --outfile=output/runner.cjs
 
 FROM node:24-alpine

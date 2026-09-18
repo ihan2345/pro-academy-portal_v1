@@ -780,8 +780,14 @@ function InviteForm({
         e.preventDefault();
         const f = new FormData(e.currentTarget);
         try {
-          await api("admin/invite", { parent_id: f.get("parent_id") });
-          notify("Einladung vorgemerkt. Der Versand bleibt gesperrt.");
+          const result = await api("admin/invite", {
+            parent_id: f.get("parent_id"),
+          });
+          notify(
+            result.status === "pending"
+              ? "Einladung für den freigegebenen Empfänger zum Versand eingeplant."
+              : "Einladung vorgemerkt. Der Versand bleibt gesperrt.",
+          );
         } catch (e) {
           notify((e as Error).message);
         }
@@ -790,8 +796,9 @@ function InviteForm({
       <h2>Eltern sicher einladen</h2>
       <p>
         Die Einladung nutzt die bestätigte Kontaktadresse und die bestehende
-        Stripe-Zuordnung des Elternkontos. Sie wird nur vorgemerkt. Der Versand
-        bleibt bis zu einer gesonderten Freigabe gesperrt.
+        Stripe-Zuordnung des Elternkontos. Der Versand ist nur für ausdrücklich
+        freigegebene Empfänger möglich. Automatische Einladungen bleiben
+        gesperrt.
       </p>
       <label>
         Eltern-ID
@@ -802,7 +809,7 @@ function InviteForm({
         />
       </label>
       <button className="primary-button">
-        <Mail size={17} /> Einladung vormerken
+        <Mail size={17} /> Einladung anfordern
       </button>
     </form>
   );

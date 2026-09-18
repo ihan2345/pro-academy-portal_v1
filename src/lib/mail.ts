@@ -24,6 +24,8 @@ export class CaptureProvider implements MailProvider {
 export class ProtonProvider implements MailProvider {
   name = "proton";
   async send(mail: Email) {
+    if (process.env.CAMP_SIDE_EFFECTS_BLOCKED === "true")
+      throw new Error("Versand im lokalen Camp-Test gesperrt");
     const {
       PROTON_SMTP_HOST,
       PROTON_SMTP_PORT,

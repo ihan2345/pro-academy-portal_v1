@@ -3,6 +3,15 @@ import { runnerRequest, scheduledRun, type RunnerEnv } from "./gateway";
 
 type Env = RunnerEnv & Record<string, unknown>;
 const forwarded = [
+  "CAMP_DEPLOYMENT_ENABLED",
+  "CAMP_PUBLIC_ORIGIN",
+  "CAMP_REVIEW_ENABLED",
+  "CAMP_PROCESSING_ENABLED",
+  "CAMP_SIDE_EFFECTS_BLOCKED",
+  "CAMP_STRIPE_MODE",
+  "CAMP_LIVE_PAYMENTS_ENABLED",
+  "CAMP_STRIPE_SECRET_KEY",
+  "CAMP_STRIPE_READ_KEY",
   "APP_URL",
   "APP_MODE",
   "NEXT_PUBLIC_SUPABASE_URL",

@@ -16,7 +16,11 @@
     "test:external": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-external.ts",
     "format:check": "prettier --check src tests workers scripts docs README.md",
     "build:jobs": "esbuild workers/job-runner.ts --bundle --platform=node --target=node24 --format=esm --packages=external --outfile=output/runner.mjs",
-    "typecheck:jobs": "tsc --noEmit -p workers/cloudflare/tsconfig.json"
+    "typecheck:jobs": "tsc --noEmit -p workers/cloudflare/tsconfig.json",
+    "camp:worker": "NODE_OPTIONS=--conditions=react-server tsx workers/camp/runner.ts",
+    "camp:dev": "node --env-file=.env.local scripts/camp/dev.mjs",
+    "camp:reset": "node --env-file=.env.local scripts/camp/reset.mjs reset=v0",
+    "reset=v0": "node --env-file=.env.local scripts/camp/reset.mjs reset=v0"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",

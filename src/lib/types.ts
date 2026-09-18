@@ -60,6 +60,8 @@ export interface Report {
   athletics_units?: number;
 }
 export interface PortalData {
+  camp_enabled?: boolean;
+  camp_access?: "active" | "past" | "only";
   role: Role;
   user_name: string;
   email: string;

@@ -34,6 +34,7 @@ import {
   selectBillingCustomer,
   subscriptionLinkIssue,
 } from "@/lib/family-accounts";
+import { releaseManualInvitation } from "@/lib/server/manual-invitation";
 import { isAllowedTestLogin } from "@/lib/server/auth-test-access";
 import {
   loadStampCard,
@@ -80,6 +81,15 @@ async function handler(
 ) {
   const path = (await context.params).path.join("/");
   try {
+    if (
+      process.env.CAMP_SIDE_EFFECTS_BLOCKED === "true" &&
+      request.method !== "GET" &&
+      path !== "auth/logout"
+    )
+      throw new HttpError(
+        423,
+        "Bestehende Portalprozesse sind im lokalen Camp-Test schreibgeschützt. Versand und Hintergrundverarbeitung bleiben gesperrt.",
+      );
     if (path.startsWith("parent/cancel") || path === "parent-cancellation")
       parentCancellation();
     if (path === "stripe/webhook" && request.method === "POST") {
@@ -392,7 +402,12 @@ async function handler(
           const { parent_id } = z
             .object({ parent_id: z.uuid() })
             .parse(await request.json());
-          return json({ id: await invite(parent_id, user.id), status: "held" });
+          return process.env.MANUAL_INVITATIONS_ENABLED === "true"
+            ? json({
+                id: await releaseManualInvitation(parent_id, user.id),
+                status: "pending",
+              })
+            : json({ id: await invite(parent_id, user.id), status: "held" });
         }
         if (action === "stripe-link") {
           const input = importSchema.parse(await request.json()),

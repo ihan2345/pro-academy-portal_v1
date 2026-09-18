@@ -3,10 +3,21 @@
   "name": "proacademy-portal-test",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-09-01",
-  "compatibility_flags": ["nodejs_compat"],
-  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
-  "observability": { "enabled": true },
-  "vars": { "APP_MODE": "test", "PARENT_CANCELLATION_ENABLED": "false", "EMAIL_TEST_MODE": "true" },
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "APP_MODE": "test",
+    "PARENT_CANCELLATION_ENABLED": "false",
+    "EMAIL_TEST_MODE": "true"
+  },
   "env": {
     "production": {
       "name": "proacademy-portal",
@@ -21,12 +32,30 @@
         "SUPABASE_ENVIRONMENT": "production",
         "JOB_RUNNER_URL": "https://proacademy-jobs.proacademy-by-ak.workers.dev",
         "PARENT_CANCELLATION_ENABLED": "false",
-        "EMAIL_TEST_MODE": "true",
+        "EMAIL_TEST_MODE": "false",
         "EMAIL_TEST_RECIPIENT": "ayh.kaan@icloud.com",
         "AUTH_TEST_EMAILS": "ayh.kaan@googlemail.com,proacademy.by.ak@gmail.com,contact@kaanayhan.de",
-        "MAIL_PROVIDER": "capture",
-        "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UDrgZRoswKHkM76cERxORbx"
-      }
+        "MAIL_PROVIDER": "proton",
+        "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UDrgZRoswKHkM76cERxORbx",
+        "MANUAL_INVITATIONS_ENABLED": "true",
+        "CAMP_DEPLOYMENT_ENABLED": "true",
+        "CAMP_PUBLIC_ORIGIN": "https://proacademy-portal.proacademy-by-ak.workers.dev",
+        "CAMP_STRIPE_MODE": "live",
+        "CAMP_LIVE_PAYMENTS_ENABLED": "true",
+        "CAMP_REVIEW_ENABLED": "true",
+        "CAMP_PROCESSING_ENABLED": "true",
+        "CAMP_SIDE_EFFECTS_BLOCKED": "false"
+      },
+      "ratelimits": [
+        {
+          "name": "CAMP_REQUEST_LIMIT",
+          "namespace_id": "20260918",
+          "simple": {
+            "limit": 20,
+            "period": 60
+          }
+        }
+      ]
     }
   }
 }

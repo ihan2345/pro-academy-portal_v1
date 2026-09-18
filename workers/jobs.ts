@@ -2,6 +2,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { serviceDb } from "../src/lib/server/service-db";
 import { processStripeInbox } from "../src/lib/server/stripe";
 import { processReports } from "../src/lib/server/reports";
+import { runCampProcessing } from "../src/lib/camps/processing";
+import { campProcessingEnabled } from "../src/lib/camps/processing-config";
 import { jobMode } from "./job-mode";
 import { renderReport, type ReportSnapshot } from "../src/lib/pdf";
 import {
@@ -263,6 +265,15 @@ export async function runJobs() {
     errors: string[] = [];
   const phases: Record<string, () => Promise<number>> = {
     stripe: processStripeInbox,
+    camps: async () => {
+      if (!campProcessingEnabled()) return 0;
+      const result = await runCampProcessing();
+      if (result.failed)
+        throw new Error(
+          `${result.failed} Camp-Angebote konnten nicht abgeglichen werden.`,
+        );
+      return result.sources;
+    },
     attendance: async () => {
       const r = await db.rpc("auto_attendance");
       if (r.error) throw r.error;

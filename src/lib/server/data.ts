@@ -1,4 +1,7 @@
 import "server-only";
+import { campContext, childBenefit } from "../camps/service";
+import { campEnabled, campLocalEnabled } from "../camps/guard";
+import { campPaymentMode } from "../camps/runtime";
 import { redirect } from "next/navigation";
 import type { PortalData, Training, Report } from "../types";
 import { sessionUser } from "./supabase";
@@ -9,6 +12,30 @@ export async function loadPortal(section: string): Promise<PortalData> {
   if (!session?.role) redirect("/login");
   if (!canOpenPortalSection(session.role, section))
     redirect(portalHome(session.role));
+  const campsEnabled =
+    campEnabled() &&
+    (campLocalEnabled() ||
+      campPaymentMode() === "live" ||
+      ["staff", "admin"].includes(session.role));
+  let campAccess: "active" | "past" | "only" | undefined;
+  if (campsEnabled && session.role === "parent") {
+    const context = await campContext();
+    const benefits = await Promise.all(
+      context.children.map((c) => childBenefit(c.id)),
+    );
+    campAccess = benefits.some((b) => b.group === "subscriber")
+      ? "active"
+      : benefits.some((b) => b.group === "former")
+        ? "past"
+        : "only";
+    if (
+      campAccess !== "active" &&
+      (section === "" ||
+        section === "stempelkarte" ||
+        (campAccess === "only" && section === "termine"))
+    )
+      redirect("/camps");
+  }
   const { db } = session;
   const results = await Promise.all([
     db
@@ -51,6 +78,8 @@ export async function loadPortal(section: string): Promise<PortalData> {
     billingCustomers,
   ] = results.map((r) => r.data ?? []);
   return {
+    camp_enabled: campsEnabled,
+    camp_access: campAccess,
     role: session.role,
     user_name: session.name.split(" ")[0] || "Willkommen",
     email: session.user.email ?? "",

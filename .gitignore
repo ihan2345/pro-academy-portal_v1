@@ -10,3 +10,5 @@ test-results/
 tmp/
 output/
 supabase/.temp/
+
+.DS_Store

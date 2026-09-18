@@ -1,5 +1,7 @@
 # ProAcademy Eltern- und Trainingsportal
 
+**KI-Systemkontext:** [Architektur, Datenmodell, Schnittstellen und geprüfter Betriebszustand](docs/ki/SYSTEMKONTEXT.md) · [maschinenlesbare Schema-Referenz](docs/ki/SCHEMA-REFERENZ.json). Stand 13.09.2026; enthält auch Funktionsgrenzen und Hinweise für sichere Weiterentwicklung.
+
 **Benutzerhandbuch:** [PDF für Coaches und Admins](docs/ProAcademy-Benutzerhandbuch.pdf) · [durchsuchbare Textfassung](docs/BENUTZERHANDBUCH.md). Große Schrift, Schrittfolgen und Bildschirmbilder mit Beispieldaten.
 
 **Externe Plattformen:** [Handbuchsammlung für Supabase, Stripe, Cloudflare, Proton, GitHub und Docker](docs/plattform-handbuecher/README.md) · [Übersicht als PDF](docs/plattform-handbuecher/00-Start-hier.pdf). Separate PDFs und Textfassungen; bei der Erstellung automatisch in den gewünschten Desktop-Ordner `Portal/Plattform-Handbuecher` kopiert.
