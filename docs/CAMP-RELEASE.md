@@ -39,4 +39,14 @@ Die ursprüngliche lokale v0-Sicherung bleibt unter `output/camp-v0` unveränder
 
 ## Abnahme
 
-207 automatisierte Tests bestanden. TypeScript, Cloudflare-Produktionsbuild und Container-Bündelung geprüft. Der erste vollständige Live-Abgleich aller drei Camp-Angebote war fehlerfrei. Endgültige Deployment- und SMTP-Ergebnisse werden nach dem Rollout dokumentiert. Eine echte neue Zahlung und die Annahme der Einladung erfolgen durch den Benutzer; sie werden nicht durch einen simulierten Erfolg ersetzt.
+207 automatisierte Tests bestanden. TypeScript, Cloudflare-Produktionsbuild und Container-Bündelung geprüft. Der erste vollständige Live-Abgleich aller drei Camp-Angebote war fehlerfrei. Deployment- und SMTP-Ergebnisse stehen im folgenden Rollout-Protokoll. Eine echte neue Zahlung und die Annahme der Einladung erfolgen durch den Benutzer; sie werden nicht durch einen simulierten Erfolg ersetzt.
+
+## Rollout abgeschlossen
+
+- Code-Commit `0f6f1c9` auf `origin/Camp` gepusht.
+- Portal-Version `0e902937-795c-4779-a86f-88b31221ee75` auf der freigegebenen workers.dev-Adresse veröffentlicht; keine eigene Domain eingerichtet.
+- Worker-Version `b2988358-bf46-4547-80e2-50e959f142a8` samt neuem Container veröffentlicht, Zeitplan alle fünf Minuten. Vollständiger Lauf erfolgreich: drei Camp-Angebote abgeglichen, keine Verarbeitungsfehler.
+- Produktionsprüfungen: Login/Formular erreichbar, öffentliche Camp-Daten enthalten 206,10 € und neun belegte Plätze; lokale Anmeldung 404, fremder Zugriff auf Prüfung 401, ungültige Buchung und falsche Webhook-Signatur abgewiesen. Supabase, Stripe, SMTP und PDF-Verarbeitung erfolgreich geprüft.
+- Der neue Abgleich hat drei weitere bezahlte Direktbuchungen erfasst: sechs Kinder zugeordnet, drei Fälle zur Ergänzung/Zuordnung; neun Plätze insgesamt. Es wurden keine neuen Zahlungen durch die Release-Prüfung ausgelöst.
+- Erste manuelle Einladung an `contact@kaanayhan.de` am 18.09.2026 um 18:00:52 UTC über Proton erfolgreich versendet, ein Zustellversuch. 84 weitere vorgemerkte Einladungen bleiben gesperrt. Die Annahme durch den Benutzer steht noch aus.
+- Beim Rollout lief zunächst das bisherige Container-Abbild. Nach dessen Ablösung wurde ein weiterer vollständiger Lauf geprüft; dieser enthält den Camp-Verarbeitungsschritt. Kein zusätzlicher Einladungsversand.
