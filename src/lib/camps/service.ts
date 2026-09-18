@@ -255,14 +255,16 @@ export async function createBooking(input: unknown) {
     body.child.first_name = child.first_name;
     body.child.last_name = child.last_name;
     if (
-      (child.camp_birth_date &&
-        child.camp_birth_date !== body.child.birth_date) ||
-      (child.birth_year &&
-        child.birth_year !== Number(body.child.birth_date.slice(0, 4)))
+      child.camp_birth_date
+        ? child.camp_birth_date !== body.child.birth_date
+        : child.birth_year &&
+          child.birth_year !== Number(body.child.birth_date.slice(0, 4))
     )
       throw new HttpError(
         400,
-        "Geburtsdatum weicht vom vorhandenen Kind ab. Bitte mit der Academy klären.",
+        child.camp_birth_date
+          ? "Bitte das gespeicherte Geburtsdatum verwenden."
+          : `Geburtsjahr ${child.birth_year} ist bereits gespeichert. Bitte nur Tag und Monat ergänzen.`,
       );
     const duplicate = check(
       await db

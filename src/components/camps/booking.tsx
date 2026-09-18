@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, MapPin, CalendarDays } from "lucide-react";
+import { StoredYearBirthDate } from "./birth-date";
 import { DiscountCopy } from "./discount-copy";
 import { type Camp, money } from "@/lib/camps/domain";
 import { CampFrame, CampError, campApi, useCampLogin, date } from "./shared";
@@ -9,7 +10,8 @@ type Child = {
   id: string;
   first_name: string;
   last_name: string;
-  camp_birth_date?: string;
+  birth_year?: number | null;
+  camp_birth_date?: string | null;
   camp_gender?: string;
   camp_clothing_size?: string;
 };
@@ -71,7 +73,9 @@ export function BookingForm({ campId }: { campId: string }) {
       current = false;
     };
   }, [campId]);
+  const storedChild = data?.context.children.find((c) => c.id === player);
   function selectChild(id: string) {
+    setError("");
     setPlayer(id);
     setDiscount({ percent: 0, code: null });
     const c = data?.context.children.find((c) => c.id === id);
@@ -82,6 +86,14 @@ export function BookingForm({ campId }: { campId: string }) {
         birth_date: c.camp_birth_date ?? "",
         gender: c.camp_gender ?? "keine Angabe",
         clothing_size: c.camp_clothing_size ?? "",
+      });
+    else
+      setChild({
+        first_name: "",
+        last_name: "",
+        birth_date: "",
+        gender: "keine Angabe",
+        clothing_size: "",
       });
   }
   useEffect(() => {
@@ -284,23 +296,34 @@ export function BookingForm({ campId }: { campId: string }) {
                         }
                       />
                     </label>
-                    <label>
-                      Geburtsdatum
-                      <input
-                        type="date"
-                        required
-                        value={child.birth_date}
-                        onInput={(e) =>
-                          setChild({
-                            ...child,
-                            birth_date: e.currentTarget.value,
-                          })
-                        }
-                        onChange={(e) =>
-                          setChild({ ...child, birth_date: e.target.value })
+                    {storedChild?.birth_year && !storedChild.camp_birth_date ? (
+                      <StoredYearBirthDate
+                        key={storedChild.id}
+                        year={storedChild.birth_year}
+                        onChange={(birth_date) =>
+                          setChild((current) => ({ ...current, birth_date }))
                         }
                       />
-                    </label>
+                    ) : (
+                      <label>
+                        Geburtsdatum
+                        <input
+                          type="date"
+                          required
+                          readOnly={!!storedChild?.camp_birth_date}
+                          value={child.birth_date}
+                          onInput={(e) =>
+                            setChild({
+                              ...child,
+                              birth_date: e.currentTarget.value,
+                            })
+                          }
+                          onChange={(e) =>
+                            setChild({ ...child, birth_date: e.target.value })
+                          }
+                        />
+                      </label>
+                    )}
                     <label>
                       Geschlecht
                       <select
