@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Copy, ArrowRight, MapPin, CalendarDays } from "lucide-react";
+import { ArrowRight, MapPin, CalendarDays } from "lucide-react";
+import { DiscountCopy } from "./discount-copy";
 import { type Camp, money } from "@/lib/camps/domain";
 import { CampFrame, CampError, campApi, useCampLogin, date } from "./shared";
 type Child = {
@@ -33,8 +34,7 @@ export function BookingForm({ campId }: { campId: string }) {
     [discount, setDiscount] = useState<{
       percent: number;
       code: string | null;
-    }>({ percent: 0, code: null }),
-    [copied, setCopied] = useState(false);
+    }>({ percent: 0, code: null });
   const [parent, setParent] = useState({ name: "", email: "", phone: "" });
   const [child, setChild] = useState({
     first_name: "",
@@ -73,7 +73,6 @@ export function BookingForm({ campId }: { campId: string }) {
   }, [campId]);
   function selectChild(id: string) {
     setPlayer(id);
-    setCopied(false);
     setDiscount({ percent: 0, code: null });
     const c = data?.context.children.find((c) => c.id === id);
     if (c)
@@ -344,25 +343,11 @@ export function BookingForm({ campId }: { campId: string }) {
                   <h2>3. Zur Zahlung</h2>
                   {discount.code ? (
                     <div className="camp-discount">
-                      <button
-                        type="button"
-                        className="primary-button"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(discount.code!);
-                            setCopied(true);
-                          } catch {
-                            setError(
-                              "Code konnte nicht kopiert werden. Bitte Clipboard-Zugriff erlauben.",
-                            );
-                          }
-                        }}
-                      >
-                        <Copy size={17} />
-                        {copied
-                          ? "Rabattcode kopiert"
-                          : `Mein Rabatt: ${discount.percent} %`}
-                      </button>
+                      <DiscountCopy
+                        key={discount.code}
+                        code={discount.code}
+                        percent={discount.percent}
+                      />
                       <p>
                         Den kopierten Code bei der Zahlung im Feld für
                         Rabattcodes einsetzen. Dort siehst du den endgültigen

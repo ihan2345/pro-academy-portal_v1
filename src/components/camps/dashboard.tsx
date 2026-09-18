@@ -6,6 +6,7 @@ import { Copy, Plus, RefreshCw, Users } from "lucide-react";
 import { Temporal } from "@js-temporal/polyfill";
 import { type Camp, type Offer, maximumSeats, money } from "@/lib/camps/domain";
 import { CampError, campApi, date } from "./shared";
+import { CampDiscountCopy } from "./discount-copy";
 import { StripeReview } from "./stripe-review";
 type Booking = {
   id: string;
@@ -679,27 +680,11 @@ export function CampDashboard({
                             {c.first_name} {c.last_name}
                           </b>
                           {c.percent ? (
-                            <button
-                              className="primary-button"
-                              onClick={async () => {
-                                try {
-                                  const d = await campApi(
-                                    `discount?camp_id=${camp.id}&player_id=${c.id}`,
-                                  );
-                                  if (!d.code)
-                                    throw new Error(
-                                      "Für dieses Angebot ist kein Rabattcode hinterlegt.",
-                                    );
-                                  await navigator.clipboard.writeText(d.code);
-                                  setMessage("Rabattcode kopiert.");
-                                } catch (e) {
-                                  setError((e as Error).message);
-                                }
-                              }}
-                            >
-                              <Copy size={16} />
-                              Mein Rabatt: {c.percent} %
-                            </button>
+                            <CampDiscountCopy
+                              key={`${camp.id}:${c.id}`}
+                              campId={camp.id}
+                              playerId={c.id}
+                            />
                           ) : (
                             <span>Kein aktiver Abo-Vorteil</span>
                           )}
