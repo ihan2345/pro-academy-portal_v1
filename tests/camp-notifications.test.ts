@@ -18,7 +18,7 @@ beforeAll(async () => {
     readFileSync("supabase/release/001-onboarding-mail.sql", "utf8"),
   );
   for (const f of readdirSync("supabase/camp")
-    .filter((f) => /^00[1-8]-/.test(f) && f !== "001-down.sql")
+    .filter((f) => /^00[1-9]-/.test(f) && f !== "001-down.sql")
     .sort())
     await db.exec(readFileSync(`supabase/camp/${f}`, "utf8"));
 });
@@ -87,6 +87,79 @@ it("plans exactly one seven-day reminder for the whole Camp and deduplicates ret
 it("never catches up a reminder for a late booking", async () => {
   await db.exec("update camp_bookings set paid_at=now()");
   expect((await plan()).rows[0].n).toBe(0);
+});
+it("queues one booking confirmation only for new confirmed payments and rechecks cancellation", async () => {
+  await db.exec(`update system_settings set value=value||jsonb_build_object('booking_confirmation_enabled',true,'booking_confirmation_from',now()-interval '1 hour') where key='camp_mail_release';
+    update camp_bookings set paid_at=now(),paid_amount=8500;`);
+  expect((await plan()).rows[0].n).toBe(1);
+  expect((await plan()).rows[0].n).toBe(0);
+  const j = (await jobs()).rows[0];
+  expect(j.kind).toBe("camp_booking_confirmation");
+  await db.exec("update camp_bookings set status='cancelled'");
+  const result = await db.query<{ allowed: boolean }>(
+    "select parent_delivery_allowed('first@example.invalid',$1,$2) allowed",
+    [j.kind, j.payload],
+  );
+  expect(result.rows[0].allowed).toBe(false);
+});
+it("does not send retrospective booking confirmations or unreviewed payment confirmations", async () => {
+  await db.exec(`update system_settings set value=value||jsonb_build_object('booking_confirmation_enabled',true,'booking_confirmation_from',now()-interval '1 hour') where key='camp_mail_release';
+    update camp_bookings set paid_amount=8500;`);
+  await plan();
+  expect(
+    (await jobs()).rows.some((j) => j.kind === "camp_booking_confirmation"),
+  ).toBe(false);
+  await db.exec(
+    "update camp_bookings set paid_at=now(),review_reason='Payment disputed'",
+  );
+  expect((await plan()).rows[0].n).toBe(0);
+});
+it("shows the booked early price, actual discount and paid amount without inventing a tariff benefit", () => {
+  const data = {
+    title: "Herbstcamp",
+    location: "Platz",
+    child: "Kind Test",
+    days: [
+      {
+        starts_at: "2026-10-20T10:00:00+02:00",
+        ends_at: "2026-10-20T15:00:00+02:00",
+      },
+    ],
+    payment: {
+      offerPrice: 20610,
+      paid: 17518,
+      currency: "eur",
+      earlyBird: true,
+    },
+  };
+  const c = campMailContent(
+    "camp_booking_confirmation",
+    data,
+    id(7),
+    "4915143342392",
+  );
+  expect(c.subject).toContain("Buchungsbestätigung");
+  expect(c.text).toContain("Frühbucherpreis (bereits reduziert): 206,10");
+  expect(c.text).toContain("−30,92");
+  expect(c.text).toContain("Bezahlt: 175,18");
+  expect(c.text).toContain(id(7));
+  expect(c.actions).toHaveLength(2);
+  expect(
+    campMailContent(
+      "camp_booking_confirmation",
+      { ...data, payment: { ...data.payment, paid: 20610 } },
+      id(7),
+      "",
+    ).text,
+  ).toContain("Kein zusätzlicher Rabatt");
+  expect(() =>
+    campMailContent(
+      "camp_booking_confirmation",
+      { ...data, payment: undefined },
+      id(7),
+      "",
+    ),
+  ).toThrow("Zahlungsbeträge");
 });
 it.each(["draft", "review", "cancelled", "refunded"])(
   "never queues mail for %s bookings",

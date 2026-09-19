@@ -4,6 +4,7 @@ import { formatDate, formatTime } from "@/lib/domain";
 import { htmlEmail, safeRecipient, type Email } from "@/lib/mail";
 import { campProcessingEnabled } from "./processing-config";
 export const CAMP_MAIL_KINDS = [
+  "camp_booking_confirmation",
   "camp_reminder_7d",
   "camp_reminder_24h",
   "camp_completion",
@@ -33,6 +34,12 @@ type CampMailData = {
   days: { starts_at: string; ends_at: string }[];
   child: string;
   report?: string;
+  payment?: {
+    offerPrice: number;
+    paid: number;
+    currency: string;
+    earlyBird: boolean;
+  };
 };
 export function campMailContent(
   kind: string,
@@ -41,23 +48,30 @@ export function campMailContent(
   whatsapp: string,
 ) {
   const completed = kind === "camp_completion";
-  const subject = completed
-    ? `Camp-Teilnahme bestätigt: ${data.child}`
-    : `${kind === "camp_reminder_7d" ? "Camp-Erinnerung" : "Letzte Camp-Erinnerung"}: ${data.title} für ${data.child}`;
+  const booked = kind === "camp_booking_confirmation";
+  const subject = booked
+    ? `Buchungsbestätigung: ${data.title} für ${data.child}`
+    : completed
+      ? `Camp-Teilnahme bestätigt: ${data.child}`
+      : `${kind === "camp_reminder_7d" ? "Camp-Erinnerung" : "Letzte Camp-Erinnerung"}: ${data.title} für ${data.child}`;
   const days = [...data.days].sort((a, b) =>
     a.starts_at.localeCompare(b.starts_at),
   );
   const text = [
     "Hallo,",
-    completed
-      ? `die Teilnahme von ${data.child} am ${data.title} ist bestätigt. Hier findest du die Zusammenfassung des Camps:`
-      : `wir freuen uns auf ${data.child} beim ${data.title}. Hier findest du die wichtigsten Angaben:`,
+    booked
+      ? `die Zahlung ist bestätigt und der Camp-Platz für ${data.child} beim ${data.title} ist gebucht.`
+      : completed
+        ? `die Teilnahme von ${data.child} am ${data.title} ist bestätigt. Hier findest du die Zusammenfassung des Camps:`
+        : `wir freuen uns auf ${data.child} beim ${data.title}. Hier findest du die wichtigsten Angaben:`,
     `Ort: ${data.location}`,
     ...days.map(
       (d) =>
         `${formatDate(d.starts_at)} · ${formatTime(d.starts_at)}–${formatTime(d.ends_at)} Uhr`,
     ),
     "Alle Uhrzeiten gelten für Deutschland (Europe/Berlin).",
+    ...(booked ? bookingPriceLines(data.payment) : []),
+    ...(booked ? [`Buchungsnummer: ${bookingId}`] : []),
     ...(completed && data.report ? ["Camp-Bericht:", data.report] : []),
     completed
       ? "Fragen oder eine Angabe stimmt nicht? Melde dich direkt bei unserem Team."
@@ -80,6 +94,32 @@ export function campMailContent(
   ];
   return { subject, text, actions };
 }
+function bookingPriceLines(payment: CampMailData["payment"]) {
+  if (
+    !payment ||
+    !Number.isSafeInteger(payment.offerPrice) ||
+    !Number.isSafeInteger(payment.paid) ||
+    payment.offerPrice < 0 ||
+    payment.paid < 0 ||
+    payment.paid > payment.offerPrice
+  )
+    throw new Error(
+      "Bestätigte Camp-Zahlungsbeträge fehlen oder sind unplausibel.",
+    );
+  const money = (cents: number) =>
+    new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: payment.currency.toUpperCase(),
+    }).format(cents / 100);
+  const discount = payment.offerPrice - payment.paid;
+  return [
+    `${payment.earlyBird ? "Frühbucherpreis (bereits reduziert)" : "Gebuchter Camp-Preis"}: ${money(payment.offerPrice)}`,
+    discount > 0
+      ? `Zusätzlicher Rabatt bei der Zahlung: −${money(discount)}`
+      : "Kein zusätzlicher Rabatt bei der Zahlung.",
+    `Bezahlt: ${money(payment.paid)}`,
+  ];
+}
 export async function composeCampMail(
   job: Record<string, unknown>,
 ): Promise<Email> {
@@ -87,7 +127,9 @@ export async function composeCampMail(
     payload = job.payload as { booking_id: string };
   const b = await db
     .from("camp_bookings")
-    .select("id,camp_id,child_data")
+    .select(
+      "id,camp_id,offer_id,child_data,expected_amount,paid_amount,currency",
+    )
     .eq("id", payload.booking_id)
     .single();
   if (b.error) throw b.error;
@@ -106,12 +148,28 @@ export async function composeCampMail(
   ]);
   if (c.error) throw c.error;
   if (r.error) throw r.error;
+  let payment: CampMailData["payment"];
+  if (job.kind === "camp_booking_confirmation") {
+    const offer = await db
+      .from("camp_offers")
+      .select("kind")
+      .eq("id", b.data.offer_id)
+      .single();
+    if (offer.error) throw offer.error;
+    payment = {
+      offerPrice: b.data.expected_amount,
+      paid: b.data.paid_amount,
+      currency: b.data.currency,
+      earlyBird: offer.data.kind === "early",
+    };
+  }
   const content = campMailContent(
     String(job.kind),
     {
       ...c.data,
       child: `${b.data.child_data.first_name} ${b.data.child_data.last_name}`,
       report: r.data?.content,
+      payment,
     },
     b.data.id,
     process.env.WHATSAPP_NUMBER ?? "",

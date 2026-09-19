@@ -62,3 +62,9 @@ Die ursprüngliche lokale v0-Sicherung bleibt unter `output/camp-v0` unveränder
 - Herbstcamp: Erinnerungen am 13.10. und 19.10.2026 jeweils 10 Uhr; Abschluss frühestens am 23.10.2026 um 09 Uhr (deutsche Ortszeit, nächster Fünf-Minuten-Lauf).
 
 Migration angewendet; Portal `75145eca-215f-42e1-bfd2-b41f6e890c02` und Versanddienst `c18181c6-8187-4b9b-ad80-e8e981c87063` veröffentlicht. 19 gezielte Tests, beide TypeScript-Prüfungen und Produktionsbuild bestanden. Verbindungsprüfung für Supabase, Stripe, SMTP und PDF erfolgreich; keine Testmail versendet.
+
+### Buchungsbestätigung nach Zahlung
+
+`009-booking-confirmation.sql` ergänzt `camp_booking_confirmation` in derselben Warteschlange. Der reguläre Fünf-Minuten-Lauf plant die Mail einmalig nach bestätigter Zahlung und Zuordnung, sofern Portalaktivierung und Empfängerfreigabe vorliegen. Offene Prüffälle, stornierte und erstattete Buchungen erhalten keine Bestätigung. `camp_mail_release.booking_confirmation_enabled` schaltet diesen Mailtyp separat; `booking_confirmation_from` verhindert Nachversand für vorher bestätigte Buchungen.
+
+Die Mail enthält Kind, Camp, Termine, Ort, Buchungsnummer, Kontaktbuttons und Portal-Link. Preisangaben stammen aus der gespeicherten Buchung (`expected_amount`, `paid_amount`, `currency`), nicht aus dem aktuellen Tarifvorteil oder einem inzwischen veränderten Angebotspreis. Ein Frühbucherangebot wird als bereits reduzierter Preis bezeichnet; zusätzlicher Rabatt und bezahlter Endbetrag werden in Euro ausgewiesen. Es wird kein Rabatt behauptet, der bei der Zahlung nicht verwendet wurde. Automatische Einladungen und die bestehende Empfängerfreigabe bleiben unverändert.
