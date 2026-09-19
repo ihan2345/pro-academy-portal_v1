@@ -1,3 +1,10 @@
+import {
+  CAMP_MAIL_KINDS,
+  CampMailHeld,
+  composeCampMail,
+  planCampMail,
+  requireCampMailRecipient,
+} from "../src/lib/camps/notifications";
 import { mkdir, writeFile } from "node:fs/promises";
 import { serviceDb } from "../src/lib/server/service-db";
 import { processStripeInbox } from "../src/lib/server/stripe";
@@ -44,6 +51,7 @@ export const captureProvider = new CaptureProvider(async (mail) => {
   );
 });
 export async function compose(job: Record<string, unknown>): Promise<Email> {
+  if (CAMP_MAIL_KINDS.includes(String(job.kind))) return composeCampMail(job);
   const db = serviceDb(),
     payload = job.payload as Record<string, string>,
     app = process.env.APP_URL ?? "",
@@ -212,6 +220,8 @@ export async function processMail(
       started = false;
     try {
       mail = await compose(job);
+      if (CAMP_MAIL_KINDS.includes(String(job.kind)))
+        await requireCampMailRecipient(job);
       started = true;
       const result = await provider.send(mail);
       const final = await db.rpc("finish_notification", {
@@ -227,11 +237,14 @@ export async function processMail(
       if (final.error) throw final.error;
       sent++;
     } catch (error) {
-      const status = started
-        ? deliveryFailure(error, job.attempts)
-        : job.attempts >= 5
-          ? "failed"
-          : "pending"; // A successful SMTP send followed by DB failure must also be quarantined.
+      const status =
+        error instanceof CampMailHeld
+          ? "held"
+          : started
+            ? deliveryFailure(error, job.attempts)
+            : job.attempts >= 5
+              ? "failed"
+              : "pending"; // A successful SMTP send followed by DB failure must also be quarantined.
       const final = await db.rpc("finish_notification", {
         input: {
           id: job.id,
@@ -274,6 +287,7 @@ export async function runJobs() {
         );
       return result.sources;
     },
+    camp_mail: planCampMail,
     attendance: async () => {
       const r = await db.rpc("auto_attendance");
       if (r.error) throw r.error;

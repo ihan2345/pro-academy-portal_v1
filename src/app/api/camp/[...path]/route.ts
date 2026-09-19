@@ -155,6 +155,33 @@ async function handler(
           throw new HttpError(400, "Status konnte nicht gespeichert werden.");
         return json({ ok: true });
       }
+      if (path === "attendance") {
+        const actor = await campSession(true);
+        const b = z
+          .object({
+            booking_id: z.uuid(),
+            status: z.enum(["planned", "attended", "absent", "excused"]),
+          })
+          .parse(body);
+        const booking = await serviceDb()
+          .from("camp_bookings")
+          .select("camp_id")
+          .eq("id", b.booking_id)
+          .single();
+        if (booking.error) throw new HttpError(404, "Buchung nicht gefunden.");
+        await getCamp(booking.data.camp_id);
+        const r = await serviceDb().rpc("camp_set_attendance", {
+          booking_id: b.booking_id,
+          actor_id: actor.user.id,
+          new_status: b.status,
+        });
+        if (r.error)
+          throw new HttpError(
+            400,
+            "Teilnahmestatus konnte nicht gespeichert werden. Eine Teilnahme kann erst nach Camp-Ende bestätigt werden.",
+          );
+        return json({ ok: true });
+      }
       if (path === "report") {
         await campSession(true);
         const b = z

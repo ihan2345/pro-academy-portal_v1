@@ -28,7 +28,7 @@ Bezahlte Buchungen mit fehlenden Angaben zählen bereits bei der Belegung. Zahlu
 - Alte Frühbucherlinks nach Fristende sowie externe Payment Links bei Vollbelegung in Stripe deaktivieren. Der Formularpreis wechselt automatisch, ein gespeicherter externer Link wird dadurch nicht deaktiviert.
 - Eine automatische Kapazitäts-E-Mail ist noch nicht implementiert. Belegung und Prüfliste im Portal kontrollieren.
 - Kopierbare Rabattcodes sind weitergebbar. Unberechtigte Rabatte werden bei der Zahlungsprüfung markiert; eine Zahlung kann dann schon erfolgt sein.
-- Camp-Berichte sind im Portal verfügbar; ein eigener automatischer Camp-Berichtsversand ist noch nicht implementiert. Der vorhandene Trainingsberichtsversand unterliegt der bestätigten Eltern-/Empfängerfreigabe.
+- Camp-Berichte sind im Portal verfügbar. Die Abschlussmail enthält einen bereits für Eltern freigegebenen Camp-Bericht, sofern vorhanden. Spätere Berichtänderungen lösen keine zusätzliche Mail aus.
 - Portalzugang anfragen speichert einen Wunsch. Einladung erfolgt durch ausdrückliche manuelle Freigabe.
 
 ## Betrieb und Rücknahme
@@ -50,3 +50,15 @@ Die ursprüngliche lokale v0-Sicherung bleibt unter `output/camp-v0` unveränder
 - Der neue Abgleich hat drei weitere bezahlte Direktbuchungen erfasst: sechs Kinder zugeordnet, drei Fälle zur Ergänzung/Zuordnung; neun Plätze insgesamt. Es wurden keine neuen Zahlungen durch die Release-Prüfung ausgelöst.
 - Erste manuelle Einladung an `contact@kaanayhan.de` am 18.09.2026 um 18:00:52 UTC über Proton erfolgreich versendet, ein Zustellversuch. 84 weitere vorgemerkte Einladungen bleiben gesperrt. Die Annahme durch den Benutzer steht noch aus.
 - Beim Rollout lief zunächst das bisherige Container-Abbild. Nach dessen Ablösung wurde ein weiterer vollständiger Lauf geprüft; dieser enthält den Camp-Verarbeitungsschritt. Kein zusätzlicher Einladungsversand.
+
+## Camp-Mails (19.09.2026)
+
+`supabase/camp/008-notifications.sql` ergänzt die Teilnahmeverwaltung und verwendet die bestehende Mailwarteschlange. Der Schalter `system_settings.camp_mail_release.enabled` erlaubt eine unabhängige Versandpause. `starts_after` verhindert rückwirkende Mails für frühere Camps. Die vorhandene Empfängerfreigabe und bestätigte Portalaktivierung bleiben zusätzlich erforderlich; automatische Einladungen bleiben deaktiviert.
+
+- Zwei Erinnerungen pro bezahlter Buchung: sieben Kalendertage (Europe/Berlin) und 24 Stunden vor dem frühesten Campstart. Keine Erinnerungen pro einzelnem Camptag. Später bezahlte Buchungen erhalten keine nachgeholte Erinnerung.
+- Teilnahme wird nach dem letzten Campende plus bestehender Pufferzeit automatisch bestätigt: zwölf aktive Stunden, 00–06 Uhr ausgenommen. Team und Admin können unter Mitglieder → Angaben „nicht teilgenommen“ oder „entschuldigt“ setzen; diese Buchungen erhalten keine positive Abschlussmail. Manuelles „teilgenommen“ ist erst nach Campende möglich.
+- Eine Abschlussmail pro Buchung mit Terminen, Ort und gegebenenfalls freigegebenem Bericht. Kontaktbuttons führen zu WhatsApp und `mail@proacademy-ak.com`; Antworten gehen ebenfalls an diese Adresse.
+- Zahlungsstatus, Zuordnung, Termine und Empfängerfreigabe werden unmittelbar vor dem Versand erneut geprüft. Wiederholte Worker-Läufe erzeugen keine doppelten Mails.
+- Herbstcamp: Erinnerungen am 13.10. und 19.10.2026 jeweils 10 Uhr; Abschluss frühestens am 23.10.2026 um 09 Uhr (deutsche Ortszeit, nächster Fünf-Minuten-Lauf).
+
+Migration angewendet; Portal `75145eca-215f-42e1-bfd2-b41f6e890c02` und Versanddienst `c18181c6-8187-4b9b-ad80-e8e981c87063` veröffentlicht. 19 gezielte Tests, beide TypeScript-Prüfungen und Produktionsbuild bestanden. Verbindungsprüfung für Supabase, Stripe, SMTP und PDF erfolgreich; keine Testmail versendet.

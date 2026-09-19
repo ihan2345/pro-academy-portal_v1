@@ -21,6 +21,7 @@ type Booking = {
     clothing_size: string;
   };
   status: string;
+  attendance_status?: string;
   customer_group?: string;
   paid_amount: number;
   review_reason?: string;
@@ -790,6 +791,38 @@ export function CampDashboard({
                               <p>
                                 Portalzugang angefragt · Einladung ausstehend.
                               </p>
+                            )}
+                            {b.status === "paid" && (
+                              <label>
+                                Teilnahme am Camp
+                                <select
+                                  value={b.attendance_status ?? "planned"}
+                                  disabled={busy}
+                                  onChange={(e) =>
+                                    void action("attendance", {
+                                      booking_id: b.id,
+                                      status: e.target.value,
+                                    })
+                                  }
+                                >
+                                  <option value="planned">
+                                    Geplant · automatische Bestätigung nach
+                                    Pufferzeit
+                                  </option>
+                                  <option
+                                    value="attended"
+                                    disabled={camp.days.some(
+                                      (d) => Date.parse(d.ends_at) > Date.now(),
+                                    )}
+                                  >
+                                    Teilgenommen
+                                  </option>
+                                  <option value="absent">
+                                    Nicht teilgenommen
+                                  </option>
+                                  <option value="excused">Entschuldigt</option>
+                                </select>
+                              </label>
                             )}
                             {b.status === "paid" && (
                               <form
