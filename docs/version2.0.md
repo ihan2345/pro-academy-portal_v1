@@ -1,8 +1,8 @@
 # Version 2.0 — Umsetzung
 
-Implementiert auf Branch `V2.0`. Die Supabase-Erweiterungen wurden mit Zustimmung eingerichtet und geprüft. Die Anwendung ist noch nicht live veröffentlicht; Nachträge bleiben bis zum gemeinsamen App-/Worker-Deployment gesperrt. Commit und Push dieses Branches sind separat beauftragt und aktivieren die Funktionen nicht.
+Implementiert auf Branch `V2.0`, mit Zustimmung nach `main` übernommen und am 23.09.2026 veröffentlicht. Supabase-Erweiterungen, Hintergrunddienst und Portal sind eingerichtet und geprüft; Nachträge sind für Coach/Admin freigeschaltet. Bestehende Einladungs- und Empfängerfreigaben bleiben unverändert. Versionskennungen und Prüfungen stehen in [V2-RELEASE.md](V2-RELEASE.md).
 
-Die anschließende beauftragte Vorbereitung für die Veröffentlichung ist in [V2-RELEASE.md](V2-RELEASE.md) beschrieben. Sie ergänzt die bestehende Versandfreigabe um Nachtragsmails und trennt Schemaeinrichtung von der Freischaltung nach dem App-/Worker-Deployment.
+Der dokumentierte Release ergänzte die bestehende Versandfreigabe um Nachtragsmails und trennte Schemaeinrichtung von der anschließenden Freischaltung nach dem App-/Worker-Deployment.
 
 ## Stripe-Zuordnung
 
@@ -32,9 +32,9 @@ Die anschließende beauftragte Vorbereitung für die Veröffentlichung ist in [V
 - Neue Berichtsversionen aus Nachträgen lösen keine zusätzliche automatische Berichtsmail aus. Reguläre Berichtserstellung und bewusster erneuter Versand behalten ihr bisheriges Verhalten.
 - Bestehende Testempfänger, Elternkontosperren und Worker-Schalter bleiben wirksam. Insbesondere werden `JOBS_ENABLED` und `STRIPE_SYNC_ONLY` durch dieses Update nicht verändert. Ohne laufende Berichtsverarbeitung bleiben neue PDFs vorgemerkt.
 
-## Vorbereitung für einen später ausdrücklich genehmigten Release
+## Datenbank und Freischaltung
 
-Die Migrationen `202609230010_training_backfills.sql` und `202609230011_stripe_customer_registry.sql` sind additive Voraussetzungen für diese Anwendungsversion und auf dem konfigurierten Projekt bereits angewendet. Der genaue Stand und die spätere Aktivierung stehen in [V2-RELEASE.md](V2-RELEASE.md). Vor der Migration lädt das Portal die bisherigen Daten ohne Nachträge. Stempelkarten und Exporte bleiben verfügbar, Nachtragsaktionen sind mit einem Hinweis gesperrt; die neue Stripe-Übersicht meldet die fehlende Freischaltung, bevor sie Stripe synchronisiert. Während der vorbereiteten, noch nicht aktivierten Version wird die fehlende Ausführungsberechtigung für Nachträge verständlich erklärt. Andere Berechtigungs- oder Verbindungsfehler werden nicht als leere Daten behandelt. Die bisherigen Tabellen und normalen Trainingsabläufe bleiben nutzbar. Deployment und Freischaltung sind noch ausstehend.
+Die Migrationen `202609230010_training_backfills.sql` und `202609230011_stripe_customer_registry.sql` sind additive Voraussetzungen für diese Anwendungsversion und auf dem konfigurierten Projekt angewendet. Der genaue Stand und die erfolgte Aktivierung stehen in [V2-RELEASE.md](V2-RELEASE.md). Für noch nicht migrierte Umgebungen lädt das Portal die bisherigen Daten ohne Nachträge. Stempelkarten und Exporte bleiben verfügbar, Nachtragsaktionen sind mit einem Hinweis gesperrt; die neue Stripe-Übersicht meldet die fehlende Freischaltung, bevor sie Stripe synchronisiert. Während einer vorbereiteten, noch nicht aktivierten Version wird die fehlende Ausführungsberechtigung für Nachträge verständlich erklärt. Andere Berechtigungs- oder Verbindungsfehler werden nicht als leere Daten behandelt. Die bisherigen Tabellen und normalen Trainingsabläufe bleiben nutzbar.
 
 ## Lokale Prüfung
 

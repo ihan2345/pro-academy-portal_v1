@@ -1,6 +1,14 @@
-# V2: Veröffentlichung vorbereiten
+# V2: Veröffentlichungsstand
 
-Stand 23.09.2026: V2-Schema auf dem konfigurierten Supabase-Projekt eingerichtet und geprüft. Die Migrationen 010/011 und Release-Ergänzungen 002/003 wurden gemeinsam in einer Transaktion angewendet; 010/011 sind in der Migrationshistorie eingetragen. Nachträge bleiben bis zum App-/Worker-Deployment gesperrt. Kein Deployment durchgeführt. Die eigentliche Veröffentlichung benötigt weiterhin die ausdrückliche Zustimmung des Nutzers.
+Stand 23.09.2026: Nach ausdrücklicher Freigabe des Nutzers wurde `V2.0` mit Merge-Commit `db96b27` nach `main` übernommen und gepusht. Hintergrunddienst und Portal sind veröffentlicht; anschließend wurde `004-v2-activate.sql` angewendet. Coach/Admin können Nachträge jetzt speichern. Die Migrationen 010/011 und Release-Ergänzungen 002/003 waren bereits gemeinsam eingerichtet und geprüft; 010/011 sind in der Migrationshistorie eingetragen.
+
+Produktionsversionen:
+
+- Portal: `454607ad-25f4-48f6-b9a5-928c32127db9`.
+- Hintergrunddienst: `9ced5867-c869-4a33-aeac-f98cdfde3351`.
+- Container-Image: `sha256:1a5bc622144eb86900fbb210d2f7ad427a0ee36c6d67970335b11a865c4eec91`.
+
+Beide Worker bedienen 100 % des Verkehrs mit den neuen Versionen. Variablen und Secret-Bindings sind gegenüber dem Zustand vor dem Deployment unverändert. Automatische Einladungen bleiben aus; Empfängerfreigaben wurden nicht erweitert.
 
 Die CLI-Anmeldung wurde separat abgeschlossen, ohne den laufenden Entwicklungsserver zu stoppen. Das Projekt heißt in Supabase weiterhin `proacademy-portal-test`; maßgeblich ist die unten genannte Projekt-ID, die das Portal bereits verwendet.
 
@@ -11,7 +19,7 @@ Die CLI-Anmeldung wurde separat abgeschlossen, ohne den laufenden Entwicklungsse
 - Hintergrunddienst: `proacademy-jobs`.
 - Bestehende Empfängerfreigaben, zurückgehaltene E-Mails, Camp-Schalter und Job-Schalter erhalten. Keine Testnachträge oder Testmails in der echten Datenbank erzeugen.
 
-## Datenbank vorbereiten
+## Datenbankvorbereitung (bereits durchgeführt, nicht erneut anwenden)
 
 1. Supabase-Verwaltungsanmeldung über `npx supabase login` herstellen. Der vorhandene Service-Schlüssel erlaubt Datenzugriff, ersetzt aber keinen SQL-Verwaltungszugang.
 2. `node scripts/prepare-v2-release.mjs` erzeugt ausschließlich lokale Dateien unter `output/v2-release/`: `preflight.sql`, `stage.sql`, `manifest.json`.
@@ -28,13 +36,19 @@ Die lokale API erklärt die temporär entzogene Ausführungsberechtigung für Na
 
 `002-v2-backfill-mail.sql` erweitert nur die vorhandene Liste erlaubter Nachrichtentypen. Bestehende Camp- und Einladungskontrollen, bestätigte Elternanmeldung, Empfängerfreigabe und Kontosperre bleiben erhalten. Bei einer unerwarteten Live-Funktionsdefinition bricht die SQL-Ergänzung ab. Sie gibt keine zurückgehaltenen Nachrichten frei.
 
-## Erst nach ausdrücklicher Veröffentlichungsfreigabe
+## Durchgeführte Veröffentlichung nach ausdrücklicher Freigabe
 
 1. Den geprüften Stand sichern und beide Produktionspakete bauen.
 2. Den V2-Hintergrunddienst veröffentlichen; dessen Zustand prüfen. Er muss die neuen Nachtragsnachrichten und Berichtsdaten verstehen, bevor Schreiben freigeschaltet wird.
 3. Das V2-Portal in Wrangler-Umgebung `production` veröffentlichen; Anmeldung, Übersicht und bestehende Stempelkarten prüfen.
 4. `supabase/release/004-v2-activate.sql` ausführen. Damit dürfen Coach/Admin die neue Speicherroutine verwenden. Die Routine selbst prüft Teamrolle und Kapazität weiterhin.
 5. Read-only-Abschlusskontrolle und dokumentierter Versionsstand. Einen realen Nachtrag nur mit fachlich richtigen Angaben und entsprechendem Nutzerauftrag anlegen.
+
+Ergebnis: Der neue Runner bestätigt Supabase-, Stripe- und SMTP-Verbindung sowie PDF-Erzeugung mit HTTP 200. Das Portal liefert die Login-Seite und alle zwölf dort referenzierten statischen Dateien erfolgreich aus; geschützte Seiten leiten ohne Sitzung zur Anmeldung um, geschützte APIs antworten mit HTTP 401. Die Live-Build-ID entspricht dem geprüften Produktionspaket. Die Supabase-Abschlusskontrolle bestätigt die freigeschaltete Speicherroutine für angemeldete Nutzer mit weiterhin interner Teamprüfung; anonyme Ausführung und direkte Schreibzugriffe bleiben gesperrt.
+
+Gegenüber dem unmittelbar vor dem Deployment gesicherten Stand sind Kunden-/Berichtszahlen und Versandstatus unverändert: 124 zurückgehaltene und 13 bereits versandte Aufträge, keine Nachträge und keine Nachtrags-E-Mail-Aufträge. Es wurden keine realen Testnachträge oder Testmails angelegt. Der inzwischen regulär gewachsene Stripe-Bestand umfasst 102 Registry-Kunden. Authentifizierte fachliche Abläufe wurden in der isolierten Testsuite geprüft; der Live-Smoke-Test hat keine Trainingsdaten geschrieben.
+
+Private Release-Nachweise: `output/v2-release/cloudflare-before.json`, `cloudflare-after.json`, `runner-verify.json`, `portal-smoke.json`, `pre-deploy-database.json`, `post-deploy-database.json`, `post-deploy-verification.json` und `manifest.json`.
 
 ## Rücknahme
 
