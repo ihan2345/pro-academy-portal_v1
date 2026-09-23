@@ -103,3 +103,33 @@ it("duration crossing midnight uses actual UTC elapsed time", () =>
   expect(
     durationMinutes(utc("2026-09-09", "23:30"), utc("2026-09-10", "01:00")),
   ).toBe(90));
+
+it("frees all units and minutes for team cancellations, preserving individual absences", () => {
+  const base = {
+    starts_at: utc("2026-09-09", "16:30"),
+    ends_at: utc("2026-09-09", "18:00"),
+  };
+  const rows = [
+    "attended_auto",
+    "attended_manual",
+    "planned",
+    "excused",
+    "absent",
+    "cancelled",
+  ].map((status) => ({
+    ...base,
+    status: status as "planned",
+    event_cancelled: true,
+  }));
+  expect(attendanceStats(rows)).toEqual({
+    completed: 0,
+    charged: 0,
+    retrospective: 0,
+    planned: 0,
+    minutes: 0,
+    neutral: 6,
+  });
+  expect(
+    attendanceStats([...rows, { ...base, status: "cancelled" }]),
+  ).toMatchObject({ completed: 1, charged: 1, minutes: 0 });
+});

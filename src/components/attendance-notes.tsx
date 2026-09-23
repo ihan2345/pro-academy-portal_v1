@@ -3,11 +3,13 @@ import type { ReportSnapshot } from "@/lib/pdf";
 
 /** Public appointment details only; staff reasons and private notes stay private. */
 export function ExcusedNotes({ events }: { events: ReportSnapshot["events"] }) {
-  const excused = events.filter((event) => event.status === "excused");
+  const excused = events.filter(
+    (event) => event.status === "excused" || event.event_cancelled,
+  );
   if (!excused.length) return null;
   return (
-    <section className="excused-notes" aria-label="Entschuldigte Termine">
-      <h3>Entschuldigt · ohne Anrechnung</h3>
+    <section className="excused-notes" aria-label="Termine ohne Anrechnung">
+      <h3>Termine ohne Anrechnung</h3>
       <p>
         Diese Termine verbrauchen keine Einheit und zählen nicht zur
         Trainingszeit.
@@ -15,7 +17,10 @@ export function ExcusedNotes({ events }: { events: ReportSnapshot["events"] }) {
       <ul>
         {excused.map((event) => (
           <li key={event.id}>
-            <strong>{event.title}</strong>
+            <strong>
+              {event.title} ·{" "}
+              {event.event_cancelled ? "Vom Team abgesagt" : "Entschuldigt"}
+            </strong>
             <span>
               {formatDate(event.starts_at)} · {formatTime(event.starts_at)}–
               {formatTime(event.ends_at)} Uhr

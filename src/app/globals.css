@@ -2846,3 +2846,299 @@ label {
     margin-inline: 12px;
   }
 }
+
+/* Two-month training calendar: responsive to the available content width. */
+.training-calendar-shell {
+  container-type: inline-size;
+}
+.training-calendar-shell .calendar-toolbar {
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.calendar-today {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
+  gap: 28px;
+  padding: 24px;
+}
+.calendar-months {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.month-calendar {
+  background: #fff;
+  padding: 18px 14px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.month-calendar h2 {
+  font-size: 18px;
+  letter-spacing: -0.35px;
+  margin: 0 8px 18px;
+}
+.month-weekdays,
+.month-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+}
+.month-weekdays {
+  margin-bottom: 8px;
+  color: #707784;
+  font-size: 11px;
+  font-weight: 600;
+}
+.month-day {
+  min-width: 0;
+  min-height: 40px;
+  position: relative;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  padding: 6px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.month-day:hover {
+  background: #f1edf9;
+}
+.month-day.is-today {
+  box-shadow: inset 0 0 0 2px var(--purple);
+}
+.month-day.is-selected {
+  background: var(--lime);
+  color: #182600;
+}
+.month-day-dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--purple);
+  bottom: 5px;
+  left: calc(50% - 2px);
+}
+.month-day.is-selected .month-day-dot {
+  background: #304500;
+}
+.calendar-legend {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  font-size: 11px;
+  color: #626b79;
+}
+.calendar-legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.calendar-legend i {
+  width: 5px;
+  height: 5px;
+  background: var(--purple);
+  border-radius: 50%;
+}
+.calendar-legend .today-key {
+  width: 12px;
+  height: 12px;
+  background: transparent;
+  border: 2px solid var(--purple);
+  border-radius: 4px;
+}
+.calendar-agenda {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  scroll-margin-top: 20px;
+}
+.calendar-layout .calendar-agenda {
+  contain: size;
+}
+.calendar-agenda-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0 20px;
+}
+.calendar-agenda-heading h2 {
+  font-size: 19px;
+  line-height: 1.4;
+  letter-spacing: -0.4px;
+  margin: 5px 0 0;
+}
+.agenda-count {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: #616975;
+  border-radius: 20px;
+  padding: 5px 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.calendar-layout .calendar-agenda-list {
+  flex: 1;
+  height: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #d3c8e8 transparent;
+  padding: 3px 9px 3px 3px;
+}
+.calendar-layout .team-event {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 14px 18px;
+  padding: 20px 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafbfc;
+  align-items: start;
+}
+.calendar-layout .team-event:last-child {
+  border: 1px solid var(--line);
+  margin-bottom: 0;
+}
+.calendar-layout .team-event-time {
+  min-width: 0;
+  padding-right: 10px;
+}
+.calendar-layout .team-event-time strong {
+  font-size: 23px;
+}
+.calendar-layout .team-event-main {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.calendar-layout .title-button {
+  flex-wrap: wrap;
+  font-size: 15px;
+  line-height: 1.5;
+  gap: 7px;
+}
+.calendar-layout .event-inline {
+  gap: 8px 14px;
+  font-size: 12px;
+}
+.calendar-layout .auto-label {
+  align-items: flex-start;
+  font-size: 11px;
+}
+.calendar-layout .team-event-actions {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px 18px;
+}
+.calendar-layout .team-event-actions button {
+  min-height: 40px;
+}
+.calendar-layout .empty-state {
+  background: var(--surface);
+  border-radius: 12px;
+  margin: 0;
+  padding: 40px 18px;
+}
+.calendar-layout .empty-state h3 {
+  font-size: 18px;
+}
+.calendar-agenda-jump {
+  display: none;
+}
+.calendar-week-layout .calendar-agenda-heading {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+}
+@container (max-width: 760px) {
+  .calendar-layout .calendar-agenda {
+    contain: none;
+  }
+  .calendar-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    padding: 16px;
+  }
+  .calendar-months {
+    max-width: 440px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .month-day {
+    min-height: 44px;
+  }
+  .calendar-layout .calendar-agenda-list {
+    height: auto;
+    overflow: visible;
+    flex: none;
+    padding: 3px;
+  }
+  .calendar-agenda-jump {
+    display: block;
+    font-size: 12px;
+    text-align: center;
+    color: #6942a5;
+    padding: 10px;
+    border: 1px solid #e8e0f5;
+    border-radius: 8px;
+  }
+  .calendar-agenda-heading {
+    align-items: flex-start;
+  }
+  .calendar-agenda-heading h2 {
+    font-size: 17px;
+  }
+  .calendar-layout .team-event {
+    grid-template-columns: 65px minmax(0, 1fr);
+    padding: 16px 12px;
+    gap: 12px;
+  }
+  .calendar-layout .team-event-time strong {
+    font-size: 21px;
+  }
+}
+@container (max-width: 400px) {
+  .training-calendar-shell .calendar-controls {
+    gap: 4px;
+  }
+  .calendar-today {
+    padding: 8px 10px;
+  }
+  .calendar-agenda-heading {
+    flex-wrap: wrap;
+  }
+}
+
+/* Team cancellations stay visible as history without consuming a unit. */
+.team-event.team-event-cancelled,
+.calendar-layout .team-event.team-event-cancelled {
+  background: #fff0f0;
+  border: 1px solid #eeb5b5;
+  border-left: 4px solid #c93440;
+  border-radius: 12px;
+}
+.team-event-cancelled .team-event-time,
+.cancellation-note {
+  color: #9c2430;
+}
+.cancellation-note {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 10px;
+}

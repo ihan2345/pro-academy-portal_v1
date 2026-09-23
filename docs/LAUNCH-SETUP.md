@@ -108,7 +108,6 @@ Ausführliche Regeln: [TARIFF-RULES.md](TARIFF-RULES.md).
 
 Danach Kundenportal-Konfiguration und benötigte API-Berechtigungen festlegen sowie die endgültige HTTPS-Portaladresse für den Webhook bestimmen. Die bereits angelegte Launch-Datenbank darf keine synthetischen Stripe-Testfamilien erhalten. Live-Zahlungen, Änderungen bestehender Abonnements und eine öffentliche Bereitstellung sind weiterhin nicht freigegeben.
 
-
 ## Stripe-Kundenportal vorbereitet
 
 Im vorhandenen Konto wurde die separate Konfiguration **ProAcademy Elternportal** (`bpc_1UDrgZRoswKHkM76cERxORbx`) erstellt. Die bestehende Standardkonfiguration `bpc_1RmFUhRoswKHkM76tYcX7RLE` wurde nicht verändert.
@@ -122,7 +121,6 @@ Mit dem neuen Schlüssel erfolgreich rein lesend geprüft: bekannter Live-Preis 
 Die Prüfung deckte einen echten Fehler im Admin-Import auf: `data.items.data.price.product` überschreitet Stripes maximale Expansionstiefe. Produktnamen werden jetzt separat mit einem pro Anfrage geteilten Promise-Cache geladen. Fünf lokale Regressionstests prüfen gültige Abfragen, Vorschauwerte, Cache-Grenzen, archivierte/gelöschte Produkte und Fehlerweitergabe. Typecheck und alle 84 Tests erfolgreich. Sanitisiertes API-Prüfprotokoll lokal unter `tmp/stripe/verification.json`. `APP_MODE=test`, Mail-Capture und externe Testdatensperre bleiben aktiv. Noch kein Kundenimport, keine echte Portal-Sitzung, kein Webhook, keine Veröffentlichung.
 
 Portaladresse vom Nutzer bestätigt: **https://portal.proacademy-ak.com**. Siehe Hosting-Vorbereitung unten.
-
 
 ## Produktionsadresse und Cloudflare-Vorbereitung
 
@@ -156,7 +154,6 @@ Nach ausdrücklicher Zustimmung des Nutzers ("ja" auf die Frage nach Aktivierung
 
 Nächster technischer Schritt: den vorhandenen Node-Hintergrunddienst für Cloudflare Containers vorbereiten und prüfen (einschließlich Proton-STARTTLS, Secrets, nur einer gleichzeitigen Verarbeitung, Laufzeitbegrenzung und sicherem Schlafmodus). Container wurde noch nicht erstellt; Portal noch nicht veröffentlicht, Domain noch nicht verbunden, Webhook noch offen.
 
-
 ## Container-Hintergrunddienst vorbereitet und lokal geprüft
 
 `workers/cloudflare` enthält Gateway, Container-Klasse, eigene TypeScript-Konfiguration und Wrangler-Konfiguration. Eine feste Instanz `proacademy-jobs` / Containerklasse `ProAcademyRunner`, Typ basic, maximal eine Instanz. Authentifizierung erfolgt vor Start, nur POST /run und /verify sind erreichbar. Unbekannte und unberechtigte Aufrufe erzeugen keinen Container. JOBS_ENABLED=false verhindert manuelle und zeitgesteuerte Verarbeitung. Beim Ende eines Aufrufs stoppt der Container; währenddessen bleibt seine Sperre erhalten. Ein 30-Sekunden-Idle-Timer schützt vor unbeabsichtigtem Dauerbetrieb, laufende Arbeit hat maximal fünf Minuten einschließlich Start. Der Node-Runner hat zusätzlich eine harte Vier-Minuten-Grenze und unterstützt SIGTERM.
@@ -171,7 +168,6 @@ Erfolgreiche Prüfung: beide Typechecks, 92 Tests (acht neue echte HTTP-/Gateway
 
 **Noch offen:** Docker ist auf dem Mac nicht installiert (weder Docker-CLI noch alternative Engine oder Homebrew gefunden). Vollständiger Wrangler-Dry-Run stoppt deshalb beim Image-Build. Ohne Container-Build sind Linux-Image und Proton-Verbindung aus Cloudflare noch nicht abgenommen. Kein Container und kein öffentlicher Portal-Worker bereitgestellt; kein Elternversand aktiviert. Nächster Schritt: Docker Desktop für Apple Silicon installieren/starten, Image bauen und testen, danach geschützten Hintergrunddienst mit deaktivierten Jobs bereitstellen und /verify aus Cloudflare ausführen.
 
-
 ## Docker-Prüfung und erste Bereitstellung des Hintergrunddienstes
 
 Docker Desktop läuft (Engine 29.7.2). CLI und Credential-Helper liegen unter `/Applications/Docker.app/Contents/Resources/bin`; dieser Pfad muss für lokale Docker-/Wrangler-Befehle im PATH sein. Linux-amd64-Image `proacademy-jobs:local` erfolgreich gebaut, ca. 206 MB, Benutzer node. Derselbe Image-Manifest-Digest wurde von Wrangler gebaut: `sha256:48bf0b94b2431f08a7f0b3ea67aae567f14ab03c7960405e6b225fb42a418975`.
@@ -179,7 +175,6 @@ Docker Desktop läuft (Engine 29.7.2). CLI und Credential-Helper liegen unter `/
 Lokaler echter Container-Test mit 1 GiB RAM und 0,25 CPU erfolgreich: /verify HTTP 200 mit Supabase, Stripe, SMTP und PDF jeweils true. Ohne Authentifizierung HTTP 401, /run bei JOBS_ENABLED=false HTTP 503. Testcontainer nach Prüfung entfernt. Ergebnis ohne Geheimnisse in tmp/container-verification.json. Kein Versand und keine Datenbankänderungen.
 
 Erster Wrangler-Deploy hat den Worker proacademy-jobs hochgeladen, ist aber beim Image-Push an einem Registry-HTTP-Timeout gescheitert. Da Worker- und Container-Upload nicht atomar sind, ist dies noch keine abgeschlossene Bereitstellung. Derselbe Image-Tag wird gezielt erneut hochgeladen; noch keine Jobs aktiviert.
-
 
 Docker-Push und BuildKit-Push liefen wiederholt in Registry-Timeouts. Daraufhin standardkonforme OCI-Übertragung in Teilen vorbereitet, ausschließlich in dieselbe private Cloudflare-Registry, mit kurzlebigen Registry-Zugangsdaten im Prozessspeicher und SHA-256-Prüfung aller Artefakte. Unnötige Laufzeit-Abhängigkeiten aus dem Docker-Image entfernt: der Node-Runner wird jetzt einschließlich seiner JS-Abhängigkeiten als CommonJS-Datei gebündelt (ca. 2,6 MB); kein npm-/Next.js-Abhängigkeitsbaum im finalen Image. Imagegröße sinkt von ca. 206 auf 59 MB. Auch das optimierte Linux-amd64-Image hat sämtliche Container-Verifikationen bestanden (Supabase, Stripe, SMTP, PDF; 401 ohne Auth; 503 für deaktivierte Jobs). Neuer maßgeblicher Manifest-Digest: `sha256:8baf6b25893daa87c92585d14c81f8701775ecb50000ffa1348cbf3e0dc8fcbe`. Die großen unbenötigten Laufzeit-Abhängigkeiten des ersten Images werden nicht weiter übertragen. Cloudflare-Hintergrunddienst noch nicht vollständig bereitgestellt, solange der Basis-Layer-Upload läuft.
 
@@ -265,7 +260,6 @@ Nach erneutem ausdrücklichem Deploy-Befehl den validierten Anwendungsstand `bbb
 
 Die inzwischen ausgeführten echten Supabase-, Cloudflare-API-, PDF- und SMTP-Prüfungen einschließlich bestätigtem Postfacheingang stehen in [LIVE-TEST-CHECKLISTE.md](LIVE-TEST-CHECKLISTE.md). Muhsin Ayhan hat ein Coachprofil bei unveränderter Adminrolle; Sportzentrum Schürenkamp ist eingerichtet. Die Beispielfamilie nutzt Googlemail. Ihre bereits versendete Einladung ist gültig und noch nicht angenommen; persönliche Elternanmeldung und Sitzungserneuerung stehen zur Abnahme aus. Kind, 16 Trainings und Bericht sind erhalten. Testdaten nicht entfernt, keine offizielle Domain aktiviert, kein globaler Hintergrundlauf freigegeben.
 
-
 ## Stempelkarten für Admin und Coach veröffentlicht (10.09.2026)
 
 Nach ausdrücklichem Commit-, Push- und Deployment-Befehl Anwendungsstand `a90aa4a` auf `start` und `main` gesichert. Enthalten sind Stempelkartenansichten für Admin und Coach, aktueller PDF-Export und gezielte Versandaufträge an zugeordnete Eltern sowie die dauerhafte V2.0-Checkliste.
@@ -295,7 +289,6 @@ Migration `202609120009_family_accounts.sql` angewendet. 84 Familien, 91 Kinder 
 
 Nach Veröffentlichung `JOBS_ENABLED=false`, `ACCEPTANCE_TEST_ENABLED=false`, `MAIL_PROVIDER=capture`, `EMAIL_TEST_MODE=true` erneut direkt geprüft. Keine Freigabe für automatische Hintergrundläufe, Elternzugänge, Mailversand oder die offizielle Domain.
 
-
 ## 12.09.2026 – ausschließlich automatischer Abo-Abgleich
 
 Auf ausdrücklichen Nutzerauftrag ausschließlich den Stripe-Abgleich aktiviert. Gateway und Container trennen den eingeschränkten Modus technisch von allen anderen Phasen: `STRIPE_SYNC_ONLY=true`, während `JOBS_ENABLED=false`, `ACCEPTANCE_TEST_ENABLED=false`, `MAIL_PROVIDER=capture` und `EMAIL_TEST_MODE=true` bestehen bleiben. Auch direkte Mailverarbeitung und der begrenzte Versandtest werden in diesem Modus abgewiesen. Die bestehenden zehnminütigen Cron-Trigger bleiben der einzige Zeitgeber. Kein Portal-Deployment, keine neue Domain und keine RLS- oder Auth-Änderung.
@@ -305,3 +298,13 @@ Hintergrunddienst-Version `cbcc7502-d800-4a53-a17d-e552b6ec43db`, Container-Dige
 164 automatisierte Tests, beide Typprüfungen, Runner- und Container-Build erfolgreich. Schutzprüfungen: anonymer Runnerzugriff 401, begrenzter Versandtest 503, öffentliche Admin-API 401, anonyme Supabase-Abfragen für Kinder und Leistungszeiträume ohne Datensätze. Vor-/Nachvergleich bestätigt unveränderte Eltern-Auth-Verknüpfungen, Familienzuordnungen, Profile, Kinder, Einladungen, sämtliche Versandaufträge und Zustellprotokolle, Berichte und Teilnahmen. Alle 84 Einladungsvormerkungen weiterhin `held`; keine Mail versendet. Nachweise liegen privat unter `output/stripe-only/`.
 
 Eine separate, saubere Kopie des Branches unter `/tmp/pabyak-stripe-only-20260912` wurde für Tests und Deployment verwendet, weil iCloud Teile des ursprünglichen Git-Verzeichnisses ausgelagert hatte. Vorhandene lokale Dateien wurden vor Rückübernahme gegen den unveränderten Commit geprüft. Sämtliche Code- und Dokumentationsänderungen liegen auch im ursprünglichen Arbeitsverzeichnis.
+
+## Kalender und Teamabsagen: freigegebener Release
+
+Stand 23.09.2026: Zweimonatskalender, rote unten einsortierte Stornos, zeitabhängige Bestätigungshinweise und kostenlose Teamabsagen sind lokal vorbereitet. Der Nutzer hat Commit/Push nach V2.0 und main sowie das Deployment ohne E-Mail-Versand ausdrücklich freigegeben.
+
+1. Nur die neue Migration `202609230012_team_cancellations.sql` nach 010/011 prüfen und gezielt anwenden; kein pauschales `db push` wegen separat verwalteter Migrationen.
+2. App und Jobs-Runner gemeinsam aktualisieren. Die Migration verändert weder Einladungsfreigaben noch Empfängerlisten und erzeugt keine Versandjobs. Bestehende betroffene Berichte erhalten eine neue Version mit unterdrücktem Versand.
+3. Danach Stempelkarte und Berichtszähler für eine bereits bestehende Teamabsage lesend abgleichen. Keine echten Kunden-Testabsagen und keine Testmails.
+
+Lokale Prüfungen: 281 erfolgreiche Vitest-Tests einschließlich isolierter PostgreSQL-Migrationen, `scripts/test-calendar-ui.mjs` mit simulierten API-Antworten, TypeScript und Produktionsbuild. Eine lokal richtige Stempelanzeige allein beweist noch nicht, dass die entfernte Datenbank bereits die neue Nachtragskapazität verwendet.

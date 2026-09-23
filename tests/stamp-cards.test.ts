@@ -378,3 +378,36 @@ it("checks registry availability before Stripe synchronization", async () => {
   expect((await response.json()).error).toContain("noch nicht freigeschaltet");
   expect(mocks.rpc).not.toHaveBeenCalled();
 });
+
+it("carries team cancellations through the database projection and public stamp-card snapshot", async () => {
+  const event = participantRows[0].training_events;
+  participantRows = [
+    {
+      status: "cancelled",
+      training_events: { ...event, id: "team-cancelled", status: "cancelled" },
+    },
+    {
+      status: "cancelled",
+      training_events: {
+        ...event,
+        id: "individual-cancelled",
+        status: "scheduled",
+      },
+    },
+  ];
+  const { snapshot } = await loadStampCard(db, "staff", period.id);
+  expect(snapshot).toMatchObject({
+    completed: 1,
+    minutes: 0,
+    attendance_policy: "team_cancellations_free_v2",
+  });
+  expect(snapshot.events).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ id: "team-cancelled", event_cancelled: true }),
+      expect.objectContaining({
+        id: "individual-cancelled",
+        event_cancelled: false,
+      }),
+    ]),
+  );
+});

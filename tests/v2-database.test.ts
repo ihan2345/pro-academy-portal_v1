@@ -291,3 +291,127 @@ it("rejects altered retries and preserves the original entry", async () => {
     )[0].parent_note,
   ).toBe(data.parent_note);
 });
+
+async function trainingInPeriod(periodId: string, status = "planned") {
+  const [{ id: location }] = await query("select id from locations limit 1");
+  const [{ id: event }] = await query(
+    `insert into training_events(title,starts_at,ends_at,location_id,trainer_id,auto_attendance_at,notify_parents)
+    values('Cancellation test',now()-interval '5 days',now()-interval '5 days'+interval '1 hour',$1,$2,now()-interval '4 days',false) returning id`,
+    [location, staff],
+  );
+  const [{ id: participant }] = await query(
+    "insert into event_participants(event_id,player_id,period_id,status) values($1,$2,$3,$4) returning id",
+    [event, child, periodId, status],
+  );
+  return { event, participant };
+}
+
+it("team cancellation frees backfill capacity; individual cancellations still consume a slot", async () => {
+  const p = await period(true, 2); // One football slot and one athletics slot.
+  const { event } = await trainingInPeriod(p, "cancelled");
+  await expect(save(input(p))).rejects.toThrow("Kein offener Stempel");
+  await expect(
+    asUser(parent, "select cancel_training($1,'Teamabsage')", [event]),
+  ).rejects.toThrow("Forbidden");
+  await asUser(staff, "select cancel_training($1,'Teamabsage')", [event]);
+  await expect(save(input(p))).resolves.toEqual(expect.any(String));
+  await expect(save(input(p))).rejects.toThrow("Kein offener Stempel");
+  expect(
+    await query("select status from event_participants where event_id=$1", [
+      event,
+    ]),
+  ).toEqual([{ status: "cancelled" }]);
+});
+
+it("team cancellation creates one corrected report version and does not send a report email", async () => {
+  const p = await period();
+  const { event } = await trainingInPeriod(p, "attended_manual");
+  await query("select capture_report($1)", [p]);
+  const [original] = await query(
+    "select * from report_snapshots where period_id=$1",
+    [p],
+  );
+  expect(original.snapshot).toMatchObject({ completed: 1, minutes: 60 });
+  await asUser(staff, "select cancel_training($1,'Teamabsage')", [event]);
+  const reports = await query(
+    "select * from report_snapshots where period_id=$1 order by version",
+    [p],
+  );
+  expect(reports).toHaveLength(2);
+  expect(reports[0]).toEqual(original);
+  expect(reports[1].snapshot).toMatchObject({
+    completed: 0,
+    minutes: 0,
+    version: 2,
+    suppress_delivery: true,
+    attendance_policy: "team_cancellations_free_v2",
+    events: [{ status: "cancelled", event_cancelled: true }],
+  });
+  const jobsBefore = await query(
+    "select id from notification_jobs order by id",
+  );
+  await asUser(staff, "select cancel_training($1,'Teamabsage wiederholt')", [
+    event,
+  ]);
+  await query(
+    "select register_report_file($1,'test/team-cancellation.pdf','test-digest')",
+    [reports[1].id],
+  );
+  expect(await query("select id from notification_jobs order by id")).toEqual(
+    jobsBefore,
+  );
+  expect(
+    await query("select id from report_snapshots where period_id=$1", [p]),
+  ).toHaveLength(2);
+  await expect(
+    asUser(staff, "select cancel_training($1,'Teamabsage')", [randomUUID()]),
+  ).rejects.toThrow("Termin nicht gefunden");
+});
+
+it("migrates existing cancelled reports once without changing old versions or sending mail", async () => {
+  const p = await period();
+  const { event } = await trainingInPeriod(p, "cancelled");
+  await query("update training_events set status='cancelled' where id=$1", [
+    event,
+  ]);
+  // Reproduce a pre-migration snapshot through the old capture function.
+  const oldSql = readFileSync(
+    "supabase/migrations/202609230010_training_backfills.sql",
+    "utf8",
+  );
+  await db.exec(
+    oldSql.slice(
+      oldSql.indexOf("create or replace function public.capture_report"),
+      oldSql.indexOf("create or replace function public.register_report_file"),
+    ),
+  );
+  await query("select capture_report($1)", [p]);
+  const [original] = await query(
+    "select * from report_snapshots where period_id=$1",
+    [p],
+  );
+  expect(original.snapshot.completed).toBe(1);
+  const jobsBefore = await query(
+    "select id from notification_jobs order by id",
+  );
+  const migration = readFileSync(
+    "supabase/migrations/202609230012_team_cancellations.sql",
+    "utf8",
+  );
+  await db.exec(migration);
+  await db.exec(migration);
+  const reports = await query(
+    "select * from report_snapshots where period_id=$1 order by version",
+    [p],
+  );
+  expect(reports).toHaveLength(2);
+  expect(reports[0]).toEqual(original);
+  expect(reports[1].snapshot).toMatchObject({
+    completed: 0,
+    minutes: 0,
+    suppress_delivery: true,
+  });
+  expect(await query("select id from notification_jobs order by id")).toEqual(
+    jobsBefore,
+  );
+});

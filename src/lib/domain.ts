@@ -142,19 +142,21 @@ export function durationLabel(minutes: number) {
 export function attendanceStats(
   rows: {
     status: Attendance;
+    event_cancelled?: boolean;
     starts_at: string;
     ends_at: string;
     retrospective?: boolean;
     duration_minutes?: number;
   }[],
 ) {
-  const completed = rows.filter((row) => isAttended(row.status));
-  const charged = rows.filter((row) => isChargedAbsence(row.status)).length;
+  const counted = rows.filter((row) => !row.event_cancelled);
+  const completed = counted.filter((row) => isAttended(row.status));
+  const charged = counted.filter((row) => isChargedAbsence(row.status)).length;
   return {
     completed: completed.length + charged,
     charged,
     retrospective: completed.filter((row) => row.retrospective).length,
-    planned: rows.filter((row) => row.status === "planned").length,
+    planned: counted.filter((row) => row.status === "planned").length,
     minutes: completed.reduce(
       (n, row) =>
         n +
@@ -163,7 +165,9 @@ export function attendanceStats(
           : durationMinutes(row.starts_at, row.ends_at)),
       0,
     ),
-    neutral: rows.filter((row) => row.status === "excused").length,
+    neutral: rows.filter(
+      (row) => row.event_cancelled || row.status === "excused",
+    ).length,
   };
 }
 export function stampSlots(
@@ -227,6 +231,7 @@ export function trainingDiscipline(
 export function disciplineStats(
   rows: {
     status: Attendance;
+    event_cancelled?: boolean;
     starts_at: string;
     ends_at: string;
     event_type?: string;
