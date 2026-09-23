@@ -12,7 +12,9 @@ beforeAll(async () => {
   create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
   grant usage on schema auth to authenticated,service_role;grant execute on function auth.uid() to authenticated,service_role;
   create table storage.buckets(id text primary key,name text,public boolean);create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text);alter table storage.objects enable row level security;grant usage on schema storage to authenticated,service_role;grant select on storage.objects to authenticated;`);
-  for (const f of readdirSync("supabase/migrations").sort())
+  // Match the live release order: base schema, onboarding/Camp, then V2.
+  const migrations = readdirSync("supabase/migrations").sort();
+  for (const f of migrations.filter((f) => f < "202609230010"))
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(
     readFileSync("supabase/release/001-onboarding-mail.sql", "utf8"),
@@ -21,6 +23,11 @@ beforeAll(async () => {
     .filter((f) => /^00[1-9]-/.test(f) && f !== "001-down.sql")
     .sort())
     await db.exec(readFileSync(`supabase/camp/${f}`, "utf8"));
+  for (const f of migrations.filter((f) => f >= "202609230010"))
+    await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
+  await db.exec(
+    readFileSync("supabase/release/002-v2-backfill-mail.sql", "utf8"),
+  );
 });
 afterAll(async () => db.close());
 beforeEach(async () => {
@@ -65,6 +72,49 @@ beforeEach(async () => {
   update system_settings set value=jsonb_build_object('enabled',true,'starts_after',now()-interval '30 days') where key='camp_mail_release';`);
 });
 afterEach(async () => db.exec("rollback"));
+it("allows backfill mail only under the existing verified-parent and recipient release rules", async () => {
+  const allowed = async () =>
+    (
+      await db.query<{ allowed: boolean }>(
+        "select parent_delivery_allowed('first@example.invalid','training_backfill','{}') allowed",
+      )
+    ).rows[0].allowed;
+  expect(await allowed()).toBe(true);
+  await db.exec("update parents set notifications_held=true");
+  expect(await allowed()).toBe(false);
+  await db.exec(
+    "update parents set notifications_held=false; update auth.users set email_confirmed_at=null",
+  );
+  expect(await allowed()).toBe(false);
+  await db.exec(
+    "update auth.users set email_confirmed_at=now(); update system_settings set value=value||'{\"recipients\":[]}'::jsonb where key='portal_delivery_release'",
+  );
+  expect(await allowed()).toBe(false);
+});
+it("keeps held jobs held and blocks backfill creation while the release is staged", async () => {
+  await db.exec(
+    "insert into notification_jobs(idempotency_key,kind,recipient,payload,status) values('held-v2','training_backfill','first@example.invalid','{}','held')",
+  );
+  await db.exec(readFileSync("supabase/release/003-v2-stage-lock.sql", "utf8"));
+  const grants = await db.query<{ allowed: boolean }>(
+    "select has_function_privilege('authenticated','public.save_training_backfill(jsonb,text)','execute') allowed",
+  );
+  expect(grants.rows[0].allowed).toBe(false);
+  expect(
+    (
+      await db.query(
+        "select * from claim_notifications() where kind='training_backfill'",
+      )
+    ).rows,
+  ).toHaveLength(0);
+  expect(
+    (
+      await db.query<{ status: string }>(
+        "select status from notification_jobs where idempotency_key='held-v2'",
+      )
+    ).rows[0].status,
+  ).toBe("held");
+});
 const plan = () =>
   db.query<{ n: number }>("select camp_plan_notifications() n");
 const jobs = () =>

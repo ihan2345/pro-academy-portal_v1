@@ -20,6 +20,14 @@ export function stampCardSnapshot(
       status: event.status,
       location_name: event.location_name,
       trainer_name: event.trainer_name,
+      ...(event.retrospective
+        ? {
+            retrospective: true,
+            occurred_on: event.occurred_on,
+            duration_minutes: event.duration_minutes,
+            parent_note: event.parent_note,
+          }
+        : {}),
     }))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const stats = attendanceStats(rows);

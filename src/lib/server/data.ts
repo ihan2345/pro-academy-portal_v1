@@ -1,4 +1,7 @@
 import "server-only";
+import { optionalBackfills } from "./v2-availability";
+import { readAll } from "./read-all";
+import { backfillColumns } from "../backfills";
 import { campContext, childBenefit } from "../camps/service";
 import { campEnabled, campLocalEnabled } from "../camps/guard";
 import { campPaymentMode } from "../camps/runtime";
@@ -64,6 +67,12 @@ export async function loadPortal(section: string): Promise<PortalData> {
           .select("stripe_customer_id")
           .order("created_at")
       : Promise.resolve({ data: [], error: null }),
+    optionalBackfills(
+      readAll(db, "training_backfills", backfillColumns).then((data) => ({
+        data,
+        error: null,
+      })),
+    ),
   ]);
   for (const result of results)
     if (result.error)
@@ -76,6 +85,7 @@ export async function loadPortal(section: string): Promise<PortalData> {
     locations,
     trainers,
     billingCustomers,
+    backfills,
   ] = results.map((r) => r.data ?? []);
   return {
     camp_enabled: campsEnabled,
@@ -84,6 +94,7 @@ export async function loadPortal(section: string): Promise<PortalData> {
     user_name: session.name.split(" ")[0] || "Willkommen",
     email: session.user.email ?? "",
     players: players as PortalData["players"],
+    backfills: backfills as unknown as PortalData["backfills"],
     billing_customers: billingCustomers as PortalData["billing_customers"],
     periods: periods.map((p) => ({
       ...p,

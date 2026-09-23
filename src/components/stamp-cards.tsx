@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { BackfillForm } from "./backfill-form";
 import { Download, Mail, RefreshCw } from "lucide-react";
 import type { PortalData } from "@/lib/types";
 import type { ReportSnapshot } from "@/lib/pdf";
@@ -12,13 +14,15 @@ import {
   periodLabel,
   STATUS_LABELS,
 } from "@/lib/domain";
-import { ExcusedNotes } from "./attendance-notes";
+import { BackfillNotes, ExcusedNotes } from "./attendance-notes";
 import { Stamps, StampLegend } from "./portal";
 
 type Card = {
   snapshot: ReportSnapshot;
   recipients: { id: string; name: string; email: string }[];
   testRecipient: string | null;
+  privateNotes?: Record<string, string>;
+  backfillsAvailable?: boolean;
 };
 export function StampCards({
   data,
@@ -27,6 +31,11 @@ export function StampCards({
   data: PortalData;
   notify: (message: string) => void;
 }) {
+  const router = useRouter();
+  const [backfill, setBackfill] = useState<{
+    period: (typeof data.periods)[number];
+    discipline: "football" | "athletics";
+  } | null>(null);
   const [search, setSearch] = useState("");
   const [playerId, setPlayerId] = useState(data.players[0]?.id ?? "");
   const [periodId, setPeriodId] = useState("");
@@ -161,6 +170,22 @@ export function StampCards({
   const stats = card ? attendanceStats(card.snapshot.events) : null;
   return (
     <>
+      {backfill && (
+        <BackfillForm
+          period={backfill.period}
+          discipline={backfill.discipline}
+          data={data}
+          close={() => setBackfill(null)}
+          saved={() => {
+            setBackfill(null);
+            setRefresh((n) => n + 1);
+            router.refresh();
+            notify(
+              "Eine Einheit wurde nachgetragen. Die Stempelkarte wird aktualisiert.",
+            );
+          }}
+        />
+      )}
       <div className="page-heading">
         <div>
           <div className="eyebrow">TRAININGSFORTSCHRITT</div>
@@ -261,11 +286,27 @@ export function StampCards({
               period={period}
               completed={stats.completed}
               charged={stats.charged}
+              retrospective={stats.retrospective}
+              onOpenStamp={
+                !busy &&
+                card.backfillsAvailable !== false &&
+                period.status !== "void" &&
+                period.starts_at <= now
+                  ? (discipline) => setBackfill({ period, discipline })
+                  : undefined
+              }
               planned={stats.planned}
               splitStats={disciplineStats(card.snapshot.events)}
             />
             <StampLegend />
+            {card.backfillsAvailable === false && (
+              <p role="status" className="muted">
+                Nachträge sind für diese Datenbank noch nicht freigeschaltet.
+                Bestehende Stempelkarten und PDF-Exporte bleiben verfügbar.
+              </p>
+            )}
             <ExcusedNotes events={card.snapshot.events} />
+            <BackfillNotes events={card.snapshot.events} />
             <p>
               {stats.completed} von {card.snapshot.included_units} Einheiten
               angerechnet · {durationLabel(stats.minutes)}
@@ -279,7 +320,8 @@ export function StampCards({
             <p className="muted">
               Datenstand: {formatDate(card.snapshot.created_at)},{" "}
               {formatTime(card.snapshot.created_at)} Uhr · Bestehende
-              Monatsberichte bleiben unverändert.
+              Berichtsversionen bleiben erhalten; Nachträge abgeschlossener
+              Zeiträume erzeugen eine neue Version.
             </p>
             <button
               className="secondary-button"
@@ -355,18 +397,41 @@ export function StampCards({
                         {event.title}
                         <br />
                         <small>{event.event_type}</small>
+                        {event.retrospective &&
+                          card.privateNotes?.[event.id] && (
+                            <details className="internal-backfill-note">
+                              <summary>Interne Notiz</summary>
+                              <p className="preserve-lines">
+                                {card.privateNotes[event.id]}
+                              </p>
+                            </details>
+                          )}
                       </td>
                       <td>
-                        {formatDate(event.starts_at)}
-                        <br />
-                        {formatTime(event.starts_at)}–
-                        {formatTime(event.ends_at)}
+                        {event.retrospective ? (
+                          <>
+                            {event.occurred_on
+                              ? formatDate(`${event.occurred_on}T12:00:00Z`)
+                              : "Datum nicht angegeben"}
+                            <br />
+                            {event.duration_minutes} Minuten
+                          </>
+                        ) : (
+                          <>
+                            {formatDate(event.starts_at)}
+                            <br />
+                            {formatTime(event.starts_at)}–
+                            {formatTime(event.ends_at)}
+                          </>
+                        )}
                       </td>
                       <td>
-                        {event.status === "planned" &&
-                        event.ends_at <= card.snapshot.created_at
-                          ? "Prüfung ausstehend"
-                          : STATUS_LABELS[event.status]}
+                        {event.retrospective
+                          ? "Nachgetragen"
+                          : event.status === "planned" &&
+                              event.ends_at <= card.snapshot.created_at
+                            ? "Prüfung ausstehend"
+                            : STATUS_LABELS[event.status]}
                       </td>
                     </tr>
                   ))}

@@ -17,6 +17,12 @@ import {
 } from "lucide-react";
 import { Badge, Modal } from "./portal";
 import { api } from "./team";
+import {
+  filterCustomers,
+  type CustomerSort,
+  type RegistryCustomer,
+} from "@/lib/stripe-customers";
+import { formatDate } from "@/lib/domain";
 import type { PortalData } from "@/lib/types";
 type RecordRow = Record<string, unknown>;
 const entities: Record<
@@ -536,139 +542,170 @@ function StripeImport({
   data: PortalData;
   notify: (s: string) => void;
 }) {
-  const [customers, setCustomers] = useState<RecordRow[]>([]),
-    [current, setCurrent] = useState<RecordRow | null>(null),
-    [busy, setBusy] = useState(false),
-    [query, setQuery] = useState(""),
-    [activeQuery, setActiveQuery] = useState(""),
-    [loaded, setLoaded] = useState(false),
-    [nextCursor, setNextCursor] = useState<string | null>(null);
-  async function loadCustomers(term: string, cursor?: string) {
+  const [customers, setCustomers] = useState<RegistryCustomer[]>([]);
+  const [current, setCurrent] = useState<RecordRow | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<CustomerSort>("added-desc");
+  const [recent, setRecent] = useState(false);
+  const [visible, setVisible] = useState({ open: 10, assigned: 10 });
+  const [status, setStatus] = useState(
+    "Kunden laden, um den vollständigen Bestand zu prüfen.",
+  );
+  useEffect(() => {
+    setVisible({ open: 10, assigned: 10 });
+  }, [query, sort, recent]);
+  async function loadCustomers() {
     setBusy(true);
     try {
-      const params = new URLSearchParams();
-      if (term) params.set("q", term);
-      if (cursor) params.set("after", cursor);
-      const result = await api(
-        `admin/stripe-customers${params.size ? `?${params}` : ""}`,
-        undefined,
-        "GET",
+      let after: string | undefined;
+      let count = 0;
+      const cursors = new Set<string>();
+      do {
+        const result = await api("admin/stripe-customers-sync", {
+          ...(after ? { after } : {}),
+        });
+        count += result.count;
+        setStatus(`${count} Stripe-Kunden geprüft …`);
+        after = result.next_cursor ?? undefined;
+        if (after && cursors.has(after))
+          throw new Error("Kundenliste unvollständig. Bitte erneut laden.");
+        if (after) cursors.add(after);
+      } while (after);
+      const result = await api("admin/stripe-customers", undefined, "GET");
+      setCustomers(result.rows);
+      setVisible({ open: 10, assigned: 10 });
+      setStatus(
+        `${result.rows.length} Kunden im System erfasst. Bestand vollständig geladen.`,
       );
-      setCustomers((previous) =>
-        cursor
-          ? [
-              ...new Map(
-                [...previous, ...result.rows].map((c) => [c.id, c]),
-              ).values(),
-            ]
-          : result.rows,
+    } catch (e) {
+      setStatus(
+        (e as Error).message ||
+          "Aktualisierung unvollständig. Bitte erneut laden; bisherige Anzeige bleibt erhalten.",
       );
-      setActiveQuery(term);
-      setLoaded(true);
-      setNextCursor(result.has_more ? result.next_cursor : null);
+      notify((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function selectCustomer(customer: RegistryCustomer) {
+    setBusy(true);
+    try {
+      setCurrent(
+        await api(
+          `admin/stripe-customer-detail?id=${encodeURIComponent(customer.id)}`,
+          undefined,
+          "GET",
+        ),
+      );
     } catch (e) {
       notify((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
-  return (
-    <>
-      <section className="panel account-panel">
-        <div className="row-between">
-          <div>
-            <h2>Bestehende Stripe-Kunden</h2>
-            <p>
-              Eine E-Mail-Übereinstimmung ist ein Vorschlag. Bestätige jede
-              Zuordnung manuell.
-            </p>
-          </div>
-          <button
-            className="primary-button"
-            disabled={busy}
-            onClick={() => {
-              setQuery("");
-              void loadCustomers("");
-            }}
-          >
-            <RefreshCw size={17} />
-            Kunden laden
-          </button>
-        </div>
-        <form
-          className="stripe-customer-search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (query.trim().length >= 3) void loadCustomers(query.trim());
-          }}
-        >
-          <label className="search-input">
-            <Search size={18} />
-            <input
-              type="search"
-              aria-label="Eltern nach Name oder E-Mail suchen"
-              placeholder="Name oder E-Mail des Elternteils"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              maxLength={120}
-              disabled={busy}
-            />
-          </label>
-          <button
-            className="primary-button"
-            disabled={busy || query.trim().length < 3}
-          >
-            Suchen
-          </button>
-        </form>
-        <p>Suche im gesamten Stripe-Kundenbestand ab 3 Zeichen.</p>
-        <p role="status" aria-live="polite">
-          {busy
-            ? "Kunden werden geladen …"
-            : loaded
-              ? activeQuery
-                ? `${customers.length} Treffer geladen für „${activeQuery}“.`
-                : `${customers.length} Kunden geladen.`
-              : "Kunden laden oder direkt nach einem Elternteil suchen."}
+  const filtered = filterCustomers(customers, query, sort, recent);
+  const open = filtered.filter((c) => !c.assigned);
+  const assigned = filtered.filter((c) => c.assigned);
+  function customerRows(rows: RegistryCustomer[], group: "open" | "assigned") {
+    return (
+      <>
+        <p className="muted">
+          {Math.min(visible[group], rows.length)} von {rows.length} Kunden
+          angezeigt
         </p>
-        {loaded && !busy && !customers.length && (
-          <p>
-            Keine Kunden gefunden. Prüfe den Namen oder suche nach der E-Mail.
-            Ganz neue Stripe-Kunden erscheinen möglicherweise erst etwas später
-            in der Suche; verwende dafür „Kunden laden“.
-          </p>
-        )}
-
-        {customers.map((c) => (
-          <div className="account-row" key={String(c.id)}>
+        {rows.slice(0, visible[group]).map((c) => (
+          <div className="account-row" key={c.id}>
             <div>
-              <b>{String(c.name ?? c.id)}</b>
+              <b>{c.name || c.email || c.id}</b>
               <p>
-                {String(c.email ?? "Keine E-Mail")} · {String(c.id)}
+                {c.email || "Keine E-Mail"} · {c.id}
               </p>
-              <small>{JSON.stringify(c.subscriptions)}</small>
-              <Badge tone={c.ambiguous ? "purple" : "neutral"}>
-                {c.ambiguous
-                  ? "Mehrdeutiger Treffer – prüfen"
-                  : (c.family_matches as RecordRow[] | undefined)?.length === 1
-                    ? "Name und E-Mail passen zu einem Elternkonto"
-                    : "Manuelle Zuordnung erforderlich"}
-              </Badge>
+              <small>Hinzugefügt am {formatDate(c.first_seen_at)}</small>
             </div>
-            <button className="secondary-button" onClick={() => setCurrent(c)}>
-              Zuordnen
+            <button
+              className="secondary-button"
+              disabled={busy}
+              onClick={() => void selectCustomer(c)}
+            >
+              {c.assigned ? "Zuordnung ergänzen" : "Zuordnen"}
             </button>
           </div>
         ))}
-        {nextCursor && (
+        {visible[group] < rows.length && (
           <button
             className="secondary-button"
             disabled={busy}
-            onClick={() => void loadCustomers(activeQuery, nextCursor)}
+            onClick={() =>
+              setVisible((v) => ({ ...v, [group]: v[group] + 10 }))
+            }
           >
-            Weitere Kunden laden
+            10 weitere anzeigen
           </button>
         )}
+      </>
+    );
+  }
+  return (
+    <>
+      <section className="panel account-panel stripe-registry">
+        <div className="row-between">
+          <div>
+            <h2>Stripe-Zuordnung</h2>
+            <p>Neue Kunden prüfen und einem Elternkonto zuordnen.</p>
+          </div>
+          <button
+            className="primary-button"
+            disabled={busy}
+            onClick={() => void loadCustomers()}
+          >
+            <RefreshCw size={17} /> Kunden laden
+          </button>
+        </div>
+        <div className="form-grid">
+          <label>
+            Kunden suchen
+            <input
+              type="search"
+              aria-label="Eltern nach Name oder E-Mail suchen"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Name, E-Mail oder Kunden-ID"
+            />
+          </label>
+          <label>
+            Sortierung
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as CustomerSort)}
+            >
+              <option value="added-desc">Hinzugefügt: neueste zuerst</option>
+              <option value="added-asc">Hinzugefügt: älteste zuerst</option>
+              <option value="name-asc">Name: A–Z</option>
+              <option value="name-desc">Name: Z–A</option>
+            </select>
+          </label>
+        </div>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={recent}
+            onChange={(e) => setRecent(e.target.checked)}
+          />{" "}
+          In den letzten 14 Tagen erstmals erfasst
+        </label>
+        <p className="muted">
+          „Hinzugefügt am“ ist die erste belegbare Erfassung in diesem System.
+        </p>
+        <p role="status" aria-live="polite">
+          {status}
+        </p>
+        <h3>Noch nicht zugeordnet · {open.length}</h3>
+        {customerRows(open, "open")}
+        <details className="stripe-assigned">
+          <summary>Bereits zugeordnet · {assigned.length}</summary>
+          {customerRows(assigned, "assigned")}
+        </details>
       </section>
       {current && (
         <Modal
@@ -693,6 +730,11 @@ function StripeImport({
                 notify(
                   "Zuordnung gespeichert. Einladung vorgemerkt, Versand gesperrt.",
                 );
+                setCustomers((rows) =>
+                  rows.map((row) =>
+                    row.id === current.id ? { ...row, assigned: true } : row,
+                  ),
+                );
                 setCurrent(null);
               } catch (e) {
                 notify((e as Error).message);
@@ -700,6 +742,28 @@ function StripeImport({
             }}
           >
             <p>Stripe-Kunde: {String(current.id)}</p>
+            {(
+              current.subscriptions as {
+                id: string;
+                status: string;
+                items: { id: string; product: string }[];
+              }[]
+            ).map((sub) => (
+              <div className="stripe-subscription" key={sub.id}>
+                <b>{sub.status}</b> · {sub.id}
+                {sub.items.map((item) => (
+                  <p key={item.id}>
+                    {item.product}
+                    <br />
+                    <small>{item.id}</small>
+                  </p>
+                ))}
+              </div>
+            ))}
+            <p>
+              Eine Namens- oder E-Mail-Übereinstimmung ist nur ein Vorschlag.
+              Bitte die Zuordnung prüfen.
+            </p>
             <label>
               Bestehende Eltern-ID (optional)
               <input

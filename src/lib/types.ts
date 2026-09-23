@@ -72,5 +72,20 @@ export interface PortalData {
   locations: { id: string; name: string; address: string }[];
   trainers: { id: string; name: string }[];
   whatsapp: string;
+  backfills?: TrainingBackfill[];
   billing_customers?: { stripe_customer_id: string }[];
+}
+
+export interface TrainingBackfill {
+  id: string;
+  period_id: string;
+  player_id: string;
+  title: string;
+  event_type: string;
+  occurred_on: string | null;
+  duration_minutes: number;
+  parent_note: string;
+  created_at: string;
+  locations?: { name: string } | null;
+  staff_profiles?: { display_name: string } | null;
 }

@@ -1,4 +1,7 @@
 import "server-only";
+import { optionalBackfills } from "./v2-availability";
+import { backfillColumns, backfillEvent } from "../backfills";
+import type { TrainingBackfill } from "../types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceDb } from "./service-db";
 import { assertRole, HttpError } from "./security";
@@ -20,7 +23,7 @@ export async function loadStampCard(
     .maybeSingle();
   if (error) throw error;
   if (!period) throw new HttpError(404, "Leistungszeitraum nicht gefunden.");
-  const [playerResult, eventsResult] = await Promise.all([
+  const [playerResult, eventsResult, backfillsResult] = await Promise.all([
     db
       .from("players")
       .select("id,first_name,last_name,birth_year,team")
@@ -35,13 +38,25 @@ export async function loadStampCard(
       .eq("period_id", periodId)
       .eq("player_id", period.player_id)
       .limit(1000),
+    optionalBackfills(
+      db
+        .from("training_backfills")
+        .select(`${backfillColumns},training_backfill_private_notes(note)`)
+        .eq("period_id", periodId)
+        .eq("player_id", period.player_id)
+        .limit(1000),
+    ),
   ]);
   if (playerResult.error) throw playerResult.error;
   if (eventsResult.error) throw eventsResult.error;
+  if (backfillsResult.error) throw backfillsResult.error;
   if (!playerResult.data)
     throw new HttpError(404, "Kind nicht gefunden oder archiviert.");
   // Never silently export a truncated card.
-  if ((eventsResult.data?.length ?? 0) >= 1000)
+  if (
+    (eventsResult.data?.length ?? 0) >= 1000 ||
+    (backfillsResult.data?.length ?? 0) >= 1000
+  )
     throw new HttpError(
       400,
       "Zu viele Einträge für einen einzelnen Stempelkartenexport.",
@@ -65,10 +80,22 @@ export async function loadStampCard(
     }));
   return {
     playerId: period.player_id as string,
+    backfillsAvailable: backfillsResult.available,
+    privateNotes: Object.fromEntries(
+      (backfillsResult.data ?? []).map((row: any) => [
+        row.id,
+        row.training_backfill_private_notes?.note ?? "",
+      ]),
+    ),
     snapshot: stampCardSnapshot(
       playerResult.data as Player,
       period as Period,
-      events,
+      [
+        ...events,
+        ...((backfillsResult.data ?? []) as unknown as TrainingBackfill[]).map(
+          backfillEvent,
+        ),
+      ],
       new Date().toISOString(),
       process.env.WHATSAPP_NUMBER ?? "",
     ),

@@ -6,6 +6,9 @@ import {
   requireCampMailRecipient,
 } from "../src/lib/camps/notifications";
 import { mkdir, writeFile } from "node:fs/promises";
+import { backfillColumns, backfillEvent } from "../src/lib/backfills";
+import type { TrainingBackfill } from "../src/lib/types";
+import { optionalBackfills } from "../src/lib/server/v2-availability";
 import { serviceDb } from "../src/lib/server/service-db";
 import { processStripeInbox } from "../src/lib/server/stripe";
 import { processReports } from "../src/lib/server/reports";
@@ -29,6 +32,8 @@ import {
   formatTime,
   whatsappLink,
   durationMinutes,
+  durationLabel,
+  periodLabel,
   type Attendance,
 } from "../src/lib/domain";
 export const captureProvider = new CaptureProvider(async (mail) => {
@@ -60,7 +65,27 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
     text = "",
     url = app,
     attachments: Email["attachments"];
-  if (kind === "stamp_card") {
+  const actions: { label: string; url: string }[] = [];
+  if (kind === "training_backfill") {
+    const { data: links, error } = await db
+      .from("parent_players")
+      .select("parents!inner(id,contact_email,archived_at)")
+      .eq("player_id", payload.player_id)
+      .eq("parent_id", payload.parent_id)
+      .is("parents.archived_at", null);
+    if (error) throw error;
+    const parent = links?.[0]?.parents as unknown as
+      { contact_email: string } | undefined;
+    if (!parent || parent.contact_email !== job.recipient)
+      throw new Error(
+        "Empfängerzuordnung der Nachtragung hat sich geändert; Versand prüfen.",
+      );
+    subject = `Eine Einheit wurde nachgetragen: ${payload.player_name}`;
+    const contact = `https://wa.me/${(process.env.WHATSAPP_NUMBER ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(`Hallo ProAcademy-Team, ich habe eine Frage zur Nachtragung für ${payload.player_name}. Nachtrags-ID: ${payload.backfill_id}.`)}`;
+    text = `Hallo,\neine Einheit für ${payload.player_name} wurde nachgetragen.\nLeistungszeitraum: ${periodLabel(payload.period_starts_at, payload.period_ends_at)}.\n${payload.occurred_on ? `Trainingsdatum: ${formatDate(`${payload.occurred_on}T12:00:00Z`)}.` : "Trainingsdatum nicht angegeben."}\nTrainingsdauer: ${durationLabel(Number(payload.duration_minutes))}.\nNotiz des Teams:\n${payload.parent_note}\nDie aktualisierte Stempelkarte findest du im Elternportal.${payload.snapshot_id ? " Eine neue Berichtsversion wurde vorgemerkt und wird nach der PDF-Erstellung verfügbar." : ""}\nFragen oder Unstimmigkeiten? Kontaktiere uns per WhatsApp:\n${contact}`;
+    url = `${app}/stempelkarte`;
+    actions.push({ label: "Frage zur Nachtragung per WhatsApp", url: contact });
+  } else if (kind === "stamp_card") {
     // Recheck recipient linkage at delivery time; never send a queued card to a removed parent.
     const { data: links, error } = await db
       .from("parent_players")
@@ -77,7 +102,7 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
       );
     const snapshot = (job.payload as { snapshot: ReportSnapshot }).snapshot;
     subject = `Stempelkarte für ${snapshot.player_name}`;
-    text = `Hallo,\nim Anhang findest du die Stempelkarte für ${snapshot.player_name}.\nDatenstand: ${formatDate(snapshot.created_at)}, ${formatTime(snapshot.created_at)} Uhr. Die Übersicht enthält absolvierte und geplante Einheiten für den angegebenen Leistungszeitraum.\nDies ist eine aktuelle Stempelkarte; bestehende Monatsberichte bleiben unverändert.`;
+    text = `Hallo,\nim Anhang findest du die Stempelkarte für ${snapshot.player_name}.\nDatenstand: ${formatDate(snapshot.created_at)}, ${formatTime(snapshot.created_at)} Uhr. Die Übersicht enthält absolvierte, nachgetragene und geplante Einheiten für den angegebenen Leistungszeitraum.\nDies ist eine aktuelle Stempelkarte; bestehende Berichtsversionen bleiben erhalten.`;
     url = `${app}/stempelkarte`;
     attachments = [
       {
@@ -122,6 +147,13 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
         .from("event_participants")
         .select("*,training_events(starts_at,ends_at,event_type)")
         .eq("period_id", payload.period_id),
+      optionalBackfills(
+        db
+          .from("training_backfills")
+          .select(backfillColumns)
+          .eq("period_id", payload.period_id)
+          .limit(1000),
+      ),
     ]);
     for (const r of results) if (r.error) throw r.error;
     const player = results[0].data!,
@@ -138,12 +170,14 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
         event_type: string;
       };
     }[];
-    const stats = attendanceStats(
-      participation.map((p) => ({ ...p.training_events, status: p.status })),
-    );
-    const split = disciplineStats(
-      participation.map((p) => ({ ...p.training_events, status: p.status })),
-    );
+    const counted = [
+      ...participation.map((p) => ({ ...p.training_events, status: p.status })),
+      ...((results[4].data ?? []) as unknown as TrainingBackfill[]).map(
+        backfillEvent,
+      ),
+    ];
+    const stats = attendanceStats(counted);
+    const split = disciplineStats(counted);
     const progress =
       period.athletics_units > 0
         ? `Fußball: ${split.football.completed} von ${period.included_units - period.athletics_units}; Athletik: ${split.athletics.completed} von ${period.athletics_units} Einheiten`
@@ -185,7 +219,7 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
     to,
     subject,
     text,
-    html: htmlEmail(subject, text, url),
+    html: htmlEmail(subject, text, url, actions),
     messageId: `<${job.id}@proacademy-portal.local>`,
     attachments,
   };

@@ -41,6 +41,10 @@ export interface ReportSnapshot {
     status: Attendance;
     location_name?: string;
     trainer_name?: string;
+    retrospective?: boolean;
+    occurred_on?: string | null;
+    duration_minutes?: number;
+    parent_note?: string;
   }[];
 }
 const dark = rgb(0.043, 0.059, 0.102),
@@ -48,6 +52,7 @@ const dark = rgb(0.043, 0.059, 0.102),
   muted = rgb(0.46, 0.49, 0.54),
   purple = rgb(0.545, 0.325, 0.996);
 const red = rgb(0.75, 0.14, 0.2);
+const amber = rgb(0.965, 0.722, 0.247);
 export async function renderReport(
   snapshot: ReportSnapshot,
   mode: "report" | "stamp_card" = "report",
@@ -172,6 +177,7 @@ export async function renderReport(
             units: snapshot.included_units - athletics,
             completed: split.football.completed,
             charged: split.football.charged,
+            retrospective: split.football.retrospective,
             planned: split.football.planned,
           },
           {
@@ -179,6 +185,7 @@ export async function renderReport(
             units: athletics,
             completed: split.athletics.completed,
             charged: split.athletics.charged,
+            retrospective: split.athletics.retrospective,
             planned: split.athletics.planned,
           },
         ]
@@ -188,6 +195,7 @@ export async function renderReport(
             units: snapshot.included_units,
             completed: snapshot.completed,
             charged: attendanceStats(countedEvents).charged,
+            retrospective: attendanceStats(countedEvents).retrospective,
             planned: attendanceStats(snapshot.events).planned,
           },
         ];
@@ -214,6 +222,10 @@ export async function renderReport(
       const x = 60 + (i % 8) * 64,
         done = i < group.completed,
         charged = done && i >= group.completed - group.charged,
+        retrospective =
+          done &&
+          !charged &&
+          i >= group.completed - group.charged - group.retrospective,
         planned = card && !done && i < group.completed + group.planned;
       page.drawCircle({
         x,
@@ -221,18 +233,22 @@ export async function renderReport(
         size: 19,
         color: charged
           ? red
-          : done
-            ? lime
-            : planned
-              ? purple
-              : rgb(0.96, 0.95, 0.98),
+          : retrospective
+            ? amber
+            : done
+              ? lime
+              : planned
+                ? purple
+                : rgb(0.96, 0.95, 0.98),
         borderColor: charged
           ? red
-          : done
-            ? lime
-            : planned
-              ? purple
-              : rgb(0.86, 0.84, 0.9),
+          : retrospective
+            ? amber
+            : done
+              ? lime
+              : planned
+                ? purple
+                : rgb(0.86, 0.84, 0.9),
         borderWidth: 1,
       });
       text(
@@ -253,7 +269,7 @@ export async function renderReport(
     }
     text(
       chargedPolicy
-        ? "OK grün = teilgenommen   OK rot = Absage / nicht erschienen"
+        ? "OK grün = teilgenommen   OK orange = nachgetragen   OK rot = Absage"
         : "OK = absolviert   PLAN = geplant   Zahl = noch offen",
       40,
       y,
@@ -280,15 +296,18 @@ export async function renderReport(
       color: rgb(0.9, 0.91, 0.93),
     });
     text(
-      `${formatDate(event.starts_at)}  ${formatTime(event.starts_at)} - ${formatTime(event.ends_at)}`,
+      event.retrospective
+        ? `${event.occurred_on ? formatDate(`${event.occurred_on}T12:00:00Z`) : "Datum nicht angegeben"} · ${event.duration_minutes} Minuten`
+        : `${formatDate(event.starts_at)}  ${formatTime(event.starts_at)} - ${formatTime(event.ends_at)}`,
       40,
       y - 6,
       10,
       bold,
     );
-    const label =
-      event.status === "planned" &&
-      new Date(event.ends_at) <= new Date(snapshot.created_at)
+    const label = event.retrospective
+      ? "Nachgetragen"
+      : event.status === "planned" &&
+          new Date(event.ends_at) <= new Date(snapshot.created_at)
         ? "Prüfung ausstehend"
         : STATUS_LABELS[event.status];
     text(
@@ -297,11 +316,13 @@ export async function renderReport(
       y - 6,
       10,
       regular,
-      chargedPolicy && isChargedAbsence(event.status)
-        ? red
-        : isAttended(event.status)
-          ? rgb(0.32, 0.5, 0.17)
-          : purple,
+      event.retrospective
+        ? rgb(0.55, 0.32, 0.03)
+        : chargedPolicy && isChargedAbsence(event.status)
+          ? red
+          : isAttended(event.status)
+            ? rgb(0.32, 0.5, 0.17)
+            : purple,
     );
     let title = clean(
       `${event.event_type === "Athletiktraining" ? "Athletik · " : ""}${event.title}`,
@@ -310,6 +331,32 @@ export async function renderReport(
       title = title.slice(0, -2);
     text(title, 40, y - 23, 9, regular, muted);
     y -= 38;
+    if (event.retrospective && event.parent_note) {
+      // Wrap every character, including long unbroken notes, across pages.
+      let line = "";
+      const flush = () => {
+        if (y < 80) {
+          footer();
+          nextPage();
+        }
+        text(line, 40, y, 9, regular, muted);
+        y -= 14;
+        line = "";
+      };
+      for (const char of `Elternnotiz: ${event.parent_note}`.replace(
+        /\r/g,
+        "",
+      )) {
+        if (char === "\n") {
+          flush();
+          continue;
+        }
+        if (regular.widthOfTextAtSize(line + clean(char), 9) > 510) flush();
+        line += clean(char);
+      }
+      if (line) flush();
+      y -= 12;
+    }
   }
   const excused = snapshot.events.filter((event) => event.status === "excused");
   if (chargedPolicy && excused.length) {

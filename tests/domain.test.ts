@@ -73,6 +73,7 @@ it("counts absences as units but never as attended minutes", () => {
   expect(attendanceStats(rows)).toEqual({
     completed: 4,
     charged: 2,
+    retrospective: 0,
     planned: 1,
     minutes: 180,
     neutral: 1,
