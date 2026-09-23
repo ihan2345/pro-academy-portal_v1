@@ -1,96 +1,76 @@
 import { test, expect } from "@playwright/test";
 import { login } from "./local-test";
-test.beforeEach(async ({page}) => { await login(page, "admin"); });
 
-test("Stripe customers: older pages, global name search and fresh search cursors", async ({
+test.beforeEach(async ({ page }) => {
+  await login(page, "admin");
+});
+
+test("Stripe registry: complete ten-row batches, global sorting and first-seen filtering", async ({
   page,
   isMobile,
 }) => {
-  const calls: { q: string | null; after: string | null }[] = [];
-  const customer = (id: string, name: string) => ({
-    id,
-    name,
-    email: `${id}@example.com`,
-    subscriptions: [],
-    ambiguous: false,
-  });
+  const rows = Array.from({ length: 27 }, (_, i) => ({
+    id: `cus_${String(i).padStart(2, "0")}`,
+    name: `Familie ${String(i).padStart(2, "0")}`,
+    email: `family${i}@example.invalid`,
+    assigned: i >= 23,
+    first_seen_at: new Date(Date.now() - i * 86400000).toISOString(),
+  }));
+  const calls: (string | null)[] = [];
   await page.route("**/api/admin/stripe-customers*", async (route) => {
-    const params = new URL(route.request().url()).searchParams;
-    const q = params.get("q"),
-      after = params.get("after");
-    calls.push({ q, after });
-    const result =
-      q === "Ayhan"
-        ? after
-          ? { rows: [customer("cus_ayhan2", "Kaan Ayhan")], has_more: false }
-          : {
-              rows: [customer("cus_ayhan1", "Muhsin Ayhan")],
-              has_more: true,
-              next_cursor: "search_next",
-            }
-        : q
-          ? { rows: [], has_more: false }
-          : after
-            ? { rows: [customer("cus_old", "Ältere Familie")], has_more: false }
-            : {
-                rows: [customer("cus_new", "Neue Familie")],
-                has_more: true,
-                next_cursor: "cus_new",
-              };
-    await route.fulfill({ json: result });
+    if (route.request().method() === "POST") {
+      const after = route.request().postDataJSON().after ?? null;
+      calls.push(after);
+      await route.fulfill({
+        json: { count: after ? 7 : 20, next_cursor: after ? null : "cus_19" },
+      });
+    } else await route.fulfill({ json: { rows } });
+  });
+  await page.route("**/api/admin/stripe-customer-detail*", async (route) => {
+    const id = new URL(route.request().url()).searchParams.get("id");
+    await route.fulfill({
+      json: {
+        ...rows.find((r) => r.id === id),
+        family_matches: [],
+        subscriptions: [],
+      },
+    });
   });
   await page.goto("/admin/stripe");
   await page.getByRole("button", { name: "Kunden laden", exact: true }).click();
-  await expect(page.getByText("Neue Familie", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Weitere Kunden laden" }).click();
-  await expect(page.getByText("Ältere Familie", { exact: true })).toBeVisible();
-  await expect(page.getByText("Neue Familie", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Bestand vollständig geladen/)).toBeVisible();
+  expect(calls).toEqual([null, "cus_19"]);
+  await expect(page.locator(".account-row:visible")).toHaveCount(10);
+  await page.getByRole("button", { name: "10 weitere anzeigen" }).click();
+  await expect(page.locator(".account-row:visible")).toHaveCount(20);
+  await page.getByRole("button", { name: "10 weitere anzeigen" }).click();
+  await expect(page.locator(".account-row:visible")).toHaveCount(23);
+  expect(
+    new Set(await page.locator(".account-row:visible b").allTextContents())
+      .size,
+  ).toBe(23);
+  await page.getByLabel("Sortierung").selectOption("name-desc");
+  await expect(page.locator(".account-row:visible b").first()).toHaveText(
+    "Familie 22",
+  );
+  await page.getByRole("searchbox").fill("Familie 21");
+  await expect(page.locator(".account-row:visible")).toHaveCount(1);
+  await page.getByRole("button", { name: "Zuordnen", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Weitere Kunden laden" }),
-  ).toHaveCount(0);
-
-  const search = page.getByRole("searchbox", {
-    name: "Eltern nach Name oder E-Mail suchen",
-  });
-  await search.fill("Ayhan");
-  await search.press("Enter");
-  await expect(page.getByText("Muhsin Ayhan", { exact: true })).toBeVisible();
-  await expect(page.getByText("Neue Familie", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Weitere Kunden laden" }).click();
-  await expect(page.getByText("Kaan Ayhan", { exact: true })).toBeVisible();
-  await expect(page.getByText("Muhsin Ayhan", { exact: true })).toBeVisible();
+    page.getByLabel("Name des Elternteils", { exact: true }),
+  ).toHaveValue("Familie 21");
+  await page.getByRole("button", { name: "Dialog schließen" }).click();
+  await page.getByRole("searchbox").fill("");
+  await page.getByText("Bereits zugeordnet · 4").click();
+  await expect(
+    page.locator(".stripe-assigned .account-row:visible"),
+  ).toHaveCount(4);
+  await page.getByLabel("In den letzten 14 Tagen erstmals erfasst").check();
+  await expect(page.locator(".stripe-assigned .account-row")).toHaveCount(0);
   if (isMobile)
     expect(
       await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth,
+        () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
-  await page.screenshot({
-    path: `test-results/stripe-search-${isMobile ? "mobile" : "desktop"}.png`,
-    fullPage: true,
-  });
-  await page
-    .getByRole("button", { name: "Zuordnen", exact: true })
-    .first()
-    .click();
-  await expect(
-    page.getByLabel("Name des Elternteils", { exact: true }),
-  ).toHaveValue("Muhsin Ayhan");
-  await page.getByRole("button", { name: "Dialog schließen" }).click();
-
-  await search.fill("Unbekannt");
-  await page.getByRole("button", { name: "Suchen", exact: true }).click();
-  await expect(page.getByText(/Keine Kunden gefunden/)).toBeVisible();
-  await expect(page.getByText("Kaan Ayhan", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Kunden laden", exact: true }).click();
-  await expect(search).toHaveValue("");
-  await expect(page.getByText("Neue Familie", { exact: true })).toBeVisible();
-  expect(calls).toEqual([
-    { q: null, after: null },
-    { q: null, after: "cus_new" },
-    { q: "Ayhan", after: null },
-    { q: "Ayhan", after: "search_next" },
-    { q: "Unbekannt", after: null },
-    { q: null, after: null },
-  ]);
 });

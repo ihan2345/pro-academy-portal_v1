@@ -140,16 +140,27 @@ export function durationLabel(minutes: number) {
   return `${Math.floor(minutes / 60)} Std. ${minutes % 60} Min.`;
 }
 export function attendanceStats(
-  rows: { status: Attendance; starts_at: string; ends_at: string }[],
+  rows: {
+    status: Attendance;
+    starts_at: string;
+    ends_at: string;
+    retrospective?: boolean;
+    duration_minutes?: number;
+  }[],
 ) {
   const completed = rows.filter((row) => isAttended(row.status));
   const charged = rows.filter((row) => isChargedAbsence(row.status)).length;
   return {
     completed: completed.length + charged,
     charged,
+    retrospective: completed.filter((row) => row.retrospective).length,
     planned: rows.filter((row) => row.status === "planned").length,
     minutes: completed.reduce(
-      (n, row) => n + durationMinutes(row.starts_at, row.ends_at),
+      (n, row) =>
+        n +
+        (row.retrospective
+          ? (row.duration_minutes ?? 0)
+          : durationMinutes(row.starts_at, row.ends_at)),
       0,
     ),
     neutral: rows.filter((row) => row.status === "excused").length,
@@ -160,15 +171,18 @@ export function stampSlots(
   completed: number,
   planned: number,
   charged = 0,
-): ("done" | "charged" | "planned" | "open")[] {
+  retrospective = 0,
+): ("done" | "retrospective" | "charged" | "planned" | "open")[] {
   return Array.from({ length: units }, (_, i) =>
-    i < completed - charged
+    i < completed - charged - retrospective
       ? "done"
-      : i < completed
-        ? "charged"
-        : i < completed + planned
-          ? "planned"
-          : "open",
+      : i < completed - charged
+        ? "retrospective"
+        : i < completed
+          ? "charged"
+          : i < completed + planned
+            ? "planned"
+            : "open",
   );
 }
 export function reportDueAt(
@@ -216,6 +230,8 @@ export function disciplineStats(
     starts_at: string;
     ends_at: string;
     event_type?: string;
+    retrospective?: boolean;
+    duration_minutes?: number;
   }[],
 ) {
   return {

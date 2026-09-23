@@ -12,6 +12,7 @@ import {
 } from "@/lib/server/security";
 import {
   trainingSchema,
+  backfillSchema,
   attendanceSchema,
   cancelSchema,
   adminSchemas,
@@ -24,11 +25,15 @@ import {
   syncSubscription,
   syncInvoicePeriods,
 } from "@/lib/server/stripe";
-import { renderReport } from "@/lib/pdf";
 import {
-  stripeCustomerPage,
-  subscriptionPreviewLoader,
-} from "@/lib/server/stripe-preview";
+  isV2Unavailable,
+  V2_UNAVAILABLE,
+  isBackfillExecutionDenied,
+  BACKFILLS_LOCKED,
+} from "@/lib/server/v2-availability";
+import { readAll } from "@/lib/server/read-all";
+import { renderReport } from "@/lib/pdf";
+import { subscriptionPreviewLoader } from "@/lib/server/stripe-preview";
 import {
   sameFamilyContact,
   selectBillingCustomer,
@@ -228,6 +233,8 @@ async function handler(
         }
         return json({
           snapshot: card.snapshot,
+          privateNotes: card.privateNotes,
+          backfillsAvailable: card.backfillsAvailable,
           recipients: await stampCardRecipients(role, card.playerId),
           testRecipient:
             process.env.EMAIL_TEST_MODE !== "false"
@@ -259,7 +266,12 @@ async function handler(
       if (request.method !== "POST")
         throw new HttpError(405, "Methode nicht erlaubt.");
       let result;
-      if (path === "team/events") {
+      if (path === "team/backfills") {
+        result = await db.rpc("save_training_backfill", {
+          input: backfillSchema.parse(await request.json()),
+          contact_number: process.env.WHATSAPP_NUMBER ?? "",
+        });
+      } else if (path === "team/events") {
         result = await db.rpc("save_training", {
           input: trainingSchema.parse(await request.json()),
         });
@@ -278,59 +290,99 @@ async function handler(
           cancellation_reason: input.reason,
         });
       } else throw new HttpError(404, "Nicht gefunden.");
-      if (result.error) throw new HttpError(400, result.error.message);
+      if (result.error) {
+        if (
+          path === "team/backfills" &&
+          isBackfillExecutionDenied(result.error)
+        )
+          throw new HttpError(503, BACKFILLS_LOCKED);
+        if (isV2Unavailable(result.error))
+          throw new HttpError(503, V2_UNAVAILABLE);
+        throw new HttpError(400, result.error.message);
+      }
       return json({ ok: true, id: result.data });
     }
     if (path.startsWith("admin/")) {
       assertRole(role, "admin");
       const action = path.slice(6);
+      if (action === "stripe-customers-sync" && request.method === "POST") {
+        // Verify local schema before fetching Stripe or recording observations.
+        const registry = await db
+          .from("stripe_customer_registry")
+          .select("id")
+          .limit(1);
+        if (registry.error) throw registry.error;
+        const { after } = z
+          .object({ after: z.string().startsWith("cus_").max(255).optional() })
+          .parse(await request.json());
+        const page = await stripeClient().customers.list({
+          limit: 100,
+          ...(after ? { starting_after: after } : {}),
+        });
+        if (page.has_more && !page.data.length)
+          throw new HttpError(
+            502,
+            "Unvollständige Stripe-Antwort. Bitte erneut laden.",
+          );
+        const result = await serviceDb().rpc("observe_stripe_customers", {
+          customers: page.data.map((c) => ({
+            id: c.id,
+            name: c.name,
+            email: c.email,
+          })),
+        });
+        if (result.error) throw result.error;
+        return json({
+          count: page.data.length,
+          next_cursor: page.has_more ? page.data.at(-1)!.id : null,
+        });
+      }
       if (request.method === "GET") {
         if (action === "stripe-customers") {
-          const stripe = stripeClient();
-          const loadSubscriptions = subscriptionPreviewLoader(stripe);
-          const { q, after } = z
-            .object({
-              q: z
-                .string()
-                .trim()
-                .max(120)
-                .refine(
-                  (value) => !value || value.length >= 3,
-                  "Bitte mindestens 3 Zeichen eingeben.",
-                ),
-              after: z.string().min(1).max(1000).optional(),
-            })
-            .parse({
-              q: request.nextUrl.searchParams.get("q") ?? "",
-              after: request.nextUrl.searchParams.get("after") ?? undefined,
-            });
-          const page = await stripeCustomerPage(stripe, q, after);
-          const rows = await Promise.all(
-            page.data.map(async (c) => {
-              const { data: parents, error } = await db
-                .from("parents")
-                .select("id,full_name,contact_email")
-                .ilike("contact_email", c.email ?? "");
-              if (error) throw error;
-              const subscriptions = await loadSubscriptions(c.id);
-              const matches = (parents ?? []).filter((p) =>
-                sameFamilyContact(p, c),
-              );
-              return {
-                id: c.id,
-                name: c.name,
-                email: c.email,
-                suggestions: parents,
-                family_matches: matches,
-                ambiguous: matches.length > 1,
-                subscriptions,
-              };
-            }),
+          const [customers, links] = await Promise.all([
+            readAll(
+              db,
+              "stripe_customer_registry",
+              "id,name,email,first_seen_at",
+            ),
+            readAll(db, "parent_stripe_customers", "id,stripe_customer_id"),
+          ]);
+          const assigned = new Set(
+            links.map((link) => link.stripe_customer_id),
           );
           return json({
-            rows,
-            has_more: page.has_more,
-            next_cursor: page.next_cursor,
+            rows: customers.map((c) => ({
+              ...c,
+              assigned: assigned.has(c.id),
+            })),
+          });
+        }
+        if (action === "stripe-customer-detail") {
+          const id = z
+            .string()
+            .startsWith("cus_")
+            .max(255)
+            .parse(request.nextUrl.searchParams.get("id"));
+          const stripe = stripeClient();
+          const c = await stripe.customers.retrieve(id);
+          if (c.deleted)
+            throw new HttpError(404, "Dieser Stripe-Kunde wurde gelöscht.");
+          const { data: parents, error } = await db
+            .from("parents")
+            .select("id,full_name,contact_email")
+            .ilike("contact_email", c.email ?? "")
+            .is("archived_at", null);
+          if (error) throw error;
+          const matches = (parents ?? []).filter((p) =>
+            sameFamilyContact(p, c),
+          );
+          return json({
+            id: c.id,
+            name: c.name,
+            email: c.email,
+            family_matches: matches,
+            ambiguous: matches.length > 1,
+            subscriptions: await subscriptionPreviewLoader(stripe)(c.id),
           });
         }
         const table = action === "einladungen" ? "parent_invitations" : action;
@@ -483,6 +535,7 @@ async function handler(
     }
     throw new HttpError(404, "Nicht gefunden.");
   } catch (error) {
+    if (isV2Unavailable(error)) return json({ error: V2_UNAVAILABLE }, 503);
     if (error instanceof HttpError)
       return json({ error: error.message }, error.status);
     if (error instanceof z.ZodError)

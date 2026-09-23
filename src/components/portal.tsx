@@ -71,7 +71,8 @@ export function Brand() {
     </div>
   );
 }
-import { ExcusedNotes } from "./attendance-notes";
+import { backfillEvent } from "@/lib/backfills";
+import { BackfillNotes, ExcusedNotes } from "./attendance-notes";
 
 export function Badge({
   children,
@@ -154,10 +155,15 @@ export function Portal({
       (p) => p.player_id === player?.id && p.period_id === period?.id,
     ),
   );
-  const rows = currentEvents.map((e) => ({
-    ...e,
-    status: e.participants.find((p) => p.player_id === player?.id)!.status,
-  }));
+  const rows = [
+    ...currentEvents.map((e) => ({
+      ...e,
+      status: e.participants.find((p) => p.player_id === player?.id)!.status,
+    })),
+    ...(data.backfills ?? [])
+      .filter((b) => b.period_id === period?.id && b.player_id === player?.id)
+      .map(backfillEvent),
+  ];
   const stats = attendanceStats(rows);
   const splitStats = disciplineStats(rows);
   const upcoming = events
@@ -585,11 +591,13 @@ export function Portal({
                           period={period}
                           completed={stats.completed}
                           charged={stats.charged}
+                          retrospective={stats.retrospective}
                           planned={stats.planned}
                           splitStats={splitStats}
                         />
                         <StampLegend />
                         <ExcusedNotes events={rows} />
+                        <BackfillNotes events={rows} />
                         <div className="panel-bottom">
                           <span>
                             {stats.neutral > 0
@@ -670,11 +678,13 @@ export function Portal({
                         period={period}
                         completed={stats.completed}
                         charged={stats.charged}
+                        retrospective={stats.retrospective}
                         planned={stats.planned}
                         splitStats={splitStats}
                       />
                       <StampLegend />
                       <ExcusedNotes events={rows} />
+                      <BackfillNotes events={rows} />
                       <p>
                         {stats.completed} von {period?.included_units ?? 0}{" "}
                         Einheiten angerechnet · {durationLabel(stats.minutes)}
@@ -971,11 +981,15 @@ export function Stamps({
   planned,
   splitStats,
   charged = 0,
+  retrospective = 0,
+  onOpenStamp,
 }: {
   period?: Period;
   completed: number;
   planned: number;
   charged?: number;
+  retrospective?: number;
+  onOpenStamp?: (discipline: "football" | "athletics") => void;
   splitStats?: ReturnType<typeof disciplineStats>;
 }) {
   if ((period?.athletics_units ?? 0) > 0 && splitStats) {
@@ -1001,7 +1015,11 @@ export function Stamps({
                 }}
                 completed={stats.completed}
                 charged={stats.charged}
+                retrospective={stats.retrospective}
                 planned={stats.planned}
+                onOpenStamp={
+                  onOpenStamp ? () => onOpenStamp(discipline) : undefined
+                }
               />
               {stats.completed > units && (
                 <p>Zusätzlich angerechnet: {stats.completed - units}</p>
@@ -1014,27 +1032,41 @@ export function Stamps({
   }
   return (
     <div className="stamps">
-      {stampSlots(period?.included_units ?? 0, completed, planned, charged).map(
-        (state, i) => (
-          <div className="stamp-item" key={i}>
-            <div
-              className={`stamp ${state}`}
-              aria-label={`Einheit ${i + 1}: ${state === "done" ? "absolviert" : state === "charged" ? "angerechnet, abgesagt oder nicht erschienen" : state === "planned" ? "geplant" : "offen"}`}
-            >
-              {state === "charged" ? (
-                <span>OK</span>
-              ) : state === "done" ? (
-                <Check size={25} strokeWidth={2.6} />
-              ) : state === "planned" ? (
-                <Clock size={23} />
-              ) : (
+      {stampSlots(
+        period?.included_units ?? 0,
+        completed,
+        planned,
+        charged,
+        retrospective,
+      ).map((state, i) => (
+        <div className="stamp-item" key={i}>
+          <div
+            className={`stamp ${state}`}
+            aria-label={`Einheit ${i + 1}: ${state === "done" ? "absolviert" : state === "retrospective" ? "nachgetragen" : state === "charged" ? "angerechnet, abgesagt oder nicht erschienen" : state === "planned" ? "geplant" : "offen"}`}
+          >
+            {state === "charged" || state === "retrospective" ? (
+              <span>OK</span>
+            ) : state === "done" ? (
+              <Check size={25} strokeWidth={2.6} />
+            ) : state === "planned" ? (
+              <Clock size={23} />
+            ) : onOpenStamp ? (
+              <button
+                type="button"
+                className="stamp-add"
+                aria-label={`Einheit ${i + 1} nachtragen`}
+                onClick={() => onOpenStamp("football")}
+              >
                 <span>{String(i + 1).padStart(2, "0")}</span>
-              )}
-            </div>
-            <small>Einheit {i + 1}</small>
+                <small>Nachtragen</small>
+              </button>
+            ) : (
+              <span>{String(i + 1).padStart(2, "0")}</span>
+            )}
           </div>
-        ),
-      )}
+          <small>Einheit {i + 1}</small>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1044,6 +1076,10 @@ export function StampLegend() {
       <span>
         <i className="legend-dot lime" />
         Absolviert
+      </span>
+      <span>
+        <i className="legend-dot amber" />
+        Nachgetragen (OK)
       </span>
       <span>
         <i className="legend-dot red" />

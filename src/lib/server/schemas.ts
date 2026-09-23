@@ -103,3 +103,24 @@ export const importSchema = z.object({
   email: z.email(),
   player_id: id,
 });
+
+export const backfillSchema = z
+  .object({
+    request_id: id,
+    period_id: id,
+    title: z.string().trim().max(120).default(""),
+    event_type: z.enum([
+      "Gruppentraining",
+      "Einzeltraining",
+      "Fördertraining",
+      "Athletiktraining",
+    ]),
+    occurred_on: z.iso.date().nullable().default(null),
+    duration_minutes: z.number().int().min(1).max(720),
+    parent_note: z.string().trim().min(3).max(2000),
+    internal_note: z.string().max(2000).default(""),
+    location_id: id.nullable().default(null),
+    trainer_id: id.nullable().default(null),
+    notify_parents: z.boolean().default(false),
+  })
+  .strict();

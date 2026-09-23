@@ -39,3 +39,36 @@ export function ExcusedNotes({ events }: { events: ReportSnapshot["events"] }) {
     </section>
   );
 }
+
+export function BackfillNotes({
+  events,
+}: {
+  events: ReportSnapshot["events"];
+}) {
+  const rows = events.filter((event) => event.retrospective);
+  if (!rows.length) return null;
+  return (
+    <section className="backfill-notes" aria-label="Nachgetragene Trainings">
+      <h3>
+        Nachgetragen · {rows.length}{" "}
+        {rows.length === 1 ? "Einheit" : "Einheiten"}
+      </h3>
+      <ul>
+        {rows.map((event) => (
+          <li key={event.id}>
+            <strong>
+              {event.title} · {event.duration_minutes} Minuten
+            </strong>
+            <span>
+              {event.occurred_on
+                ? formatDate(`${event.occurred_on}T12:00:00Z`)
+                : "Trainingsdatum nicht angegeben"}{" "}
+              · {event.event_type}
+            </span>
+            <span className="preserve-lines">{event.parent_note}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

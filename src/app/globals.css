@@ -2601,26 +2601,82 @@ label {
   color: var(--muted);
 }
 
-.stamp-card-filters, .stamp-card-mail { padding: 24px; margin-bottom: 24px; }
-.stamp-card-filters > label { display: block; margin-bottom: 16px; }
-.stamp-card-mail label { display: block; margin: 16px 0; }
-.stamp-card-mail select, .stamp-card-filters select, .stamp-card-filters input { width: 100%; min-width: 0; }
+.stamp-card-filters,
+.stamp-card-mail {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.stamp-card-filters > label {
+  display: block;
+  margin-bottom: 16px;
+}
+.stamp-card-mail label {
+  display: block;
+  margin: 16px 0;
+}
+.stamp-card-mail select,
+.stamp-card-filters select,
+.stamp-card-filters input {
+  width: 100%;
+  min-width: 0;
+}
 
-.staff-stamp-card { margin-bottom: 24px; }
-.staff-stamp-card > .secondary-button { margin: 18px 25px 0; }
-.stamp-card-table { width: 100%; border-collapse: collapse; text-align: left; }
-.stamp-card-table th { color: #858094; font-size: 12px; font-weight: 500; background: #fcfcfd; }
-.stamp-card-table th, .stamp-card-table td { padding: 16px 24px; border-top: 1px solid #eff0f4; }
-.stamp-card-table td { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
-.stamp-card-table td small { color: #858094; }
+.staff-stamp-card {
+  margin-bottom: 24px;
+}
+.staff-stamp-card > .secondary-button {
+  margin: 18px 25px 0;
+}
+.stamp-card-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.stamp-card-table th {
+  color: #858094;
+  font-size: 12px;
+  font-weight: 500;
+  background: #fcfcfd;
+}
+.stamp-card-table th,
+.stamp-card-table td {
+  padding: 16px 24px;
+  border-top: 1px solid #eff0f4;
+}
+.stamp-card-table td {
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.stamp-card-table td small {
+  color: #858094;
+}
 @media (max-width: 600px) {
-  .stamp-card-filters .form-grid { grid-template-columns: 1fr; }
-  .stamp-card-table thead { display: none; }
-  .stamp-card-table tbody, .stamp-card-table tr, .stamp-card-table td { display: block; }
-  .stamp-card-table tr { padding: 16px 24px; border-top: 1px solid #eff0f4; }
-  .stamp-card-table td { padding: 2px 0; border: 0; }
-  .stamp-card-table td:first-child { font-weight: 600; }
-  .stamp-card-table td:last-child { color: #7650b9; }
+  .stamp-card-filters .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .stamp-card-table thead {
+    display: none;
+  }
+  .stamp-card-table tbody,
+  .stamp-card-table tr,
+  .stamp-card-table td {
+    display: block;
+  }
+  .stamp-card-table tr {
+    padding: 16px 24px;
+    border-top: 1px solid #eff0f4;
+  }
+  .stamp-card-table td {
+    padding: 2px 0;
+    border: 0;
+  }
+  .stamp-card-table td:first-child {
+    font-weight: 600;
+  }
+  .stamp-card-table td:last-child {
+    color: #7650b9;
+  }
 }
 
 /* Charged absences consume a unit, without adding attended training time. */
@@ -2666,4 +2722,127 @@ label {
   display: block;
   font-size: 14px;
   margin-top: 4px;
+}
+
+/* V2: explicitly distinguish manual backfills from ordinary attendance. */
+.stamp.retrospective {
+  background: #f6b83f;
+  border-color: #d18a10;
+  color: #412a00;
+}
+.stamp.retrospective span {
+  font-weight: 800;
+  font-size: 17px;
+}
+.legend-dot.amber {
+  background: #f6b83f;
+}
+.stamp-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.stamp-add small {
+  font-size: 9px;
+  margin-top: 3px;
+}
+.stamp-add:hover,
+.stamp-add:focus-visible {
+  background: #fff0cf;
+  outline: 2px solid #d18a10;
+}
+.backfill-fields {
+  display: grid;
+  gap: 18px;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.backfill-fields details .form-grid {
+  margin-top: 16px;
+}
+.backfill-notes {
+  margin-top: 20px;
+  padding: 18px;
+  background: #fff7e5;
+  border-left: 4px solid #e5a425;
+  border-radius: 8px;
+}
+.backfill-notes ul {
+  padding-left: 20px;
+}
+.backfill-notes li {
+  margin: 12px 0;
+}
+.backfill-notes li span {
+  display: block;
+  margin-top: 5px;
+}
+.preserve-lines {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.stripe-assigned {
+  border-top: 1px solid var(--border, #e3e5e8);
+  margin-top: 28px;
+  padding-top: 20px;
+}
+.stripe-assigned summary,
+.backfill-fields summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.stripe-registry .form-grid {
+  margin: 20px 0;
+}
+.stripe-subscription {
+  padding: 12px;
+  background: #f5f6f8;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.stamp-legend {
+  flex-wrap: wrap;
+}
+.stamp-legend > span {
+  flex-shrink: 0;
+}
+.legend-dot {
+  flex-shrink: 0;
+}
+.stamp:has(.stamp-add) {
+  color: #775721;
+  border-color: #c1a776;
+  background: #fffaf0;
+}
+.stripe-registry .account-row {
+  justify-content: space-between;
+}
+.stripe-registry .account-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.stripe-registry .account-row > button {
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .stripe-registry .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .stamp-legend {
+    column-gap: 16px;
+    row-gap: 10px;
+  }
+  .backfill-notes {
+    margin-inline: 12px;
+  }
 }

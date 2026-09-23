@@ -11,7 +11,11 @@ import {
 import { renderReport } from "../src/lib/pdf";
 import { compose } from "../workers/jobs";
 import { GET, POST } from "../src/app/api/[...path]/route";
-const mocks = vi.hoisted(() => ({ from: vi.fn(), session: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  from: vi.fn(),
+  session: vi.fn(),
+  rpc: vi.fn(),
+}));
 vi.mock("../src/lib/server/service-db", () => ({
   serviceDb: () => ({ from: mocks.from }),
 }));
@@ -31,10 +35,12 @@ const parent = {
 let saved: Record<string, any>[];
 let linked: boolean;
 let participantRows: any[];
+let tableErrors: Record<string, { code: string; message: string }>;
 function query(table: string) {
   const filters: Record<string, unknown> = {};
   let inserted: any;
   const resolve = () => {
+    if (tableErrors[table]) return { data: null, error: tableErrors[table] };
     if (table === "notification_jobs") {
       if (inserted) {
         const row = { id: "job-id", ...inserted };
@@ -73,6 +79,7 @@ function query(table: string) {
     }),
     is: vi.fn(() => chain),
     limit: vi.fn(() => chain),
+    order: vi.fn(() => chain),
     maybeSingle: vi.fn(async () => resolve()),
     single: vi.fn(async () => resolve()),
     upsert: vi.fn((value) => {
@@ -84,12 +91,13 @@ function query(table: string) {
   };
   return chain;
 }
-const db = { from: mocks.from } as unknown as Parameters<
+const db = { from: mocks.from, rpc: mocks.rpc } as unknown as Parameters<
   typeof loadStampCard
 >[0];
 beforeEach(() => {
   vi.clearAllMocks();
   saved = [];
+  tableErrors = {};
   linked = true;
   participantRows = portalFixture.events
     .filter((event) =>
@@ -201,7 +209,7 @@ it("composes a PDF attachment respecting test delivery and rechecks linkage", as
 });
 
 describe("HTTP boundaries", () => {
-  it.each(["team/stamp-card", "team/stamp-card-send"])(
+  it.each(["team/stamp-card", "team/stamp-card-send", "team/backfills"])(
     "blocks parents on %s",
     async (path) => {
       mocks.session.mockResolvedValue({
@@ -240,4 +248,133 @@ describe("HTTP boundaries", () => {
     expect(response.status).toBe(403);
     expect(mocks.session).not.toHaveBeenCalled();
   });
+});
+
+it("sends only the public backfill note, respects test routing and rechecks the recipient", async () => {
+  vi.stubEnv("MAIL_PROVIDER", "proton");
+  vi.stubEnv("EMAIL_TEST_MODE", "true");
+  vi.stubEnv("EMAIL_TEST_RECIPIENT", "own-test@example.com");
+  const job = {
+    id: "backfill-job",
+    kind: "training_backfill",
+    recipient: parent.contact_email,
+    payload: {
+      parent_id: parent.id,
+      player_id: player.id,
+      player_name: "Max Beispiel",
+      backfill_id: "bf",
+      parent_note: "Training nachgeholt <script>",
+      internal_note: "SECRET PRIVATE",
+      duration_minutes: 90,
+      period_starts_at: period.starts_at,
+      period_ends_at: period.ends_at,
+      occurred_on: null,
+    },
+  };
+  const mail = await compose(job);
+  expect(mail.to).toBe("own-test@example.com");
+  expect(mail.subject).toContain("Eine Einheit wurde nachgetragen");
+  expect(mail.text).toContain("1 Std. 30 Min.");
+  expect(mail.text).toContain("Trainingsdatum nicht angegeben");
+  expect(mail.html).toContain("&lt;script&gt;");
+  expect(JSON.stringify(mail)).not.toContain("SECRET PRIVATE");
+  linked = false;
+  await expect(compose(job)).rejects.toThrow("Empfängerzuordnung");
+});
+
+it("exports and queues existing cards before the optional backfill table is installed", async () => {
+  tableErrors.training_backfills = {
+    code: "PGRST205",
+    message:
+      "Could not find the table 'public.training_backfills' in the schema cache",
+  };
+  const card = await loadStampCard(db, "staff", period.id);
+  expect(card.backfillsAvailable).toBe(false);
+  expect(card.snapshot.completed).toBe(3);
+  expect(card.snapshot.minutes).toBe(270);
+  expect(card.privateNotes).toEqual({});
+  expect(
+    await PDFDocument.load(await renderReport(card.snapshot, "stamp_card")),
+  ).toBeTruthy();
+  await queueStampCard(db, "staff", "coach", {
+    period_id: period.id,
+    parent_id: parent.id,
+    request_id: "legacy-request",
+  });
+  expect(saved[0].payload.snapshot.completed).toBe(3);
+});
+it("still fails card exports when backfill permissions are broken", async () => {
+  tableErrors.training_backfills = {
+    code: "42501",
+    message: "permission denied for table training_backfills",
+  };
+  await expect(loadStampCard(db, "staff", period.id)).rejects.toEqual(
+    tableErrors.training_backfills,
+  );
+});
+it.each([
+  {
+    code: "PGRST202",
+    message: "Could not find the function public.save_training_backfill",
+  },
+  {
+    code: "42501",
+    message: "permission denied for function save_training_backfill",
+  },
+])(
+  "returns an actionable 503 when backfills are unavailable: $code",
+  async (error) => {
+    mocks.session.mockResolvedValue({
+      role: "staff",
+      user: { id: "coach" },
+      db,
+    });
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error,
+    });
+    const response = await POST(
+      new NextRequest("https://portal.example.com/api/team/backfills", {
+        method: "POST",
+        headers: {
+          Origin: "https://portal.example.com",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          request_id: crypto.randomUUID(),
+          period_id: crypto.randomUUID(),
+          event_type: "Gruppentraining",
+          duration_minutes: 60,
+          parent_note: "Nachgeholt",
+        }),
+      }),
+      { params: Promise.resolve({ path: ["team", "backfills"] }) },
+    );
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toContain(
+      "noch nicht freigeschaltet",
+    );
+  },
+);
+it("checks registry availability before Stripe synchronization", async () => {
+  tableErrors.stripe_customer_registry = {
+    code: "PGRST205",
+    message:
+      "Could not find the table 'public.stripe_customer_registry' in the schema cache",
+  };
+  mocks.session.mockResolvedValue({ role: "admin", user: { id: "admin" }, db });
+  const response = await POST(
+    new NextRequest(
+      "https://portal.example.com/api/admin/stripe-customers-sync",
+      {
+        method: "POST",
+        headers: { Origin: "https://portal.example.com" },
+        body: "{}",
+      },
+    ),
+    { params: Promise.resolve({ path: ["admin", "stripe-customers-sync"] }) },
+  );
+  expect(response.status).toBe(503);
+  expect((await response.json()).error).toContain("noch nicht freigeschaltet");
+  expect(mocks.rpc).not.toHaveBeenCalled();
 });
