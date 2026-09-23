@@ -308,3 +308,18 @@ Stand 23.09.2026: Zweimonatskalender, rote unten einsortierte Stornos, zeitabhä
 3. Danach Stempelkarte und Berichtszähler für eine bereits bestehende Teamabsage lesend abgleichen. Keine echten Kunden-Testabsagen und keine Testmails.
 
 Lokale Prüfungen: 281 erfolgreiche Vitest-Tests einschließlich isolierter PostgreSQL-Migrationen, `scripts/test-calendar-ui.mjs` mit simulierten API-Antworten, TypeScript und Produktionsbuild. Eine lokal richtige Stempelanzeige allein beweist noch nicht, dass die entfernte Datenbank bereits die neue Nachtragskapazität verwendet.
+
+### Veröffentlichung geprüft: Kalender und Teamabsagen
+
+Am 23.09.2026 auf ausdrücklichen Nutzerauftrag veröffentlicht, ohne Mailversand:
+
+- Feature-Commit `d444aef` nach `V2.0` gepusht, Merge `b74410b` nach `main` gepusht und daraus gebaut.
+- Portal-Version `1e8093d9-689e-49c8-92a0-3f6310b25b8a` auf der bestehenden Worker-Adresse.
+- Hintergrunddienst-Version `c298187f-94f1-4073-b9f8-d16fcafe4a88`, Container-Digest `sha256:1471b14c2973c57c9cf055587b9a263d176873e57fc6d58ccaeaecb394c9f161`.
+- Migration `202609230012_team_cancellations.sql` gezielt angewendet und in der Migrationshistorie registriert. Bestehende Funktionsrechte erhalten: Team darf stornieren/nachtragen, anonym darf nicht stornieren.
+- Vier Teilnahmen an Teamabsagen werden nicht angerechnet. Ein bestehender Bericht wurde als neue Version ergänzt: 26 → 27 Snapshots; alte Versionen unverändert. Neue Version mit `suppress_delivery=true`, keine veraltete letzte Berichtsversion für Teamabsagen mehr vorhanden. PDF-Erstellung erfolgt regulär durch den Hintergrunddienst.
+- Versandzähler vor/nach Release identisch: 21 `sent`, 124 `held`, keine wartenden Aufträge. Keine Einladungen, Mails oder echten Kunden-Testabsagen ausgelöst; keine Freigabelisten erweitert. `automatic_invitations=false`, bestehende Empfängerfreigabe unverändert auf eine Adresse begrenzt.
+- Cloudflare-Variablen und Secret-Bindings beider Dienste unverändert. Login HTTP 200, geschützte Kalenderseite ohne Sitzung HTTP 307, API ohne Sitzung HTTP 401. Online-Kalender-CSS bytegleich zum Release-Build. Runner `/verify`: Supabase, Stripe, SMTP-Verbindung und PDF erfolgreich, ohne Versand.
+- 281 Tests sowie TypeScript, Runner-Typprüfung, Next-/Cloudflare-Build und UI-Prüfung auf fünf Bildschirmgrößen erfolgreich. Geänderte Dateien formatgeprüft; der Gesamt-Formatcheck meldet 18 bereits bestehende Abweichungen in unveränderten Dateien.
+
+Private Prüfprotokolle liegen unter `output/calendar-release/`; sie werden nicht ins Repository übernommen. Die aktuelle Implementierung und dieser Nachweis sind in beiden Branches verfügbar.
