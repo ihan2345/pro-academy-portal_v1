@@ -426,12 +426,14 @@ export function StampCards({
                         )}
                       </td>
                       <td>
-                        {event.retrospective
-                          ? "Nachgetragen"
-                          : event.status === "planned" &&
-                              event.ends_at <= card.snapshot.created_at
-                            ? "Prüfung ausstehend"
-                            : STATUS_LABELS[event.status]}
+                        {event.event_cancelled
+                          ? "Teamabsage · ohne Anrechnung"
+                          : event.retrospective
+                            ? "Nachgetragen"
+                            : event.status === "planned" &&
+                                event.ends_at <= card.snapshot.created_at
+                              ? "Prüfung ausstehend"
+                              : STATUS_LABELS[event.status]}
                       </td>
                     </tr>
                   ))}

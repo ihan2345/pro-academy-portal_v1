@@ -30,7 +30,7 @@ export interface ReportSnapshot {
   minutes: number;
   created_at: string;
   version: number;
-  attendance_policy?: "charged_absences_v1";
+  attendance_policy?: "charged_absences_v1" | "team_cancellations_free_v2";
   whatsapp: string;
   events: {
     id: string;
@@ -39,6 +39,7 @@ export interface ReportSnapshot {
     starts_at: string;
     ends_at: string;
     status: Attendance;
+    event_cancelled?: boolean;
     location_name?: string;
     trainer_name?: string;
     retrospective?: boolean;
@@ -153,7 +154,11 @@ export async function renderReport(
   text(`${snapshot.completed} / ${snapshot.included_units}`, 40, y, 29, bold);
   text(durationLabel(snapshot.minutes), 305, y, 24, bold);
   y -= 22;
-  const chargedPolicy = snapshot.attendance_policy === "charged_absences_v1";
+  const teamCancellationPolicy =
+    snapshot.attendance_policy === "team_cancellations_free_v2";
+  const chargedPolicy =
+    teamCancellationPolicy ||
+    snapshot.attendance_policy === "charged_absences_v1";
   text(
     chargedPolicy ? "Einheiten angerechnet" : "Einheiten absolviert",
     40,
@@ -304,12 +309,14 @@ export async function renderReport(
       10,
       bold,
     );
-    const label = event.retrospective
-      ? "Nachgetragen"
-      : event.status === "planned" &&
-          new Date(event.ends_at) <= new Date(snapshot.created_at)
-        ? "Prüfung ausstehend"
-        : STATUS_LABELS[event.status];
+    const label = event.event_cancelled
+      ? "Teamabsage · ohne Einheit"
+      : event.retrospective
+        ? "Nachgetragen"
+        : event.status === "planned" &&
+            new Date(event.ends_at) <= new Date(snapshot.created_at)
+          ? "Prüfung ausstehend"
+          : STATUS_LABELS[event.status];
     text(
       label,
       402,
@@ -358,13 +365,24 @@ export async function renderReport(
       y -= 12;
     }
   }
-  const excused = snapshot.events.filter((event) => event.status === "excused");
+  const excused = snapshot.events.filter(
+    (event) => event.status === "excused" || event.event_cancelled,
+  );
   if (chargedPolicy && excused.length) {
     if (y < 160) {
       footer();
       nextPage();
     }
-    text("ENTSCHULDIGT · OHNE ANRECHNUNG", 40, y, 11, bold, purple);
+    text(
+      teamCancellationPolicy
+        ? "TERMINE OHNE ANRECHNUNG"
+        : "ENTSCHULDIGT · OHNE ANRECHNUNG",
+      40,
+      y,
+      11,
+      bold,
+      purple,
+    );
     y -= 20;
     text(
       "Keine Einheit und keine Trainingszeit angerechnet.",
@@ -378,7 +396,9 @@ export async function renderReport(
     for (const event of excused) {
       const details = [
         `${formatDate(event.starts_at)} · ${formatTime(event.starts_at)} - ${formatTime(event.ends_at)} Uhr`,
-        event.title,
+        event.event_cancelled
+          ? `${event.title} · Vom Team abgesagt`
+          : event.title,
         [
           event.event_type,
           event.location_name,
@@ -430,11 +450,16 @@ export async function renderReport(
   y -= 19;
   for (const line of [
     "Noch offene Prüfungen zählen nicht als absolvierte Einheiten.",
-    ...(chargedPolicy
+    ...(teamCancellationPolicy
       ? [
-          "Absagen zählen als Einheit; Trainingszeit nur bei tatsächlicher Teilnahme.",
+          "Teamabsagen und Entschuldigungen verbrauchen keine Einheit.",
+          "Individuelle Absagen und Nichterscheinen zählen weiterhin als Einheit.",
         ]
-      : []),
+      : chargedPolicy
+        ? [
+            "Absagen zählen als Einheit; Trainingszeit nur bei tatsächlicher Teilnahme.",
+          ]
+        : []),
     card
       ? "Aktuelle Übersicht; kein abgeschlossener Monatsbericht."
       : "Nachträgliche Korrekturen können eine neue Berichtsversion auslösen.",

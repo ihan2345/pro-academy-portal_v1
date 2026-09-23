@@ -28,3 +28,11 @@ Migrationen 005/006 sind im Launch-Supabase angewendet; acht Varianten im echten
 ## Veröffentlichung der Wertungsänderung
 
 Migration `202609100007_charged_absences.sql` zusammen mit der passenden App- und Runner-Version veröffentlichen, erst nach ausdrücklichem Auftrag. Sie trennt administrative Kinderentfernungen von wertbaren Absagen und erweitert neue Berichtssnapshots um die Wertungsregel sowie öffentliche Standort-/Coach-Angaben. Bereits erstellte Berichte und vorgemerkte PDF-Snapshots bleiben unverändert; bei Bedarf eine neue Berichtsversion bewusst erstellen. Keine automatische Neuversendung.
+
+## Kalender-Nachtrag vom 23.09.2026 (lokal vorbereitet)
+
+Sagt Coach/Admin den gesamten Termin ab (`training_events.status = cancelled`), verbraucht keine zugehörige Teilnahme eine Einheit oder Trainingsminute. Die Teilnehmerstatus bleiben als Verlauf erhalten; öffentliche Auswertungen kennzeichnen die Teamabsage mit `event_cancelled`. Individuelle Absagen und Nichterscheinen bei einem weiterhin stattfindenden Termin zählen weiterhin als Einheit. Entschuldigungen bleiben ohne Anrechnung.
+
+Migration `202609230012_team_cancellations.sql` zusammen mit App und Jobs-Runner veröffentlichen. Sie korrigiert Berichtszähler und Nachtragskapazität. Bestehende betroffene Berichte bekommen genau eine neue Version; alte Snapshots bleiben unverändert. Neue Snapshots tragen `attendance_policy: team_cancellations_free_v2`. Korrigierte Berichte haben `suppress_delivery=true`: keine automatische Berichtsmail. Die reguläre Stornierungsbenachrichtigung bei einer neuen Teamabsage und bestehende Empfängersperren bleiben erhalten.
+
+Die Migration wurde in der lokalen Testdatenbank geprüft. Veröffentlichung nach V2.0 und main am 23.09.2026 ausdrücklich freigegeben, ohne E-Mail-Versand. Der tatsächliche Deploymentnachweis folgt in LAUNCH-SETUP.md.

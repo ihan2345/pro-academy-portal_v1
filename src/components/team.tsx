@@ -1,5 +1,15 @@
 "use client";
 import { useState } from "react";
+import { MonthCalendar } from "./month-calendar";
+import {
+  calendarDate,
+  compareTrainings,
+  confirmationHint,
+  addDays,
+  addMonths,
+  monthStart,
+  weekStart,
+} from "@/lib/calendar";
 import {
   Plus,
   ChevronLeft,
@@ -25,7 +35,6 @@ import {
   disciplineStats,
   disciplineUnits,
   STATUS_LABELS,
-  remainingActiveMinutes,
   type Attendance,
 } from "@/lib/domain";
 export async function api(path: string, body?: unknown, method = "POST") {
@@ -47,32 +56,38 @@ export function TeamView({
   update: (data: PortalData) => void;
   notify: (message: string) => void;
 }) {
-  const [date, setDate] = useState(
-      new Intl.DateTimeFormat("sv-SE", {
-        timeZone: "Europe/Berlin",
-      }).format(new Date()),
-    ),
-    [mode, setMode] = useState("week"),
+  const today = calendarDate();
+  const [date, setDate] = useState(today),
+    [month, setMonth] = useState(monthStart(today)),
+    [mode, setMode] = useState("day"),
     [editor, setEditor] = useState<Training | "new" | null>(null),
     [exceptions, setExceptions] = useState<Training | null>(null);
-  const anchor = new Date(`${date}T12:00:00Z`),
-    monday = new Date(anchor);
-  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  const monday = weekStart(date);
+  const counts = new Map<string, number>();
+  for (const event of data.events) {
+    const day = calendarDate(event.starts_at);
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
   const visible = data.events
     .filter((e) => {
-      const d = new Date(e.starts_at);
+      const day = calendarDate(e.starts_at);
       return mode === "day"
-        ? formatDate(e.starts_at) === formatDate(anchor.toISOString())
-        : d >= new Date(new Date(monday).setUTCHours(0, 0, 0, 0)) &&
-            d < new Date(monday.getTime() + 7 * 86400000);
+        ? day === date
+        : day >= monday && day < addDays(monday, 7);
     })
-    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    .sort(compareTrainings);
+  function selectDate(day: string) {
+    if (!day) return;
+    setDate(day);
+    if (day < month || day >= addMonths(month, 2)) setMonth(monthStart(day));
+  }
   function move(n: number) {
-    setDate(
-      new Date(anchor.getTime() + n * (mode === "week" ? 7 : 1) * 86400000)
-        .toISOString()
-        .slice(0, 10),
-    );
+    if (mode === "week") selectDate(addDays(date, n * 7));
+    else {
+      const next = addMonths(month, n);
+      setMonth(next);
+      if (date < next || date >= addMonths(next, 2)) setDate(next);
+    }
   }
   async function status(
     event: Training,
@@ -118,19 +133,21 @@ export function TeamView({
           <h1>
             Trainingsplanung<span className="greeting-dot">.</span>
           </h1>
-          <p>Plane die Woche. Wir kümmern uns um die Bestätigung.</p>
+          <p>Deine Monate im Blick. Dein Training im Detail.</p>
         </div>
         <button className="primary-button" onClick={() => setEditor("new")}>
           <Plus size={18} /> Termin erstellen
         </button>
       </div>
-      <section className="panel">
+      <section className="panel training-calendar-shell">
         <div className="calendar-toolbar">
           <div className="calendar-controls">
             <button
               className="icon-button"
               onClick={() => move(-1)}
-              aria-label="Vorheriger Zeitraum"
+              aria-label={
+                mode === "day" ? "Vorheriger Monat" : "Vorherige Woche"
+              }
             >
               <ChevronLeft />
             </button>
@@ -138,115 +155,223 @@ export function TeamView({
               type="date"
               aria-label="Datum"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => selectDate(e.target.value)}
             />
             <button
               className="icon-button"
               onClick={() => move(1)}
-              aria-label="Nächster Zeitraum"
+              aria-label={mode === "day" ? "Nächster Monat" : "Nächste Woche"}
             >
               <ChevronRight />
+            </button>
+            <button
+              className="calendar-today"
+              onClick={() => {
+                setDate(today);
+                setMonth(monthStart(today));
+              }}
+            >
+              Heute
             </button>
           </div>
           <div className="segmented">
             <button
               className={mode === "day" ? "selected" : ""}
               onClick={() => setMode("day")}
+              aria-pressed={mode === "day"}
             >
-              Tag
+              Kalender
             </button>
             <button
               className={mode === "week" ? "selected" : ""}
               onClick={() => setMode("week")}
+              aria-pressed={mode === "week"}
             >
               Woche
             </button>
           </div>
         </div>
-        <div className="team-list">
-          {visible.length ? (
-            visible.map((e) => (
-              <article className="team-event" key={e.id}>
-                <div className="team-event-time">
-                  <b>
-                    {formatDate(e.starts_at, {
-                      weekday: "short",
-                      day: "2-digit",
-                      month: "2-digit",
-                    })}
-                  </b>
-                  <strong>{formatTime(e.starts_at)}</strong>
-                  <small>bis {formatTime(e.ends_at)} Uhr</small>
-                </div>
-                <div className="team-event-main">
-                  <button className="title-button" onClick={() => setEditor(e)}>
-                    {e.title}
-                    <Badge
-                      tone={e.status === "cancelled" ? "neutral" : "purple"}
-                    >
-                      {e.status === "cancelled" ? "Storniert" : e.event_type}
-                    </Badge>
-                  </button>
-                  <div className="event-inline">
-                    <span>
-                      <MapPin size={15} />
-                      {e.location_name}
-                    </span>
-                    <span>
-                      <UserRound size={15} />
-                      {e.trainer_name}
-                    </span>
-                    <span>
-                      <Users size={15} />
-                      {
-                        e.participants.filter((p) => !p.removed_from_event)
-                          .length
-                      }{" "}
-                      Teilnehmer
-                    </span>
-                  </div>
-                  <p className="auto-label">
-                    <Clock size={14} /> Automatische Bestätigung{" "}
-                    {formatDate(e.auto_attendance_at)} um{" "}
-                    {formatTime(e.auto_attendance_at)} Uhr
-                  </p>
-                </div>
-                <div className="team-event-actions">
-                  <button
-                    className="secondary-button"
-                    onClick={() => setExceptions(e)}
-                  >
-                    Ausnahmen eintragen
-                  </button>
-                  <button className="text-button" onClick={() => setEditor(e)}>
-                    Termin bearbeiten
-                  </button>
-                </div>
-              </article>
-            ))
-          ) : (
-            <div className="empty-state">
-              <CalendarDays />
-              <h2>Platz für Training.</h2>
-              <p>In diesem Zeitraum gibt es noch keine Termine.</p>
-              <button
-                className="primary-button"
-                onClick={() => setEditor("new")}
-              >
-                Ersten Termin erstellen
-              </button>
+        <div
+          className={
+            mode === "day" ? "calendar-layout" : "calendar-week-layout"
+          }
+        >
+          {mode === "day" && (
+            <div className="calendar-months">
+              {[month, addMonths(month, 1)].map((value) => (
+                <MonthCalendar
+                  key={value}
+                  month={value}
+                  selected={date}
+                  today={today}
+                  counts={counts}
+                  select={selectDate}
+                />
+              ))}
+              <div className="calendar-legend">
+                <span>
+                  <i /> Mit Terminen
+                </span>
+                <span>
+                  <i className="today-key" /> Heute
+                </span>
+              </div>
+              <a className="calendar-agenda-jump" href="#training-agenda">
+                Termine des ausgewählten Tages ↓
+              </a>
             </div>
           )}
+          <section
+            className="calendar-agenda"
+            id="training-agenda"
+            aria-labelledby="agenda-heading"
+          >
+            <div
+              className="calendar-agenda-heading"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <div>
+                <span className="eyebrow">
+                  {mode === "day"
+                    ? date === today
+                      ? "HEUTE"
+                      : "DEIN TRAININGSTAG"
+                    : "WOCHENÜBERSICHT"}
+                </span>
+                <h2 id="agenda-heading">
+                  {mode === "day"
+                    ? formatDate(`${date}T12:00:00Z`, {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })
+                    : `${formatDate(`${monday}T12:00:00Z`)} – ${formatDate(`${addDays(monday, 6)}T12:00:00Z`)}`}
+                </h2>
+              </div>
+              <span className="agenda-count">
+                {visible.length} {visible.length === 1 ? "Termin" : "Termine"}
+              </span>
+            </div>
+            <div
+              className="team-list calendar-agenda-list"
+              key={`${mode}-${date}`}
+              tabIndex={0}
+              role="region"
+              aria-label={
+                mode === "day"
+                  ? "Termine des ausgewählten Tages"
+                  : "Termine der Woche"
+              }
+            >
+              {visible.length ? (
+                visible.map((e) => (
+                  <article
+                    className={`team-event${e.status === "cancelled" ? " team-event-cancelled" : ""}`}
+                    key={e.id}
+                  >
+                    <div className="team-event-time">
+                      <b>
+                        {formatDate(e.starts_at, {
+                          weekday: "short",
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
+                      </b>
+                      <strong>{formatTime(e.starts_at)}</strong>
+                      <small>bis {formatTime(e.ends_at)} Uhr</small>
+                    </div>
+                    <div className="team-event-main">
+                      <button
+                        className="title-button"
+                        onClick={() => setEditor(e)}
+                      >
+                        {e.title}
+                        <Badge
+                          tone={e.status === "cancelled" ? "danger" : "purple"}
+                        >
+                          {e.status === "cancelled"
+                            ? "Storniert"
+                            : e.event_type}
+                        </Badge>
+                      </button>
+                      <div className="event-inline">
+                        <span>
+                          <MapPin size={15} />
+                          {e.location_name}
+                        </span>
+                        <span>
+                          <UserRound size={15} />
+                          {e.trainer_name}
+                        </span>
+                        <span>
+                          <Users size={15} />
+                          {
+                            e.participants.filter((p) => !p.removed_from_event)
+                              .length
+                          }{" "}
+                          Teilnehmer
+                        </span>
+                      </div>
+                      {e.status === "cancelled" ? (
+                        <p className="cancellation-note">
+                          Vom Team abgesagt · keine Einheit angerechnet
+                        </p>
+                      ) : (
+                        <p className="auto-label">
+                          <Clock size={14} />
+                          {confirmationHint(e)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="team-event-actions">
+                      <button
+                        className="secondary-button"
+                        onClick={() => setExceptions(e)}
+                      >
+                        Ausnahmen eintragen
+                      </button>
+                      <button
+                        className="text-button"
+                        onClick={() => setEditor(e)}
+                      >
+                        Termin bearbeiten
+                      </button>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-state">
+                  <CalendarDays />
+                  <h3>
+                    {mode === "day"
+                      ? "Keine Termine an diesem Tag."
+                      : "Keine Termine in dieser Woche."}
+                  </h3>
+                  <p>Hier ist noch Platz für Training.</p>
+                  <button
+                    className="primary-button"
+                    onClick={() => setEditor("new")}
+                  >
+                    Ersten Termin erstellen
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       </section>
-      <div className="info-note">
-        <Clock size={20} />
-        <p>
-          Reguläre Teilnahmen werden nach zwölf aktiven Pufferstunden
-          automatisch bestätigt. Zwischen 00:00 und 06:00 Uhr pausiert die Zeit.
-          Trage hier nur Ausnahmen ein.
-        </p>
-      </div>
+      {visible.some((e) => e.status !== "cancelled") && (
+        <div className="info-note">
+          <Clock size={20} />
+          <p>
+            Reguläre Teilnahmen werden nach zwölf aktiven Pufferstunden
+            automatisch bestätigt. Zwischen 00:00 und 06:00 Uhr pausiert die
+            Zeit. Trage hier nur Ausnahmen ein.
+          </p>
+        </div>
+      )}
       {editor && (
         <EventEditor
           data={data}
@@ -295,7 +420,9 @@ export function TeamView({
               ),
             });
             setEditor(null);
-            notify("Termin storniert. Der Verlauf bleibt erhalten.");
+            notify(
+              "Termin storniert. Keine Einheit wird angerechnet; der Verlauf bleibt erhalten.",
+            );
           }}
         />
       )}
@@ -306,20 +433,16 @@ export function TeamView({
               {exceptions.title} · {formatDate(exceptions.starts_at)} ·{" "}
               {formatTime(exceptions.starts_at)} Uhr
             </p>
-            <div className="info-note">
-              <Clock size={18} />
-              <p>
-                Noch{" "}
-                {Math.min(
-                  720,
-                  remainingActiveMinutes(
-                    new Date().toISOString(),
-                    exceptions.auto_attendance_at,
-                  ),
-                )}{" "}
-                aktive Puffer-Minuten bis zur automatischen Bestätigung.
+            {exceptions.status === "cancelled" ? (
+              <p className="cancellation-note">
+                Vom Team abgesagt · keine Einheit angerechnet
               </p>
-            </div>
+            ) : (
+              <div className="info-note">
+                <Clock size={18} />
+                <p>{confirmationHint(exceptions)}</p>
+              </div>
+            )}
             {exceptions.participants.map((p) => (
               <ExceptionRow
                 key={p.id}
@@ -650,6 +773,7 @@ function EventEditor({
                 )
                 .map((e) => ({
                   ...e,
+                  event_cancelled: e.status === "cancelled",
                   status: e.participants.find((ep) => ep.player_id === p.id)!
                     .status,
                 }));
@@ -731,8 +855,8 @@ function EventEditor({
           <div className="confirm-box">
             <h3>Termin wirklich stornieren?</h3>
             <p>
-              Alle zugeordneten Teilnahmen werden storniert. Der Verlauf bleibt
-              erhalten.
+              Der Termin wird für alle Teilnehmenden abgesagt. Es wird keine
+              Einheit angerechnet. Der Verlauf bleibt erhalten.
             </p>
             <input
               aria-label="Stornierungsgrund"
@@ -743,12 +867,16 @@ function EventEditor({
             <button
               className="danger-button"
               type="button"
-              disabled={cancelReason.trim().length < 3}
+              disabled={busy || cancelReason.trim().length < 3}
               onClick={async () => {
+                setBusy(true);
+                setError("");
                 try {
                   await cancel(event!, cancelReason);
                 } catch (e) {
                   setError((e as Error).message);
+                } finally {
+                  setBusy(false);
                 }
               }}
             >

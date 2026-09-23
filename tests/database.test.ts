@@ -706,7 +706,7 @@ it("charges cancellations and no-shows without minutes, preserves excuses and ex
   expect(report).toMatchObject({
     completed: 3,
     minutes: 90,
-    attendance_policy: "charged_absences_v1",
+    attendance_policy: "team_cancellations_free_v2",
   });
   expect(report.events).toHaveLength(5);
   expect(report.events.every((e: any) => e.id !== removal.event)).toBe(true);

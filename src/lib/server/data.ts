@@ -49,12 +49,16 @@ export async function loadPortal(section: string): Promise<PortalData> {
       .from("entitlement_periods")
       .select("*,subscriptions(status)")
       .order("starts_at", { ascending: false }),
-    db
-      .from("training_events")
-      .select(
-        "*,event_participants(*),locations(*),staff_profiles(*),event_private_notes(note)",
-      )
-      .order("starts_at", { ascending: false }),
+    readAll(
+      db,
+      "training_events",
+      "*,event_participants(*),locations(*),staff_profiles(*),event_private_notes(note)",
+    ).then((data) => ({
+      data: data.sort((a, b) =>
+        String(b.starts_at).localeCompare(String(a.starts_at)),
+      ),
+      error: null,
+    })),
     db
       .from("report_snapshots")
       .select("*")
@@ -127,6 +131,7 @@ export async function loadPortal(section: string): Promise<PortalData> {
         (r.snapshot.events ?? []).filter(
           (e: { status: string }) =>
             r.snapshot.attendance_policy === "charged_absences_v1" ||
+            r.snapshot.attendance_policy === "team_cancellations_free_v2" ||
             !["cancelled", "absent"].includes(e.status),
         ),
       ).football.completed,
@@ -134,6 +139,7 @@ export async function loadPortal(section: string): Promise<PortalData> {
         (r.snapshot.events ?? []).filter(
           (e: { status: string }) =>
             r.snapshot.attendance_policy === "charged_absences_v1" ||
+            r.snapshot.attendance_policy === "team_cancellations_free_v2" ||
             !["cancelled", "absent"].includes(e.status),
         ),
       ).athletics.completed,

@@ -145,7 +145,7 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
         .single(),
       db
         .from("event_participants")
-        .select("*,training_events(starts_at,ends_at,event_type)")
+        .select("*,training_events(starts_at,ends_at,event_type,status)")
         .eq("period_id", payload.period_id),
       optionalBackfills(
         db
@@ -165,13 +165,18 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
     ) as unknown as {
       status: Attendance;
       training_events: {
+        status: string;
         starts_at: string;
         ends_at: string;
         event_type: string;
       };
     }[];
     const counted = [
-      ...participation.map((p) => ({ ...p.training_events, status: p.status })),
+      ...participation.map((p) => ({
+        ...p.training_events,
+        event_cancelled: p.training_events.status === "cancelled",
+        status: p.status,
+      })),
       ...((results[4].data ?? []) as unknown as TrainingBackfill[]).map(
         backfillEvent,
       ),
@@ -188,6 +193,7 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
       .filter(
         (p) =>
           p.status === "planned" &&
+          p.training_events.status !== "cancelled" &&
           p.training_events.starts_at > new Date().toISOString(),
       )
       .sort((a, b) =>
@@ -208,7 +214,7 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
       text = `Das Training von ${player.first_name} am ${formatDate(start)} von ${formatTime(start)} bis ${formatTime(end)} Uhr wurde als absolviert eingetragen.\nTrainingsdauer: ${durationMinutes(start, end)} Minuten. Angerechnete Einheiten: ${progress}.\n${next ? `Nächste geplante Einheit: ${formatDate(next.training_events.starts_at)} um ${formatTime(next.training_events.starts_at)} Uhr.` : "Der nächste Termin wird von unserem Team geplant."}\nIst diese Angabe aus deiner Sicht nicht korrekt? Kontaktiere uns bitte über WhatsApp.\n${contact}`;
     } else {
       subject = `Training aktualisiert: ${player.first_name}`;
-      text = `Unser Team hat das Training von ${player.first_name} am ${formatDate(start)} aktualisiert.\nAngerechnete Einheiten: ${progress}. Absagen und nicht wahrgenommene Termine zählen als Einheit, entschuldigte Termine nicht. Trainingszeit zählt nur bei tatsächlicher Teilnahme. Den aktuellen Termin- und Teilnahmestatus findest du im Elternportal.\nFragen oder Unstimmigkeiten? ${contact}`;
+      text = `Unser Team hat das Training von ${player.first_name} am ${formatDate(start)} aktualisiert.\nAngerechnete Einheiten: ${progress}. Vom Team abgesagte Termine und entschuldigte Teilnahmen verbrauchen keine Einheit. Individuell abgesagte oder nicht wahrgenommene Teilnahmen zählen weiterhin als Einheit. Trainingszeit zählt nur bei tatsächlicher Teilnahme. Den aktuellen Termin- und Teilnahmestatus findest du im Elternportal.\nFragen oder Unstimmigkeiten? ${contact}`;
     }
   }
   const to =

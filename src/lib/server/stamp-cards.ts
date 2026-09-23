@@ -33,7 +33,7 @@ export async function loadStampCard(
     db
       .from("event_participants")
       .select(
-        "*,training_events!inner(id,title,event_type,starts_at,ends_at,locations(name),staff_profiles(display_name))",
+        "*,training_events!inner(id,title,event_type,status,starts_at,ends_at,locations(name),staff_profiles(display_name))",
       )
       .eq("period_id", periodId)
       .eq("player_id", period.player_id)
@@ -73,6 +73,7 @@ export async function loadStampCard(
         ReportSnapshot["events"][number],
         "status"
       >),
+      event_cancelled: (row.training_events as any).status === "cancelled",
       status: row.status,
       location_name: (row.training_events as any).locations?.name ?? "",
       trainer_name:

@@ -158,6 +158,7 @@ export function Portal({
   const rows = [
     ...currentEvents.map((e) => ({
       ...e,
+      event_cancelled: e.status === "cancelled",
       status: e.participants.find((p) => p.player_id === player?.id)!.status,
     })),
     ...(data.backfills ?? [])
@@ -601,7 +602,7 @@ export function Portal({
                         <div className="panel-bottom">
                           <span>
                             {stats.neutral > 0
-                              ? `${stats.neutral} ${stats.neutral === 1 ? "Einheit entschuldigt, ohne Anrechnung" : "Einheiten entschuldigt, ohne Anrechnung"}`
+                              ? `${stats.neutral} ${stats.neutral === 1 ? "Termin ohne Anrechnung" : "Termine ohne Anrechnung"}`
                               : "Dein Fortschritt wird automatisch aktualisiert."}
                           </span>
                           <Link href="/stempelkarte">
@@ -1218,7 +1219,9 @@ function Schedule({
                       ) : status === "planned" ? (
                         <Clock size={13} />
                       ) : null}
-                      {STATUS_LABELS[status]}
+                      {e.status === "cancelled"
+                        ? "Teamabsage · ohne Anrechnung"
+                        : STATUS_LABELS[status]}
                     </Badge>
                   </td>
                   <td>
@@ -1349,7 +1352,9 @@ function EventDetail({
                 : "purple"
           }
         >
-          {STATUS_LABELS[status]}
+          {event.status === "cancelled"
+            ? "Teamabsage · ohne Anrechnung"
+            : STATUS_LABELS[status]}
         </Badge>
         <h3>{event.title}</h3>
         <div className="detail-row">
