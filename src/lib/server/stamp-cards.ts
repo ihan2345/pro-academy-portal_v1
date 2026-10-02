@@ -1,13 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { renderReport } from "../pdf";
-import {
-  CaptureProvider,
-  ProtonProvider,
-  safeRecipient,
-  htmlEmail,
-  type MailProvider,
-} from "../mail";
+import { required } from "./config";
 import { optionalBackfills } from "./v2-availability";
 import { backfillColumns, backfillEvent } from "../backfills";
 import type { TrainingBackfill } from "../types";
@@ -224,7 +217,7 @@ export async function queueStampCard(
   return data.id as string;
 }
 
-/** A deliberate team action claims only its own card; automatic delivery gates stay untouched. */
+/** The portal freezes the authorized request; only the existing Node runner sends SMTP. */
 export async function sendStampCard(
   db: SupabaseClient,
   role: string,
@@ -235,108 +228,50 @@ export async function sendStampCard(
     email?: string;
     request_id: string;
   },
-  provider: MailProvider = process.env.MAIL_PROVIDER === "proton"
-    ? new ProtonProvider()
-    : new CaptureProvider(),
 ) {
   assertRole(role, "team");
   if (process.env.CAMP_SIDE_EFFECTS_BLOCKED === "true")
     throw new HttpError(403, "Versand im lokalen Camp-Test gesperrt.");
+  const runner = required("JOB_RUNNER_URL");
+  const secret = required("CRON_SECRET");
   const id = await queueStampCard(db, role, actorId, input, true);
-  const adminDb = serviceDb();
-  const { data: previous, error: previousError } = await adminDb
-    .from("notification_jobs")
-    .select("status,attempts")
-    .eq("id", id)
-    .single();
-  if (previousError) throw previousError;
-  const { data: job, error } = await adminDb
-    .from("notification_jobs")
-    .update({
-      status: "processing",
-      locked_at: new Date().toISOString(),
-      lease_token: crypto.randomUUID(),
-      attempts: previous.attempts + 1,
-    })
-    .eq("id", id)
-    .eq("kind", "stamp_card")
-    .eq("payload->>actor_id", actorId)
-    .eq("payload->>manual_email", "true")
-    .eq("status", "held")
-    .eq("attempts", previous.attempts)
-    .select("*")
-    .maybeSingle();
-  if (error) throw error;
-  if (!job) {
-    const { data: existing, error: readError } = await adminDb
-      .from("notification_jobs")
-      .select("status")
-      .eq("id", id)
-      .single();
-    if (readError) throw readError;
-    if (existing.status === "sent")
-      return { id, captured: provider.name === "capture" };
-    throw new HttpError(
-      409,
-      "Versand läuft oder Ergebnis unklar. Bitte Versandprotokoll prüfen; nicht erneut senden.",
-    );
-  }
-  let started = false;
-  let recipient = job.recipient;
+  let response: Response;
   try {
-    recipient =
-      provider.name === "capture"
-        ? job.recipient
-        : safeRecipient(job.recipient);
-    const snapshot = job.payload.snapshot as ReportSnapshot;
-    const subject = `Stempelkarte für ${snapshot.player_name}`;
-    const text = `Hallo,\nim Anhang findest du die aktuelle Stempelkarte für ${snapshot.player_name}. Zum Öffnen des PDFs ist keine Anmeldung im Elternportal erforderlich.`;
-    const mail = {
-      to: recipient,
-      subject,
-      text,
-      html: htmlEmail(subject, text, `${process.env.APP_URL}/stempelkarte`),
-      messageId: `<${id}@proacademy-portal.local>`,
-      attachments: [
-        {
-          filename: "ProAcademy-Stempelkarte.pdf",
-          content: Buffer.from(await renderReport(snapshot, "stamp_card")),
-          contentType: "application/pdf",
-        },
-      ],
-    };
-    started = true;
-    const result = await provider.send(mail);
-    const final = await adminDb.rpc("finish_notification", {
-      input: {
-        id,
-        lease_token: job.lease_token,
-        recipient,
-        provider: provider.name,
-        status: "sent",
-        message_id: result.id,
+    response = await fetch(`${runner.replace(/\/$/, "")}/stamp-card-send`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({ job_id: id, actor_id: actorId }),
+      signal: AbortSignal.timeout(180_000),
     });
-    if (final.error) throw final.error;
-    return { id, captured: provider.name === "capture" };
-  } catch (error) {
-    const final = await adminDb.rpc("finish_notification", {
-      input: {
-        id,
-        lease_token: job.lease_token,
-        recipient,
-        provider: provider.name,
-        status: started ? "uncertain" : "held",
-        error:
-          error instanceof Error ? error.message : "Versand fehlgeschlagen",
-      },
-    });
-    if (final.error) throw final.error;
+  } catch {
     throw new HttpError(
       502,
-      started
-        ? "Versandergebnis unklar. Bitte Versandprotokoll prüfen, bevor erneut gesendet wird."
-        : "Versand fehlgeschlagen. Bitte E-Mail-Konfiguration prüfen.",
+      "Versanddienst nicht erreichbar oder Antwort ausgeblieben. Dieselbe Anfrage kann erneut geprüft werden; eine bereits versendete Stempelkarte wird nicht doppelt versendet.",
     );
   }
+  if (!response.ok) {
+    if (response.status === 409)
+      throw new HttpError(
+        409,
+        "Versanddienst beschäftigt oder Versandergebnis ungeklärt. Bitte Versandprotokoll prüfen und dieselbe Anfrage später erneut versuchen.",
+      );
+    throw new HttpError(
+      502,
+      "Stempelkarte konnte nicht versendet werden. Bitte Versandprotokoll prüfen.",
+    );
+  }
+  const result = await response.json();
+  if (
+    result.id !== id ||
+    result.ok !== true ||
+    typeof result.captured !== "boolean"
+  )
+    throw new HttpError(
+      502,
+      "Versanddienst hat den Versand nicht bestätigt. Bitte Versandprotokoll prüfen.",
+    );
+  return { id, captured: result.captured as boolean };
 }

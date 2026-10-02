@@ -1,3 +1,4 @@
+import { manualStampCardRequest } from "../../src/lib/manual-stamp-card";
 import { jobMode, type JobFlags } from "../job-mode";
 
 export interface RunnerEnv extends JobFlags {
@@ -29,7 +30,7 @@ export async function runnerRequest(request: Request, env: RunnerEnv) {
   const path = new URL(request.url).pathname;
   if (
     request.method !== "POST" ||
-    !["/run", "/verify", "/test-run"].includes(path)
+    !["/run", "/verify", "/test-run", "/stamp-card-send"].includes(path)
   )
     return new Response("Not found", { status: 404 });
   if (!(await authorized(request, env.CRON_SECRET)))
@@ -43,11 +44,41 @@ export async function runnerRequest(request: Request, env: RunnerEnv) {
       env.ACCEPTANCE_TEST_ENABLED !== "true")
   )
     return new Response("Bounded test disabled", { status: 503 });
+  let body: string | undefined;
+  if (path === "/stamp-card-send") {
+    if (env.CAMP_SIDE_EFFECTS_BLOCKED === "true")
+      return new Response("Manual delivery disabled", { status: 503 });
+    try {
+      const reader = request.body?.getReader();
+      if (!reader) return new Response("Missing request", { status: 400 });
+      let text = "";
+      const decoder = new TextDecoder();
+      let bytes = 0;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 1024) {
+          await reader.cancel();
+          return new Response("Request too large", { status: 413 });
+        }
+        text += decoder.decode(value, { stream: true });
+      }
+      text += decoder.decode();
+      body = JSON.stringify(manualStampCardRequest.parse(JSON.parse(text)));
+    } catch {
+      return new Response("Invalid stamp card request", { status: 400 });
+    }
+  }
   // One stable instance for every trigger. Arbitrary URL paths cannot create instances.
   return env.RUNNER.getByName("proacademy-jobs").fetch(
     new Request(`http://runner${path}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
+      headers: {
+        Authorization: `Bearer ${env.CRON_SECRET}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body,
     }),
   );
 }

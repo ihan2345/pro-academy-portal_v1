@@ -33,15 +33,52 @@ async function setup(
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address() as { port: number };
-  const call = (path: string, auth = secret, method = "POST") =>
+  const call = (path: string, auth = secret, method = "POST", body?: string) =>
     fetch(`http://127.0.0.1:${address.port}${path}`, {
       method,
+      body,
       headers: { Authorization: `Bearer ${auth}` },
     });
   return { ...options, call };
 }
 
 describe("Node job runner", () => {
+  it("delivers only the explicit manual card while regular jobs are disabled", async () => {
+    const scope = {
+      job_id: crypto.randomUUID(),
+      actor_id: crypto.randomUUID(),
+    };
+    const stampCard = vi.fn(async () => ({ id: scope.job_id, captured: true }));
+    const { call, run } = await setup({ enabled: () => false, stampCard });
+    expect(
+      (await call("/stamp-card-send", "bad", "POST", JSON.stringify(scope)))
+        .status,
+    ).toBe(401);
+    expect(
+      (
+        await call(
+          "/stamp-card-send",
+          secret,
+          "POST",
+          JSON.stringify({ ...scope, email: "foreign@example.com" }),
+        )
+      ).status,
+    ).toBe(400);
+    const response = await call(
+      "/stamp-card-send",
+      secret,
+      "POST",
+      JSON.stringify(scope),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      id: scope.job_id,
+      captured: true,
+    });
+    expect(stampCard).toHaveBeenCalledExactlyOnceWith(scope);
+    expect(run).not.toHaveBeenCalled();
+  });
   it("isolates an explicitly enabled test from the normal runner and its lock", async () => {
     const bounded = vi.fn(async () => ({ ok: true, sent: 0 }));
     const { call, run } = await setup({
@@ -123,6 +160,45 @@ describe("Node job runner", () => {
 });
 
 describe("Cloudflare runner gateway", () => {
+  it("validates and forwards only the requested manual card, preserving other delivery blocks", async () => {
+    const { env, fetch, getByName } = setupGateway("false");
+    const scope = {
+      job_id: crypto.randomUUID(),
+      actor_id: crypto.randomUUID(),
+    };
+    const req = (body = JSON.stringify(scope), token = secret) =>
+      new Request("https://jobs.example/stamp-card-send", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body,
+      });
+    expect((await runnerRequest(req(undefined, "bad"), env)).status).toBe(401);
+    expect(
+      (
+        await runnerRequest(
+          req(JSON.stringify({ ...scope, recipient: "foreign@example.com" })),
+          env,
+        )
+      ).status,
+    ).toBe(400);
+    expect((await runnerRequest(req("x".repeat(1025)), env)).status).toBe(413);
+    expect(
+      (
+        await runnerRequest(req(), {
+          ...env,
+          CAMP_SIDE_EFFECTS_BLOCKED: "true",
+        })
+      ).status,
+    ).toBe(503);
+    expect(getByName).not.toHaveBeenCalled();
+    expect(
+      (await runnerRequest(req(), { ...env, STRIPE_SYNC_ONLY: "true" })).status,
+    ).toBe(200);
+    const forwarded = (fetch.mock.calls as unknown as [Request][])[0][0];
+    expect(forwarded.url).toBe("http://runner/stamp-card-send");
+    expect(await forwarded.json()).toEqual(scope);
+    expect((await runnerRequest(request("/run"), env)).status).toBe(503);
+  });
   it("runs only the restricted schedule while broad jobs and test delivery stay disabled", async () => {
     const { env, fetch, getByName } = setupGateway("false");
     const restricted = {

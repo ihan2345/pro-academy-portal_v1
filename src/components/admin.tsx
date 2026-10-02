@@ -28,6 +28,58 @@ import {
 import { formatDate } from "@/lib/domain";
 import type { Player, PortalData } from "@/lib/types";
 type RecordRow = Record<string, unknown>;
+function ParentInviteButton({
+  parent,
+  notify,
+}: {
+  parent: RecordRow;
+  notify: (message: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [requested, setRequested] = useState<"pending" | "held" | null>(null);
+  const registered = parent.portal_status === "registered";
+  return (
+    <button
+      type="button"
+      className="text-button"
+      disabled={busy || registered || requested !== null}
+      title={
+        registered
+          ? "Dieses Elternkonto ist bereits angemeldet."
+          : `Einladung an ${String(parent.contact_email)}`
+      }
+      onClick={async () => {
+        setBusy(true);
+        try {
+          const result = await api("admin/invite", { parent_id: parent.id });
+          setRequested(result.status === "pending" ? "pending" : "held");
+          notify(
+            result.status === "pending"
+              ? `Einladung an ${String(parent.contact_email)} zum Versand eingeplant.`
+              : "Einladung vorgemerkt. Der Versand bleibt gesperrt.",
+          );
+        } catch (error) {
+          notify((error as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <Mail size={16} />
+      {busy
+        ? "Wird angefordert …"
+        : registered
+          ? "Bereits angemeldet"
+          : requested === "pending"
+            ? "Einladung eingeplant"
+            : requested === "held"
+              ? "Einladung vorgemerkt"
+              : parent.portal_status === "invited"
+                ? "Erneut einladen"
+                : "Einladen"}
+    </button>
+  );
+}
 async function allAdminRows(table: string) {
   const rows: RecordRow[] = [];
   for (let offset = 0; ; offset += 100) {
@@ -406,13 +458,9 @@ export function AdminView({
                   {config.fields.map((f) => (
                     <th key={f.key}>{f.label.toUpperCase()}</th>
                   ))}
-                  {slug === "eltern" && (
-                    <>
-                      <th>STATUS</th>
-                      <th>STRIPE-KUNDEN</th>
-                    </>
-                  )}
+                  {slug === "eltern" && <th>STATUS</th>}
                   {["eltern", "spieler"].includes(slug) && <th>ZUORDNUNG</th>}
+                  {slug === "eltern" && <th>STRIPE-KUNDEN</th>}
                   <th>AKTION</th>
                 </tr>
               </thead>
@@ -499,6 +547,9 @@ export function AdminView({
                         >
                           Bearbeiten
                         </button>
+                        {slug === "eltern" && (
+                          <ParentInviteButton parent={r} notify={notify} />
+                        )}
                         {slug === "mitarbeiter" && (
                           <button
                             className="text-button"

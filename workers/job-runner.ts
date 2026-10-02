@@ -1,3 +1,4 @@
+import { deliverManualStampCard } from "./manual-stamp-card";
 import { runJobs } from "./jobs";
 import { createRunnerServer } from "./runner-server";
 import { verifyRunnerConnections } from "./verify-connections";
@@ -13,6 +14,7 @@ const server = createRunnerServer({
   enabled: () => jobMode(process.env) !== "disabled",
   run: runJobs,
   verify: verifyRunnerConnections,
+  stampCard: deliverManualStampCard,
   acceptance: {
     enabled: acceptanceTestEnabled,
     run: () => runAcceptanceTest(),
