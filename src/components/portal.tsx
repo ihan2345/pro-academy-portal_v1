@@ -1253,10 +1253,12 @@ function Schedule({
 }
 export function Modal({
   title,
+  active = true,
   close,
   children,
 }: {
   title: string;
+  active?: boolean;
   close: () => void;
   children: React.ReactNode;
 }) {
@@ -1264,6 +1266,7 @@ export function Modal({
     onClose = useRef(close);
   onClose.current = close;
   useEffect(() => {
+    if (!active) return;
     const previous = document.activeElement as HTMLElement | null;
     const old = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1298,9 +1301,15 @@ export function Modal({
       document.body.style.overflow = old;
       previous?.focus({ preventScroll: true });
     };
-  }, []);
+  }, [active]);
   return createPortal(
-    <div className="modal-backdrop" onClick={close}>
+    <div
+      className="modal-backdrop"
+      hidden={!active}
+      inert={!active}
+      style={active ? undefined : { display: "none" }}
+      onClick={close}
+    >
       <div
         ref={ref}
         role="dialog"

@@ -314,6 +314,19 @@ export function TeamView({
                           Teilnehmer
                         </span>
                       </div>
+                      <p className="training-player-names">
+                        {e.participants
+                          .filter((p) => !p.removed_from_event)
+                          .map((participant) => {
+                            const player = data.players.find(
+                              (p) => p.id === participant.player_id,
+                            );
+                            return player
+                              ? `${player.first_name} ${player.last_name}`
+                              : "Unbekannter Spieler";
+                          })
+                          .join(", ") || "Noch keine Spieler hinzugefügt"}
+                      </p>
                       {e.status === "cancelled" ? (
                         <p className="cancellation-note">
                           Vom Team abgesagt · keine Einheit angerechnet
@@ -741,6 +754,26 @@ function EventEditor({
           <h3>Kinder zuordnen</h3>
           <Badge tone="purple">{children.length} ausgewählt</Badge>
         </div>
+        {children.length > 0 && (
+          <div className="selected-players" aria-label="Hinzugefügte Spieler">
+            {children.map((id) => {
+              const p = data.players.find((p) => p.id === id);
+              return (
+                <button
+                  type="button"
+                  className="secondary-button assigned-button"
+                  key={id}
+                  onClick={() =>
+                    setChildren((rows) => rows.filter((row) => row !== id))
+                  }
+                  aria-label={`${p?.first_name ?? "Spieler"} ${p?.last_name ?? ""} entfernen`}
+                >
+                  {p?.first_name} {p?.last_name} ×
+                </button>
+              );
+            })}
+          </div>
+        )}
         <label className="search-input">
           <Search size={18} />
           <input

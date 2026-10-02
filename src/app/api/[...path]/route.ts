@@ -47,7 +47,7 @@ import { isAllowedTestLogin } from "@/lib/server/auth-test-access";
 import {
   loadStampCard,
   stampCardRecipients,
-  queueStampCard,
+  sendStampCard,
 } from "@/lib/server/stamp-cards";
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
@@ -249,17 +249,19 @@ async function handler(
         const input = z
           .object({
             period_id: z.uuid(),
-            parent_id: z.uuid(),
+            parent_id: z.uuid().optional(),
+            email: z.email().optional(),
             request_id: z.uuid(),
           })
           .strict()
           .parse(await request.json());
-        const id = await queueStampCard(db, role, user.id, input);
+        const result = await sendStampCard(db, role, user.id, input);
         return json({
           ok: true,
-          id,
-          message:
-            "Versand vorgemerkt. Die E-Mail wird vom Hintergrunddienst verarbeitet.",
+          id: result.id,
+          message: result.captured
+            ? "Stempelkarte im Testbetrieb erfasst; keine E-Mail versendet."
+            : "Stempelkarte per E-Mail versendet.",
         });
       }
       throw new HttpError(405, "Methode nicht erlaubt.");
@@ -401,8 +403,10 @@ async function handler(
               : table === "stripe_webhook_events"
                 ? "id,stripe_event_id,type,status,attempts,last_error,created_at"
                 : table === "parents"
-                  ? "*,parent_stripe_customers(stripe_customer_id)"
-                  : "*";
+                  ? "*,parent_stripe_customers(stripe_customer_id),parent_players(id),parent_invitations(id,email)"
+                  : table === "players"
+                    ? "*,parent_players(id)"
+                    : "*";
         const { data: rows, error } = await db
           .from(table)
           .select(select)
@@ -412,6 +416,59 @@ async function handler(
             Number(request.nextUrl.searchParams.get("offset") ?? 0) + 99,
           );
         if (error) throw error;
+        if (table === "parents") {
+          const parents = (rows ?? []) as unknown as Record<string, any>[];
+          const invitations = parents.flatMap(
+            (p) => p.parent_invitations ?? [],
+          );
+          const sent = new Set<string>();
+          // Query by invitation ID, not just email: a changed contact must not inherit another invitation's status.
+          for (let start = 0; start < invitations.length; start += 100) {
+            const { data: jobs, error: sentError } = await db
+              .from("notification_jobs")
+              .select(
+                "payload,recipient,notification_deliveries(recipient,provider,status)",
+              )
+              .eq("kind", "invitation")
+              .eq("status", "sent")
+              .in(
+                "payload->>invitation_id",
+                invitations.slice(start, start + 100).map((i) => i.id),
+              );
+            if (sentError) throw sentError;
+            for (const job of jobs ?? [])
+              if (
+                job.notification_deliveries.some(
+                  (delivery) =>
+                    delivery.provider === "proton" &&
+                    delivery.status === "sent" &&
+                    delivery.recipient.toLowerCase() ===
+                      String(job.recipient).toLowerCase(),
+                ) &&
+                String(job.recipient).toLowerCase() ===
+                  String(
+                    invitations.find((i) => i.id === job.payload.invitation_id)
+                      ?.email,
+                  ).toLowerCase()
+              )
+                sent.add(job.payload.invitation_id);
+          }
+          return json({
+            rows: parents.map(({ parent_invitations, ...parent }) => ({
+              ...parent,
+              portal_status: parent.auth_user_id
+                ? "registered"
+                : parent_invitations?.some(
+                      (i: { id: string; email: string }) =>
+                        sent.has(i.id) &&
+                        i.email.toLowerCase() ===
+                          String(parent.contact_email).toLowerCase(),
+                    )
+                  ? "invited"
+                  : "none",
+            })),
+          });
+        }
         return json({ rows });
       }
       if (request.method === "POST") {

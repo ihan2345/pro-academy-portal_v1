@@ -6,6 +6,7 @@ import { stampCardSnapshot } from "../src/lib/stamp-card";
 import {
   loadStampCard,
   queueStampCard,
+  sendStampCard,
   stampCardRecipients,
 } from "../src/lib/server/stamp-cards";
 import { renderReport } from "../src/lib/pdf";
@@ -17,12 +18,12 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
 }));
 vi.mock("../src/lib/server/service-db", () => ({
-  serviceDb: () => ({ from: mocks.from }),
+  serviceDb: () => ({ from: mocks.from, rpc: mocks.rpc }),
 }));
 vi.mock("../src/lib/server/supabase", () => ({
   sessionUser: mocks.session,
   sessionDb: vi.fn(),
-  serviceDb: () => ({ from: mocks.from }),
+  serviceDb: () => ({ from: mocks.from, rpc: mocks.rpc }),
 }));
 const player = portalFixture.players[0],
   period = portalFixture.periods[0];
@@ -39,18 +40,37 @@ let tableErrors: Record<string, { code: string; message: string }>;
 function query(table: string) {
   const filters: Record<string, unknown> = {};
   let inserted: any;
+  let update: any;
   const resolve = () => {
     if (tableErrors[table]) return { data: null, error: tableErrors[table] };
     if (table === "notification_jobs") {
+      if (update) {
+        const row = saved.find((row) =>
+          Object.entries(filters).every(([key, value]) =>
+            key.startsWith("payload->>")
+              ? String(row.payload[key.slice(10)]) === value
+              : row[key] === value,
+          ),
+        );
+        if (row) Object.assign(row, update);
+        return { data: row ? { ...row } : null, error: null };
+      }
       if (inserted) {
-        const row = { id: "job-id", ...inserted };
+        const row = {
+          id: "job-id",
+          attempts: 0,
+          status: "pending",
+          ...inserted,
+        };
         saved.push(row);
         return { data: row, error: null };
       }
       return {
         data:
-          saved.find(
-            (row) => row.idempotency_key === filters.idempotency_key,
+          saved.find((row) =>
+            filters.id
+              ? row.id === filters.id
+              : row.idempotency_key === filters.idempotency_key,
           ) ?? null,
         error: null,
       };
@@ -82,6 +102,10 @@ function query(table: string) {
     order: vi.fn(() => chain),
     maybeSingle: vi.fn(async () => resolve()),
     single: vi.fn(async () => resolve()),
+    update: vi.fn((value) => {
+      update = value;
+      return chain;
+    }),
     upsert: vi.fn((value) => {
       inserted = value;
       return chain;
@@ -108,6 +132,14 @@ beforeEach(() => {
       training_events: event,
     }));
   mocks.from.mockImplementation(query);
+  mocks.rpc.mockImplementation(async (name, { input }) => {
+    if (name === "finish_notification")
+      Object.assign(
+        saved.find((job) => job.id === input.id)!,
+        { status: input.status },
+      );
+    return { data: null, error: null };
+  });
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
   vi.stubEnv("APP_URL", "https://portal.example.com");
 });
@@ -410,4 +442,106 @@ it("carries team cancellations through the database projection and public stamp-
       }),
     ]),
   );
+});
+
+describe("direct manual stamp card delivery", () => {
+  const input = {
+    period_id: period.id,
+    email: "external@example.com",
+    request_id: "manual-request",
+  };
+  const provider = () => ({
+    name: "proton",
+    send: vi.fn(async () => ({ id: "smtp-message" })),
+  });
+  beforeEach(() => {
+    vi.stubEnv("APP_MODE", "production");
+    vi.stubEnv("EMAIL_TEST_MODE", "false");
+    vi.stubEnv("JOBS_ENABLED", "false");
+    vi.stubEnv("STRIPE_SYNC_ONLY", "true");
+    linked = false;
+  });
+  it("sends a PDF without parent login or linkage while jobs are disabled, and deduplicates retries", async () => {
+    const mail = provider();
+    await sendStampCard(db, "staff", "coach", input, mail);
+    await sendStampCard(db, "staff", "coach", input, mail);
+    expect(mail.send).toHaveBeenCalledTimes(1);
+    expect(mail.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: input.email,
+        attachments: [
+          expect.objectContaining({ contentType: "application/pdf" }),
+        ],
+      }),
+    );
+    expect(saved[0]).toMatchObject({
+      status: "sent",
+      payload: { manual_email: true, actor_id: "coach" },
+    });
+    expect(
+      mocks.rpc.mock.calls.every(([name]) => name === "finish_notification"),
+    ).toBe(true);
+  });
+  it("does not let simultaneous requests claim the same message twice", async () => {
+    const mail = provider();
+    await queueStampCard(db, "staff", "coach", input, true);
+    await Promise.allSettled([
+      sendStampCard(db, "staff", "coach", input, mail),
+      sendStampCard(db, "staff", "coach", input, mail),
+    ]);
+    expect(mail.send).toHaveBeenCalledTimes(1);
+  });
+  it("quarantines ambiguous SMTP failures and refuses automatic resend", async () => {
+    const mail = provider();
+    mail.send.mockRejectedValue(new Error("Connection lost"));
+    await expect(
+      sendStampCard(db, "admin", "coach", input, mail),
+    ).rejects.toThrow("Versandergebnis unklar");
+    expect(saved[0].status).toBe("uncertain");
+    await expect(
+      sendStampCard(db, "admin", "coach", input, mail),
+    ).rejects.toThrow("Versand läuft oder Ergebnis unklar");
+    expect(mail.send).toHaveBeenCalledTimes(1);
+  });
+  it("keeps test routing and increments attempts for safe configuration retries", async () => {
+    const mail = provider();
+    vi.stubEnv("EMAIL_TEST_MODE", "true");
+    vi.stubEnv("EMAIL_TEST_RECIPIENT", "");
+    await expect(
+      sendStampCard(db, "staff", "coach", input, mail),
+    ).rejects.toThrow("Konfiguration");
+    expect(saved[0].status).toBe("held");
+    vi.stubEnv("EMAIL_TEST_RECIPIENT", "test@example.com");
+    await sendStampCard(db, "staff", "coach", input, mail);
+    expect(mail.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "test@example.com" }),
+    );
+    expect(saved[0].attempts).toBe(2);
+  });
+  it("rejects recipient changes for an existing request", async () => {
+    const mail = provider();
+    await sendStampCard(db, "staff", "coach", input, mail);
+    await expect(
+      sendStampCard(
+        db,
+        "staff",
+        "coach",
+        { ...input, email: "other@example.com" },
+        mail,
+      ),
+    ).rejects.toThrow("anderen Stempelkarte");
+    expect(mail.send).toHaveBeenCalledTimes(1);
+  });
+  it("keeps parent authorization and the local side-effect block", async () => {
+    const mail = provider();
+    await expect(
+      sendStampCard(db, "parent", "coach", input, mail),
+    ).rejects.toThrow();
+    vi.stubEnv("CAMP_SIDE_EFFECTS_BLOCKED", "true");
+    await expect(
+      sendStampCard(db, "staff", "coach", input, mail),
+    ).rejects.toThrow("gesperrt");
+    expect(mail.send).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
 });

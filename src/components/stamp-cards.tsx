@@ -41,6 +41,7 @@ export function StampCards({
   const [periodId, setPeriodId] = useState("");
   const [card, setCard] = useState<Card | null>(null);
   const [recipient, setRecipient] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -65,6 +66,7 @@ export function StampCards({
     let cancelled = false;
     setCard(null);
     setRecipient("");
+    setEmail("");
     setError("");
     request.current = null;
     if (!activeId || !player || !period) {
@@ -85,6 +87,7 @@ export function StampCards({
         if (!cancelled) {
           setCard(result);
           setRecipient(result.recipients[0]?.id ?? "");
+          setEmail(result.recipients[0]?.email ?? "");
         }
       })
       .catch((e) => {
@@ -130,17 +133,16 @@ export function StampCards({
     }
   }
   async function send() {
-    const parent = card?.recipients.find((p) => p.id === recipient);
-    if (!parent || !activeId) return;
-    const target = card?.testRecipient ?? parent.email;
+    if (!email.trim() || !activeId) return;
+    const target = card?.testRecipient ?? email.trim();
     if (
       !window.confirm(
-        `Stempelkarte für ${card!.snapshot.player_name} per E-Mail an ${target} vormerken?`,
+        `Stempelkarte für ${card!.snapshot.player_name} per E-Mail an ${target} senden?`,
       )
     )
       return;
     setBusy(true);
-    const key = `${activeId}:${parent.id}`;
+    const key = `${activeId}:${email.trim()}`;
     if (request.current?.key !== key)
       request.current = { key, id: crypto.randomUUID() };
     try {
@@ -149,7 +151,7 @@ export function StampCards({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           period_id: activeId,
-          parent_id: parent.id,
+          email: email.trim(),
           request_id: request.current.id,
         }),
       });
@@ -158,11 +160,7 @@ export function StampCards({
       notify(result.message);
       request.current = null;
     } catch (e) {
-      notify(
-        e instanceof Error
-          ? e.message
-          : "Versand konnte nicht vorgemerkt werden.",
-      );
+      notify(e instanceof Error ? e.message : "Versand fehlgeschlagen.");
     } finally {
       setBusy(false);
     }
@@ -193,8 +191,8 @@ export function StampCards({
             Stempelkarten<span className="greeting-dot">.</span>
           </h1>
           <p>
-            Einheiten aller Kinder prüfen, als PDF exportieren oder an
-            zugeordnete Eltern senden.
+            Einheiten aller Kinder prüfen, als PDF exportieren oder an eine
+            E-Mail-Adresse senden.
           </p>
         </div>
       </div>
@@ -333,49 +331,67 @@ export function StampCards({
           </section>
           <section className="panel stamp-card-mail">
             <h2>Stempelkarte per E-Mail</h2>
-            {!card.recipients.length ? (
-              <p>
-                Diesem Kind ist noch kein aktives Elternkonto für den Versand
-                zugeordnet.
-              </p>
-            ) : (
-              <>
-                <label>
-                  Empfänger auswählen
-                  <select
-                    value={recipient}
-                    disabled={busy}
-                    onChange={(e) => setRecipient(e.target.value)}
-                  >
-                    {card.recipients.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} · {p.email}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {card.testRecipient !== null && (
-                  <p>
-                    Testbetrieb: Der Versand ist auf{" "}
-                    {card.testRecipient ||
-                      "einen noch einzurichtenden Testempfänger"}{" "}
-                    begrenzt.
-                  </p>
-                )}
-                <p>
-                  Die Stempelkarte wird als PDF-Anhang vorgemerkt. Der Versand
-                  erfolgt über den Hintergrunddienst; bei deaktiviertem Dienst
-                  bleibt der Auftrag ausstehend.
-                </p>
-                <button
-                  className="primary-button"
-                  onClick={send}
-                  disabled={busy || !recipient}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void send();
+              }}
+            >
+              <label>
+                Empfänger auswählen
+                <select
+                  value={recipient}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setRecipient(e.target.value);
+                    setEmail(
+                      card.recipients.find((p) => p.id === e.target.value)
+                        ?.email ?? "",
+                    );
+                  }}
                 >
-                  <Mail size={18} /> Per E-Mail vormerken
-                </button>
-              </>
-            )}
+                  <option value="">Andere E-Mail-Adresse</option>
+                  {card.recipients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {p.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                E-Mail-Adresse
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setRecipient("");
+                  }}
+                />
+              </label>
+              {card.testRecipient !== null && (
+                <p>
+                  Testbetrieb: Der Versand ist auf{" "}
+                  {card.testRecipient ||
+                    "einen noch einzurichtenden Testempfänger"}{" "}
+                  begrenzt.
+                </p>
+              )}
+              <p>
+                Die Stempelkarte wird direkt als PDF-Anhang versendet. Eine
+                Anmeldung im Elternportal ist dafür nicht erforderlich.
+              </p>
+              <button
+                className="primary-button"
+                type="submit"
+                disabled={busy || !email.trim()}
+              >
+                <Mail size={18} />{" "}
+                {busy ? "Wird versendet …" : "Per E-Mail senden"}
+              </button>
+            </form>
           </section>
           <section className="panel schedule-panel">
             <div className="panel-heading">

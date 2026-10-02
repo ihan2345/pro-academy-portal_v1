@@ -3172,3 +3172,43 @@ label {
   gap: 10px;
   margin: 16px 0;
 }
+
+.assignment-filters {
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+.assigned-button {
+  background: #e3f5e8 !important;
+  color: #176331 !important;
+  border-color: #9bcea8 !important;
+}
+.assigned-button:disabled {
+  opacity: 1;
+}
+.parent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.parent-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc3535;
+}
+.parent-status.registered i {
+  background: #259849;
+}
+.parent-status.invited i {
+  background: #e58a18;
+}
+.selected-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.training-player-names {
+  margin: 8px 0;
+  font-size: 13px;
+}

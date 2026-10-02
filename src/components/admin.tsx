@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Users,
   CalendarDays,
@@ -25,8 +26,112 @@ import {
   type RegistryCustomer,
 } from "@/lib/stripe-customers";
 import { formatDate } from "@/lib/domain";
-import type { PortalData } from "@/lib/types";
+import type { Player, PortalData } from "@/lib/types";
 type RecordRow = Record<string, unknown>;
+async function allAdminRows(table: string) {
+  const rows: RecordRow[] = [];
+  for (let offset = 0; ; offset += 100) {
+    const result = await api(
+      `admin/${table}?offset=${offset}`,
+      undefined,
+      "GET",
+    );
+    rows.push(...result.rows);
+    if (result.rows.length < 100) return rows;
+  }
+}
+type AssignmentFilter = "all" | "open" | "assigned";
+function AssignmentFilters({
+  value,
+  change,
+}: {
+  value: AssignmentFilter;
+  change: (value: AssignmentFilter) => void;
+}) {
+  return (
+    <div
+      className="segmented assignment-filters"
+      aria-label="Zuordnung filtern"
+    >
+      {(
+        [
+          ["all", "Alle"],
+          ["open", "Noch nicht zugeordnet"],
+          ["assigned", "Bereits zugeordnet"],
+        ] as const
+      ).map(([key, label]) => (
+        <button
+          type="button"
+          key={key}
+          className={value === key ? "selected" : ""}
+          aria-pressed={value === key}
+          onClick={() => change(key)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+function NewChild({
+  close,
+  saved,
+}: {
+  close: () => void;
+  saved: (player: Player) => void;
+}) {
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  return (
+    <Modal title="Kind anlegen" close={close}>
+      <form
+        className="form-body"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setBusy(true);
+          setError("");
+          const f = new FormData(e.currentTarget);
+          const player = {
+            first_name: String(f.get("first_name")),
+            last_name: String(f.get("last_name")),
+            team: String(f.get("team")),
+            birth_year: f.get("birth_year")
+              ? Number(f.get("birth_year"))
+              : null,
+          };
+          try {
+            const result = await api("admin/players", player);
+            saved({ ...player, id: result.id });
+          } catch (e) {
+            setError((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {entities.spieler.fields.map((f) => (
+          <label key={f.key}>
+            {f.label}
+            <input
+              name={f.key}
+              type={f.type ?? "text"}
+              required={f.key !== "birth_year"}
+            />
+          </label>
+        ))}
+        {error && (
+          <p role="alert" className="error-message">
+            {error}
+          </p>
+        )}
+        <button className="primary-button" disabled={busy}>
+          Kind speichern
+        </button>
+      </form>
+    </Modal>
+  );
+}
 const entities: Record<
   string,
   {
@@ -96,6 +201,8 @@ export function AdminView({
   section: string;
   notify: (s: string) => void;
 }) {
+  const router = useRouter();
+  const [assignment, setAssignment] = useState<AssignmentFilter>("all");
   const slug = section.split("/")[1] ?? "",
     config = entities[slug];
   const [rows, setRows] = useState<RecordRow[]>([]),
@@ -108,11 +215,13 @@ export function AdminView({
     setLoading(true);
     setError("");
     try {
-      const result = await api(
-        `admin/${config?.table ?? (slug === "einstellungen" ? "system_settings" : slug)}`,
-        undefined,
-        "GET",
-      );
+      const result = ["eltern", "spieler"].includes(slug)
+        ? { rows: await allAdminRows(config.table) }
+        : await api(
+            `admin/${config?.table ?? (slug === "einstellungen" ? "system_settings" : slug)}`,
+            undefined,
+            "GET",
+          );
       setRows(result.rows ?? []);
       if (slug === "einstellungen")
         setReportTime(
@@ -146,6 +255,7 @@ export function AdminView({
     try {
       await api(`admin/${config.table}`, record);
       await load();
+      router.refresh();
       notify("Datensatz gespeichert und protokolliert.");
 
       setEdit(null);
@@ -286,6 +396,9 @@ export function AdminView({
               <RefreshCw size={19} />
             </button>
           </div>
+          {["eltern", "spieler"].includes(slug) && (
+            <AssignmentFilters value={assignment} change={setAssignment} />
+          )}
           <section className="panel table-scroll">
             <table className="training-table">
               <thead>
@@ -293,12 +406,27 @@ export function AdminView({
                   {config.fields.map((f) => (
                     <th key={f.key}>{f.label.toUpperCase()}</th>
                   ))}
-                  {slug === "eltern" && <th>STRIPE-KUNDEN</th>}
+                  {slug === "eltern" && (
+                    <>
+                      <th>STATUS</th>
+                      <th>STRIPE-KUNDEN</th>
+                    </>
+                  )}
+                  {["eltern", "spieler"].includes(slug) && <th>ZUORDNUNG</th>}
                   <th>AKTION</th>
                 </tr>
               </thead>
               <tbody>
                 {rows
+                  .filter(
+                    (r) =>
+                      !["eltern", "spieler"].includes(slug) ||
+                      assignment === "all" ||
+                      Boolean(
+                        (r.parent_players as unknown[] | undefined)?.length,
+                      ) ===
+                        (assignment === "assigned"),
+                  )
                   .filter((r) =>
                     JSON.stringify(r)
                       .toLowerCase()
@@ -321,6 +449,37 @@ export function AdminView({
                               : String(r[f.key] ?? "—")}
                         </td>
                       ))}
+                      {slug === "eltern" && (
+                        <td>
+                          <span
+                            className={`parent-status ${String(r.portal_status ?? "none")}`}
+                          >
+                            <i aria-hidden="true" />
+                            {r.portal_status === "registered"
+                              ? "Angemeldet"
+                              : r.portal_status === "invited"
+                                ? "Einladung erhalten"
+                                : "Keine Einladung"}
+                          </span>
+                        </td>
+                      )}
+                      {["eltern", "spieler"].includes(slug) && (
+                        <td>
+                          <a
+                            className={
+                              (r.parent_players as unknown[] | undefined)
+                                ?.length
+                                ? "secondary-button assigned-button"
+                                : "secondary-button"
+                            }
+                            href={`/admin/eltern?${slug === "eltern" ? "parent" : "player"}=${String(r.id)}#zuordnung`}
+                          >
+                            {(r.parent_players as unknown[] | undefined)?.length
+                              ? "Zugeordnet"
+                              : "Zuordnen"}
+                          </a>
+                        </td>
+                      )}
                       {slug === "eltern" && (
                         <td>
                           {(
@@ -379,7 +538,15 @@ export function AdminView({
         </>
       )}
       {slug === "eltern" && (
-        <ParentLinks parents={rows} data={data} notify={notify} />
+        <ParentLinks
+          parents={rows}
+          data={data}
+          notify={notify}
+          changed={() => {
+            void load();
+            router.refresh();
+          }}
+        />
       )}
       {slug === "stripe" && <StripeImport data={data} notify={notify} />}
       {slug === "einladungen" && (
@@ -544,6 +711,17 @@ function StripeImport({
   data: PortalData;
   notify: (s: string) => void;
 }) {
+  const router = useRouter();
+  const [assignment, setAssignment] = useState<AssignmentFilter>("all");
+  const [newChild, setNewChild] = useState(false);
+  const [addedPlayers, setAddedPlayers] = useState<Player[]>([]);
+  const [playerId, setPlayerId] = useState("");
+  const players = [
+    ...data.players,
+    ...addedPlayers.filter(
+      (p) => !data.players.some((item) => item.id === p.id),
+    ),
+  ];
   const [customers, setCustomers] = useState<RegistryCustomer[]>([]);
   const [current, setCurrent] = useState<RecordRow | null>(null);
   const [busy, setBusy] = useState(false);
@@ -649,11 +827,15 @@ function StripeImport({
               </small>
             </div>
             <button
-              className="secondary-button"
+              className={
+                c.assigned
+                  ? "secondary-button assigned-button"
+                  : "secondary-button"
+              }
               disabled={busy}
               onClick={() => void selectCustomer(c)}
             >
-              {c.assigned ? "Zuordnung ergänzen" : "Zuordnen"}
+              {c.assigned ? "Zugeordnet" : "Zuordnen"}
             </button>
           </div>
         ))}
@@ -763,15 +945,23 @@ function StripeImport({
         <p role="status" aria-live="polite">
           {status}
         </p>
-        <h3>Noch nicht zugeordnet · {open.length}</h3>
-        {customerRows(open, "open")}
-        <details className="stripe-assigned">
-          <summary>Bereits zugeordnet · {assigned.length}</summary>
-          {customerRows(assigned, "assigned")}
-        </details>
+        <AssignmentFilters value={assignment} change={setAssignment} />
+        {assignment !== "assigned" && (
+          <>
+            <h3>Noch nicht zugeordnet · {open.length}</h3>
+            {customerRows(open, "open")}
+          </>
+        )}
+        {assignment !== "open" && (
+          <>
+            <h3>Bereits zugeordnet · {assigned.length}</h3>
+            {customerRows(assigned, "assigned")}
+          </>
+        )}
       </section>
       {current && (
         <Modal
+          active={!newChild}
           title="Zuordnung manuell bestätigen"
           close={() => setCurrent(null)}
         >
@@ -799,6 +989,7 @@ function StripeImport({
                   ),
                 );
                 setCurrent(null);
+                router.refresh();
               } catch (e) {
                 notify((e as Error).message);
               }
@@ -871,15 +1062,26 @@ function StripeImport({
             </label>
             <label>
               Kind
-              <select name="player" required>
-                {data.players.map((p) => (
+              <select
+                name="player"
+                required
+                value={playerId || players[0]?.id || ""}
+                onChange={(e) => setPlayerId(e.target.value)}
+              >
+                {players.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.first_name} {p.last_name}
                   </option>
                 ))}
               </select>
             </label>
-            <Link href="/admin/spieler">Kind zuerst neu anlegen</Link>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setNewChild(true)}
+            >
+              Neues Kind anlegen
+            </button>
             <label className="checkbox-label">
               <input type="checkbox" required /> Ich habe Kunde, Kind und
               Elternkonto geprüft.
@@ -889,6 +1091,17 @@ function StripeImport({
             </button>
           </form>
         </Modal>
+      )}
+      {newChild && (
+        <NewChild
+          close={() => setNewChild(false)}
+          saved={(p) => {
+            setAddedPlayers((rows) => [...rows, p]);
+            setPlayerId(p.id);
+            setNewChild(false);
+            router.refresh();
+          }}
+        />
       )}
     </>
   );
@@ -1074,15 +1287,37 @@ function ParentLinks({
   parents,
   data,
   notify,
+  changed,
 }: {
+  changed: () => void;
   parents: RecordRow[];
   data: PortalData;
   notify: (text: string) => void;
 }) {
   const [links, setLinks] = useState<RecordRow[]>([]);
+  const [parentId, setParentId] = useState("");
+  const [childId, setChildId] = useState("");
+  const [newChild, setNewChild] = useState(false);
+  const [addedPlayers, setAddedPlayers] = useState<Player[]>([]);
+  const players = [
+    ...data.players,
+    ...addedPlayers.filter(
+      (p) => !data.players.some((item) => item.id === p.id),
+    ),
+  ];
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setParentId(params.get("parent") ?? "");
+    setChildId(params.get("player") ?? "");
+  }, []);
+  const selectedParent = parentId || String(parents[0]?.id ?? "");
+  const selectedChild = childId || players[0]?.id || "";
+  const assigned = links.some(
+    (l) => l.parent_id === selectedParent && l.player_id === selectedChild,
+  );
   async function refresh() {
     try {
-      setLinks((await api("admin/parent_players", undefined, "GET")).rows);
+      setLinks(await allAdminRows("parent_players"));
     } catch (e) {
       notify((e as Error).message);
     }
@@ -1091,7 +1326,11 @@ function ParentLinks({
     void refresh();
   }, []);
   return (
-    <section className="panel account-panel" style={{ marginTop: 24 }}>
+    <section
+      id="zuordnung"
+      className="panel account-panel"
+      style={{ marginTop: 24 }}
+    >
       <h2>Eltern und Kinder zuordnen</h2>
       <p>
         Eine Zuordnung gibt dem Elternkonto Zugriff auf die Termine und Berichte
@@ -1109,7 +1348,7 @@ function ParentLinks({
           try {
             await api("admin/parent_players", input);
             await refresh();
-
+            changed();
             notify("Zuordnung gespeichert.");
           } catch (e) {
             notify((e as Error).message);
@@ -1118,7 +1357,12 @@ function ParentLinks({
       >
         <label>
           Elternkonto
-          <select name="parent" required>
+          <select
+            name="parent"
+            required
+            value={selectedParent}
+            onChange={(e) => setParentId(e.target.value)}
+          >
             {parents.map((p) => (
               <option key={String(p.id)} value={String(p.id)}>
                 {String(p.full_name)} · {String(p.contact_email)}
@@ -1128,8 +1372,13 @@ function ParentLinks({
         </label>
         <label>
           Kind
-          <select name="child" required>
-            {data.players.map((p) => (
+          <select
+            name="child"
+            required
+            value={selectedChild}
+            onChange={(e) => setChildId(e.target.value)}
+          >
+            {players.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.first_name} {p.last_name}
               </option>
@@ -1139,8 +1388,33 @@ function ParentLinks({
         <label className="checkbox-label">
           <input required type="checkbox" /> Zugriff bewusst freigeben
         </label>
-        <button className="primary-button">Zuordnung bestätigen</button>
+        <button
+          type="button"
+          className="text-button"
+          onClick={() => setNewChild(true)}
+        >
+          Neues Kind anlegen
+        </button>
+        <button
+          className={
+            assigned ? "primary-button assigned-button" : "primary-button"
+          }
+          disabled={assigned || !selectedParent || !selectedChild}
+        >
+          {assigned ? "Zugeordnet" : "Zuordnen"}
+        </button>
       </form>
+      {newChild && (
+        <NewChild
+          close={() => setNewChild(false)}
+          saved={(p) => {
+            setAddedPlayers((rows) => [...rows, p]);
+            setChildId(p.id);
+            setNewChild(false);
+            changed();
+          }}
+        />
+      )}
       {links.map((l) => (
         <div className="account-row" key={String(l.id)}>
           <span>
@@ -1149,7 +1423,7 @@ function ParentLinks({
                 l.parent_id,
             )}{" "}
             →{" "}
-            {data.players.find((p) => p.id === l.player_id)?.first_name ??
+            {players.find((p) => p.id === l.player_id)?.first_name ??
               String(l.player_id)}
           </span>
           <button
@@ -1162,6 +1436,7 @@ function ParentLinks({
               try {
                 await api("admin/parent-unlink", { id: l.id, reason });
                 setLinks(links.filter((x) => x.id !== l.id));
+                changed();
                 notify("Zuordnung aufgehoben; Änderung protokolliert.");
               } catch (e) {
                 notify((e as Error).message);

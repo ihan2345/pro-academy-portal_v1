@@ -103,6 +103,7 @@ try {
       ],
     };
     let saved;
+    let sentCard;
     await page.route("**/*", async (route) => {
       const url = new URL(route.request().url());
       if (url.origin !== base) {
@@ -132,7 +133,15 @@ try {
           family_matches: [],
           subscriptions: [],
         };
-      else if (url.pathname.endsWith("stamp-card"))
+      else if (
+        url.pathname.endsWith("players") &&
+        route.request().method() === "POST"
+      )
+        json = { ok: true, id: "new-child" };
+      else if (url.pathname.endsWith("stamp-card-send")) {
+        sentCard = route.request().postDataJSON();
+        json = { ok: true, message: "Stempelkarte per E-Mail versendet." };
+      } else if (url.pathname.endsWith("stamp-card"))
         json = {
           snapshot,
           recipients: [],
@@ -165,6 +174,9 @@ try {
       .getByText("Bestand vollständig geladen.", { exact: false })
       .waitFor();
     assert.deepEqual(syncCalls, [null, "cus_07"]);
+    await page
+      .getByRole("button", { name: "Noch nicht zugeordnet", exact: true })
+      .click();
     await expect(page.locator(".account-row:visible")).toHaveCount(10);
     await page.screenshot({
       path: `${output}/stripe-default-${name}.png`,
@@ -215,11 +227,16 @@ try {
     await page.getByRole("searchbox").fill("Familie 20");
     await expect(page.locator(".account-row:visible")).toHaveCount(1);
     await page.getByRole("searchbox").fill("");
-    await page.getByText("Bereits zugeordnet · 2").click();
+    await page
+      .getByRole("button", { name: "Bereits zugeordnet", exact: true })
+      .click();
+    await expect(page.locator(".account-row:visible")).toHaveCount(2);
     await expect(
-      page.locator(".stripe-assigned .account-row:visible"),
+      page.getByRole("button", { name: "Zugeordnet", exact: true }),
     ).toHaveCount(2);
-    await page.getByText("Bereits zugeordnet · 2").click();
+    await page
+      .getByRole("button", { name: "Noch nicht zugeordnet", exact: true })
+      .click();
     await activeFilter.click();
     await expect(activeFilter).toHaveAttribute("aria-pressed", "false");
     await expect(
@@ -265,18 +282,36 @@ try {
         .inputValue(),
       "Familie 21",
     );
+    await page
+      .getByLabel("Stripe-Abonnement-ID", { exact: true })
+      .fill("sub_keep");
+    await page
+      .getByRole("button", { name: "Neues Kind anlegen", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "Kind anlegen", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(1);
+    await page.getByLabel("Vorname", { exact: true }).fill("Neues");
+    await page.getByLabel("Nachname", { exact: true }).fill("Kind");
+    await page.getByLabel("Altersklasse", { exact: true }).fill("U12");
+    await page
+      .getByRole("button", { name: "Kind speichern", exact: true })
+      .click();
+    await expect(
+      page.getByRole("combobox", { name: "Kind", exact: true }),
+    ).toHaveValue("new-child");
+    await expect(
+      page.getByLabel("Stripe-Abonnement-ID", { exact: true }),
+    ).toHaveValue("sub_keep");
     await page.getByRole("button", { name: "Dialog schließen" }).click();
     await page.getByRole("searchbox").fill("");
-    await page.getByText("Bereits zugeordnet · 4").click();
-    assert.equal(
-      await page.locator(".stripe-assigned .account-row:visible").count(),
-      4,
-    );
+    await page
+      .getByRole("button", { name: "Bereits zugeordnet", exact: true })
+      .click();
+    await expect(page.locator(".account-row:visible")).toHaveCount(4);
     await page.getByLabel("In den letzten 14 Tagen erstmals erfasst").check();
-    assert.equal(
-      await page.locator(".stripe-assigned .account-row").count(),
-      0,
-    );
+    assert.equal(await page.locator(".account-row:visible").count(), 0);
     assert.ok(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -287,6 +322,18 @@ try {
       fullPage: true,
     });
     await page.goto(`${base}/?view=cards`);
+    await page
+      .getByLabel("E-Mail-Adresse", { exact: true })
+      .fill("manual@example.com");
+    page.once("dialog", (dialog) => dialog.accept());
+    await page
+      .getByRole("button", { name: "Per E-Mail senden", exact: true })
+      .click();
+    await expect(
+      page.getByText("Stempelkarte per E-Mail versendet.", { exact: true }),
+    ).toBeVisible();
+    assert.equal(sentCard.email, "manual@example.com");
+    assert.equal(sentCard.parent_id, undefined);
     await page
       .getByRole("button", { name: "Einheit 2 nachtragen", exact: true })
       .click();
@@ -337,7 +384,7 @@ try {
     });
     await page.close();
     console.log(
-      `${name}: complete customer pagination, sorting, search, collapse, date filter, backfill form and stamp passed`,
+      `${name}: complete customer pagination, sorting, search, assignment filters, child popup, direct email, backfill form and stamp passed`,
     );
   }
 } finally {
