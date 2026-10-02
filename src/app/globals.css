@@ -3142,3 +3142,33 @@ label {
   font-weight: 600;
   margin-top: 10px;
 }
+
+.stripe-sort-controls {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+.stripe-sort-controls legend {
+  margin-bottom: 8px;
+}
+.stripe-sort-controls button {
+  white-space: normal;
+}
+.stripe-sort-controls button[aria-pressed="true"],
+.stripe-filter-controls button[aria-pressed="true"] {
+  color: #622fc3;
+  background: #f3edff;
+  border-color: #9864f2;
+}
+.stripe-filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+}

@@ -33,7 +33,10 @@ import {
 } from "@/lib/server/v2-availability";
 import { readAll } from "@/lib/server/read-all";
 import { renderReport } from "@/lib/pdf";
-import { subscriptionPreviewLoader } from "@/lib/server/stripe-preview";
+import {
+  activeStripeCustomerIds,
+  subscriptionPreviewLoader,
+} from "@/lib/server/stripe-preview";
 import {
   sameFamilyContact,
   selectBillingCustomer,
@@ -334,18 +337,20 @@ async function handler(
         if (result.error) throw result.error;
         return json({
           count: page.data.length,
+          customers: page.data.map((c) => ({ id: c.id, created: c.created })),
           next_cursor: page.has_more ? page.data.at(-1)!.id : null,
         });
       }
       if (request.method === "GET") {
         if (action === "stripe-customers") {
-          const [customers, links] = await Promise.all([
+          const [customers, links, activeCustomers] = await Promise.all([
             readAll(
               db,
               "stripe_customer_registry",
               "id,name,email,first_seen_at",
             ),
             readAll(db, "parent_stripe_customers", "id,stripe_customer_id"),
+            activeStripeCustomerIds(stripeClient()),
           ]);
           const assigned = new Set(
             links.map((link) => link.stripe_customer_id),
@@ -354,6 +359,7 @@ async function handler(
             rows: customers.map((c) => ({
               ...c,
               assigned: assigned.has(c.id),
+              has_active_subscription: activeCustomers.has(c.id),
             })),
           });
         }

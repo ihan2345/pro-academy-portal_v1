@@ -2,7 +2,7 @@
 import { build } from "esbuild";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -61,7 +61,9 @@ const browser = await chromium.launch({ headless: true });
 try {
   for (const [name, viewport] of [
     ["desktop", { width: 1440, height: 1100 }],
+    ["tablet", { width: 820, height: 1180 }],
     ["mobile", { width: 390, height: 844 }],
+    ["small-mobile", { width: 320, height: 740 }],
   ]) {
     const page = await browser.newPage({ viewport });
     const errors = [];
@@ -72,7 +74,11 @@ try {
       email: `family${i}@example.invalid`,
       first_seen_at: new Date(Date.now() - i * 86400000).toISOString(),
       assigned: i >= 23,
+      has_active_subscription: i % 2 === 0,
     }));
+    const stripeOrder = [...customers]
+      .reverse()
+      .map((c) => ({ id: c.id, created: 1760000000 }));
     const syncCalls = [];
     const snapshot = {
       player_name: "Max Beispiel",
@@ -113,7 +119,10 @@ try {
         syncCalls.push(body.after ?? null);
         json = {
           count: body.after ? 7 : 20,
-          next_cursor: body.after ? null : "cus_19",
+          next_cursor: body.after ? null : "cus_07",
+          customers: body.after
+            ? stripeOrder.slice(20)
+            : stripeOrder.slice(0, 20),
         };
       } else if (url.pathname.endsWith("stripe-customers"))
         json = { rows: customers };
@@ -155,8 +164,12 @@ try {
     await page
       .getByText("Bestand vollständig geladen.", { exact: false })
       .waitFor();
-    assert.deepEqual(syncCalls, [null, "cus_19"]);
-    assert.equal(await page.locator(".account-row:visible").count(), 10);
+    assert.deepEqual(syncCalls, [null, "cus_07"]);
+    await expect(page.locator(".account-row:visible")).toHaveCount(10);
+    await page.screenshot({
+      path: `${output}/stripe-default-${name}.png`,
+      fullPage: true,
+    });
     await page.getByRole("button", { name: "10 weitere anzeigen" }).click();
     assert.equal(await page.locator(".account-row:visible").count(), 20);
     await page.getByRole("button", { name: "10 weitere anzeigen" }).click();
@@ -166,7 +179,78 @@ try {
         .size,
       23,
     );
-    await page.getByLabel("Sortierung").selectOption("name-desc");
+    assert.deepEqual(
+      await page.locator(".account-row:visible b").allTextContents(),
+      customers
+        .slice(0, 23)
+        .reverse()
+        .map((c) => c.name),
+    );
+    const activeFilter = page.getByRole("button", {
+      name: "Aktive Abos",
+      exact: true,
+    });
+    await activeFilter.click();
+    await expect(activeFilter).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".account-row:visible")).toHaveCount(10);
+    await expect(
+      page.getByText("Noch nicht zugeordnet · 12", { exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `${output}/stripe-active-${name}.png`,
+      fullPage: true,
+    });
+    await page.getByRole("button", { name: "10 weitere anzeigen" }).click();
+    await expect(page.locator(".account-row:visible")).toHaveCount(12);
+    assert.deepEqual(
+      await page.locator(".account-row:visible b").allTextContents(),
+      customers
+        .slice(0, 23)
+        .filter((c) => c.has_active_subscription)
+        .reverse()
+        .map((c) => c.name),
+    );
+    await page.getByRole("searchbox").fill("Familie 21");
+    await expect(page.locator(".account-row:visible")).toHaveCount(0);
+    await page.getByRole("searchbox").fill("Familie 20");
+    await expect(page.locator(".account-row:visible")).toHaveCount(1);
+    await page.getByRole("searchbox").fill("");
+    await page.getByText("Bereits zugeordnet · 2").click();
+    await expect(
+      page.locator(".stripe-assigned .account-row:visible"),
+    ).toHaveCount(2);
+    await page.getByText("Bereits zugeordnet · 2").click();
+    await activeFilter.click();
+    await expect(activeFilter).toHaveAttribute("aria-pressed", "false");
+    await expect(
+      page.getByText("Noch nicht zugeordnet · 23", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /Im Portal hinzugefügt/ }).click();
+    assert.equal(
+      await page.locator(".account-row:visible b").first().textContent(),
+      "Familie 00",
+    );
+    await expect(page.locator(".account-row:visible")).toHaveCount(10);
+    await page.getByRole("button", { name: /Im Portal hinzugefügt/ }).click();
+    assert.equal(
+      await page.locator(".account-row:visible b").first().textContent(),
+      "Familie 22",
+    );
+    await page
+      .getByRole("button", { name: "Stripe-Reihenfolge", exact: true })
+      .click();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Stripe-Reihenfolge", exact: true })
+        .getAttribute("aria-pressed"),
+      "true",
+    );
+    await page.getByRole("button", { name: "Name A–Z", exact: true }).click();
+    assert.equal(
+      await page.locator(".account-row:visible b").first().textContent(),
+      "Familie 00",
+    );
+    await page.getByRole("button", { name: "Name A–Z", exact: true }).click();
     assert.equal(
       await page.locator(".account-row:visible b").first().textContent(),
       "Familie 22",

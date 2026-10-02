@@ -36,7 +36,7 @@ export const snapshotSchema = z.object({
 });
 export async function campReview(campId: string) {
   await requireCampAccess();
-  const session = await campSession(true);
+  await campSession(true);
   await getCamp(campId);
   if (!campReviewEnabled())
     throw new HttpError(404, "Camp-Abgleich ist nicht eingerichtet.");
@@ -68,15 +68,13 @@ export async function campReview(campId: string) {
       .from("camp_review_drafts")
       .select("payment_id,data")
       .eq("camp_id", campId),
-    session.role === "admin"
-      ? db
-          .from("parents")
-          .select(
-            "id,full_name,parent_players(players(id,first_name,last_name,camp_birth_date,camp_gender,camp_clothing_size,archived_at))",
-          )
-          .is("archived_at", null)
-          .order("full_name")
-      : Promise.resolve({ data: [], error: null }),
+    db
+      .from("parents")
+      .select(
+        "id,full_name,parent_players(players(id,first_name,last_name,camp_birth_date,camp_gender,camp_clothing_size,archived_at))",
+      )
+      .is("archived_at", null)
+      .order("full_name"),
   ]);
   if (bookings.error || drafts.error || families.error)
     throw new HttpError(503, "Camp-Prüfung ist noch nicht eingerichtet.");
@@ -105,10 +103,7 @@ export async function campReview(campId: string) {
         ...r,
         imported: imported.has(r.payment_id),
         draft:
-          session.role === "admin"
-            ? (drafts.data.find((d) => d.payment_id === r.payment_id)?.data ??
-              null)
-            : null,
+          drafts.data.find((d) => d.payment_id === r.payment_id)?.data ?? null,
       })),
     families: families.data,
   };

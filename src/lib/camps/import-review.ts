@@ -9,11 +9,6 @@ import { prepareCampImport, reviewDraftSchema } from "./import-core";
 export async function saveCampReview(raw: unknown, add: boolean) {
   await requireCampAccess();
   const session = await campSession(true);
-  if (session.role !== "admin")
-    throw new HttpError(
-      403,
-      "Nur Admins dürfen Angaben ergänzen und Kinder übernehmen.",
-    );
   const data = reviewDraftSchema.parse(raw);
   await getCamp(data.camp_id);
   const review = await campReview(data.camp_id);

@@ -39,6 +39,9 @@ beforeAll(async () => {
   );
   await db.exec(readFileSync("supabase/camp/006-occupancy.sql", "utf8"));
   await db.exec(readFileSync("supabase/camp/007-remove-member.sql", "utf8"));
+  await db.exec(readFileSync("supabase/camp/010-team-import.sql", "utf8"));
+  // Reapplying the permission-only migration is safe.
+  await db.exec(readFileSync("supabase/camp/010-team-import.sql", "utf8"));
   await db.query(
     `insert into camps(id,title,location,capacity,buffer_percent,min_age,max_age,days,status) values($1,'Testcamp','Platz',10,10,6,16,'[{"starts_at":"2027-10-10T09:00:00+02:00","ends_at":"2027-10-10T15:00:00+02:00"}]','open')`,
     [camp],
@@ -279,6 +282,9 @@ describe("isolated Camp extension", () => {
       await expect(
         db.query("select camp_import_paid_booking('{}')"),
       ).rejects.toThrow();
+      await expect(
+        db.query("select camp_import_review_booking('{}')"),
+      ).rejects.toThrow();
       await expect(confirm({})).rejects.toThrow();
       await db.exec("reset role");
     }
@@ -387,133 +393,146 @@ describe("isolated Camp extension", () => {
       ).rejects.toThrow("Invalid verified payment");
     }
   });
-  it("imports verified existing payments once, requires admin and birth date, preserves families and blocks reset", async () => {
-    await db.exec("begin");
-    try {
-      const actor = "c0000000-0000-4000-8000-000000000001",
-        parent = "c0000000-0000-4000-8000-000000000002",
-        player = "c0000000-0000-4000-8000-000000000003";
-      await db.query(
-        "insert into auth.users(id,email)values($1,'admin@example.invalid')",
-        [actor],
-      );
-      await db.query(
-        "insert into profiles(id,role)values($1,'admin') on conflict(id) do update set role='admin'",
-        [actor],
-      );
-      await db.query(
-        "insert into parents(id,full_name,contact_email)values($1,'Existing Parent','existing@example.invalid')",
-        [parent],
-      );
-      await db.query(
-        "insert into players(id,first_name,last_name,birth_year)values($1,'Existing','Child',null)",
-        [player],
-      );
-      await db.query(
-        "insert into parent_players(parent_id,player_id)values($1,$2)",
-        [parent, player],
-      );
-      await db.query(
-        "insert into camp_stripe_sources values('plink_live',$1,'price_live','prod_live')",
-        [camp],
-      );
-      await db.query("update camps set capacity=30 where id=$1", [camp]);
-      const input = {
-        camp_id: camp,
-        actor_id: actor,
-        parent_id: parent,
-        player_id: player,
-        payment_link_id: "plink_live",
-        price_id: "price_live",
-        product_id: "prod_live",
-        livemode: true,
-        payment_status: "paid",
-        refunded: false,
-        disputed: false,
-        quantity: 1,
-        currency: "eur",
-        amount: 18549,
-        subtotal: 20610,
-        session_id: "cs_live_import",
-        payment_id: "pi_import",
-        paid_at: "2026-09-18T08:00:00Z",
-        customer_group: "subscriber",
-        benefit_percent: 10,
-        parent: {
-          name: "Existing Parent",
-          email: "existing@example.invalid",
-          phone: "",
-        },
-        child: {
+  it.each(["admin", "staff"])(
+    "%s imports verified existing payments once, requires birth date, preserves families and blocks reset",
+    async (role) => {
+      await db.exec("begin");
+      try {
+        const actor = "c0000000-0000-4000-8000-000000000001",
+          parent = "c0000000-0000-4000-8000-000000000002",
+          player = "c0000000-0000-4000-8000-000000000003";
+        await db.query(
+          "insert into auth.users(id,email)values($1,'admin@example.invalid')",
+          [actor],
+        );
+        await db.query(
+          "insert into profiles(id,role)values($1,$2) on conflict(id) do update set role=excluded.role",
+          [actor, role],
+        );
+        await db.query(
+          "insert into parents(id,full_name,contact_email)values($1,'Existing Parent','existing@example.invalid')",
+          [parent],
+        );
+        await db.query(
+          "insert into players(id,first_name,last_name,birth_year)values($1,'Existing','Child',null)",
+          [player],
+        );
+        await db.query(
+          "insert into parent_players(parent_id,player_id)values($1,$2)",
+          [parent, player],
+        );
+        await db.query(
+          "insert into camp_stripe_sources values('plink_live',$1,'price_live','prod_live')",
+          [camp],
+        );
+        await db.query("update camps set capacity=30 where id=$1", [camp]);
+        const input = {
+          camp_id: camp,
+          actor_id: actor,
+          parent_id: parent,
+          player_id: player,
+          payment_link_id: "plink_live",
+          price_id: "price_live",
+          product_id: "prod_live",
+          livemode: true,
+          payment_status: "paid",
+          refunded: false,
+          disputed: false,
+          quantity: 1,
+          currency: "eur",
+          amount: 18549,
+          subtotal: 20610,
+          session_id: "cs_live_import",
+          payment_id: "pi_import",
+          paid_at: "2026-09-18T08:00:00Z",
+          customer_group: "subscriber",
+          benefit_percent: 10,
+          parent: {
+            name: "Existing Parent",
+            email: "existing@example.invalid",
+            phone: "",
+          },
+          child: {
+            first_name: "Existing",
+            last_name: "Child",
+            birth_date: "2015-04-17",
+            gender: "keine Angabe",
+            clothing_size: "152",
+          },
+        };
+        async function invalid(change: object, message: string) {
+          await db.exec("savepoint bad_import");
+          await expect(
+            db.query("select camp_import_paid_booking($1)", [
+              { ...input, ...change },
+            ]),
+          ).rejects.toThrow(message);
+          await db.exec("rollback to savepoint bad_import");
+        }
+        await invalid({ actor_id: player }, "Academy team required");
+        await db.query("update profiles set role='parent' where id=$1", [
+          actor,
+        ]);
+        await invalid({}, "Academy team required");
+        await db.query("update profiles set role=$2 where id=$1", [
+          actor,
+          role,
+        ]);
+        await invalid(
+          { child: { ...input.child, birth_date: "" } },
+          "Birth date required",
+        );
+        await invalid({ parent_id: actor }, "Family link missing");
+        await invalid({ refunded: true }, "Invalid verified payment");
+        await invalid({ payment_link_id: "plink_other" }, "Unknown source");
+        const a = await db.query("select camp_import_paid_booking($1) id", [
+          input,
+        ]);
+        const b = await db.query("select camp_import_paid_booking($1) id", [
+          input,
+        ]);
+        expect(a.rows).toEqual(b.rows);
+        expect(
+          (
+            await db.query(
+              "select * from camp_bookings where booking_origin='stripe_import'",
+            )
+          ).rows,
+        ).toHaveLength(1);
+        expect(
+          (
+            await db.query(
+              "select camp_birth_date::text birthday,first_name,birth_year from players where id=$1",
+              [player],
+            )
+          ).rows[0],
+        ).toEqual({
+          birthday: "2015-04-17",
           first_name: "Existing",
-          last_name: "Child",
-          birth_date: "2015-04-17",
-          gender: "keine Angabe",
-          clothing_size: "152",
-        },
-      };
-      async function invalid(change: object, message: string) {
-        await db.exec("savepoint bad_import");
-        await expect(
-          db.query("select camp_import_paid_booking($1)", [
-            { ...input, ...change },
-          ]),
-        ).rejects.toThrow(message);
-        await db.exec("rollback to savepoint bad_import");
+          birth_year: null,
+        });
+        expect(
+          (
+            await db.query(
+              "select * from parent_players where parent_id=$1 and player_id=$2",
+              [parent, player],
+            )
+          ).rows,
+        ).toHaveLength(1);
+        for (const table of ["notification_jobs", "parent_invitations"])
+          expect((await db.query(`select * from ${table}`)).rows).toHaveLength(
+            0,
+          );
+        await db.exec("savepoint reset_guard");
+        await expect(db.query("select camp_reset_v0()")).rejects.toThrow(
+          "Live Camp data exists",
+        );
+        await db.exec("rollback to savepoint reset_guard");
+      } finally {
+        await db.exec("rollback");
       }
-      await invalid({ actor_id: player }, "Admin required");
-      await invalid(
-        { child: { ...input.child, birth_date: "" } },
-        "Birth date required",
-      );
-      await invalid({ parent_id: actor }, "Family link missing");
-      await invalid({ refunded: true }, "Invalid verified payment");
-      await invalid({ payment_link_id: "plink_other" }, "Unknown source");
-      const a = await db.query("select camp_import_paid_booking($1) id", [
-        input,
-      ]);
-      const b = await db.query("select camp_import_paid_booking($1) id", [
-        input,
-      ]);
-      expect(a.rows).toEqual(b.rows);
-      expect(
-        (
-          await db.query(
-            "select * from camp_bookings where booking_origin='stripe_import'",
-          )
-        ).rows,
-      ).toHaveLength(1);
-      expect(
-        (
-          await db.query(
-            "select camp_birth_date::text birthday,first_name,birth_year from players where id=$1",
-            [player],
-          )
-        ).rows[0],
-      ).toEqual({
-        birthday: "2015-04-17",
-        first_name: "Existing",
-        birth_year: null,
-      });
-      expect(
-        (
-          await db.query(
-            "select * from parent_players where parent_id=$1 and player_id=$2",
-            [parent, player],
-          )
-        ).rows,
-      ).toHaveLength(1);
-      for (const table of ["notification_jobs", "parent_invitations"])
-        expect((await db.query(`select * from ${table}`)).rows).toHaveLength(0);
-      await db.exec("savepoint reset_guard");
-      await expect(db.query("select camp_reset_v0()")).rejects.toThrow(
-        "Live Camp data exists",
-      );
-      await db.exec("rollback to savepoint reset_guard");
-    } finally {
-      await db.exec("rollback");
-    }
-  });
+    },
+  );
   it("persists complete source snapshots, fences concurrent processors and protects review data", async () => {
     await db.exec("begin");
     try {
@@ -674,104 +693,122 @@ describe("isolated Camp extension", () => {
       await db.exec("rollback");
     }
   });
-  it("creates a verified imported family atomically, holds notifications and rejects duplicate contacts", async () => {
-    await db.exec("begin");
-    try {
-      const actor = "d0000000-0000-4000-8000-000000000003";
-      await db.query(
-        "insert into auth.users(id,email) values($1,'review-admin@example.invalid')",
-        [actor],
-      );
-      await db.query(
-        "insert into profiles(id,role)values($1,'admin') on conflict(id) do update set role='admin'",
-        [actor],
-      );
-      await db.query(
-        "insert into camp_stripe_sources values('plink_new',$1,'price_new','prod_new')",
-        [camp],
-      );
-      await db.query("update camps set capacity=30 where id=$1", [camp]);
-      const input = {
-        camp_id: camp,
-        actor_id: actor,
-        parent_id: null,
-        player_id: null,
-        new_parent: {
-          name: "New Parent",
-          email: "new-import@example.invalid",
-          phone: "123",
-        },
-        child: {
-          first_name: "New",
-          last_name: "Child",
-          birth_date: "2015-04-17",
-          gender: "keine Angabe",
-          clothing_size: "152",
-        },
-        payment_link_id: "plink_new",
-        price_id: "price_new",
-        product_id: "prod_new",
-        livemode: true,
-        payment_status: "paid",
-        refunded: false,
-        disputed: false,
-        quantity: 1,
-        currency: "eur",
-        amount: 18549,
-        subtotal: 20610,
-        session_id: "cs_live_new",
-        payment_id: "pi_new",
-        customer_id: "cus_newimport",
-        paid_at: "2026-09-18T08:00:00Z",
-      };
-      await db.exec("savepoint rejected");
-      await expect(
-        db.query("select camp_import_review_booking($1)", [
-          { ...input, refunded: true },
-        ]),
-      ).rejects.toThrow("Invalid verified payment");
-      await db.exec("rollback to savepoint rejected");
-      expect(
-        (
-          await db.query(
-            "select id from parents where contact_email='new-import@example.invalid'",
-          )
-        ).rows,
-      ).toHaveLength(0);
-      const first = await db.query("select camp_import_review_booking($1) id", [
-        input,
-      ]);
-      expect(
-        (await db.query("select camp_import_review_booking($1) id", [input]))
-          .rows,
-      ).toEqual(first.rows);
-      expect(
-        (
-          await db.query(
-            "select notifications_held,auth_user_id from parents where contact_email='new-import@example.invalid'",
-          )
-        ).rows,
-      ).toEqual([{ notifications_held: true, auth_user_id: null }]);
-      expect(
-        (
-          await db.query(
-            "select id from parent_stripe_customers where stripe_customer_id='cus_newimport'",
-          )
-        ).rows,
-      ).toHaveLength(1);
-      await db.exec("savepoint duplicate");
-      await expect(
-        db.query("select camp_import_review_booking($1)", [
-          { ...input, payment_id: "pi_another", session_id: "cs_live_other" },
-        ]),
-      ).rejects.toThrow("Existing contact");
-      await db.exec("rollback to savepoint duplicate");
-      for (const table of ["notification_jobs", "parent_invitations"])
-        expect((await db.query(`select * from ${table}`)).rows).toHaveLength(0);
-    } finally {
-      await db.exec("rollback");
-    }
-  });
+  it.each(["admin", "staff"])(
+    "%s creates a verified imported family atomically, holds notifications and rejects duplicate contacts",
+    async (role) => {
+      await db.exec("begin");
+      try {
+        const actor = "d0000000-0000-4000-8000-000000000003";
+        await db.query(
+          "insert into auth.users(id,email) values($1,'review-admin@example.invalid')",
+          [actor],
+        );
+        await db.query(
+          "insert into profiles(id,role)values($1,$2) on conflict(id) do update set role=excluded.role",
+          [actor, role],
+        );
+        await db.query(
+          "insert into camp_stripe_sources values('plink_new',$1,'price_new','prod_new')",
+          [camp],
+        );
+        await db.query("update camps set capacity=30 where id=$1", [camp]);
+        const input = {
+          camp_id: camp,
+          actor_id: actor,
+          parent_id: null,
+          player_id: null,
+          new_parent: {
+            name: "New Parent",
+            email: "new-import@example.invalid",
+            phone: "123",
+          },
+          child: {
+            first_name: "New",
+            last_name: "Child",
+            birth_date: "2015-04-17",
+            gender: "keine Angabe",
+            clothing_size: "152",
+          },
+          payment_link_id: "plink_new",
+          price_id: "price_new",
+          product_id: "prod_new",
+          livemode: true,
+          payment_status: "paid",
+          refunded: false,
+          disputed: false,
+          quantity: 1,
+          currency: "eur",
+          amount: 18549,
+          subtotal: 20610,
+          session_id: "cs_live_new",
+          payment_id: "pi_new",
+          customer_id: "cus_newimport",
+          paid_at: "2026-09-18T08:00:00Z",
+        };
+        await db.query("update profiles set role='parent' where id=$1", [
+          actor,
+        ]);
+        await db.exec("savepoint non_team");
+        await expect(
+          db.query("select camp_import_review_booking($1)", [input]),
+        ).rejects.toThrow("Academy team required");
+        await db.exec("rollback to savepoint non_team");
+        await db.query("update profiles set role=$2 where id=$1", [
+          actor,
+          role,
+        ]);
+        await db.exec("savepoint rejected");
+        await expect(
+          db.query("select camp_import_review_booking($1)", [
+            { ...input, refunded: true },
+          ]),
+        ).rejects.toThrow("Invalid verified payment");
+        await db.exec("rollback to savepoint rejected");
+        expect(
+          (
+            await db.query(
+              "select id from parents where contact_email='new-import@example.invalid'",
+            )
+          ).rows,
+        ).toHaveLength(0);
+        const first = await db.query(
+          "select camp_import_review_booking($1) id",
+          [input],
+        );
+        expect(
+          (await db.query("select camp_import_review_booking($1) id", [input]))
+            .rows,
+        ).toEqual(first.rows);
+        expect(
+          (
+            await db.query(
+              "select notifications_held,auth_user_id from parents where contact_email='new-import@example.invalid'",
+            )
+          ).rows,
+        ).toEqual([{ notifications_held: true, auth_user_id: null }]);
+        expect(
+          (
+            await db.query(
+              "select id from parent_stripe_customers where stripe_customer_id='cus_newimport'",
+            )
+          ).rows,
+        ).toHaveLength(1);
+        await db.exec("savepoint duplicate");
+        await expect(
+          db.query("select camp_import_review_booking($1)", [
+            { ...input, payment_id: "pi_another", session_id: "cs_live_other" },
+          ]),
+        ).rejects.toThrow("Existing contact");
+        await db.exec("rollback to savepoint duplicate");
+        for (const table of ["notification_jobs", "parent_invitations"])
+          expect((await db.query(`select * from ${table}`)).rows).toHaveLength(
+            0,
+          );
+      } finally {
+        await db.exec("rollback");
+      }
+    },
+  );
   it("reset removes extension and owned families, restores the original constraint", async () => {
     const untouchedParent = "b0000000-0000-4000-8000-000000000001";
     const untouchedChild = "b0000000-0000-4000-8000-000000000002";

@@ -475,7 +475,7 @@ export function CampDashboard({
                     Mitglieder ({paid.length})
                   </Link>
                 )}
-                {data.role === "admin" && data.local_stripe_review && (
+                {team && data.local_stripe_review && (
                   <Link
                     className="secondary-button"
                     href={`/camps/${camp.id}/pruefung`}
@@ -486,7 +486,7 @@ export function CampDashboard({
                 )}
               </nav>
               {view === "pruefung" &&
-                (data.role === "admin" && data.local_stripe_review ? (
+                (team && data.local_stripe_review ? (
                   <StripeReview
                     campId={camp.id}
                     onImported={() => void load()}

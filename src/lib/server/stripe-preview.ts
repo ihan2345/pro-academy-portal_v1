@@ -1,6 +1,36 @@
 import "server-only";
 import type Stripe from "stripe";
 
+/** Read all active subscriptions, including customers not yet linked locally. */
+export async function activeStripeCustomerIds(
+  stripe: Pick<Stripe, "subscriptions">,
+): Promise<Set<string>> {
+  const customers = new Set<string>();
+  const cursors = new Set<string>();
+  let after: string | undefined;
+  do {
+    const page = await stripe.subscriptions.list({
+      status: "active",
+      limit: 100,
+      ...(after ? { starting_after: after } : {}),
+    });
+    for (const subscription of page.data) {
+      if (subscription.status === "active")
+        customers.add(
+          typeof subscription.customer === "string"
+            ? subscription.customer
+            : subscription.customer.id,
+        );
+    }
+    if (!page.has_more) return customers;
+    after = page.data.at(-1)?.id;
+    if (!after || cursors.has(after))
+      throw new Error("Abo-Liste unvollständig. Bitte erneut laden.");
+    cursors.add(after);
+  } while (after);
+  return customers;
+}
+
 export async function stripeCustomerPage(
   stripe: Pick<Stripe, "customers">,
   query = "",

@@ -62,3 +62,20 @@ Ergebnis am 23.09.2026: 270 Tests einschließlich der verständlichen Freigabesp
 - Gesamte Testsuite einschließlich SQL mit produktionsnaher Reihenfolge: Basis → Onboarding → Camp → V2. Die Tests prüfen weiter bestehende Camp-Nachrichten und zusätzlich Nachtragsversand, Empfängersperren, bestätigte Konten, zurückgehaltene Nachrichten sowie die temporäre Schreibsperre.
 - Cloudflare-Produktionsbuild in isolierter Arbeitskopie unter `output/v2-release/app`; die lokale Dev-Instanz bleibt erhalten.
 - Bestehende isolierte UI- und PDF-Prüfungen sind in `docs/version2.0.md` beschrieben. Kein Testversand an echte Empfänger.
+
+## 28.09.2026: Stripe-Reihenfolge als Standard
+
+Die Kontoauswahl übernimmt nach „Kunden laden“ die Reihenfolge aller Stripe-API-Seiten. Sie entspricht der geprüften Stripe-Kundenansicht: zuletzt bei Stripe erstellte Konten zuerst. Bei identischen Erstellungszeiten bleibt die Stripe-Reihenfolge erhalten. Innerhalb der Bereiche „Noch nicht zugeordnet“ und „Bereits zugeordnet“ gilt dieselbe Sortierung; historische Einträge, die Stripe nicht mehr liefert, bleiben am Ende sichtbar.
+
+Die Buttons „Stripe-Reihenfolge“, „Im Portal hinzugefügt“ und „Name A–Z/Z–A“ wechseln die Sortierung. Erneutes Klicken auf Portal-Erfassung oder Name kehrt die Richtung um. Zehner-Schritte, Suche und der Filter auf die erste Portal-Erfassung der letzten 14 Tage bleiben erhalten. Stripe-Erstellungsdatum und Portal-Erfassung werden getrennt angezeigt. Die vorhandene Erfassungszeit in Supabase wird nicht überschrieben; keine Migration erforderlich.
+
+283 Tests, TypeScript, Formatprüfung und isolierte UI-Prüfungen auf Desktop, Tablet sowie zwei Smartphone-Größen erfolgreich. Nur lesender Abgleich mit Stripe; keine Zuordnungen, Einladungen oder Versandfreigaben geändert. Am 28.09.2026 ohne Commit/Push auf ausdrücklichen Wunsch deployt (Portal-Version `f5e9502b-7494-47d9-8fe1-82a1eae2fd94`); der Quellstand wird mit dem Release vom 02.10.2026 eingecheckt.
+
+
+## 02.10.2026: Aktive Abos und Camp-Prüfung für Coaches
+
+„Aktive Abos“ ist ein zuschaltbarer Filter auf Kunden mit mindestens einem Stripe-Abo im Status `active`. Alle Abo-Seiten werden gelesen; lokale Zuordnungen sind keine Voraussetzung. Suche, Sortierung, Gruppierung und Zehner-Schritte bleiben erhalten. Ein zum Laufzeitende gekündigtes, noch aktives Abo zählt weiterhin. Fehler beim Lesen werden angezeigt statt als fehlende Abos behandelt.
+
+Coaches erhalten denselben bestehenden Camp-Prüf- und Importablauf wie Admins, einschließlich neuer Familien. Die dafür nötige Berechtigungsänderung `supabase/camp/010-team-import.sql` ist angewendet; Details in `CAMP-RELEASE.md`. Kunden-, Zahlungs- und Maildaten werden beim Release nicht verändert. Der Hintergrunddienst und Versandfreigaben bleiben unverändert.
+
+Validierung: 299 Tests, Typprüfung, isolierte Stripe-Oberflächenprüfungen auf vier Bildschirmgrößen sowie Camp-Abläufe für Admin/Coach/Eltern auf Desktop und Smartphone erfolgreich. Produktionsbuild einmalig erfolgreich erstellt; keine Wiederholung der bereits bestandenen Tests für das Deployment. Lokale Dateien mit dem Zusatz „ 2“ sind unter `output/release-20261002/duplicate-backup` gesichert und nicht Teil des Releases. Release-Nachweise liegen unter `output/release-20261002`.

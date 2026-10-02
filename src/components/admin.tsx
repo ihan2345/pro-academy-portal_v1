@@ -19,6 +19,8 @@ import { Badge, Modal } from "./portal";
 import { api } from "./team";
 import {
   filterCustomers,
+  withStripeOrder,
+  type StripeCustomerOrder,
   type CustomerSort,
   type RegistryCustomer,
 } from "@/lib/stripe-customers";
@@ -546,25 +548,35 @@ function StripeImport({
   const [current, setCurrent] = useState<RecordRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<CustomerSort>("added-desc");
+  const [sort, setSort] = useState<CustomerSort>("stripe");
   const [recent, setRecent] = useState(false);
+  const [activeOnly, setActiveOnly] = useState(false);
   const [visible, setVisible] = useState({ open: 10, assigned: 10 });
   const [status, setStatus] = useState(
     "Kunden laden, um den vollständigen Bestand zu prüfen.",
   );
   useEffect(() => {
     setVisible({ open: 10, assigned: 10 });
-  }, [query, sort, recent]);
+  }, [query, sort, recent, activeOnly]);
   async function loadCustomers() {
     setBusy(true);
     try {
       let after: string | undefined;
       let count = 0;
       const cursors = new Set<string>();
+      const stripeOrder: StripeCustomerOrder[] = [];
       do {
         const result = await api("admin/stripe-customers-sync", {
           ...(after ? { after } : {}),
         });
+        if (
+          !Array.isArray(result.customers) ||
+          result.customers.length !== result.count
+        )
+          throw new Error(
+            "Stripe-Reihenfolge unvollständig. Bitte erneut laden.",
+          );
+        stripeOrder.push(...result.customers);
         count += result.count;
         setStatus(`${count} Stripe-Kunden geprüft …`);
         after = result.next_cursor ?? undefined;
@@ -573,7 +585,7 @@ function StripeImport({
         if (after) cursors.add(after);
       } while (after);
       const result = await api("admin/stripe-customers", undefined, "GET");
-      setCustomers(result.rows);
+      setCustomers(withStripeOrder(result.rows, stripeOrder));
       setVisible({ open: 10, assigned: 10 });
       setStatus(
         `${result.rows.length} Kunden im System erfasst. Bestand vollständig geladen.`,
@@ -604,7 +616,14 @@ function StripeImport({
       setBusy(false);
     }
   }
-  const filtered = filterCustomers(customers, query, sort, recent);
+  const filtered = filterCustomers(
+    customers,
+    query,
+    sort,
+    recent,
+    Date.now(),
+    activeOnly,
+  );
   const open = filtered.filter((c) => !c.assigned);
   const assigned = filtered.filter((c) => c.assigned);
   function customerRows(rows: RegistryCustomer[], group: "open" | "assigned") {
@@ -621,7 +640,13 @@ function StripeImport({
               <p>
                 {c.email || "Keine E-Mail"} · {c.id}
               </p>
-              <small>Hinzugefügt am {formatDate(c.first_seen_at)}</small>
+              <small>
+                {c.stripe_created_at
+                  ? `Bei Stripe erstellt am ${formatDate(c.stripe_created_at)}`
+                  : "Nicht in der aktuellen Stripe-Liste"}
+                <br />
+                Im Portal erfasst am {formatDate(c.first_seen_at)}
+              </small>
             </div>
             <button
               className="secondary-button"
@@ -673,18 +698,52 @@ function StripeImport({
               placeholder="Name, E-Mail oder Kunden-ID"
             />
           </label>
-          <label>
-            Sortierung
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as CustomerSort)}
+          <fieldset className="stripe-sort-controls">
+            <legend>Sortierung</legend>
+            <button
+              type="button"
+              className="secondary-button"
+              aria-pressed={sort === "stripe"}
+              onClick={() => setSort("stripe")}
             >
-              <option value="added-desc">Hinzugefügt: neueste zuerst</option>
-              <option value="added-asc">Hinzugefügt: älteste zuerst</option>
-              <option value="name-asc">Name: A–Z</option>
-              <option value="name-desc">Name: Z–A</option>
-            </select>
-          </label>
+              Stripe-Reihenfolge
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              aria-pressed={sort.startsWith("added")}
+              onClick={() =>
+                setSort(sort === "added-desc" ? "added-asc" : "added-desc")
+              }
+            >
+              Im Portal hinzugefügt {sort === "added-asc" ? "↑" : "↓"}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              aria-pressed={sort.startsWith("name")}
+              onClick={() =>
+                setSort(sort === "name-asc" ? "name-desc" : "name-asc")
+              }
+            >
+              {sort === "name-desc" ? "Name Z–A" : "Name A–Z"}
+            </button>
+          </fieldset>
+        </div>
+        <div className="stripe-filter-controls">
+          <button
+            type="button"
+            className="secondary-button"
+            aria-pressed={activeOnly}
+            onClick={() => setActiveOnly((value) => !value)}
+          >
+            Aktive Abos
+          </button>
+          <span className="muted">
+            {activeOnly
+              ? "Nur Kunden mit mindestens einem aktiven Stripe-Abo."
+              : "Alle Kunden – auch ohne aktives Abo."}
+          </span>
         </div>
         <label className="checkbox-label">
           <input
@@ -695,7 +754,11 @@ function StripeImport({
           In den letzten 14 Tagen erstmals erfasst
         </label>
         <p className="muted">
-          „Hinzugefügt am“ ist die erste belegbare Erfassung in diesem System.
+          {sort === "stripe"
+            ? "Wie in Stripe: neueste Stripe-Konten zuerst."
+            : sort.startsWith("added")
+              ? `Erstmals im Portal erfasst: ${sort === "added-desc" ? "neueste" : "älteste"} zuerst. Erneut klicken, um die Richtung zu wechseln.`
+              : `Nach Name: ${sort === "name-asc" ? "A–Z" : "Z–A"}. Erneut klicken, um die Richtung zu wechseln.`}
         </p>
         <p role="status" aria-live="polite">
           {status}

@@ -1,9 +1,91 @@
 import { describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
 import {
+  activeStripeCustomerIds,
   stripeCustomerPage,
   subscriptionPreviewLoader,
 } from "../src/lib/server/stripe-preview";
+
+describe("active Stripe customer filter", () => {
+  it("reads all pages and deduplicates customers, including active subscriptions ending later", async () => {
+    const first = Array.from({ length: 100 }, (_, i) => ({
+      id: `sub_${i}`,
+      customer: `cus_${i}`,
+      status: "active",
+    }));
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce({ data: first, has_more: true })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "sub_100",
+            customer: { id: "cus_100" },
+            status: "active",
+            cancel_at_period_end: true,
+          },
+          { id: "sub_extra", customer: "cus_0", status: "active" },
+          ...[
+            "canceled",
+            "past_due",
+            "trialing",
+            "unpaid",
+            "incomplete",
+            "paused",
+          ].map((status) => ({
+            id: `sub_${status}`,
+            customer: `cus_${status}`,
+            status,
+          })),
+        ],
+        has_more: false,
+      });
+    const result = await activeStripeCustomerIds({
+      subscriptions: { list },
+    } as unknown as Stripe);
+    expect([...result]).toEqual(
+      Array.from({ length: 101 }, (_, i) => `cus_${i}`),
+    );
+    expect(list.mock.calls.map(([params]) => params)).toEqual([
+      { status: "active", limit: 100 },
+      { status: "active", limit: 100, starting_after: "sub_99" },
+    ]);
+  });
+
+  it("returns an empty set only after a successful empty response", async () => {
+    const list = vi.fn().mockResolvedValue({ data: [], has_more: false });
+    expect(
+      await activeStripeCustomerIds({
+        subscriptions: { list },
+      } as unknown as Stripe),
+    ).toEqual(new Set());
+  });
+
+  it.each(["empty", "repeated", "failed"])(
+    "rejects %s pages instead of silently excluding customers",
+    async (mode) => {
+      const page = {
+        data: [{ id: "sub_0", customer: "cus_0", status: "active" }],
+        has_more: true,
+      };
+      const list = vi.fn().mockResolvedValueOnce(page);
+      if (mode === "failed")
+        list.mockRejectedValueOnce(new Error("Stripe unavailable"));
+      else
+        list.mockResolvedValueOnce(
+          mode === "empty" ? { data: [], has_more: true } : page,
+        );
+      await expect(
+        activeStripeCustomerIds({
+          subscriptions: { list },
+        } as unknown as Stripe),
+      ).rejects.toThrow(
+        mode === "failed" ? "Stripe unavailable" : "Abo-Liste unvollständig",
+      );
+      expect(list).toHaveBeenCalledTimes(2);
+    },
+  );
+});
 
 describe("Stripe customer lookup", () => {
   it("loads older customers with the list cursor and stops at the last page", async () => {

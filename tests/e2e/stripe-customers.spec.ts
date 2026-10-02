@@ -16,13 +16,20 @@ test("Stripe registry: complete ten-row batches, global sorting and first-seen f
     assigned: i >= 23,
     first_seen_at: new Date(Date.now() - i * 86400000).toISOString(),
   }));
+  const stripeOrder = [...rows]
+    .reverse()
+    .map((c) => ({ id: c.id, created: 1760000000 }));
   const calls: (string | null)[] = [];
   await page.route("**/api/admin/stripe-customers*", async (route) => {
     if (route.request().method() === "POST") {
       const after = route.request().postDataJSON().after ?? null;
       calls.push(after);
       await route.fulfill({
-        json: { count: after ? 7 : 20, next_cursor: after ? null : "cus_19" },
+        json: {
+          count: after ? 7 : 20,
+          next_cursor: after ? null : "cus_07",
+          customers: after ? stripeOrder.slice(20) : stripeOrder.slice(0, 20),
+        },
       });
     } else await route.fulfill({ json: { rows } });
   });
@@ -39,7 +46,7 @@ test("Stripe registry: complete ten-row batches, global sorting and first-seen f
   await page.goto("/admin/stripe");
   await page.getByRole("button", { name: "Kunden laden", exact: true }).click();
   await expect(page.getByText(/Bestand vollständig geladen/)).toBeVisible();
-  expect(calls).toEqual([null, "cus_19"]);
+  expect(calls).toEqual([null, "cus_07"]);
   await expect(page.locator(".account-row:visible")).toHaveCount(10);
   await page.getByRole("button", { name: "10 weitere anzeigen" }).click();
   await expect(page.locator(".account-row:visible")).toHaveCount(20);
@@ -49,7 +56,24 @@ test("Stripe registry: complete ten-row batches, global sorting and first-seen f
     new Set(await page.locator(".account-row:visible b").allTextContents())
       .size,
   ).toBe(23);
-  await page.getByLabel("Sortierung").selectOption("name-desc");
+  expect(
+    await page.locator(".account-row:visible b").allTextContents(),
+  ).toEqual(
+    rows
+      .slice(0, 23)
+      .reverse()
+      .map((c) => c.name),
+  );
+  await page.getByRole("button", { name: /Im Portal hinzugefügt/ }).click();
+  await expect(page.locator(".account-row:visible b").first()).toHaveText(
+    "Familie 00",
+  );
+  await page.getByRole("button", { name: /Im Portal hinzugefügt/ }).click();
+  await expect(page.locator(".account-row:visible b").first()).toHaveText(
+    "Familie 22",
+  );
+  await page.getByRole("button", { name: "Name A–Z", exact: true }).click();
+  await page.getByRole("button", { name: "Name A–Z", exact: true }).click();
   await expect(page.locator(".account-row:visible b").first()).toHaveText(
     "Familie 22",
   );

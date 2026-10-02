@@ -1,5 +1,11 @@
 # Camp – kontrollierter Release
 
+## Camp-Prüfung für Coaches (02.10.2026)
+
+Coaches (`staff`) erhalten denselben Ablauf „Kinder zur Prüfung / Angaben ergänzen“ wie Admins: Entwürfe bearbeiten, bestehende Eltern-Kind-Zuordnungen auswählen oder neue Familien anlegen und bestätigte Stripe-Buchungen übernehmen. Andere Admin-Berechtigungen werden nicht erweitert.
+
+`supabase/camp/010-team-import.sql` wurde am 02.10.2026 auf dem verbundenen Supabase-Projekt angewendet. Die Migration erweitert ausschließlich die Rollenprüfung der beiden bestehenden Importfunktionen und behält deren Zugriff über `service_role` bei. Zahlungsprüfung, Kapazität, Dublettenschutz, Protokollierung und Versandregeln bleiben bestehen. Die Migration legt keine Kunden oder Buchungen an und löst keinen Versand aus. 299 automatisierte Tests, Typprüfung und Browserprüfungen für Admin, Coach und Eltern erfolgreich. Der Cloudflare-Produktionsbuild ist erstellt; Veröffentlichung zusammen mit dem Stripe-Filter „Aktive Abos“.
+
 Stand: 18.09.2026, Branch `Camp`.
 
 Die Veröffentlichung auf `https://proacademy-portal.proacademy-by-ak.workers.dev`, Live-Zahlungen sowie die bestehenden Hintergrundfunktionen sind ausdrücklich freigegeben. Automatische Einladungen bleiben ausgeschaltet. Zunächst darf ausschließlich `contact@kaanayhan.de` eine manuelle Einladung und nach deren bestätigter Annahme künftige Elternbenachrichtigungen erhalten. Alte zurückgehaltene Nachrichten werden nicht nachträglich versandt. Die Empfängerliste in `system_settings.portal_delivery_release` ist eine gesonderte Freigabe; das Aktivieren des Workers erweitert sie nicht.

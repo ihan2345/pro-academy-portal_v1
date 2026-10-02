@@ -23,6 +23,7 @@ beforeAll(async () => {
     .filter((f) => /^00[1-9]-/.test(f) && f !== "001-down.sql")
     .sort())
     await db.exec(readFileSync(`supabase/camp/${f}`, "utf8"));
+  await db.exec(readFileSync("supabase/camp/010-team-import.sql", "utf8"));
   for (const f of migrations.filter((f) => f >= "202609230010"))
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(
