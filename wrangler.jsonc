@@ -25,6 +25,9 @@
       "workers_dev": true,
       "preview_urls": false,
       "routes": [],
+      "services": [
+        { "binding": "MAIL_RUNNER", "service": "proacademy-jobs" }
+      ],
       "vars": {
         "APP_MODE": "production",
         "APP_URL": "https://proacademy-portal.proacademy-by-ak.workers.dev",

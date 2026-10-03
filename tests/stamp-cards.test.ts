@@ -18,6 +18,10 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   session: vi.fn(),
   rpc: vi.fn(),
+  cloudflareContext: vi.fn(),
+}));
+vi.mock("@opennextjs/cloudflare", () => ({
+  getCloudflareContext: mocks.cloudflareContext,
 }));
 vi.mock("../src/lib/server/service-db", () => ({
   serviceDb: () => ({ from: mocks.from, rpc: mocks.rpc }),
@@ -127,6 +131,9 @@ const db = { from: mocks.from, rpc: mocks.rpc } as unknown as Parameters<
 >[0];
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.cloudflareContext.mockImplementation(() => {
+    throw new Error("No Cloudflare context in Node");
+  });
   saved = [];
   tableErrors = {};
   linked = true;
@@ -646,7 +653,7 @@ it("allows safe retry after a TLS connection failure but never retries accepted 
   expect(provider.send).toHaveBeenCalledTimes(2);
 });
 
-it("keeps the queued request untouched if the runner cannot be reached", async () => {
+it("records a handoff failure without claiming the job if the runner cannot be reached", async () => {
   vi.stubEnv("JOB_RUNNER_URL", "https://runner.example.com");
   vi.stubEnv("CRON_SECRET", "internal-test-secret");
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("timeout")));
@@ -657,6 +664,91 @@ it("keeps the queued request untouched if the runner cannot be reached", async (
       request_id: "timeout",
     }),
   ).rejects.toThrow("Antwort ausgeblieben");
-  expect(saved[0]).toMatchObject({ status: "held", attempts: 0 });
+  expect(saved[0]).toMatchObject({
+    status: "held",
+    attempts: 0,
+    last_error: expect.stringContaining("Übergabe"),
+  });
   expect(mocks.rpc).not.toHaveBeenCalled();
+});
+
+it("uses the internal Cloudflare service binding, retaining authorization and request scope", async () => {
+  vi.stubEnv("JOB_RUNNER_URL", "https://runner.example.com");
+  vi.stubEnv("CRON_SECRET", "internal-test-secret");
+  const publicFetch = vi.fn().mockRejectedValue(new Error("1042"));
+  vi.stubGlobal("fetch", publicFetch);
+  const provider = {
+    name: "capture",
+    send: vi.fn(async () => ({ id: "captured" })),
+  };
+  const internalFetch = vi.fn(async (request: Request) => {
+    expect(request.url).toBe("https://runner.example.com/stamp-card-send");
+    expect(request.method).toBe("POST");
+    expect(request.headers.get("authorization")).toBe(
+      "Bearer internal-test-secret",
+    );
+    const scope = await request.json();
+    expect(scope).toEqual({ job_id: "job-id", actor_id: "coach" });
+    return Response.json({
+      ok: true,
+      ...(await deliverManualStampCard(scope, provider)),
+    });
+  });
+  mocks.cloudflareContext.mockReturnValue({
+    env: { MAIL_RUNNER: { fetch: internalFetch } },
+  });
+  await sendStampCard(db, "staff", "coach", {
+    period_id: period.id,
+    email: "direct@example.com",
+    request_id: "binding",
+  });
+  expect(publicFetch).not.toHaveBeenCalled();
+  expect(provider.send).toHaveBeenCalledTimes(1);
+  expect(saved[0].status).toBe("sent");
+});
+
+it("does not fall back to public fetch when a deployed Cloudflare binding is missing", async () => {
+  vi.stubEnv("JOB_RUNNER_URL", "https://runner.example.com");
+  vi.stubEnv("CRON_SECRET", "internal-test-secret");
+  mocks.cloudflareContext.mockReturnValue({ env: {} });
+  const publicFetch = vi.fn();
+  vi.stubGlobal("fetch", publicFetch);
+  await expect(
+    sendStampCard(db, "staff", "coach", {
+      period_id: period.id,
+      email: "direct@example.com",
+      request_id: "missing-binding",
+    }),
+  ).rejects.toThrow("Versanddienst nicht erreichbar");
+  expect(publicFetch).not.toHaveBeenCalled();
+  expect(saved[0]).toMatchObject({
+    status: "held",
+    attempts: 0,
+    last_error: expect.stringContaining("Übergabe"),
+  });
+});
+
+it("records the upstream HTTP status without leaking its body into the log", async () => {
+  vi.stubEnv("JOB_RUNNER_URL", "https://runner.example.com");
+  vi.stubEnv("CRON_SECRET", "internal-test-secret");
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response("private upstream details", { status: 401 }),
+      ),
+  );
+  await expect(
+    sendStampCard(db, "staff", "coach", {
+      period_id: period.id,
+      email: "direct@example.com",
+      request_id: "unauthorized",
+    }),
+  ).rejects.toThrow("Versandprotokoll");
+  expect(saved[0]).toMatchObject({
+    status: "held",
+    attempts: 0,
+    last_error: "Übergabe an Versanddienst fehlgeschlagen (HTTP 401).",
+  });
 });

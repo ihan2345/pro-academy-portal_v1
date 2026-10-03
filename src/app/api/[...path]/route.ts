@@ -399,7 +399,7 @@ async function handler(
           table === "parent_invitations"
             ? "id,parent_id,email,expires_at,consumed_at,created_at"
             : table === "notification_jobs"
-              ? "id,kind,recipient,status,attempts,available_at,last_error,created_at"
+              ? "id,kind,recipient,status,attempts,available_at,last_error,created_at,manual_email:payload->manual_email"
               : table === "stripe_webhook_events"
                 ? "id,stripe_event_id,type,status,attempts,last_error,created_at"
                 : table === "parents"

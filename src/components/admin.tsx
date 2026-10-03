@@ -1247,7 +1247,15 @@ function Logs({
       <RecordTable
         rows={rows.map((r) =>
           r.status === "held"
-            ? { ...r, status: "Zurückgehalten – Versand gesperrt" }
+            ? {
+                ...r,
+                status:
+                  r.kind === "stamp_card" && r.manual_email === true
+                    ? r.last_error
+                      ? "Manueller Versand fehlgeschlagen"
+                      : "Manueller Versand noch nicht gestartet"
+                    : "Zurückgehalten – Versand gesperrt",
+              }
             : r,
         )}
         fields={fields}

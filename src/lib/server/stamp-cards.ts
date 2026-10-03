@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { required } from "./config";
+import { fetchMailRunner } from "./mail-runner";
 import { optionalBackfills } from "./v2-availability";
 import { backfillColumns, backfillEvent } from "../backfills";
 import type { TrainingBackfill } from "../types";
@@ -235,24 +236,46 @@ export async function sendStampCard(
   const runner = required("JOB_RUNNER_URL");
   const secret = required("CRON_SECRET");
   const id = await queueStampCard(db, role, actorId, input, true);
+  const recordHandoffFailure = async (message: string) => {
+    // Do not overwrite the runner's result or an SMTP error if it already claimed the job.
+    const result = await serviceDb()
+      .from("notification_jobs")
+      .update({ last_error: message })
+      .eq("id", id)
+      .eq("payload->>actor_id", actorId)
+      .eq("payload->>manual_email", "true")
+      .eq("status", "held")
+      .eq("attempts", 0);
+    if (result.error)
+      console.error("Could not record stamp card handoff failure");
+  };
   let response: Response;
   try {
-    response = await fetch(`${runner.replace(/\/$/, "")}/stamp-card-send`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        "Content-Type": "application/json",
+    response = await fetchMailRunner(
+      `${runner.replace(/\/$/, "")}/stamp-card-send`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ job_id: id, actor_id: actorId }),
+        signal: AbortSignal.timeout(180_000),
       },
-      body: JSON.stringify({ job_id: id, actor_id: actorId }),
-      signal: AbortSignal.timeout(180_000),
-    });
+    );
   } catch {
+    await recordHandoffFailure(
+      "Übergabe an Versanddienst fehlgeschlagen oder Antwort ausgeblieben.",
+    );
     throw new HttpError(
       502,
       "Versanddienst nicht erreichbar oder Antwort ausgeblieben. Dieselbe Anfrage kann erneut geprüft werden; eine bereits versendete Stempelkarte wird nicht doppelt versendet.",
     );
   }
   if (!response.ok) {
+    await recordHandoffFailure(
+      `Übergabe an Versanddienst fehlgeschlagen (HTTP ${response.status}).`,
+    );
     if (response.status === 409)
       throw new HttpError(
         409,
