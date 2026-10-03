@@ -12,6 +12,7 @@ import {
 } from "@/lib/calendar";
 import {
   Plus,
+  Minus,
   ChevronLeft,
   ChevronRight,
   CalendarDays,
@@ -767,8 +768,10 @@ function EventEditor({
                     setChildren((rows) => rows.filter((row) => row !== id))
                   }
                   aria-label={`${p?.first_name ?? "Spieler"} ${p?.last_name ?? ""} entfernen`}
+                  title="Aus der Gruppe entfernen"
                 >
-                  {p?.first_name} {p?.last_name} ×
+                  {p?.first_name} {p?.last_name}
+                  <Minus size={14} aria-hidden="true" />
                 </button>
               );
             })}
