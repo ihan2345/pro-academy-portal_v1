@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import { campApi } from "./shared";
+import type { CampBookingStatus } from "@/lib/camps/domain";
+import { BookingStatusButton } from "./booking-status";
 
 export function DiscountCopy({
   code,
@@ -59,6 +61,7 @@ export function CampDiscountCopy({
   const [discount, setDiscount] = useState<{
     code: string | null;
     percent: number;
+    booking_status?: CampBookingStatus;
   } | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -96,6 +99,8 @@ export function CampDiscountCopy({
         Rabatt wird geladen …
       </button>
     );
+  if (discount.booking_status)
+    return <BookingStatusButton status={discount.booking_status} />;
   if (!discount.code)
     return <span>Für dieses Angebot ist kein Rabattcode verfügbar.</span>;
   return (

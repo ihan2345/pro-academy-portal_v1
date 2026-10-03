@@ -4,9 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Copy, Plus, RefreshCw, Users } from "lucide-react";
 import { Temporal } from "@js-temporal/polyfill";
-import { type Camp, type Offer, maximumSeats, money } from "@/lib/camps/domain";
+import {
+  type Camp,
+  type Offer,
+  maximumSeats,
+  money,
+  childBookingStatus,
+} from "@/lib/camps/domain";
 import { CampError, campApi, date } from "./shared";
 import { CampDiscountCopy } from "./discount-copy";
+import { BookingStatusButton } from "./booking-status";
 import { StripeReview } from "./stripe-review";
 type Booking = {
   id: string;
@@ -370,6 +377,9 @@ export function CampDashboard({
     camp = data?.camps.find((c) => c.id === selected),
     bookings = data?.bookings.filter((b) => b.camp_id === selected) ?? [],
     paid = bookings.filter((b) => b.status === "paid"),
+    allChildrenBooked =
+      !!data?.children.length &&
+      data.children.every((c) => childBookingStatus(bookings, c.id)),
     visibleMembers = bookings.filter(
       (b) =>
         (b.status === "paid" ||
@@ -670,26 +680,45 @@ export function CampDashboard({
                             ))}
                         </details>
                       </>
+                    ) : allChildrenBooked ? (
+                      <BookingStatusButton
+                        status={
+                          data.children.every(
+                            (c) =>
+                              childBookingStatus(bookings, c.id) === "paid",
+                          )
+                            ? "paid"
+                            : "review"
+                        }
+                      />
                     ) : (
                       camp.status === "open" && (
                         <Link
                           className="primary-button"
                           href={`/camp/buchung/${camp.id}`}
                         >
-                          Für dieses Camp buchen
+                          {data.children.some((c) =>
+                            childBookingStatus(bookings, c.id),
+                          )
+                            ? "Weiteres Kind anmelden"
+                            : "Für dieses Camp buchen"}
                         </Link>
                       )
                     )}
                   </section>
                   {!team && (
                     <section className="camp-panel">
-                      <h2>Meine Vorteile</h2>
+                      <h2>Meine Kinder & Buchungsstatus</h2>
                       {data.children.map((c) => (
                         <div className="camp-actions" key={c.id}>
                           <b>
                             {c.first_name} {c.last_name}
                           </b>
-                          {c.percent ? (
+                          {childBookingStatus(bookings, c.id) ? (
+                            <BookingStatusButton
+                              status={childBookingStatus(bookings, c.id)!}
+                            />
+                          ) : c.percent ? (
                             <CampDiscountCopy
                               key={`${camp.id}:${c.id}`}
                               campId={camp.id}

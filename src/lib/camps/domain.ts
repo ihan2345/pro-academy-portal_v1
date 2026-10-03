@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+export type CampBookingStatus = "paid" | "review" | null;
+export function childBookingStatus(
+  bookings: { player_id: string | null; status: string }[],
+  playerId: string,
+): CampBookingStatus {
+  const own = bookings.filter((b) => b.player_id === playerId);
+  if (own.some((b) => b.status === "paid")) return "paid";
+  return own.some((b) => b.status === "review") ? "review" : null;
+}
+
 export const benefitSchema = z
   .union([z.literal(10), z.literal(15), z.literal(20)])
   .nullable();

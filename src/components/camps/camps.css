@@ -256,6 +256,20 @@
   opacity: 0.5;
   cursor: wait;
 }
+.camp-panel .camp-booking-status:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.camp-panel .camp-booking-status.paid {
+  background: #e8f5e9;
+  border-color: #81b88a;
+  color: #216532;
+}
+.camp-panel .camp-booking-status.review {
+  background: #fff4dc;
+  border-color: #e2bc69;
+  color: #76510c;
+}
 @media (max-width: 600px) {
   .camp-content {
     padding: 24px 16px;

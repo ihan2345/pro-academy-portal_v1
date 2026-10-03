@@ -4,7 +4,8 @@ import Link from "next/link";
 import { ArrowRight, MapPin, CalendarDays } from "lucide-react";
 import { StoredYearBirthDate } from "./birth-date";
 import { DiscountCopy } from "./discount-copy";
-import { type Camp, money } from "@/lib/camps/domain";
+import { type Camp, type CampBookingStatus, money } from "@/lib/camps/domain";
+import { BookingStatusButton } from "./booking-status";
 import { CampFrame, CampError, campApi, useCampLogin, date } from "./shared";
 type Child = {
   id: string;
@@ -14,6 +15,7 @@ type Child = {
   camp_birth_date?: string | null;
   camp_gender?: string;
   camp_clothing_size?: string;
+  booking_status?: CampBookingStatus;
 };
 type Data = {
   camp: Camp;
@@ -36,6 +38,7 @@ export function BookingForm({ campId }: { campId: string }) {
     [discount, setDiscount] = useState<{
       percent: number;
       code: string | null;
+      booking_status?: CampBookingStatus;
     }>({ percent: 0, code: null });
   const [parent, setParent] = useState({ name: "", email: "", phone: "" });
   const [child, setChild] = useState({
@@ -74,6 +77,7 @@ export function BookingForm({ campId }: { campId: string }) {
     };
   }, [campId]);
   const storedChild = data?.context.children.find((c) => c.id === player);
+  const bookingStatus = storedChild?.booking_status || discount.booking_status;
   function selectChild(id: string) {
     setError("");
     setPlayer(id);
@@ -97,7 +101,7 @@ export function BookingForm({ campId }: { campId: string }) {
       });
   }
   useEffect(() => {
-    if (!player) return;
+    if (!player || storedChild?.booking_status) return;
     let current = true;
     campApi(`discount?camp_id=${campId}&player_id=${player}`)
       .then((d) => {
@@ -109,9 +113,10 @@ export function BookingForm({ campId }: { campId: string }) {
     return () => {
       current = false;
     };
-  }, [player, campId]);
+  }, [player, campId, storedChild?.booking_status]);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (bookingStatus || busy) return;
     setBusy(true);
     setError("");
     try {
@@ -268,141 +273,177 @@ export function BookingForm({ campId }: { campId: string }) {
                         {data.context.children.map((c) => (
                           <option value={c.id} key={c.id}>
                             {c.first_name} {c.last_name}
+                            {c.booking_status === "paid"
+                              ? " – bestätigt"
+                              : c.booking_status === "review"
+                                ? " – in Prüfung"
+                                : ""}
                           </option>
                         ))}
                       </select>
                     </label>
                   )}
-                  <div className="camp-grid">
-                    <label>
-                      Vorname
-                      <input
-                        required
-                        readOnly={mode === "existing"}
-                        value={child.first_name}
-                        onChange={(e) =>
-                          setChild({ ...child, first_name: e.target.value })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Nachname
-                      <input
-                        required
-                        readOnly={mode === "existing"}
-                        value={child.last_name}
-                        onChange={(e) =>
-                          setChild({ ...child, last_name: e.target.value })
-                        }
-                      />
-                    </label>
-                    {storedChild?.birth_year && !storedChild.camp_birth_date ? (
-                      <StoredYearBirthDate
-                        key={storedChild.id}
-                        year={storedChild.birth_year}
-                        onChange={(birth_date) =>
-                          setChild((current) => ({ ...current, birth_date }))
-                        }
-                      />
-                    ) : (
-                      <label>
-                        Geburtsdatum
-                        <input
-                          type="date"
-                          required
-                          readOnly={!!storedChild?.camp_birth_date}
-                          value={child.birth_date}
-                          onInput={(e) =>
-                            setChild({
-                              ...child,
-                              birth_date: e.currentTarget.value,
-                            })
-                          }
-                          onChange={(e) =>
-                            setChild({ ...child, birth_date: e.target.value })
-                          }
-                        />
-                      </label>
-                    )}
-                    <label>
-                      Geschlecht
-                      <select
-                        value={child.gender}
-                        onChange={(e) =>
-                          setChild({ ...child, gender: e.target.value })
-                        }
-                      >
-                        {["keine Angabe", "weiblich", "männlich", "divers"].map(
-                          (g) => (
-                            <option key={g}>{g}</option>
-                          ),
-                        )}
-                      </select>
-                    </label>
-                    <label>
-                      Kleidergröße
-                      <select
-                        required
-                        value={child.clothing_size}
-                        onChange={(e) =>
-                          setChild({ ...child, clothing_size: e.target.value })
-                        }
-                      >
-                        <option value="">Bitte auswählen</option>
-                        {[
-                          "116",
-                          "128",
-                          "140",
-                          "152",
-                          "164",
-                          "XS",
-                          "S",
-                          "M",
-                          "L",
-                          "XL",
-                          "XXL",
-                        ].map((s) => (
-                          <option key={s}>{s}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  <h2>3. Zur Zahlung</h2>
-                  {discount.code ? (
-                    <div className="camp-discount">
-                      <DiscountCopy
-                        key={discount.code}
-                        code={discount.code}
-                        percent={discount.percent}
-                      />
+                  {bookingStatus ? (
+                    <div role="status">
+                      <BookingStatusButton status={bookingStatus} />
                       <p>
-                        Den kopierten Code bei der Zahlung im Feld für
-                        Rabattcodes einsetzen. Dort siehst du den endgültigen
-                        Betrag.
+                        {bookingStatus === "paid"
+                          ? "Dein Kind ist für dieses Camp bereits angemeldet. Eine weitere Buchung ist nicht nötig."
+                          : "Die vorhandene Buchung wird geprüft. Bitte buche dieses Kind nicht erneut."}
                       </p>
+                      <Link href="/camps" className="text-button">
+                        Zur Camp-Übersicht
+                      </Link>
                     </div>
                   ) : (
-                    <p>
-                      {player
-                        ? "Für dieses Kind ist aktuell kein einlösbarer Abo-Rabatt hinterlegt."
-                        : "Ohne aktives Abo gilt der angezeigte Camp-Preis."}
-                    </p>
+                    <>
+                      <div className="camp-grid">
+                        <label>
+                          Vorname
+                          <input
+                            required
+                            readOnly={mode === "existing"}
+                            value={child.first_name}
+                            onChange={(e) =>
+                              setChild({ ...child, first_name: e.target.value })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Nachname
+                          <input
+                            required
+                            readOnly={mode === "existing"}
+                            value={child.last_name}
+                            onChange={(e) =>
+                              setChild({ ...child, last_name: e.target.value })
+                            }
+                          />
+                        </label>
+                        {storedChild?.birth_year &&
+                        !storedChild.camp_birth_date ? (
+                          <StoredYearBirthDate
+                            key={storedChild.id}
+                            year={storedChild.birth_year}
+                            onChange={(birth_date) =>
+                              setChild((current) => ({
+                                ...current,
+                                birth_date,
+                              }))
+                            }
+                          />
+                        ) : (
+                          <label>
+                            Geburtsdatum
+                            <input
+                              type="date"
+                              required
+                              readOnly={!!storedChild?.camp_birth_date}
+                              value={child.birth_date}
+                              onInput={(e) =>
+                                setChild({
+                                  ...child,
+                                  birth_date: e.currentTarget.value,
+                                })
+                              }
+                              onChange={(e) =>
+                                setChild({
+                                  ...child,
+                                  birth_date: e.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                        )}
+                        <label>
+                          Geschlecht
+                          <select
+                            value={child.gender}
+                            onChange={(e) =>
+                              setChild({ ...child, gender: e.target.value })
+                            }
+                          >
+                            {[
+                              "keine Angabe",
+                              "weiblich",
+                              "männlich",
+                              "divers",
+                            ].map((g) => (
+                              <option key={g}>{g}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Kleidergröße
+                          <select
+                            required
+                            value={child.clothing_size}
+                            onChange={(e) =>
+                              setChild({
+                                ...child,
+                                clothing_size: e.target.value,
+                              })
+                            }
+                          >
+                            <option value="">Bitte auswählen</option>
+                            {[
+                              "116",
+                              "128",
+                              "140",
+                              "152",
+                              "164",
+                              "XS",
+                              "S",
+                              "M",
+                              "L",
+                              "XL",
+                              "XXL",
+                            ].map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <h2>3. Zur Zahlung</h2>
+                      {discount.code ? (
+                        <div className="camp-discount">
+                          <DiscountCopy
+                            key={discount.code}
+                            code={discount.code}
+                            percent={discount.percent}
+                          />
+                          <p>
+                            Den kopierten Code bei der Zahlung im Feld für
+                            Rabattcodes einsetzen. Dort siehst du den
+                            endgültigen Betrag.
+                          </p>
+                        </div>
+                      ) : (
+                        <p>
+                          {player
+                            ? "Für dieses Kind ist aktuell kein einlösbarer Abo-Rabatt hinterlegt."
+                            : "Ohne aktives Abo gilt der angezeigte Camp-Preis."}
+                        </p>
+                      )}
+                      <p>
+                        Dein Platz ist erst nach bestätigter Zahlung gebucht.
+                        Das Formular reserviert keinen Platz.
+                      </p>
+                      <CampError message={error} />
+                      <button
+                        className="primary-button"
+                        disabled={busy || !data.offer}
+                      >
+                        {busy
+                          ? "Zahlung wird vorbereitet …"
+                          : "Weiter zur Zahlung"}
+                        <ArrowRight size={18} />
+                      </button>
+                      <Link href="/camps" className="text-button">
+                        Abbrechen
+                      </Link>
+                    </>
                   )}
-                  <p>
-                    Dein Platz ist erst nach bestätigter Zahlung gebucht. Das
-                    Formular reserviert keinen Platz.
-                  </p>
-                  <CampError message={error} />
-                  <button
-                    className="primary-button"
-                    disabled={busy || !data.offer}
-                  >
-                    {busy ? "Zahlung wird vorbereitet …" : "Weiter zur Zahlung"}
-                    <ArrowRight size={18} />
-                  </button>
-                  <Link href="/camps" className="text-button">
-                    Abbrechen
-                  </Link>
                 </form>
               )}
             </>

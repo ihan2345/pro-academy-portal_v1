@@ -9,6 +9,7 @@ import {
   ageAt,
   bestBenefit,
   bookingSchema,
+  childBookingStatus,
   campSchema,
   currentOffer,
   maximumSeats,
@@ -160,6 +161,20 @@ export async function publicCamp(id: string) {
     if (!s?.role || s.role === "parent")
       throw new HttpError(404, "Camp ist noch nicht buchbar.");
   const offer = currentOffer(offers, camp.early_bird_until);
+  const context = await campContext();
+  const bookings = context.children.length
+    ? check(
+        await serviceDb()
+          .from("camp_bookings")
+          .select("player_id,status")
+          .eq("camp_id", id)
+          .in(
+            "player_id",
+            context.children.map((c) => c.id),
+          )
+          .in("status", ["paid", "review"]),
+      )
+    : [];
   return {
     camp,
     occupied,
@@ -167,20 +182,41 @@ export async function publicCamp(id: string) {
     offer: offer
       ? { kind: offer.kind, amount: offer.amount, currency: offer.currency }
       : null,
-    context: await campContext(),
+    context: {
+      ...context,
+      children: context.children.map((child) => ({
+        ...child,
+        booking_status: childBookingStatus(bookings, child.id),
+      })),
+    },
   };
 }
 export async function discount(campId: string, playerId: string) {
   const context = await campContext();
   if (!context.children.some((p) => p.id === playerId))
     throw new HttpError(403, "Kind gehört nicht zu diesem Elternkonto.");
-  const { percent } = await childBenefit(playerId);
   const { camp, offers } = await getCamp(campId);
+  const bookingStatus = await existingChildBooking(campId, playerId);
+  if (bookingStatus)
+    return { percent: 0, code: null, booking_status: bookingStatus };
+  const { percent } = await childBenefit(playerId);
   const offer = currentOffer(offers, camp.early_bird_until);
   return {
     percent,
     code: percent ? (offer?.codes[String(percent)] ?? null) : null,
+    booking_status: null,
   };
+}
+async function existingChildBooking(campId: string, playerId: string) {
+  const bookings = check(
+    await serviceDb()
+      .from("camp_bookings")
+      .select("player_id,status")
+      .eq("camp_id", campId)
+      .eq("player_id", playerId)
+      .in("status", ["paid", "review"]),
+  );
+  return childBookingStatus(bookings, playerId);
 }
 export async function requireCampPayments() {
   if (campPaymentMode() !== "live") return;
@@ -224,11 +260,6 @@ export async function createBooking(input: unknown) {
   const offer = currentOffer(offers, camp.early_bird_until);
   if (!offer)
     throw new HttpError(409, "Kein gültiges Zahlungsangebot hinterlegt.");
-  await verifyOffer(
-    offer.stripe_price_id,
-    offer.stripe_payment_link_id,
-    offer.codes,
-  );
   const context = await campContext();
   let parentId: string | null = null,
     playerId: string | null = null,
@@ -241,6 +272,14 @@ export async function createBooking(input: unknown) {
       throw new HttpError(403, "Kind gehört nicht zu diesem Elternkonto.");
     parentId = context.parent.id;
     playerId = body.player_id;
+    const existing = await existingChildBooking(camp.id, playerId);
+    if (existing)
+      throw new HttpError(
+        409,
+        existing === "paid"
+          ? "Dieses Kind ist bereits angemeldet und bestätigt."
+          : "Die Buchung für dieses Kind wird bereits geprüft. Bitte nicht erneut buchen.",
+      );
     benefit = await childBenefit(playerId);
     body.parent.name = context.parent.full_name;
     body.parent.email = context.parent.contact_email;
@@ -266,16 +305,6 @@ export async function createBooking(input: unknown) {
           ? "Bitte das gespeicherte Geburtsdatum verwenden."
           : `Geburtsjahr ${child.birth_year} ist bereits gespeichert. Bitte nur Tag und Monat ergänzen.`,
       );
-    const duplicate = check(
-      await db
-        .from("camp_bookings")
-        .select("id")
-        .eq("camp_id", camp.id)
-        .eq("player_id", playerId)
-        .eq("status", "paid"),
-    );
-    if (duplicate.length)
-      throw new HttpError(409, "Dieses Kind ist bereits gebucht.");
   } else if (context.role === "parent")
     throw new HttpError(400, "Bitte ein zugeordnetes Kind auswählen.");
   const hash = await browserHash(true);
@@ -319,6 +348,11 @@ export async function createBooking(input: unknown) {
         );
     }
   }
+  await verifyOffer(
+    offer.stripe_price_id,
+    offer.stripe_payment_link_id,
+    offer.codes,
+  );
   const id = randomUUID();
   check(
     await db.from("camp_bookings").insert({
@@ -621,7 +655,16 @@ export async function dashboard() {
         await db
           .from("camp_bookings")
           .select("id,camp_id,player_id,child_data,status,paid_at,paid_amount")
-          .eq("parent_id", context.parent.id)
+          .or(
+            [
+              `parent_id.eq.${context.parent.id}`,
+              ...(context.children.length
+                ? [
+                    `player_id.in.(${context.children.map((c) => c.id).join(",")})`,
+                  ]
+                : []),
+            ].join(","),
+          )
           .in("status", ["paid", "review", "cancelled", "refunded"]),
       )
     : [];
