@@ -150,13 +150,16 @@ it("keeps two Stripe IDs and two children in one account, including repeated imp
 });
 
 it("requires both name and email; never silently chooses among duplicate parents", async () => {
-  expect(await link("cus_different_name", child1, "Other Person")).not.toBe(
-    parent,
+  const children = await query(
+    "insert into players(first_name,last_name) values('Different','Name'),('Different','Email') returning id",
   );
+  expect(
+    await link("cus_different_name", children[0].id, "Other Person"),
+  ).not.toBe(parent);
   expect(
     await link(
       "cus_different_email",
-      child1,
+      children[1].id,
       "Family Parent",
       "other@example.invalid",
     ),
@@ -286,7 +289,12 @@ it("moves pre-existing pending notifications to held when an account is staged",
   await query(
     "insert into notification_jobs(idempotency_key,kind,recipient,payload) values('before-family','report','future@example.invalid','{}')",
   );
-  await link("cus_future", child1, "Future Parent", "future@example.invalid");
+  const child = (
+    await query(
+      "insert into players(first_name,last_name) values('Future','Child') returning id",
+    )
+  )[0].id;
+  await link("cus_future", child, "Future Parent", "future@example.invalid");
   expect(
     (
       await query(
@@ -294,6 +302,27 @@ it("moves pre-existing pending notifications to held when an account is staged",
       )
     )[0].status,
   ).toBe("held");
+});
+
+it("rejects assigning an owned child to a new Stripe family and rolls back that family's creation", async () => {
+  await expect(
+    link(
+      "cus_second_parent",
+      child1,
+      "Second Parent",
+      "second@example.invalid",
+    ),
+  ).rejects.toThrow("zuerst die bestehende Zuordnung aufheben");
+  expect(
+    await query(
+      "select id from parents where contact_email='second@example.invalid'",
+    ),
+  ).toHaveLength(0);
+  expect(
+    await query("select parent_id from parent_players where player_id=$1", [
+      child1,
+    ]),
+  ).toEqual([{ parent_id: parent }]);
 });
 
 it("suggests only matching names and email addresses, not email-only or spelling guesses", () => {

@@ -1386,6 +1386,8 @@ function ParentLinks({
   notify: (text: string) => void;
 }) {
   const [links, setLinks] = useState<RecordRow[]>([]);
+  const [linksReady, setLinksReady] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [parentId, setParentId] = useState("");
   const [childId, setChildId] = useState("");
   const [newChild, setNewChild] = useState(false);
@@ -1402,13 +1404,17 @@ function ParentLinks({
     setChildId(params.get("player") ?? "");
   }, []);
   const selectedParent = parentId || String(parents[0]?.id ?? "");
-  const selectedChild = childId || players[0]?.id || "";
-  const assigned = links.some(
-    (l) => l.parent_id === selectedParent && l.player_id === selectedChild,
-  );
+  const availablePlayers = linksReady
+    ? players.filter((p) => !links.some((l) => l.player_id === p.id))
+    : [];
+  const selectedChild = availablePlayers.some((p) => p.id === childId)
+    ? childId
+    : "";
   async function refresh() {
+    setLinksReady(false);
     try {
       setLinks(await allAdminRows("parent_players"));
+      setLinksReady(true);
     } catch (e) {
       notify((e as Error).message);
     }
@@ -1425,12 +1431,15 @@ function ParentLinks({
       <h2>Eltern und Kinder zuordnen</h2>
       <p>
         Eine Zuordnung gibt dem Elternkonto Zugriff auf die Termine und Berichte
-        dieses Kindes. Mehrere Eltern sind möglich.
+        dieses Kindes. Pro Kind ist ein Elternkonto möglich. Für einen Wechsel
+        zuerst die bestehende Zuordnung aufheben.
       </p>
       <form
         className="form-grid"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (!linksReady || saving || !selectedChild) return;
+          setSaving(true);
           const f = new FormData(e.currentTarget),
             input = {
               parent_id: String(f.get("parent")),
@@ -1443,6 +1452,9 @@ function ParentLinks({
             notify("Zuordnung gespeichert.");
           } catch (e) {
             notify((e as Error).message);
+            await refresh();
+          } finally {
+            setSaving(false);
           }
         }}
       >
@@ -1466,10 +1478,18 @@ function ParentLinks({
           <select
             name="child"
             required
+            disabled={!linksReady || saving || !availablePlayers.length}
             value={selectedChild}
             onChange={(e) => setChildId(e.target.value)}
           >
-            {players.map((p) => (
+            <option value="">
+              {!linksReady
+                ? "Zuordnungen werden geladen …"
+                : availablePlayers.length
+                  ? "Bitte ein Kind auswählen"
+                  : "Keine unzugeordneten Kinder verfügbar"}
+            </option>
+            {availablePlayers.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.first_name} {p.last_name}
               </option>
@@ -1487,12 +1507,10 @@ function ParentLinks({
           Neues Kind anlegen
         </button>
         <button
-          className={
-            assigned ? "primary-button assigned-button" : "primary-button"
-          }
-          disabled={assigned || !selectedParent || !selectedChild}
+          className="primary-button"
+          disabled={!linksReady || saving || !selectedParent || !selectedChild}
         >
-          {assigned ? "Zugeordnet" : "Zuordnen"}
+          {saving ? "Wird zugeordnet …" : "Zuordnen"}
         </button>
       </form>
       {newChild && (

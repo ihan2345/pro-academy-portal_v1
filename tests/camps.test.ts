@@ -825,6 +825,10 @@ describe("isolated Camp extension", () => {
         "select record_id id from camp_owned_rows where table_name='players' limit 1",
       )
     ).rows[0].id;
+    // Moving a child to an unrelated family now requires removing its old link first.
+    await db.query("delete from parent_players where player_id=$1", [
+      campChild,
+    ]);
     const link = (
       await db.query<{ id: string }>(
         "insert into parent_players(parent_id,player_id)values($1,$2) returning id",
