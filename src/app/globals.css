@@ -3177,6 +3177,18 @@ label {
   margin: 16px 0;
   flex-wrap: wrap;
 }
+.parent-invite-new,
+.parent-invite-new:hover {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #234000;
+}
+.parent-invite-repeat,
+.parent-invite-repeat:hover {
+  background: transparent;
+  border: 2px solid var(--lime);
+  color: #234000;
+}
 .assigned-button {
   background: #e3f5e8 !important;
   color: #176331 !important;

@@ -41,7 +41,13 @@ function ParentInviteButton({
   return (
     <button
       type="button"
-      className="text-button"
+      className={
+        registered
+          ? "text-button"
+          : parent.portal_status === "invited"
+            ? "secondary-button parent-invite-repeat"
+            : "primary-button parent-invite-new"
+      }
       disabled={busy || registered || requested !== null}
       title={
         registered
@@ -96,9 +102,11 @@ type AssignmentFilter = "all" | "open" | "assigned";
 function AssignmentFilters({
   value,
   change,
+  counts,
 }: {
   value: AssignmentFilter;
   change: (value: AssignmentFilter) => void;
+  counts: Record<AssignmentFilter, number>;
 }) {
   return (
     <div
@@ -119,7 +127,7 @@ function AssignmentFilters({
           aria-pressed={value === key}
           onClick={() => change(key)}
         >
-          {label}
+          {label} ({counts[key]})
         </button>
       ))}
     </div>
@@ -263,6 +271,12 @@ export function AdminView({
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
     [reportTime, setReportTime] = useState("08:00");
+  const matchingRows = rows.filter((r) =>
+    JSON.stringify(r).toLowerCase().includes(search.toLowerCase()),
+  );
+  const assignedCount = matchingRows.filter(
+    (r) => (r.parent_players as unknown[] | undefined)?.length,
+  ).length;
   async function load() {
     setLoading(true);
     setError("");
@@ -449,7 +463,15 @@ export function AdminView({
             </button>
           </div>
           {["eltern", "spieler"].includes(slug) && (
-            <AssignmentFilters value={assignment} change={setAssignment} />
+            <AssignmentFilters
+              value={assignment}
+              change={setAssignment}
+              counts={{
+                all: matchingRows.length,
+                open: matchingRows.length - assignedCount,
+                assigned: assignedCount,
+              }}
+            />
           )}
           <section className="panel table-scroll">
             <table className="training-table">
@@ -469,7 +491,7 @@ export function AdminView({
                 </tr>
               </thead>
               <tbody>
-                {rows
+                {matchingRows
                   .filter(
                     (r) =>
                       !["eltern", "spieler"].includes(slug) ||
@@ -478,11 +500,6 @@ export function AdminView({
                         (r.parent_players as unknown[] | undefined)?.length,
                       ) ===
                         (assignment === "assigned"),
-                  )
-                  .filter((r) =>
-                    JSON.stringify(r)
-                      .toLowerCase()
-                      .includes(search.toLowerCase()),
                   )
                   .map((r) => (
                     <tr key={String(r.id)}>
@@ -1003,7 +1020,15 @@ function StripeImport({
         <p role="status" aria-live="polite">
           {status}
         </p>
-        <AssignmentFilters value={assignment} change={setAssignment} />
+        <AssignmentFilters
+          value={assignment}
+          change={setAssignment}
+          counts={{
+            all: filtered.length,
+            open: open.length,
+            assigned: assigned.length,
+          }}
+        />
         {assignment !== "assigned" && (
           <>
             <h3>Noch nicht zugeordnet · {open.length}</h3>
