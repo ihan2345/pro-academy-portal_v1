@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
+import { randomBytes } from "node:crypto";
 import { sessionDb, sessionUser, serviceDb } from "@/lib/server/supabase";
 import { required } from "@/lib/server/config";
 import {
@@ -472,6 +473,27 @@ async function handler(
         return json({ rows });
       }
       if (request.method === "POST") {
+        if (action === "training-api-link") {
+          const { rotate } = z
+            .object({ rotate: z.boolean().default(false) })
+            .strict()
+            .parse(await request.json());
+          const result = await db.rpc("manage_training_api_share", {
+            candidate: randomBytes(32).toString("hex"),
+            rotate,
+          });
+          if (result.error || !/^[0-9a-f]{64}$/.test(result.data ?? ""))
+            throw new HttpError(
+              503,
+              "Freigabelink konnte nicht bereitgestellt werden.",
+            );
+          return json({
+            url: new URL(
+              `/api/public/trainings/${result.data}`,
+              required("APP_URL"),
+            ).href,
+          });
+        }
         if (action === "roles") {
           const input = z
             .object({

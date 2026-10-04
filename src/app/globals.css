@@ -3220,6 +3220,63 @@ label {
   flex-wrap: wrap;
   gap: 8px;
 }
+.training-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.training-api-share {
+  max-width: 100%;
+}
+.training-api-buttons {
+  display: inline-flex;
+  align-items: stretch;
+}
+.training-api-buttons > button {
+  border-radius: 6px 0 0 6px;
+}
+.training-api-menu {
+  position: relative;
+}
+.training-api-menu > summary {
+  height: 100%;
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  list-style: none;
+  cursor: pointer;
+  border: 1px solid #dddfe7;
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+  background: white;
+}
+.training-api-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.training-api-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 225px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  box-shadow: 0 8px 24px #00000014;
+}
+.training-api-fallback {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.training-api-fallback input {
+  min-width: 0;
+  width: 100%;
+}
 .training-player-names {
   margin: 8px 0;
   font-size: 13px;

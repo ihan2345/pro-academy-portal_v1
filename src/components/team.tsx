@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { MonthCalendar } from "./month-calendar";
+import { TrainingApiShare } from "./training-api-share";
 import {
   calendarDate,
   compareTrainings,
@@ -136,9 +137,12 @@ export function TeamView({
           </h1>
           <p>Deine Monate im Blick. Dein Training im Detail.</p>
         </div>
-        <button className="primary-button" onClick={() => setEditor("new")}>
-          <Plus size={18} /> Termin erstellen
-        </button>
+        <div className="training-heading-actions">
+          <button className="primary-button" onClick={() => setEditor("new")}>
+            <Plus size={18} /> Termin erstellen
+          </button>
+          {data.role === "admin" && <TrainingApiShare notify={notify} />}
+        </div>
       </div>
       <section className="panel training-calendar-shell">
         <div className="calendar-toolbar">
