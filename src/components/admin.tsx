@@ -75,7 +75,7 @@ function ParentInviteButton({
             : requested === "held"
               ? "Einladung vorgemerkt"
               : parent.portal_status === "invited"
-                ? "Erneut einladen"
+                ? "Nochmal einladen"
                 : "Einladen"}
     </button>
   );
@@ -456,7 +456,11 @@ export function AdminView({
               <thead>
                 <tr>
                   {config.fields.map((f) => (
-                    <th key={f.key}>{f.label.toUpperCase()}</th>
+                    <th key={f.key}>
+                      {slug === "eltern" && f.key === "billing_email"
+                        ? "EINLADUNG"
+                        : f.label.toUpperCase()}
+                    </th>
                   ))}
                   {slug === "eltern" && <th>STATUS</th>}
                   {["eltern", "spieler"].includes(slug) && <th>ZUORDNUNG</th>}
@@ -484,17 +488,23 @@ export function AdminView({
                     <tr key={String(r.id)}>
                       {config.fields.map((f) => (
                         <td key={f.key}>
-                          {f.key === "generation"
-                            ? ({
-                                legacy: "Bestand",
-                                current: "Neu ab 01.09.2026",
-                                special: "Sondertarif",
-                              }[String(r[f.key])] ?? "—")
-                            : f.key === "billing_interval"
-                              ? r[f.key] === "year"
-                                ? "Jährlich"
-                                : "Monatlich"
-                              : String(r[f.key] ?? "—")}
+                          {slug === "eltern" && f.key === "billing_email" ? (
+                            <ParentInviteButton parent={r} notify={notify} />
+                          ) : f.key === "generation" ? (
+                            ({
+                              legacy: "Bestand",
+                              current: "Neu ab 01.09.2026",
+                              special: "Sondertarif",
+                            }[String(r[f.key])] ?? "—")
+                          ) : f.key === "billing_interval" ? (
+                            r[f.key] === "year" ? (
+                              "Jährlich"
+                            ) : (
+                              "Monatlich"
+                            )
+                          ) : (
+                            String(r[f.key] ?? "—")
+                          )}
                         </td>
                       ))}
                       {slug === "eltern" && (
@@ -547,9 +557,6 @@ export function AdminView({
                         >
                           Bearbeiten
                         </button>
-                        {slug === "eltern" && (
-                          <ParentInviteButton parent={r} notify={notify} />
-                        )}
                         {slug === "mitarbeiter" && (
                           <button
                             className="text-button"
