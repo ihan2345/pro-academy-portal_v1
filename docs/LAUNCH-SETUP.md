@@ -371,3 +371,17 @@ Commit, Push nach `Status` und `main` sowie Veröffentlichung wurden ausdrückli
 Der Worker prüft Rolle, bestätigte E-Mail-Adresse und aktuelle Teilnahmeübersicht vor der Erstellung sowie direkt vor SMTP erneut. Bei zwischenzeitlicher Änderung wird neu vorbereitet oder zurückgehalten. Identische Übersichten werden nicht mehrfach gesendet, unversendete ältere Übersichten werden zusammengeführt, unklare SMTP-Ergebnisse verhindern blinde Wiederholungen. Änderungen an Teilnehmern erzeugen von sich aus keine neue Teammail.
 
 Gezielt geprüft: 43 Datenbanktests einschließlich der bestehenden Trainingslogik, 15 API-Tests, 12 Worker-/Mailtests, TypeScript, Runner-Build und isolierte Desktop-/Mobilprüfung mit mehreren Adressen, ungültigem Empfänger und reinem Teamversand. Keine echten Mails versendet. Abschließende Produktionsprüfung: 429 Tests, Portal-Produktionsbuild einschließlich TypeScript sowie Runner-Typprüfung und Runner-Build erfolgreich. Veröffentlichungsreihenfolge: neuer Jobs-Runner, gezielt SQL 007 (006 ist bereits produktiv aktiv), zuletzt das Portal. Kein pauschales `db push`.
+
+### Veröffentlichung geprüft: Trainingsbestätigung an Teamkonten
+
+Am 05.10.2026 auf ausdrücklichen Nutzerauftrag vollständig veröffentlicht:
+
+- Funktionsstand `f517679` auf `Status` und `main` gepusht; 429 Tests sowie Portal-Produktionsbuild, Runner-Typprüfung und Runner-Build erfolgreich.
+- Jobs-Runner-Version `2eda1309-80f3-42be-8533-eeaf8467fe72`, Container-Digest `sha256:b6da7be2d6105a391a2f6c2d381d28a6fc6015938b4b55207e33e977b6b539ba`.
+- SQL `007-staff-training-confirmations.sql` nach dem Runner atomar angewendet; SQL 006 war bereits aktiv und wurde nicht erneut ausgeführt.
+- Portal-Version `4a4920d7-b4ba-47ff-945b-488d56dced8d` auf der bestehenden Worker-Adresse. Login HTTP 200, geschützte Teamseite HTTP 307 und nicht angemeldete Adressprüfung HTTP 401. Das online ausgelieferte neue Dialog-Bundle ist bytegleich zum geprüften Produktionsbuild.
+- Produktionsprüfung der Empfänger: bestätigtes Admin-Konto akzeptiert und doppelte Adresse zusammengeführt; Drittadressen, Elternkonten und unbestätigte Teamkonten abgewiesen. Anonyme Adressprüfung und direkter Aufruf der Versandvorbereitung durch normale angemeldete Benutzer bleiben gesperrt. 39 bestehende beendete Termine liefern bestätigte Teilnehmerübersichten.
+- Die bisherige Eltern-Versandprüfung wurde unverändert übernommen; keine geänderten Entscheidungen im Vergleich zur bisherigen Funktion. Globale und Empfängerfreigaben unverändert. Vor-/Nachvergleich der SQL-Aktivierung: 332 `held`, 23 `sent`, ein bestehender `uncertain`-Auftrag, keine Team-Versandaufträge. Keine Testmails und keine manuellen Versandfreigaben ausgelöst.
+- Runner-Verbindungsprüfung für Supabase, Stripe, SMTP und PDF erfolgreich, ohne Versand.
+
+Private technische Nachweise liegen unter `output/staff-training-release/`.
