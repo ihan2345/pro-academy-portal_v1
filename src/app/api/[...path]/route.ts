@@ -168,6 +168,11 @@ async function handler(
     const session = await sessionUser();
     if (!session?.role) throw new HttpError(401, "Bitte melde dich an.");
     const { db, user, role } = session;
+    if (path === "activity" && request.method === "POST") {
+      const { error } = await db.rpc("touch_user_activity");
+      if (error) throw new HttpError(503, "Aktivitätsstatus nicht verfügbar.");
+      return json({ ok: true });
+    }
     if (path === "auth/logout" && request.method === "POST") {
       await db.auth.signOut();
       return json({ ok: true });
@@ -311,6 +316,19 @@ async function handler(
     if (path.startsWith("admin/")) {
       assertRole(role, "admin");
       const action = path.slice(6);
+      if (action === "user-activity" && request.method === "POST") {
+        const { ids } = z
+          .object({ ids: z.array(z.uuid()).min(1).max(100) })
+          .strict()
+          .parse(await request.json());
+        const { data: rows, error } = await db
+          .from("user_activity")
+          .select("user_id,last_seen_at")
+          .in("user_id", ids);
+        if (error)
+          throw new HttpError(503, "Aktivitätsstatus nicht verfügbar.");
+        return json({ rows, now: new Date().toISOString() });
+      }
       if (action === "stripe-customers-sync" && request.method === "POST") {
         // Verify local schema before fetching Stripe or recording observations.
         const registry = await db

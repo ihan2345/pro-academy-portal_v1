@@ -27,6 +27,7 @@ import {
 } from "@/lib/stripe-customers";
 import { formatDate } from "@/lib/domain";
 import type { Player, PortalData } from "@/lib/types";
+import { useUserActivity, UserActivityStatus } from "./user-activity";
 type RecordRow = Record<string, unknown>;
 function ParentInviteButton({
   parent,
@@ -271,6 +272,13 @@ export function AdminView({
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
     [reportTime, setReportTime] = useState("08:00");
+  const activity = useUserActivity(
+    ["eltern", "mitarbeiter"].includes(slug)
+      ? rows
+          .map((r) => String((slug === "eltern" ? r.auth_user_id : r.id) ?? ""))
+          .filter(Boolean)
+      : [],
+  );
   const matchingRows = rows.filter((r) =>
     JSON.stringify(r).toLowerCase().includes(search.toLowerCase()),
   );
@@ -484,7 +492,10 @@ export function AdminView({
                         : f.label.toUpperCase()}
                     </th>
                   ))}
-                  {slug === "eltern" && <th>STATUS</th>}
+                  {slug === "eltern" && <th>KONTOSTATUS</th>}
+                  {["eltern", "mitarbeiter"].includes(slug) && (
+                    <th className="user-activity-column">STATUS</th>
+                  )}
                   {["eltern", "spieler"].includes(slug) && <th>ZUORDNUNG</th>}
                   {slug === "eltern" && <th>STRIPE-KUNDEN</th>}
                   <th>AKTION</th>
@@ -536,6 +547,22 @@ export function AdminView({
                                 ? "Einladung erhalten"
                                 : "Keine Einladung"}
                           </span>
+                        </td>
+                      )}
+                      {["eltern", "mitarbeiter"].includes(slug) && (
+                        <td className="user-activity-column">
+                          <UserActivityStatus
+                            lastSeen={
+                              slug === "eltern" && !r.auth_user_id
+                                ? null
+                                : activity.seen[
+                                    String(
+                                      slug === "eltern" ? r.auth_user_id : r.id,
+                                    )
+                                  ]
+                            }
+                            now={activity.now}
+                          />
                         </td>
                       )}
                       {["eltern", "spieler"].includes(slug) && (

@@ -56,6 +56,7 @@ import {
 import { TeamView } from "./team";
 import { AdminView } from "./admin";
 import { StampCards } from "./stamp-cards";
+import { UserActivityHeartbeat } from "./user-activity";
 export function Brand() {
   return (
     <div className="brand">
@@ -255,6 +256,7 @@ export function Portal({
   }
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <UserActivityHeartbeat />
       {mobile && (
         <button
           className="sidebar-backdrop"
