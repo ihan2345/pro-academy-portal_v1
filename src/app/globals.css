@@ -3303,3 +3303,15 @@ label {
   margin: 8px 0;
   font-size: 13px;
 }
+
+.training-notification-dialog fieldset {
+  border: 1px solid var(--border, #e1e3e9);
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 0;
+}
+.training-notification-dialog legend { font-weight: 700; }
+.training-mail-option { align-items: flex-start; padding: 8px 0; }
+.training-mail-option span { min-width: 0; overflow-wrap: anywhere; }
+.training-mail-option small { display: block; }
+.training-mail-option:has(input:disabled) { opacity: 0.65; }

@@ -276,6 +276,50 @@ async function handler(
       assertRole(role, "team");
       if (request.method !== "POST")
         throw new HttpError(405, "Methode nicht erlaubt.");
+      if (
+        [
+          "team/notification-options",
+          "team/notify-parents",
+          "team/confirm-all-attendance",
+        ].includes(path)
+      ) {
+        const selection = z
+          .object({
+            parent_id: z.uuid(),
+            player_id: z.uuid(),
+            kind: z.enum(["planning", "training_reminder", "attendance"]),
+          })
+          .strict();
+        const schema =
+          path === "team/notify-parents"
+            ? z
+                .object({
+                  id: z.uuid(),
+                  selections: z.array(selection).min(1).max(1000),
+                })
+                .strict()
+            : path === "team/confirm-all-attendance"
+              ? z.object({ id: z.uuid(), confirmed: z.literal(true) }).strict()
+              : z.object({ id: z.uuid() }).strict();
+        const input = schema.parse(await request.json());
+        const name =
+          path === "team/notification-options"
+            ? "training_notification_options"
+            : path === "team/confirm-all-attendance"
+              ? "confirm_planned_training_attendance"
+              : "submit_training_notifications";
+        const { data, error } = await db.rpc(name, {
+          event: input.id,
+          ...("selections" in input ? { selections: input.selections } : {}),
+          ...("confirmed" in input ? { confirmed: input.confirmed } : {}),
+        });
+        if (error)
+          throw new HttpError(
+            400,
+            "Aktion nicht möglich. Bitte Termin und Freigaben neu laden und erneut prüfen.",
+          );
+        return json({ ok: true, ...data });
+      }
       let result;
       if (path === "team/backfills") {
         result = await db.rpc("save_training_backfill", {

@@ -1,4 +1,10 @@
 import {
+  TRAINING_MAIL_KINDS,
+  planTrainingReminders,
+  prepareTrainingNotification,
+  composeTrainingNotice,
+} from "./training-notifications";
+import {
   CAMP_MAIL_KINDS,
   CampMailHeld,
   composeCampMail,
@@ -57,6 +63,13 @@ export const captureProvider = new CaptureProvider(async (mail) => {
 });
 export async function compose(job: Record<string, unknown>): Promise<Email> {
   if (CAMP_MAIL_KINDS.includes(String(job.kind))) return composeCampMail(job);
+  if (
+    ["planning", "change", "training_removed", "training_reminder"].includes(
+      String(job.kind),
+    ) &&
+    (job.payload as Record<string, unknown>)?.notice_details
+  )
+    return composeTrainingNotice(job);
   const db = serviceDb(),
     payload = job.payload as Record<string, string>,
     app = process.env.APP_URL ?? "",
@@ -255,13 +268,23 @@ export async function processMail(
     });
   if (error) throw error;
   let sent = 0;
-  for (const job of jobs ?? []) {
+  for (let job of jobs ?? []) {
     let mail: Email | undefined,
       started = false;
     try {
+      if (TRAINING_MAIL_KINDS.includes(String(job.kind))) {
+        const current = await prepareTrainingNotification(job);
+        if (!current) continue;
+        job = current;
+      }
       mail = await compose(job);
       if (CAMP_MAIL_KINDS.includes(String(job.kind)))
         await requireCampMailRecipient(job);
+      if (
+        TRAINING_MAIL_KINDS.includes(String(job.kind)) &&
+        !(await prepareTrainingNotification(job, true))
+      )
+        continue;
       started = true;
       const result = await provider.send(mail);
       const final = await db.rpc("finish_notification", {
@@ -328,6 +351,7 @@ export async function runJobs() {
       return result.sources;
     },
     camp_mail: planCampMail,
+    training_reminders: planTrainingReminders,
     attendance: async () => {
       const r = await db.rpc("auto_attendance");
       if (r.error) throw r.error;

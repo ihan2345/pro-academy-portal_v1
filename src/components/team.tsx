@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MonthCalendar } from "./month-calendar";
+import { TrainingNotifications } from "./training-notifications";
 import { TrainingApiShare } from "./training-api-share";
 import {
   calendarDate,
@@ -59,6 +60,37 @@ export function TeamView({
   notify: (message: string) => void;
 }) {
   const today = calendarDate();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const next = Math.min(
+      ...data.events
+        .flatMap((event) => [
+          Date.parse(event.starts_at),
+          Date.parse(event.ends_at),
+        ])
+        .filter((time) => time > Date.now()),
+    );
+    const timer = Number.isFinite(next)
+      ? setTimeout(
+          () => setNow(Date.now()),
+          Math.min(Math.max(1, next - Date.now() + 50), 2147483647),
+        )
+      : undefined;
+    const refresh = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [data.events, now]);
+  const [notificationEventId, setNotificationEventId] = useState<string | null>(
+    null,
+  );
+  const notificationEvent = data.events.find(
+    (event) => event.id === notificationEventId,
+  );
   const [date, setDate] = useState(today),
     [month, setMonth] = useState(monthStart(today)),
     [mode, setMode] = useState("day"),
@@ -356,6 +388,20 @@ export function TeamView({
                       >
                         Termin bearbeiten
                       </button>
+                      {e.status !== "cancelled" && (
+                        <button
+                          className="text-button"
+                          disabled={
+                            new Date(e.starts_at).getTime() <= now &&
+                            new Date(e.ends_at).getTime() > now
+                          }
+                          onClick={() => setNotificationEventId(e.id)}
+                        >
+                          {new Date(e.ends_at).getTime() <= now
+                            ? "Trainingsbestätigung absenden"
+                            : "Alle Elternteile benachrichtigen"}
+                        </button>
+                      )}
                     </div>
                   </article>
                 ))
@@ -444,6 +490,24 @@ export function TeamView({
           }}
         />
       )}
+      {notificationEvent && !exceptions && (
+        <TrainingNotifications
+          event={notificationEvent}
+          close={() => setNotificationEventId(null)}
+          notify={notify}
+          confirmIndividually={() => setExceptions(notificationEvent)}
+          updateParticipants={(participants) =>
+            update({
+              ...data,
+              events: data.events.map((event) =>
+                event.id === notificationEvent.id
+                  ? { ...event, participants }
+                  : event,
+              ),
+            })
+          }
+        />
+      )}
       {exceptions && (
         <Modal title="Teilnahmen & Ausnahmen" close={() => setExceptions(null)}>
           <div className="form-body">
@@ -461,17 +525,27 @@ export function TeamView({
                 <p>{confirmationHint(exceptions)}</p>
               </div>
             )}
-            {exceptions.participants.map((p) => (
-              <ExceptionRow
-                key={p.id}
-                name={
-                  data.players.find((c) => c.id === p.player_id)?.first_name ??
-                  "Kind"
-                }
-                status={p.status}
-                onSave={(s, r, m) => status(exceptions, p.id, s, r, m)}
-              />
-            ))}
+            {exceptions.participants
+              .filter((p) => !p.removed_from_event)
+              .map((p) => (
+                <ExceptionRow
+                  key={p.id}
+                  name={
+                    data.players.find((c) => c.id === p.player_id)
+                      ?.first_name ?? "Kind"
+                  }
+                  status={p.status}
+                  onSave={(s, r, m) => status(exceptions, p.id, s, r, m)}
+                />
+              ))}
+            {notificationEventId === exceptions.id && (
+              <button
+                className="primary-button"
+                onClick={() => setExceptions(null)}
+              >
+                Zurück zur Versandauswahl
+              </button>
+            )}
           </div>
         </Modal>
       )}
