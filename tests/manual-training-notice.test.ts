@@ -124,3 +124,83 @@ it("requires an explicit true acknowledgement for bulk attendance", async () => 
   expect(response.status).toBe(400);
   expect(mocks.rpc).not.toHaveBeenCalled();
 });
+
+it("allows a team-only confirmation with many addresses and no parent selection", async () => {
+  session("admin");
+  const emails = Array.from({ length: 150 }, (_, i) => `coach${i}@example.org`);
+  expect(
+    (await request({ id, selections: [], staff_emails: emails })).status,
+  ).toBe(200);
+  expect(mocks.rpc).toHaveBeenCalledWith(
+    "submit_training_notifications_with_staff",
+    { event: id, selections: [], staff_emails: emails },
+  );
+});
+it("normalizes team recipients, validates email syntax and surfaces the server's recipient rejection", async () => {
+  session("staff");
+  expect(
+    (
+      await request({
+        id,
+        selections: [],
+        staff_emails: [" COACH@EXAMPLE.ORG "],
+      })
+    ).status,
+  ).toBe(200);
+  expect(mocks.rpc).toHaveBeenCalledWith(
+    "submit_training_notifications_with_staff",
+    { event: id, selections: [], staff_emails: ["coach@example.org"] },
+  );
+  mocks.rpc.mockClear();
+  expect(
+    (await request({ id, selections: [], staff_emails: ["not an email"] }))
+      .status,
+  ).toBe(400);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  mocks.rpc.mockResolvedValue({
+    data: null,
+    error: {
+      code: "22023",
+      message:
+        "Nur bestätigte aktive Coach-/Admin-Konten sind erlaubt: outsider@example.org",
+    },
+  });
+  const response = await request({
+    id,
+    selections: [],
+    staff_emails: ["outsider@example.org"],
+  });
+  expect(response.status).toBe(400);
+  expect((await response.json()).error).toContain("bestätigte aktive");
+});
+it.each(["admin", "staff", "parent", null])(
+  "protects team address validation for %s",
+  async (role) => {
+    session(role);
+    const response = await POST(
+      new NextRequest(
+        "https://portal.example.org/api/team/validate-training-staff",
+        {
+          method: "POST",
+          headers: {
+            Origin: "https://portal.example.org",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ emails: ["coach@example.org"] }),
+        },
+      ),
+      {
+        params: Promise.resolve({ path: ["team", "validate-training-staff"] }),
+      },
+    );
+    expect(response.status).toBe(
+      role === "admin" || role === "staff" ? 200 : role ? 403 : 401,
+    );
+    if (role === "admin" || role === "staff")
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        "validate_training_staff_recipients",
+        { emails: ["coach@example.org"] },
+      );
+    else expect(mocks.rpc).not.toHaveBeenCalled();
+  },
+);

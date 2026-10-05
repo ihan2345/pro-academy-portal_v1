@@ -4,6 +4,7 @@ vi.mock("../src/lib/server/service-db", () => ({ serviceDb: () => mocks }));
 import { processMail } from "../workers/jobs";
 import {
   composeTrainingNotice,
+  composeStaffTrainingConfirmation,
   planTrainingReminders,
   prepareTrainingNotification,
 } from "../workers/training-notifications";
@@ -127,4 +128,80 @@ it("supports runner-first deployment, but never skips a missing guard for new no
   expect(
     await prepareTrainingNotification({ ...job, payload: {} }),
   ).toMatchObject({ id: "test-job" });
+});
+
+const staffJob = {
+  ...job,
+  kind: "training_staff_attendance",
+  recipient: "coach@test.invalid",
+  payload: {
+    ...job.payload,
+    staff_user_id: "staff",
+    manual_staff_training_notice: true,
+    notice_details: {
+      ...job.payload.notice_details,
+      participants: [
+        { id: "one", name: "Anna <Kind>" },
+        { id: "two", name: "Ben Beispiel" },
+      ],
+    },
+  },
+};
+it("renders the staff summary with the same branded email template and all confirmed names", () => {
+  const mail = composeStaffTrainingConfirmation(staffJob);
+  expect(mail.to).toBe("coach@test.invalid");
+  expect(mail.subject).toBe("Training absolviert: Training");
+  expect(mail.text).toContain(
+    "Bestätigte Teilnahmen (2):\nAnna <Kind>\nBen Beispiel",
+  );
+  expect(mail.text).toContain("14:00 bis 15:00");
+  expect(mail.text).toContain("Trainingsdauer: 60 Minuten");
+  expect(mail.html).toContain("/brand/logo-neon.png");
+  expect(mail.html).toContain("Anna &lt;Kind&gt;");
+  expect(mail.html).not.toContain("Anna <Kind>");
+});
+it("rechecks staff eligibility immediately before the existing SMTP provider", async () => {
+  let checks = 0;
+  mocks.rpc.mockImplementation(async (name: string) => ({
+    error: null,
+    data:
+      name === "claim_notifications"
+        ? [staffJob]
+        : name === "prepare_staff_training_notification"
+          ? ++checks === 1
+            ? staffJob
+            : null
+          : null,
+  }));
+  const provider = { name: "proton", send: vi.fn() };
+  expect(await processMail(provider)).toBe(0);
+  expect(checks).toBe(2);
+  expect(provider.send).not.toHaveBeenCalled();
+});
+it("sends the team summary through the existing provider once after both checks", async () => {
+  mocks.rpc.mockImplementation(async (name: string) => ({
+    error: null,
+    data:
+      name === "claim_notifications"
+        ? [staffJob]
+        : name === "prepare_staff_training_notification"
+          ? staffJob
+          : null,
+  }));
+  const provider = {
+    name: "proton",
+    send: vi.fn(async (_mail: { text: string }) => ({ id: "staff-smtp" })),
+  };
+  expect(await processMail(provider)).toBe(1);
+  expect(provider.send).toHaveBeenCalledTimes(1);
+  expect(provider.send.mock.calls[0][0].text).toContain("Ben Beispiel");
+});
+it("fails closed for team summaries when the new database function is unavailable", async () => {
+  mocks.rpc.mockResolvedValue({ error: { code: "PGRST202" }, data: null });
+  await expect(
+    prepareTrainingNotification({
+      ...staffJob,
+      payload: { ...staffJob.payload, training_notice: false },
+    }),
+  ).rejects.toMatchObject({ code: "PGRST202" });
 });

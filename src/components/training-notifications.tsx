@@ -60,6 +60,37 @@ export function TrainingNotifications({
   const [reload, setReload] = useState(0);
   const [confirmAll, setConfirmAll] = useState(false);
   const submitting = useRef(false);
+  const [staffInput, setStaffInput] = useState("");
+  const [staffEmails, setStaffEmails] = useState<string[]>([]);
+  const enteredStaffEmails = () => [
+    ...new Set(
+      [...staffEmails, ...staffInput.split(/[\s,;]+/).filter(Boolean)].map(
+        (email) => email.trim().toLowerCase(),
+      ),
+    ),
+  ];
+  async function addStaffEmails() {
+    if (submitting.current || !staffInput.trim()) return;
+    submitting.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api("team/validate-training-staff", {
+        emails: enteredStaffEmails(),
+      });
+      setStaffEmails(result.emails);
+      setStaffInput("");
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Team-Adressen konnten nicht geprüft werden.",
+      );
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
+  }
   useEffect(() => {
     let active = true;
     setPreview(null);
@@ -116,13 +147,17 @@ export function TrainingNotifications({
             player_id,
             kind,
           }));
-        if (!selections?.length) return;
+        const emails = preview?.ended ? enteredStaffEmails() : [];
+        if (!selections?.length && !emails.length) return;
         const result = await api("team/notify-parents", {
           id: event.id,
-          selections,
+          selections: selections ?? [],
+          ...(emails.length ? { staff_emails: emails } : {}),
         });
+        setStaffEmails([]);
+        setStaffInput("");
         notify(
-          `${result.queued} Mail(s) eingeplant. ${result.approved} Freigabe(n) gespeichert.${result.blocked ? ` ${result.blocked} Auswahl(en) inzwischen gesperrt; bitte erneut prüfen.` : ""}`,
+          `${result.queued + (result.staff_queued ?? 0)} Mail(s) eingeplant. ${result.approved} Freigabe(n) gespeichert.${result.blocked ? ` ${result.blocked} Auswahl(en) inzwischen gesperrt; bitte erneut prüfen.` : ""}${result.staff_skipped ? ` ${result.staff_skipped} Team-Bestätigung(en) bereits versendet oder eingeplant.` : ""}`,
         );
       }
       setReload((value) => value + 1);
@@ -276,6 +311,52 @@ export function TrainingNotifications({
                   )}
                 </fieldset>
               ))}
+              {ended && (
+                <fieldset disabled={busy}>
+                  <legend>Bestätigung an Coaches / Admins</legend>
+                  <p>
+                    Nur bestätigte Teamkonten. Jede Adresse erhält eine eigene
+                    Mail mit allen tatsächlich teilgenommenen Kindern. Mehrere
+                    Adressen mit Komma, Semikolon oder Zeilenumbruch trennen.
+                  </p>
+                  <label>
+                    E-Mail-Adressen
+                    <textarea
+                      rows={3}
+                      value={staffInput}
+                      onChange={(e) => setStaffInput(e.target.value)}
+                      placeholder="coach@beispiel.de"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                    />
+                  </label>
+                  <button
+                    className="secondary-button"
+                    disabled={busy || !staffInput.trim()}
+                    onClick={() => void addStaffEmails()}
+                  >
+                    Adressen prüfen und hinzufügen
+                  </button>
+                  {staffEmails.map((email) => (
+                    <div className="row-between" key={email}>
+                      <span style={{ overflowWrap: "anywhere", minWidth: 0 }}>
+                        {email}
+                      </span>
+                      <button
+                        className="text-button"
+                        aria-label={`${email} entfernen`}
+                        onClick={() =>
+                          setStaffEmails((current) =>
+                            current.filter((value) => value !== email),
+                          )
+                        }
+                      >
+                        Entfernen
+                      </button>
+                    </div>
+                  ))}
+                </fieldset>
+              )}
               <div className="form-actions">
                 <button
                   className="secondary-button"
@@ -286,7 +367,11 @@ export function TrainingNotifications({
                 </button>
                 <button
                   className="primary-button"
-                  disabled={busy || selected.size === 0}
+                  disabled={
+                    busy ||
+                    (selected.size === 0 &&
+                      (!ended || (!staffEmails.length && !staffInput.trim())))
+                  }
                   onClick={() => void submit()}
                 >
                   {busy

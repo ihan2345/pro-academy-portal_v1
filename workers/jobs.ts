@@ -3,6 +3,7 @@ import {
   planTrainingReminders,
   prepareTrainingNotification,
   composeTrainingNotice,
+  composeStaffTrainingConfirmation,
 } from "./training-notifications";
 import {
   CAMP_MAIL_KINDS,
@@ -63,6 +64,8 @@ export const captureProvider = new CaptureProvider(async (mail) => {
 });
 export async function compose(job: Record<string, unknown>): Promise<Email> {
   if (CAMP_MAIL_KINDS.includes(String(job.kind))) return composeCampMail(job);
+  if (job.kind === "training_staff_attendance")
+    return composeStaffTrainingConfirmation(job);
   if (
     ["planning", "change", "training_removed", "training_reminder"].includes(
       String(job.kind),

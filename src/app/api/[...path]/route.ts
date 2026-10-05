@@ -276,6 +276,28 @@ async function handler(
       assertRole(role, "team");
       if (request.method !== "POST")
         throw new HttpError(405, "Methode nicht erlaubt.");
+      if (path === "team/validate-training-staff") {
+        const { emails } = z
+          .object({
+            emails: z
+              .array(z.string().trim().toLowerCase().pipe(z.email()))
+              .min(1),
+          })
+          .strict()
+          .parse(await request.json());
+        const { data, error } = await db.rpc(
+          "validate_training_staff_recipients",
+          { emails },
+        );
+        if (error)
+          throw new HttpError(
+            400,
+            error.code === "22023"
+              ? error.message
+              : "Team-Adressen konnten nicht geprüft werden.",
+          );
+        return json({ emails: data });
+      }
       if (
         [
           "team/notification-options",
@@ -295,28 +317,46 @@ async function handler(
             ? z
                 .object({
                   id: z.uuid(),
-                  selections: z.array(selection).min(1).max(1000),
+                  selections: z.array(selection).max(1000),
+                  staff_emails: z
+                    .array(z.string().trim().toLowerCase().pipe(z.email()))
+                    .optional(),
                 })
                 .strict()
+                .refine(
+                  (value) =>
+                    value.selections.length > 0 || !!value.staff_emails?.length,
+                  "Bitte mindestens einen Empfänger auswählen.",
+                )
             : path === "team/confirm-all-attendance"
               ? z.object({ id: z.uuid(), confirmed: z.literal(true) }).strict()
               : z.object({ id: z.uuid() }).strict();
         const input = schema.parse(await request.json());
+        const staffEmails =
+          "staff_emails" in input && Array.isArray(input.staff_emails)
+            ? input.staff_emails
+            : [];
+        const hasStaff = staffEmails.length > 0;
         const name =
           path === "team/notification-options"
             ? "training_notification_options"
             : path === "team/confirm-all-attendance"
               ? "confirm_planned_training_attendance"
-              : "submit_training_notifications";
+              : hasStaff
+                ? "submit_training_notifications_with_staff"
+                : "submit_training_notifications";
         const { data, error } = await db.rpc(name, {
           event: input.id,
           ...("selections" in input ? { selections: input.selections } : {}),
           ...("confirmed" in input ? { confirmed: input.confirmed } : {}),
+          ...(hasStaff ? { staff_emails: staffEmails } : {}),
         });
         if (error)
           throw new HttpError(
             400,
-            "Aktion nicht möglich. Bitte Termin und Freigaben neu laden und erneut prüfen.",
+            hasStaff && error.code === "22023"
+              ? error.message
+              : "Aktion nicht möglich. Bitte Termin und Freigaben neu laden und erneut prüfen.",
           );
         return json({ ok: true, ...data });
       }

@@ -31,6 +31,18 @@ beforeAll(async () => {
   await db.exec(
     readFileSync("supabase/release/005-training-notifications.sql", "utf8"),
   );
+  await db.exec(
+    readFileSync(
+      "supabase/release/006-manual-training-recipient-exception.sql",
+      "utf8",
+    ),
+  );
+  await db.exec(
+    readFileSync(
+      "supabase/release/007-staff-training-confirmations.sql",
+      "utf8",
+    ),
+  );
 });
 afterAll(async () => db.close());
 const query = async (sql: string, args: unknown[] = []) =>
@@ -171,10 +183,10 @@ async function sendAll() {
     if (!jobs.length) break;
     for (const job of jobs) {
       const ready = (
-        await query("select prepare_training_notification($1,$2) job", [
-          job.id,
-          job.lease_token,
-        ])
+        await query(
+          `select ${job.kind === "training_staff_attendance" ? "prepare_staff_training_notification" : "prepare_training_notification"}($1,$2) job`,
+          [job.id, job.lease_token],
+        )
       )[0].job;
       if (!ready) continue;
       await query("select finish_notification($1)", [
@@ -938,4 +950,411 @@ it("rejects selections from another family instead of granting broader access", 
   );
   await db.exec("rollback to savepoint invalid_selection");
   expect(await query("select * from training_mail_approvals")).toHaveLength(0);
+});
+
+it("bypasses the recipient allowlist only for explicitly selected manual plans, with no automatic follow-ups", async () => {
+  await deactivate(1);
+  await deactivate(2);
+  await db.exec(
+    "update system_settings set value=jsonb_set(value,'{recipients}','[]') where key='portal_delivery_release'",
+  );
+  const event = await save([1, 2, 3]);
+  const queuedBefore = await query(
+    "select id,status from notification_jobs order by id",
+  );
+  const preview = await options(event);
+  expect(
+    preview.rows.find(
+      (r: any) => r.parent_id === id(21) && r.kind === "planning",
+    ).enabled,
+  ).toBe(true);
+  expect(
+    preview.rows.find(
+      (r: any) => r.parent_id === id(23) && r.kind === "planning",
+    ).enabled,
+  ).toBe(false);
+  expect(
+    await query("select id,status from notification_jobs order by id"),
+  ).toEqual(queuedBefore);
+  expect(await sendAll()).toHaveLength(0);
+  expect(await submit(event, [choice(1)])).toEqual({
+    queued: 1,
+    approved: 0,
+    blocked: 0,
+  });
+  expect((await sendAll()).map((j) => [j.recipient, j.kind])).toEqual([
+    ["parent1@test.invalid", "planning"],
+  ]);
+  expect(await submit(event, [choice(1)])).toEqual({
+    queued: 0,
+    approved: 0,
+    blocked: 0,
+  });
+  await save([1, 2, 3], event, { location_id: id(3) });
+  expect(await sendAll()).toHaveLength(0);
+  await submit(event, [choice(1)]);
+  expect((await sendAll()).map((j) => [j.recipient, j.kind])).toEqual([
+    ["parent1@test.invalid", "change"],
+  ]);
+  expect(
+    (
+      await query(
+        "select value->'recipients' recipients from system_settings where key='portal_delivery_release'",
+      )
+    )[0].recipients,
+  ).toEqual([]);
+});
+it("bypasses the recipient allowlist for explicitly selected attendance only, leaving other kinds and families blocked", async () => {
+  await deactivate(1);
+  await deactivate(2);
+  await db.exec(
+    "update system_settings set value=jsonb_set(value,'{recipients}','[]') where key='portal_delivery_release'",
+  );
+  const event = await save([1, 2, 3]);
+  await db.query(
+    "update training_events set starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour' where id=$1",
+    [event],
+  );
+  await query("select confirm_planned_training_attendance($1,true)", [event]);
+  expect(await sendAll()).toHaveLength(0);
+  expect(await submit(event, [choice(1, "attendance")])).toEqual({
+    queued: 1,
+    approved: 1,
+    blocked: 0,
+  });
+  const job = (await pending()).find((j) => j.kind === "attendance");
+  for (const kind of [
+    "planning",
+    "change",
+    "training_removed",
+    "training_reminder",
+    "invitation",
+    "correction",
+    "report",
+    "stamp_card",
+    "training_backfill",
+    "camp_confirmation",
+  ]) {
+    expect(
+      (
+        await query("select parent_delivery_allowed($1,$2,$3) allowed", [
+          job.recipient,
+          kind,
+          job.payload,
+        ])
+      )[0].allowed,
+    ).toBe(false);
+  }
+  expect((await sendAll()).map((j) => [j.recipient, j.kind])).toEqual([
+    ["parent1@test.invalid", "attendance"],
+  ]);
+  expect(await submit(event, [choice(1, "attendance")])).toEqual({
+    queued: 0,
+    approved: 0,
+    blocked: 0,
+  });
+  expect(await sendAll()).toHaveLength(0);
+});
+it("requires a separate reminder approval without opening automatic reminders or later attendance", async () => {
+  await deactivate(1);
+  await deactivate(2);
+  await db.exec(
+    "update system_settings set value=jsonb_set(value,'{recipients}','[]') where key='portal_delivery_release'",
+  );
+  const event = await save([1, 2, 3]);
+  await submit(event, [choice(1, "training_reminder")]);
+  expect(await pending()).toHaveLength(0);
+  await db.query(
+    "update training_events set starts_at=now()+interval '23 hours',ends_at=now()+interval '24 hours' where id=$1",
+    [event],
+  );
+  await db.query(
+    "update event_participants set mail_joined_at=now()-interval '2 days' where event_id=$1",
+    [event],
+  );
+  await query("select plan_training_reminders()");
+  expect((await sendAll()).map((j) => [j.recipient, j.kind])).toEqual([
+    ["parent1@test.invalid", "training_reminder"],
+  ]);
+  await db.query(
+    "update training_events set starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour' where id=$1",
+    [event],
+  );
+  await query("select confirm_planned_training_attendance($1,true)", [event]);
+  expect(await sendAll()).toHaveLength(0);
+});
+it("still enforces the global switch and current family link for manual non-allowlisted recipients", async () => {
+  await deactivate();
+  await db.exec(
+    "update system_settings set value=jsonb_set(value,'{recipients}','[]') where key='portal_delivery_release'",
+  );
+  const event = await save();
+  await submit(event, [choice(1)]);
+  await db.exec(
+    "update system_settings set value=jsonb_set(value,'{enabled}','false') where key='portal_delivery_release'",
+  );
+  expect(await sendAll()).toHaveLength(0);
+  await db.exec(
+    "update system_settings set value=jsonb_set(value,'{enabled}','true') where key='portal_delivery_release'",
+  );
+  await db.query("delete from parent_players where player_id=$1", [id(11)]);
+  expect(await sendAll()).toHaveLength(0);
+});
+
+async function staffAccount(
+  n: number,
+  role = "staff",
+  confirmed = true,
+  active = true,
+) {
+  const email = `coach${n}@test.invalid`;
+  await db.query("insert into auth.users values($1,$2,$3)", [
+    id(n),
+    email,
+    confirmed ? new Date().toISOString() : null,
+  ]);
+  await db.query("insert into profiles(id,role) values($1,$2)", [id(n), role]);
+  if (role !== "parent")
+    await db.query(
+      "insert into staff_profiles(id,display_name,active) values($1,$2,$3)",
+      [id(n), email, active],
+    );
+  return email;
+}
+async function finishedTraining(children = [1, 2, 3]) {
+  const event = await save(children);
+  await db.query(
+    "update training_events set starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour' where id=$1",
+    [event],
+  );
+  return event;
+}
+async function staffSubmit(
+  event: string,
+  emails: string[],
+  selections: ReturnType<typeof choice>[] = [],
+) {
+  return (
+    await query(
+      "select submit_training_notifications_with_staff($1,$2,$3) result",
+      [event, selections, emails],
+    )
+  )[0].result;
+}
+it("accepts multiple confirmed staff/admin recipients, deduplicates addresses, and includes only attended children", async () => {
+  const coach = await staffAccount(201);
+  const event = await finishedTraining();
+  await db.query(
+    "update event_participants set status='attended_manual' where event_id=$1 and player_id=$2",
+    [event, id(11)],
+  );
+  await db.query(
+    "update event_participants set status='excused' where event_id=$1 and player_id=$2",
+    [event, id(12)],
+  );
+  await db.query(
+    "update event_participants set removed_from_event=true where event_id=$1 and player_id=$2",
+    [event, id(13)],
+  );
+  const before = await query("select count(*) n from notification_jobs");
+  expect(
+    (
+      await query("select validate_training_staff_recipients($1) emails", [
+        [coach.toUpperCase(), ` ${coach} `, "coach@test.invalid"],
+      ])
+    )[0].emails.sort(),
+  ).toEqual([coach, "coach@test.invalid"].sort());
+  expect(await query("select count(*) n from notification_jobs")).toEqual(
+    before,
+  );
+  expect(
+    (
+      await staffSubmit(event, [
+        coach,
+        coach.toUpperCase(),
+        "coach@test.invalid",
+      ])
+    ).staff_queued,
+  ).toBe(2);
+  const delivered = (await sendAll()).filter(
+    (j) => j.kind === "training_staff_attendance",
+  );
+  expect(delivered).toHaveLength(2);
+  expect(delivered[0].payload.notice_details.participants).toEqual([
+    { id: id(11), name: "Kind 1 Kind" },
+  ]);
+  expect(
+    (await staffSubmit(event, [coach, "coach@test.invalid"])).staff_skipped,
+  ).toBe(2);
+  expect(
+    (await sendAll()).filter((j) => j.kind === "training_staff_attendance"),
+  ).toHaveLength(0);
+});
+it("rejects third parties, unconfirmed accounts, parents and inactive coaches atomically with parent selections", async () => {
+  const unconfirmed = await staffAccount(201, "staff", false),
+    inactive = await staffAccount(202, "staff", true, false);
+  await deactivate(1);
+  const event = await finishedTraining([1]);
+  await query("select confirm_planned_training_attendance($1,true)", [event]);
+  for (const email of [
+    "outsider@test.invalid",
+    unconfirmed,
+    inactive,
+    "parent2@test.invalid",
+  ]) {
+    await db.exec("savepoint rejected");
+    await expect(
+      staffSubmit(
+        event,
+        ["coach@test.invalid", email],
+        [choice(1, "attendance")],
+      ),
+    ).rejects.toThrow("Nur bestätigte aktive Coach-/Admin-Konten");
+    await db.exec("rollback to savepoint rejected");
+  }
+  expect(
+    await query(
+      "select * from notification_jobs where kind='training_staff_attendance'",
+    ),
+  ).toHaveLength(0);
+  expect(await query("select * from training_mail_approvals")).toHaveLength(0);
+});
+it("requires an ended training with actual attendance and respects the global delivery switch", async () => {
+  const event = await save();
+  await db.exec("savepoint future");
+  await expect(staffSubmit(event, ["coach@test.invalid"])).rejects.toThrow(
+    "beendete",
+  );
+  await db.exec("rollback to savepoint future");
+  await db.query(
+    "update training_events set starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour' where id=$1",
+    [event],
+  );
+  await db.exec("savepoint planned");
+  await expect(staffSubmit(event, ["coach@test.invalid"])).rejects.toThrow(
+    "Teilnahme bestätigen",
+  );
+  await db.exec("rollback to savepoint planned");
+  await query("select confirm_planned_training_attendance($1,true)", [event]);
+  await db.exec(
+    "update system_settings set value=jsonb_set(value,'{enabled}','false') where key='portal_delivery_release'",
+  );
+  await db.exec("savepoint disabled");
+  await expect(staffSubmit(event, ["coach@test.invalid"])).rejects.toThrow(
+    "global gesperrt",
+  );
+  await db.exec("rollback to savepoint disabled");
+});
+it("rechecks a staff recipient after claim and prevents sending after role removal", async () => {
+  const coach = await staffAccount(201);
+  const event = await finishedTraining([1]);
+  await query("select confirm_planned_training_attendance($1,true)", [event]);
+  await staffSubmit(event, [coach]);
+  const job = (await query("select * from claim_notifications(100)")).find(
+    (j) => j.kind === "training_staff_attendance",
+  );
+  expect(
+    (
+      await query("select prepare_staff_training_notification($1,$2) job", [
+        job.id,
+        job.lease_token,
+      ])
+    )[0].job,
+  ).not.toBeNull();
+  await db.query("update profiles set role='parent' where id=$1", [id(201)]);
+  expect(
+    (
+      await query("select prepare_staff_training_notification($1,$2) job", [
+        job.id,
+        job.lease_token,
+      ])
+    )[0].job,
+  ).toBeNull();
+  expect(
+    (
+      await query("select status from notification_jobs where id=$1", [job.id])
+    )[0].status,
+  ).toBe("held");
+});
+it("rechecks changed participants immediately before SMTP and requires a fresh composition", async () => {
+  const event = await finishedTraining([1, 2]);
+  await query("select confirm_planned_training_attendance($1,true)", [event]);
+  await staffSubmit(event, ["coach@test.invalid"]);
+  const job = (await query("select * from claim_notifications(100)")).find(
+    (j) => j.kind === "training_staff_attendance",
+  );
+  const prepared = (
+    await query("select prepare_staff_training_notification($1,$2) job", [
+      job.id,
+      job.lease_token,
+    ])
+  )[0].job;
+  await db.query(
+    "update event_participants set status='excused' where event_id=$1 and player_id=$2",
+    [event, id(12)],
+  );
+  expect(
+    (
+      await query("select prepare_staff_training_notification($1,$2,$3) job", [
+        job.id,
+        job.lease_token,
+        prepared.payload.notice_details,
+      ])
+    )[0].job,
+  ).toBeNull();
+  const sent = (await sendAll()).find(
+    (j) => j.kind === "training_staff_attendance",
+  );
+  expect(sent.payload.notice_details.participants).toEqual([
+    { id: id(11), name: "Kind 1 Kind" },
+  ]);
+});
+it("coalesces unsent staff summaries and blocks retries with uncertain delivery", async () => {
+  const event = await finishedTraining([1, 2]);
+  await db.query(
+    "update event_participants set status='attended_manual' where event_id=$1 and player_id=$2",
+    [event, id(11)],
+  );
+  await staffSubmit(event, ["coach@test.invalid"]);
+  await query("select confirm_planned_training_attendance($1,true)", [event]);
+  await staffSubmit(event, ["coach@test.invalid"]);
+  expect(
+    (await pending()).filter((j) => j.kind === "training_staff_attendance"),
+  ).toHaveLength(1);
+  await db.query(
+    "update notification_jobs set status='uncertain' where kind='training_staff_attendance' and status='pending'",
+  );
+  await db.exec("savepoint uncertain");
+  await expect(staffSubmit(event, ["coach@test.invalid"])).rejects.toThrow(
+    "unklar",
+  );
+  await db.exec("rollback to savepoint uncertain");
+});
+it("protects staff-recipient validation and submission from parents and public callers", async () => {
+  const event = await finishedTraining([1]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+    id(102),
+  ]);
+  for (const sql of [
+    "select validate_training_staff_recipients(array['coach@test.invalid'])",
+    `select submit_training_notifications_with_staff('${event}','[]',array['coach@test.invalid'])`,
+  ]) {
+    await db.exec("savepoint forbidden");
+    await expect(query(sql)).rejects.toThrow("Forbidden");
+    await db.exec("rollback to savepoint forbidden");
+  }
+  expect(
+    (
+      await query(
+        "select has_function_privilege('anon','public.validate_training_staff_recipients(text[])','execute') allowed",
+      )
+    )[0].allowed,
+  ).toBe(false);
+  expect(
+    (
+      await query(
+        "select has_function_privilege('authenticated','public.training_staff_recipient(text)','execute') allowed",
+      )
+    )[0].allowed,
+  ).toBe(false);
 });
