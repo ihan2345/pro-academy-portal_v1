@@ -340,4 +340,18 @@ Für unbestätigte Teilnahmen zeigt der Dialog einen Hinweis zur Pufferzeit, „
 
 Die zwölf aktiven Pufferstunden und vorhandene automatische Bestätigung bleiben bestehen. Einladungs-, Camp-, Berichts-, Stempelkarten- und Korrekturmail-Regeln bleiben unverändert. Historische `held`-Aufträge werden ausschließlich für explizit ausgewählte, aktuell gültige Bestätigungen freigegeben, niemals pauschal.
 
-Bei einer später ausdrücklich freigegebenen Veröffentlichung zuerst den aktualisierten Jobs-Runner bereitstellen, danach gezielt `supabase/release/005-training-notifications.sql` anwenden (nach Onboarding-, Camp- und V2-Releases). Der Runner toleriert vorübergehend die noch fehlenden neuen SQL-Funktionen ausschließlich für alte Mailaufträge. Das SQL aktiviert die neue Logik atomar und setzt den Startpunkt für zukünftige Erinnerungsfälligkeiten; es verändert keine Empfängerfreigabeliste. Anschließend die Portaländerung mit dem Button und dem geschützten Team-Endpunkt veröffentlichen. Nicht mit einem pauschalen `db push` ersetzen. Die SQL-Änderung ist noch nicht auf der Produktionsdatenbank angewendet.
+Die Veröffentlichung erfolgte in der Reihenfolge Jobs-Runner, gezielte Anwendung von `supabase/release/005-training-notifications.sql` nach den vorhandenen Onboarding-/Camp-/V2-Releases, anschließend Portal. Die SQL-Erweiterung wurde atomar angewendet und setzt den Startpunkt für zukünftige Erinnerungsfälligkeiten. Kein pauschales `db push`, keine Änderung an Empfängerfreigaben oder SMTP-Konfiguration.
+
+
+### Veröffentlichung geprüft: Trainingsmails und Versanddialog
+
+Am 05.10.2026 auf ausdrücklichen Nutzerauftrag veröffentlicht:
+
+- Funktionsstand `34ab7e5` auf `Status` und `main` gepusht.
+- Jobs-Runner-Version `07fd85c0-ab3f-4436-b9c2-ab8b0cf686e9`, Container-Digest `sha256:8ccf10ccc2042e44d7c4d68b29f2ed90a0c2f25ebbf3c09f2dd365fc75f3cfcd`.
+- Portal-Version `3e5e0362-fa48-417a-a9b4-86ed11a4c469` auf der bestehenden Worker-Adresse.
+- Datenbank-Vorschau für 15 bestehende Termine mit 66 Optionen lesend geprüft. Anonyme Aufrufe sowie direkter Zugriff auf Versandhelfer und Freigabetabelle bleiben gesperrt; die geschützten Team-Funktionen sind verfügbar.
+- Vor-/Nachvergleich der SQL-Aktivierung: 331 `held`, 23 `sent`, ein bestehender `uncertain`-Auftrag. Freigabeeinstellungen unverändert; keine Testmail und keine manuelle Versandfreigabe ausgelöst.
+- Runner-Verbindungsprüfung: Supabase, Stripe, SMTP und PDF erfolgreich, ohne Versand. Login HTTP 200, geschützte Seite HTTP 307, nicht angemeldeter API-Aufruf HTTP 401. Das online ausgelieferte Dialog-Bundle ist bytegleich zum geprüften Produktionsbuild.
+
+Private technische Nachweise und die Sicherung der vorherigen Datenbankfunktionen liegen unter `output/training-release/`.
