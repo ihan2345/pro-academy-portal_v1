@@ -6,6 +6,7 @@ import { HttpError } from "@/lib/server/security";
 import { campProcessingEnabled } from "./processing-config";
 import { campPaymentMode } from "./runtime";
 import { confirmPayment } from "./service";
+import { importDirectCampPayment } from "./automatic-import";
 import { collectCampReview } from "../../../scripts/camp/stripe-review-lib.mjs";
 
 type Source = {
@@ -169,6 +170,13 @@ export async function runCampProcessing() {
         if (!checked(await db.rpc("camp_claim_processing", { owner: token })))
           throw new Error("Camp-Verarbeitung wurde übernommen.");
         for (const record of result.records) {
+          if (!record.booking_reference && campPaymentMode() === "live") {
+            if (
+              !checked(await db.rpc("camp_claim_processing", { owner: token }))
+            )
+              throw new Error("Camp-Verarbeitung wurde übernommen.");
+            await importDirectCampPayment(db, stripe, record, token);
+          }
           if (
             !record.booking_reference ||
             !/^[0-9a-f-]{36}$/i.test(record.booking_reference)

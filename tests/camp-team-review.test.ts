@@ -206,3 +206,24 @@ it.each(["review", "refunded"])(
     expect(f.prepare).not.toHaveBeenCalled();
   },
 );
+
+it("shows an age-boundary validation so the team can confirm it explicitly", async () => {
+  f.rpc.mockImplementation(async (name) =>
+    name === "camp_import_paid_booking"
+      ? {
+          data: null,
+          error: {
+            code: "P0001",
+            message:
+              "Altersgrenze zum Campbeginn unklar. Bitte prüfen und bestätigen.",
+          },
+        }
+      : { data: 0, error: null },
+  );
+  await expect(
+    saveCampReview(
+      { ...draft, child: { ...draft.child, age_at_booking: 11 } },
+      true,
+    ),
+  ).rejects.toThrow("Altersgrenze zum Campbeginn unklar");
+});

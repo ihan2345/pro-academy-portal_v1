@@ -1,5 +1,24 @@
 # Camp – kontrollierter Release
 
+## Altersangabe und automatische Stripe-Übernahme (07.10.2026, veröffentlicht)
+
+Die Camp-Prüfung verwendet „Alter bei Buchung“, vorbelegt aus dem Stripe-Kauf. Das Kaufdatum wird serverseitig aus der Checkout-Session in Europe/Berlin bestimmt. `players.camp_age_at_booking` und `camp_age_recorded_on` speichern die Beobachtung; es wird kein Geburtsdatum oder Geburtsjahr daraus erfunden. Bekannte Geburtstage, Geburtsjahre und Altersangaben werden auf Widersprüche geprüft. Die Mitgliederansicht zeigt bei fehlendem Geburtstag das Alter mit Bezugsdatum.
+
+Der bestehende Fünf-Minuten-Abgleich übernimmt vollständige, eindeutig zuordenbare, erneut verifizierte Direktkäufe atomar. Familie: bekannte Stripe-Kundenzuordnung und/oder eindeutige Eltern-E-Mail; widersprüchliche oder archivierte Treffer bleiben zur Prüfung. Kind: vollständiger normalisierter Name innerhalb der Familie. Neue Familien und eindeutig unterschiedliche Geschwister werden angelegt. Ähnliche Namen, ein möglicherweise gleichaltriges Kind, fehlende Altersinformationen beim möglichen Geschwistertreffer, abweichende Nachnamen und mehrfache Treffer benötigen die manuelle Auswahl. Der Prüfdialog bietet auch „Neues Kind einer vorhandenen Familie“.
+
+Gespeicherte Prüfentwürfe werden nicht automatisch übergangen. Vorhandene Buchungen, einschließlich entfernter Teilnahmen, werden nicht erneut angelegt. Altersgrenzen werden anhand des bekannten Geburtstags oder aller zur Altersangabe passenden Geburtstage geprüft. Ein möglicher Grenzfall benötigt eine ausdrückliche Bestätigung durch das Team; ein eindeutig unpassendes Alter bleibt gesperrt. Zahlungsprüfung, Kapazität, Dublettenschutz und der aktuelle Verarbeitungstoken werden im Import durchgesetzt. Jeder neue Import wird protokolliert. Neue Kontakte erhalten keine automatische Einladung; bestehende Versandfreigaben werden nicht erweitert.
+
+**Rollout durchgeführt:** `supabase/camp/011-age-import.sql` angewendet, anschließend Portal und Jobs-Container veröffentlicht. Die Migration allein importiert keine Käufe. Der neue Worker übernimmt beim nächsten vollständigen Lauf auch bisher offene eindeutige Direktkäufe. Die übrigen Fälle bleiben mit konkretem Grund in der Prüfliste. Ein Code-Rollback erhält die zusätzlichen Altersfelder und realen Daten; keine destruktive Rücknahme verwenden.
+
+464 automatisierte Tests, Cloudflare-Produktionsbuild, Container-Build sowie Desktop- und Mobilabläufe für Admin und Coach erfolgreich. Elternzugriff auf die Prüfung bleibt gesperrt.
+
+- Portal-Version: `e05122d8-98bd-4c07-ba65-fadd2a12de2e`.
+- Jobs-Version: `43366630-3ec9-42e5-a38c-d58596fcdca4`; Fünf-Minuten-Zeitplan aktiv.
+- Container: `sha256:34ef5cb7ab0545d3683f1ca81fb4daaa65c6a4c1b6c3dd7a6d698fac6dabe317`.
+- Live-Prüfung: Login HTTP 200, geschützte Seite leitet zur Anmeldung um, anonyme Prüf-API HTTP 401. Ausgelieferter JavaScript-Baustein mit Altersfeld entspricht bytegenau dem Build. Runner-Verbindungsprüfung für Supabase, Stripe, SMTP und PDF erfolgreich; keine Testmail versendet.
+- Die Migration allein ließ Familien-, Kinder- und Buchungszahlen unverändert. Private Funktionssicherung, Konfiguration, Migrationsnachweis und Smoke-Tests liegen unter `output/camp-age-release/` (nicht einchecken).
+- Erster automatischer Live-Abgleich am 07.10.2026 um 11:31 UTC erfolgreich: alle acht offenen Käufe übernommen, keine verbleibenden Prüffälle, alle drei Stripe-Angebote ohne Abgleichfehler. Bestand um fünf Elternkontakte und fünf Kinder erweitert. Namen und Altersangaben der acht Buchungen gegen die gespeicherten Stripe-Angaben geprüft; Eltern-Kind-Verknüpfungen bestätigt, bekannte Geburtsdaten und Geburtsjahre erhalten. Live-Konfiguration und Versandfreigaben gegenüber dem Vorabstand unverändert.
+
 ## Camp-Prüfung für Coaches (02.10.2026)
 
 Coaches (`staff`) erhalten denselben Ablauf „Kinder zur Prüfung / Angaben ergänzen“ wie Admins: Entwürfe bearbeiten, bestehende Eltern-Kind-Zuordnungen auswählen oder neue Familien anlegen und bestätigte Stripe-Buchungen übernehmen. Andere Admin-Berechtigungen werden nicht erweitert.

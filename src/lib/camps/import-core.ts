@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ageAt, childSchema } from "./domain";
+import { childSchema } from "./domain";
 export const reviewDraftSchema = z.object({
   camp_id: z.uuid(),
   payment_id: z.string().regex(/^pi_[A-Za-z0-9]+$/),
@@ -10,10 +10,13 @@ export const reviewDraftSchema = z.object({
   child: z.object({
     first_name: z.string().trim().max(80),
     last_name: z.string().trim().max(80),
-    birth_date: z.union([z.iso.date(), z.literal("")]),
+    birth_date: z.union([z.iso.date(), z.literal("")]).optional(),
+    age_at_booking: z.number().int().min(0).max(99).nullable().optional(),
     gender: childSchema.shape.gender,
     clothing_size: z.string().trim().max(20),
   }),
+  new_child: z.boolean().default(false),
+  age_range_confirmed: z.boolean().default(false),
   new_parent: z
     .object({
       name: z.string().trim().min(2).max(160),
@@ -24,6 +27,8 @@ export const reviewDraftSchema = z.object({
     .default(null),
   notes: z.string().trim().max(2000).default(""),
 });
+export class CampImportReviewError extends Error {}
+
 const id = (v: unknown): string | undefined =>
   typeof v === "string" ? v : (v as { id?: string } | null)?.id;
 export async function prepareCampImport(
@@ -31,16 +36,30 @@ export async function prepareCampImport(
   stripe: Stripe,
   raw: unknown,
   sessionId: string,
-  actorId: string,
+  actorId: string | null,
   benefit: { group: string; percent: number },
+  processingToken?: string,
 ) {
   const data = reviewDraftSchema
-    .extend({ child: childSchema })
+    .extend({
+      child: reviewDraftSchema.shape.child
+        .extend({
+          first_name: childSchema.shape.first_name,
+          last_name: childSchema.shape.last_name,
+          clothing_size: childSchema.shape.clothing_size,
+        })
+        .refine(
+          (c) => c.age_at_booking != null || !!c.birth_date,
+          "Alter bei Buchung fehlt.",
+        ),
+    })
     .refine(
       (d) =>
-        d.new_parent
-          ? !d.parent_id && !d.player_id
-          : !!d.parent_id && !!d.player_id,
+        processingToken
+          ? !d.parent_id && !d.player_id && !d.new_parent
+          : d.new_parent
+            ? !d.parent_id && !d.player_id && !d.new_child
+            : !!d.parent_id && (d.new_child ? !d.player_id : !!d.player_id),
       "Vorhandene Familie auswählen oder neue Elternangaben ergänzen.",
     )
     .parse(raw);
@@ -68,13 +87,19 @@ export async function prepareCampImport(
     lines.data[0].price?.id !== source.data.price_id ||
     id(lines.data[0].price?.product) !== source.data.product_id
   )
-    throw new Error("Zahlung oder Artikel passt nicht zur Buchung.");
+    throw new CampImportReviewError(
+      "Zahlung oder Artikel passt nicht zur Buchung.",
+    );
   const payment = await stripe.paymentIntents.retrieve(data.payment_id, {
     expand: ["latest_charge"],
   });
   const charge =
     typeof payment.latest_charge === "object" ? payment.latest_charge : null;
   if (
+    payment.id !== data.payment_id ||
+    id(charge?.payment_intent) !== data.payment_id ||
+    payment.currency !== "eur" ||
+    charge?.currency !== "eur" ||
     !payment.livemode ||
     payment.status !== "succeeded" ||
     !charge?.livemode ||
@@ -86,63 +111,63 @@ export async function prepareCampImport(
     charge.amount !== session.amount_total ||
     !session.amount_total
   )
-    throw new Error(
+    throw new CampImportReviewError(
       "Zahlung ist nicht uneingeschränkt bestätigt; bitte prüfen.",
     );
-  const [family, camp] = await Promise.all([
-    data.new_parent
-      ? Promise.resolve({ data: null, error: null })
-      : db
+  let parent = data.new_parent
+    ? {
+        full_name: data.new_parent.name,
+        contact_email: data.new_parent.email,
+      }
+    : {
+        full_name: session.customer_details?.name ?? "",
+        contact_email: session.customer_details?.email ?? "",
+      };
+  if (!processingToken && !data.new_parent) {
+    const family = data.new_child
+      ? await db
+          .from("parents")
+          .select("id,full_name,contact_email,archived_at")
+          .eq("id", data.parent_id)
+          .single()
+      : await db
           .from("parent_players")
           .select(
             "parents!inner(id,full_name,contact_email,archived_at),players!inner(id,archived_at)",
           )
           .eq("parent_id", data.parent_id)
           .eq("player_id", data.player_id)
-          .single(),
-    db
-      .from("camps")
-      .select("days,min_age,max_age")
-      .eq("id", data.camp_id)
-      .single(),
-  ]);
-  if (family.error || camp.error)
-    throw new Error("Eltern-Kind-Zuordnung oder Camp fehlt.");
-  const parent = data.new_parent
-    ? {
-        full_name: data.new_parent.name,
-        contact_email: data.new_parent.email,
-        archived_at: null,
-      }
-    : (family.data!.parents as unknown as {
-        full_name: string;
-        contact_email: string;
-        archived_at: string | null;
-      });
-  const player = data.new_parent
-    ? { archived_at: null }
-    : (family.data!.players as unknown as {
-        archived_at: string | null;
-      });
-  if (parent.archived_at || player.archived_at)
-    throw new Error("Archivierte Familie kann nicht übernommen werden.");
-  const first = [...camp.data.days].sort(
-    (a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at),
-  )[0];
-  const age = ageAt(data.child.birth_date, first.starts_at);
-  if (
-    age < camp.data.min_age ||
-    age > camp.data.max_age ||
-    Date.parse(data.child.birth_date) > Date.now()
-  )
-    throw new Error("Geburtsdatum passt nicht zum Altersbereich des Camps.");
+          .single();
+    if (family.error || !family.data)
+      throw new Error("Eltern-Kind-Zuordnung fehlt.");
+    const row = family.data as unknown as {
+      full_name: string;
+      contact_email: string;
+      archived_at: string | null;
+      parents?: typeof parent & { archived_at: string | null };
+      players?: { archived_at: string | null };
+    };
+    const selected = row.parents ?? row;
+    if (selected.archived_at || row.players?.archived_at)
+      throw new Error("Archivierte Familie kann nicht übernommen werden.");
+    parent = selected;
+  }
+  // The date comes from Stripe, never from an editable form or the worker's clock.
+  const recordedOn = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Berlin",
+  }).format(new Date(session.created * 1000));
   return {
     camp_id: data.camp_id,
     actor_id: actorId,
+    ...(processingToken
+      ? { automatic: true, processing_token: processingToken }
+      : {}),
+    new_child: data.new_child,
+    age_range_confirmed: !processingToken && data.age_range_confirmed,
     parent_id: data.parent_id,
     player_id: data.player_id,
     new_parent: data.new_parent,
-    child: data.child,
+    child: { ...data.child, age_recorded_on: recordedOn },
     parent: {
       name: parent.full_name,
       email: parent.contact_email,

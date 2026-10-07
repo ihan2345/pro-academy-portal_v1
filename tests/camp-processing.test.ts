@@ -158,7 +158,7 @@ describe("separate Camp processing", () => {
     });
     await expect(enqueueCampEvent(event)).rejects.toThrow("Datenbankzugriff");
   });
-  it("leaves direct bookings for admin review and reuses confirmation only for a matching portal draft", async () => {
+  it("leaves incomplete direct bookings for review and reuses confirmation only for a matching portal draft", async () => {
     await runCampProcessing();
     expect(fixture.confirm).not.toHaveBeenCalled();
     fixture.tables.camp_bookings = [

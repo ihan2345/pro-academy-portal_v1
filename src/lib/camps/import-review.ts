@@ -6,6 +6,7 @@ import { campReview } from "./local-review";
 import { serviceDb } from "@/lib/server/service-db";
 import { HttpError } from "@/lib/server/security";
 import { prepareCampImport, reviewDraftSchema } from "./import-core";
+import { campImportIssue } from "./import-issues";
 export async function saveCampReview(raw: unknown, add: boolean) {
   await requireCampAccess();
   const session = await campSession(true);
@@ -52,15 +53,12 @@ export async function saveCampReview(raw: unknown, add: boolean) {
         benefit,
       );
       const result = await db.rpc(
-        data.new_parent
+        data.new_parent || data.new_child
           ? "camp_import_review_booking"
           : "camp_import_paid_booking",
         { input },
       );
-      if (result.error)
-        throw new Error(
-          "Übernahme abgelehnt. Zuordnung, Doppelbuchung und Kapazität prüfen.",
-        );
+      if (result.error) throw new Error(campImportIssue(result.error.message));
       return { ok: true, id: result.data };
     } catch (e) {
       throw new HttpError(

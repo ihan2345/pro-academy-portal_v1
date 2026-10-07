@@ -23,7 +23,9 @@ type Booking = {
   child_data: {
     first_name: string;
     last_name: string;
-    birth_date: string;
+    birth_date?: string;
+    age_at_booking?: number;
+    age_recorded_on?: string;
     gender: string;
     clothing_size: string;
   };
@@ -809,8 +811,10 @@ export function CampDashboard({
                               {b.parent_data?.phone}
                             </p>
                             <p>
-                              Geboren: {b.child_data.birth_date} ·{" "}
-                              {b.child_data.gender} · Größe{" "}
+                              {b.child_data.birth_date
+                                ? `Geboren: ${b.child_data.birth_date}`
+                                : `Alter bei Buchung: ${b.child_data.age_at_booking ?? "–"} (${b.child_data.age_recorded_on ?? "–"})`}{" "}
+                              · {b.child_data.gender} · Größe{" "}
                               {b.child_data.clothing_size}
                             </p>
                             {b.review_reason && (

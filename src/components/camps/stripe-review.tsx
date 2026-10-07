@@ -5,7 +5,8 @@ import { money } from "@/lib/camps/domain";
 type Child = {
   first_name: string;
   last_name: string;
-  birth_date: string;
+  birth_date?: string;
+  age_at_booking?: number | null;
   gender: string;
   clothing_size: string;
 };
@@ -14,6 +15,8 @@ type Draft = {
   player_id: string | null;
   child: Child;
   notes: string;
+  new_child?: boolean;
+  age_range_confirmed?: boolean;
   new_parent?: { name: string; email: string; phone: string } | null;
 };
 type Family = {
@@ -35,6 +38,9 @@ type Record = {
   payment_id: string;
   child_name: string;
   parent_name: string;
+  parent_email: string;
+  parent_phone: string;
+  created_at: string;
   age_at_booking: string;
   clothing_size: string;
   amount: number;
@@ -65,22 +71,40 @@ function ReviewEditor({
   done: () => Promise<void>;
 }) {
   const [draft, setDraft] = useState<Draft>(
-    record.draft ?? {
-      parent_id: null,
-      player_id: null,
-      child: {
-        first_name: record.child_name.split(" ")[0] ?? "",
-        last_name: record.child_name.split(" ").slice(1).join(" "),
-        birth_date: "",
-        gender: "keine Angabe",
-        clothing_size: record.clothing_size,
-      },
-      notes: "",
-    },
+    record.draft
+      ? {
+          ...record.draft,
+          child: {
+            ...record.draft.child,
+            age_at_booking:
+              record.draft.child.age_at_booking ??
+              (/^\d{1,2}$/.test(record.age_at_booking.trim())
+                ? Number(record.age_at_booking)
+                : null),
+          },
+        }
+      : {
+          parent_id: null,
+          player_id: null,
+          child: {
+            first_name: record.child_name
+              .trim()
+              .split(/\s+/)
+              .slice(0, -1)
+              .join(" "),
+            last_name: record.child_name.trim().split(/\s+/).at(-1) ?? "",
+            age_at_booking: /^\d{1,2}$/.test(record.age_at_booking.trim())
+              ? Number(record.age_at_booking)
+              : null,
+            gender: "keine Angabe",
+            clothing_size: record.clothing_size,
+          },
+          notes: "",
+        },
   );
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
-  const update = (key: keyof Child, value: string) =>
+  const update = (key: keyof Child, value: string | number | null) =>
     setDraft((d) => ({ ...d, child: { ...d.child, [key]: value } }));
   return (
     <form
@@ -113,20 +137,35 @@ function ReviewEditor({
         <label>
           Familie
           <select
-            value={draft.new_parent ? "new" : "existing"}
+            value={
+              draft.new_parent
+                ? "new"
+                : draft.new_child
+                  ? "sibling"
+                  : "existing"
+            }
             onChange={(e) =>
               setDraft((d) => ({
                 ...d,
                 parent_id: null,
                 player_id: null,
+                new_child: e.target.value === "sibling",
+                child: { ...d.child, birth_date: undefined },
                 new_parent:
                   e.target.value === "new"
-                    ? { name: record.parent_name, email: "", phone: "" }
+                    ? {
+                        name: record.parent_name,
+                        email: record.parent_email,
+                        phone: record.parent_phone,
+                      }
                     : null,
               }))
             }
           >
             <option value="existing">Vorhandene Familie zuordnen</option>
+            <option value="sibling">
+              Neues Kind einer vorhandenen Familie
+            </option>
             <option value="new">Neue Familie anlegen</option>
           </select>
         </label>
@@ -154,6 +193,27 @@ function ReviewEditor({
               </label>
             ))}
           </div>
+        ) : draft.new_child ? (
+          <label>
+            Vorhandene Familie
+            <select
+              value={draft.parent_id ?? ""}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  parent_id: e.target.value || null,
+                  player_id: null,
+                }))
+              }
+            >
+              <option value="">Familie auswählen</option>
+              {families.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.full_name}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : (
           <label>
             Vorhandenes Kind / Elternkonto
@@ -179,8 +239,7 @@ function ReviewEditor({
                         ...d.child,
                         first_name: child.first_name,
                         last_name: child.last_name,
-                        birth_date:
-                          d.child.birth_date || child.camp_birth_date || "",
+                        birth_date: undefined,
                         gender: child.camp_gender || d.child.gender,
                         clothing_size:
                           d.child.clothing_size ||
@@ -222,13 +281,21 @@ function ReviewEditor({
             />
           </label>
           <label>
-            Geburtsdatum
+            Alter bei Buchung
             <input
-              type="date"
-              value={draft.child.birth_date}
-              onInput={(e) => update("birth_date", e.currentTarget.value)}
-              onChange={(e) => update("birth_date", e.target.value)}
+              type="number"
+              min={0}
+              max={99}
+              step={1}
+              value={draft.child.age_at_booking ?? ""}
+              onChange={(e) =>
+                update(
+                  "age_at_booking",
+                  e.target.value === "" ? null : Number(e.target.value),
+                )
+              }
             />
+            <small>Am {date(record.created_at)} · Angabe aus dem Kauf</small>
           </label>
           <label>
             Geschlecht
@@ -250,6 +317,23 @@ function ReviewEditor({
             />
           </label>
         </div>
+        {(draft.age_range_confirmed ||
+          record.issues.some((issue) => issue.includes("Altersgrenze")) ||
+          message.includes("Altersgrenze")) && (
+          <label className="camp-inline-checkbox">
+            <input
+              type="checkbox"
+              checked={draft.age_range_confirmed ?? false}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  age_range_confirmed: e.target.checked,
+                }))
+              }
+            />
+            Das Kind liegt am Campbeginn im zugelassenen Altersbereich.
+          </label>
+        )}
         <label>
           Prüfnotiz
           <textarea
@@ -261,7 +345,7 @@ function ReviewEditor({
         <p className="camp-muted">
           {draft.new_parent
             ? "Eltern und Kind werden erst beim Hinzufügen angelegt. Ein bestehender Kontakt mit derselben E-Mail muss zugeordnet werden. Es wird keine Einladung versendet."
-            : "Die ausgewählte Eltern-Kind-Verknüpfung bleibt bestehen. Die Namen gelten für diese Camp-Buchung; das ergänzte Geburtsdatum und die Camp-Angaben werden am Kind hinterlegt."}
+            : "Die ausgewählte Eltern-Kind-Verknüpfung bleibt bestehen. Die Namen gelten für diese Camp-Buchung; das Alter bei Buchung und die Camp-Angaben werden am Kind hinterlegt. Bekannte Geburtsdaten bleiben erhalten."}
         </p>
         <div className="camp-actions">
           <button className="secondary-button" type="submit" value="save">
@@ -275,8 +359,8 @@ function ReviewEditor({
               record.status !== "paid" ||
               (draft.new_parent
                 ? !draft.new_parent.name || !draft.new_parent.email
-                : !draft.player_id) ||
-              !draft.child.birth_date ||
+                : !draft.parent_id || (!draft.new_child && !draft.player_id)) ||
+              draft.child.age_at_booking == null ||
               !draft.child.first_name ||
               !draft.child.last_name ||
               !draft.child.clothing_size

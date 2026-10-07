@@ -130,6 +130,9 @@ try {
               {
                 payment_id: "pi_fixture",
                 parent_name: "New Parent",
+                parent_email: "new@example.invalid",
+                parent_phone: "123456",
+                created_at: "2026-10-01T10:00:00Z",
                 child_name: "Test Child",
                 age_at_booking: "11",
                 clothing_size: "152",
@@ -192,6 +195,7 @@ try {
             .filter({ hasText: "Kind zum Camp hinzugefügt." }),
         ).toBeVisible();
         assert.equal(requests.at(-1).body.player_id, "child");
+        assert.equal(requests.at(-1).body.child.age_at_booking, 11);
         assert.equal(requests.at(-1).path, "/api/camp/review-import");
         await page
           .getByRole("combobox", { name: /^Familie/ })
@@ -199,9 +203,12 @@ try {
         await page
           .getByLabel("E-Mail der Eltern", { exact: true })
           .fill("new@example.invalid");
-        await page
-          .getByLabel("Geburtsdatum", { exact: true })
-          .fill("2015-04-17");
+        await expect(
+          page.getByLabel("Alter bei Buchung", { exact: false }),
+        ).toHaveValue("11");
+        await expect(
+          page.getByLabel("Geburtsdatum", { exact: true }),
+        ).toHaveCount(0);
         await page.screenshot({
           path: `${output}/${role}-${width}.png`,
           fullPage: true,
@@ -214,6 +221,22 @@ try {
           "new@example.invalid",
         );
         assert.equal(requests.at(-1).path, "/api/camp/review-import");
+        assert.equal(requests.at(-1).body.child.birth_date, undefined);
+        await page
+          .getByRole("combobox", { name: /^Familie/ })
+          .selectOption("sibling");
+        await expect(
+          page.getByRole("combobox", { name: /^Familie/ }),
+        ).toHaveValue("sibling");
+        await page
+          .getByRole("combobox", { name: /^Vorhandene Familie/ })
+          .selectOption("parent");
+        await page.getByLabel("Vorname", { exact: true }).fill("Sibling");
+        await page.getByRole("button", { name: "Zum Camp hinzufügen" }).click();
+        await expect.poll(() => requests.length).toBe(4);
+        assert.equal(requests.at(-1).body.new_child, true);
+        assert.equal(requests.at(-1).body.parent_id, "parent");
+        assert.equal(requests.at(-1).body.player_id, null);
       }
       assert.deepEqual(errors, []);
       assert.ok(
