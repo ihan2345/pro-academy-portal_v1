@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { Modal, Badge } from "./portal";
 import type { PortalData, Training } from "@/lib/types";
+import { trainingPeriod } from "@/lib/training-period";
 import {
   calculateAutoAttendanceAt,
   localToUtc,
@@ -658,6 +659,15 @@ function EventEditor({
         )
       : defaultDate,
   );
+  const [startTime, setStartTime] = useState(
+    event ? formatTime(event.starts_at) : "16:30",
+  );
+  let previewStart = "";
+  try {
+    previewStart = localToUtc(day, startTime);
+  } catch {
+    // Incomplete input and ambiguous DST times are shown as validation issues.
+  }
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -693,17 +703,15 @@ function EventEditor({
         notify_parents: f.get("notify") === "on",
       };
       const participants = children.map((child) => {
-        const period = data.periods.find(
-          (p) =>
-            p.player_id === child &&
-            p.starts_at <= start &&
-            p.ends_at > start &&
-            ["active", "trialing"].includes(p.status) &&
-            disciplineUnits(p, input.event_type) > 0,
+        const { period, issue } = trainingPeriod(
+          data.periods,
+          child,
+          start,
+          input.event_type,
         );
-        if (!period)
+        if (issue || !period)
           throw new Error(
-            `Für ${data.players.find((p) => p.id === child)?.first_name} fehlt ein passender Leistungszeitraum. Bitte zuerst die Abo-Zuordnung prüfen.`,
+            `${data.players.find((p) => p.id === child)?.first_name ?? "Kind"}: ${issue}`,
           );
         return {
           id:
@@ -769,7 +777,8 @@ function EventEditor({
               type="time"
               required
               name="start"
-              defaultValue={event ? formatTime(event.starts_at) : "16:30"}
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
             />
           </label>
           <label>
@@ -872,11 +881,11 @@ function EventEditor({
                 .includes(search.toLowerCase()),
             )
             .map((p) => {
-              const period = data.periods.find(
-                (per) =>
-                  per.player_id === p.id &&
-                  per.starts_at <= localToUtc(day, "12:00") &&
-                  per.ends_at > localToUtc(day, "12:00"),
+              const { period, issue } = trainingPeriod(
+                data.periods,
+                p.id,
+                previewStart,
+                eventType,
               );
               const rows = data.events
                 .filter((e) =>
@@ -924,9 +933,8 @@ function EventEditor({
                       {disciplineUnits(period, "Gruppentraining")} · Athletik{" "}
                       {split.athletics.completed}/
                       {disciplineUnits(period, "Athletiktraining")}
-                      {disciplineUnits(period, eventType) === 0 &&
-                        " · Kein Kontingent für diese Trainingsart"}
                     </small>
+                    {issue && <small className="error-message">{issue}</small>}
                   </span>
                 </label>
               );
