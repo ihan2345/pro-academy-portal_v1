@@ -22,6 +22,20 @@ export const trainingSchema = z
       .min(1)
       .max(100)
       .refine((a) => new Set(a).size === a.length, "Kind doppelt ausgewählt"),
+    grace_confirmations: z
+      .array(
+        z
+          .object({
+            player_id: id,
+            period_id: id,
+            period_ends_at: z.iso.datetime({ offset: true }),
+            starts_at: z.iso.datetime({ offset: true }),
+            event_type: z.string().max(40),
+          })
+          .strict(),
+      )
+      .max(100)
+      .default([]),
     note: z.string().max(2000).default(""),
     notify_parents: z.boolean().default(true),
   })

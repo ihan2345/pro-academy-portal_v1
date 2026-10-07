@@ -88,6 +88,8 @@ try {
     await page.route("**/*", async (route) => {
       const url = new URL(route.request().url());
       if (url.origin !== base) return route.abort();
+      if (url.pathname === "/api/activity")
+        return route.fulfill({ json: { ok: true } });
       if (url.pathname === "/api/team/cancel") {
         cancellations.push(route.request().postDataJSON());
         return route.fulfill({ json: { ok: true } });
@@ -273,6 +275,115 @@ try {
     console.log(
       name +
         ": layout, day selection, navigation, empty day, editor, exceptions, week and keyboard passed",
+    );
+    await page.close();
+  }
+  for (const viewport of [
+    { width: 1440, height: 1050 },
+    { width: 390, height: 844 },
+  ]) {
+    const page = await browser.newPage({
+      viewport,
+      locale: "de-DE",
+      timezoneId: "Europe/Berlin",
+    });
+    const errors = [],
+      saves = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.clock.install({ time: new Date("2026-10-08T10:00:00Z") });
+    await page.route("**/*", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.origin !== base) return route.abort();
+      if (url.pathname === "/api/activity")
+        return route.fulfill({ json: { ok: true } });
+      if (url.pathname === "/api/team/events") {
+        saves.push(route.request().postDataJSON());
+        return route.fulfill({ json: { id: "grace-event" } });
+      }
+      if (url.pathname.startsWith("/api/"))
+        throw Error("Unexpected API request: " + url.pathname);
+      await route.continue();
+    });
+    await page.goto(base + "?grace");
+    await page
+      .getByRole("button", { name: "Termin erstellen", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog");
+    const child = dialog.getByRole("checkbox", {
+      name: "Levin Günes",
+      exact: true,
+    });
+    const warning =
+      "Die Einheit liegt außerhalb des Abozeitraums, bitte prüfen";
+    assert.match(await dialog.textContent(), new RegExp(warning));
+    // Cancelling the native confirmation must leave the player unselected.
+    page.once("dialog", async (d) => {
+      assert.match(d.message(), new RegExp(warning));
+      await d.dismiss();
+    });
+    await child.click();
+    assert.equal(await child.isChecked(), false);
+    page.once("dialog", (d) => d.accept());
+    await child.click();
+    assert.equal(await child.isChecked(), true);
+    await dialog
+      .getByText("Hinweis für diesen Trainingsbeginn bestätigt.", {
+        exact: true,
+      })
+      .waitFor();
+    // Even changing back to the previous time needs a new confirmation.
+    await dialog.locator('input[name="start"]').fill("17:00");
+    await dialog.locator('input[name="start"]').fill("16:30");
+    await dialog.getByRole("button", { name: "Termin speichern" }).click();
+    assert.equal(saves.length, 0);
+    assert.match(
+      await dialog.textContent(),
+      /Bitte den Hinweis beim Kind bestätigen/,
+    );
+    page.once("dialog", (d) => d.accept());
+    await dialog
+      .getByRole("button", { name: "Hinweis bestätigen", exact: true })
+      .click();
+    await dialog.locator('select[name="type"]').selectOption("Einzeltraining");
+    await dialog
+      .getByRole("button", { name: "Hinweis bestätigen", exact: true })
+      .waitFor();
+    // Outside the grace window cannot be saved, even after earlier confirmation.
+    await dialog.locator('input[name="date"]').fill("2026-10-09");
+    await dialog.getByRole("button", { name: "Termin speichern" }).click();
+    assert.equal(saves.length, 0);
+    assert.match(await dialog.textContent(), /Kein Leistungszeitraum/);
+    await dialog.locator('input[name="date"]').fill("2026-10-08");
+    await dialog.locator('input[name="start"]').fill("23:59");
+    await dialog.locator('input[name="end"]').fill("00:59");
+    await dialog
+      .getByRole("checkbox", { name: "Training endet am Folgetag" })
+      .check();
+    page.once("dialog", (d) => d.accept());
+    await dialog
+      .getByRole("button", { name: "Hinweis bestätigen", exact: true })
+      .click();
+    assert.doesNotMatch(await dialog.textContent(), /Kein Leistungszeitraum/);
+    await page.screenshot({
+      path: `${output}/grace-confirmed-${viewport.width}.png`,
+      fullPage: true,
+    });
+    await dialog.getByRole("button", { name: "Termin speichern" }).click();
+    await dialog.waitFor({ state: "hidden" });
+    assert.equal(saves.length, 1);
+    assert.equal(saves[0].starts_at, "2026-10-08T21:59:00Z");
+    assert.deepEqual(saves[0].grace_confirmations, [
+      {
+        player_id: "max",
+        period_id: "period-max",
+        period_ends_at: "2026-10-07T12:40:49Z",
+        starts_at: "2026-10-08T21:59:00Z",
+        event_type: "Einzeltraining",
+      },
+    ]);
+    assert.deepEqual(errors, []);
+    console.log(
+      `grace ${viewport.width}: cancellation, confirmation, time/type changes, date boundary and save passed`,
     );
     await page.close();
   }

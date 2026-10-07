@@ -43,6 +43,9 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync("supabase/release/008-training-planning-grace.sql", "utf8"),
+  );
 });
 afterAll(async () => db.close());
 const query = async (sql: string, args: unknown[] = []) =>
@@ -1357,4 +1360,223 @@ it("protects staff-recipient validation and submission from parents and public c
       )
     )[0].allowed,
   ).toBe(false);
+});
+
+// Planning grace runs against the full released schema, including mail approvals.
+async function graceFixture(startsAt = "2026-10-08T23:59:59+02:00") {
+  await query(
+    "update entitlement_periods set status='void' where player_id=$1 and id<>$2",
+    [id(11), id(900)],
+  );
+  await query(
+    "insert into entitlement_periods(id,player_id,subscription_id,stripe_customer_id,stripe_item_id,stripe_price_id,product_name,starts_at,ends_at,included_units) values($1,$2,$3,'cus_test','si_grace','price_test','Pro-Player','2026-09-07T12:40:49Z','2026-10-07T12:40:49Z',10) on conflict do nothing",
+    [id(900), id(11), id(30)],
+  );
+  const period = { id: id(900) };
+  const confirmation = {
+    player_id: id(11),
+    period_id: period.id,
+    period_ends_at: "2026-10-07T12:40:49Z",
+    starts_at: startsAt,
+    event_type: "Gruppentraining",
+  };
+  return {
+    starts_at: startsAt,
+    ends_at: new Date(Date.parse(startsAt) + 3600000).toISOString(),
+    grace_confirmations: [confirmation],
+  };
+}
+async function rejectedGrace(
+  overrides: Record<string, unknown>,
+  message: string,
+  event?: string,
+) {
+  await db.exec("savepoint grace_rejected");
+  await expect(save([1], event, overrides)).rejects.toThrow(message);
+  await db.exec("rollback to savepoint grace_rejected");
+}
+it("requires matching confirmation, persists its audit evidence and keeps actual entitlement dates", async () => {
+  const input = await graceFixture();
+  for (const grace_confirmations of [
+    [],
+    [{}],
+    [{ ...input.grace_confirmations[0], player_id: id(12) }],
+    [{ ...input.grace_confirmations[0], period_id: id(999) }],
+    [{ ...input.grace_confirmations[0], starts_at: "2026-10-08T16:00:00Z" }],
+    [
+      {
+        ...input.grace_confirmations[0],
+        period_ends_at: "2026-10-06T12:40:49Z",
+      },
+    ],
+    [{ ...input.grace_confirmations[0], event_type: "Einzeltraining" }],
+  ]) {
+    await rejectedGrace({ ...input, grace_confirmations }, "Bestätigung");
+  }
+  const event = await save([1], undefined, input);
+  const [participant] = await query(
+    "select * from event_participants where event_id=$1",
+    [event],
+  );
+  expect(participant.period_id).toBe(input.grace_confirmations[0].period_id);
+  expect(participant.planning_grace_confirmation.confirmed_by).toBe(id(1));
+  expect(participant.planning_grace_confirmation.confirmed_at).toBeTruthy();
+  const [period] = await query(
+    "select ends_at from entitlement_periods where id=$1",
+    [participant.period_id],
+  );
+  expect(new Date(period.ends_at).toISOString()).toBe(
+    "2026-10-07T12:40:49.000Z",
+  );
+  expect(
+    (
+      await query(
+        "select * from audit_log where record_id=$1 and new_value->'planning_grace_confirmation'->>'confirmed_by'=$2",
+        [participant.id, id(1)],
+      )
+    ).length,
+  ).toBeGreaterThan(0);
+  // Saving alone must still not approve outbound notices.
+  expect(
+    (
+      await query("select * from training_mail_approvals where event_id=$1", [
+        event,
+      ])
+    ).length,
+  ).toBe(0);
+  await db.exec("savepoint invalid_participant");
+  await expect(
+    query(
+      "update event_participants set planning_grace_confirmation=null where id=$1",
+      [participant.id],
+    ),
+  ).rejects.toThrow("Kein passender Leistungszeitraum");
+  await db.exec("rollback to savepoint invalid_participant");
+  await query("select cancel_training($1,'Trainer verhindert')", [event]);
+  expect(
+    (
+      await query("select status from event_participants where id=$1", [
+        participant.id,
+      ])
+    )[0].status,
+  ).toBe("cancelled");
+});
+it("accepts the end instant with confirmation and refuses the midnight after the following day", async () => {
+  const input = await graceFixture("2026-10-07T12:40:49Z");
+  await rejectedGrace({ ...input, grace_confirmations: [] }, "Bestätigung");
+  await save([1], undefined, input);
+  const expired = await graceFixture("2026-10-09T00:00:00+02:00");
+  await rejectedGrace(expired, "Kein aktiver Leistungszeitraum");
+});
+it("requires fresh confirmation when moving a training or changing its type", async () => {
+  const input = await graceFixture("2026-10-08T14:00:00Z");
+  const event = await save([1], undefined, input);
+  const moved = { ...input, starts_at: "2026-10-08T14:30:00Z" };
+  await rejectedGrace(moved, "Bestätigung", event);
+  expect(
+    new Date(
+      (
+        await query("select starts_at from training_events where id=$1", [
+          event,
+        ])
+      )[0].starts_at,
+    ).toISOString(),
+  ).toBe("2026-10-08T14:00:00.000Z");
+  await rejectedGrace(
+    { ...input, event_type: "Einzeltraining" },
+    "Bestätigung",
+    event,
+  );
+  await save([1], event, {
+    ...moved,
+    grace_confirmations: [
+      { ...input.grace_confirmations[0], starts_at: moved.starts_at },
+    ],
+  });
+});
+it("does not bypass suspension or discipline entitlement and prefers a regular period", async () => {
+  const input = await graceFixture();
+  await query(
+    "update entitlement_periods set status='suspended' where player_id=$1",
+    [id(11)],
+  );
+  await rejectedGrace(input, "Kein aktiver Leistungszeitraum");
+  await query("update entitlement_periods set status='active' where id=$1", [
+    id(900),
+  ]);
+  await rejectedGrace(
+    { ...input, event_type: "Athletiktraining" },
+    "Kein aktiver Leistungszeitraum",
+  );
+  const [regular] = await query(
+    "insert into entitlement_periods(player_id,subscription_id,stripe_customer_id,stripe_item_id,stripe_price_id,product_name,starts_at,ends_at,included_units) values($1,$2,'cus_test','si_regular','price_test','GameChanger','2026-10-07T12:40:49Z','2026-11-07T12:40:49Z',8) returning id",
+    [id(11), id(30)],
+  );
+  const event = await save([1], undefined, {
+    ...input,
+    grace_confirmations: [],
+  });
+  const [participant] = await query(
+    "select * from event_participants where event_id=$1",
+    [event],
+  );
+  expect(participant.period_id).toBe(regular.id);
+  expect(participant.planning_grace_confirmation).toBeNull();
+});
+it("uses Berlin calendar days across clock changes in PostgreSQL too", async () => {
+  for (const [end, boundary] of [
+    ["2026-03-28T12:00:00+01:00", "2026-03-30T00:00:00+02:00"],
+    ["2026-10-24T12:00:00+02:00", "2026-10-26T00:00:00+01:00"],
+  ]) {
+    const [row] = await query("select training_planning_end($1) boundary", [
+      end,
+    ]);
+    expect(new Date(row.boundary).toISOString()).toBe(
+      new Date(boundary).toISOString(),
+    );
+  }
+});
+it("keeps grace attendance and reporting charged to the original period", async () => {
+  await query(
+    "update entitlement_periods set status='void' where player_id=$1",
+    [id(11)],
+  );
+  await query(
+    "insert into entitlement_periods(id,player_id,subscription_id,stripe_customer_id,stripe_item_id,stripe_price_id,product_name,starts_at,ends_at,included_units) values($1,$2,$3,'cus_test','si_past_grace','price_test','Pro-Player','2025-09-07T12:40:49Z','2025-10-07T12:40:49Z',10)",
+    [id(901), id(11), id(30)],
+  );
+  const event = await save([1], undefined, {
+    starts_at: "2025-10-08T14:00:00Z",
+    ends_at: "2025-10-08T15:00:00Z",
+    grace_confirmations: [
+      {
+        player_id: id(11),
+        period_id: id(901),
+        period_ends_at: "2025-10-07T12:40:49Z",
+        starts_at: "2025-10-08T14:00:00Z",
+        event_type: "Gruppentraining",
+      },
+    ],
+  });
+  await query("select auto_attendance(now())");
+  const [participant] = await query(
+    "select * from event_participants where event_id=$1",
+    [event],
+  );
+  expect(participant.status).toBe("attended_auto");
+  await query(
+    "select set_attendance($1,'attended_manual','Teilnahme geprüft',false)",
+    [participant.id],
+  );
+  const [report] = await query("select capture_report($1) id", [id(901)]);
+  const [row] = await query(
+    "select snapshot from report_snapshots where id=$1",
+    [report.id],
+  );
+  expect(row.snapshot.completed).toBe(1);
+  expect(row.snapshot.minutes).toBe(60);
+  expect(row.snapshot.events[0].id).toBe(event);
+  expect(new Date(row.snapshot.ends_at).toISOString()).toBe(
+    "2025-10-07T12:40:49.000Z",
+  );
 });

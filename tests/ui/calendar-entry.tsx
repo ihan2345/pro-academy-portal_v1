@@ -48,7 +48,29 @@ window.sessionStorage.setItem(
 );
 createRoot(document.getElementById("root")!).render(
   <Portal
-    initial={{ ...portalFixture, role: "staff", events }}
+    initial={
+      new URLSearchParams(window.location.search).has("grace")
+        ? {
+            ...portalFixture,
+            role: "staff",
+            events: [],
+            players: [
+              {
+                ...portalFixture.players[0],
+                first_name: "Levin",
+                last_name: "Günes",
+              },
+            ],
+            periods: [
+              {
+                ...portalFixture.periods[0],
+                starts_at: "2026-09-07T12:40:49Z",
+                ends_at: "2026-10-07T12:40:49Z",
+              },
+            ],
+          }
+        : { ...portalFixture, role: "staff", events }
+    }
     section="team"
   />,
 );

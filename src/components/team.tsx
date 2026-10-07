@@ -28,7 +28,11 @@ import {
 } from "lucide-react";
 import { Modal, Badge } from "./portal";
 import type { PortalData, Training } from "@/lib/types";
-import { trainingPeriod } from "@/lib/training-period";
+import {
+  trainingPeriod,
+  trainingGraceConfirmation,
+  TRAINING_GRACE_WARNING,
+} from "@/lib/training-period";
 import {
   calculateAutoAttendanceAt,
   localToUtc,
@@ -662,6 +666,42 @@ function EventEditor({
   const [startTime, setStartTime] = useState(
     event ? formatTime(event.starts_at) : "16:30",
   );
+  const [graceConfirmations, setGraceConfirmations] = useState<
+    Record<string, string>
+  >({});
+  function confirmGrace(playerId: string) {
+    setError("");
+    const { period, issue, requiresConfirmation } = trainingPeriod(
+      data.periods,
+      playerId,
+      previewStart,
+      eventType,
+    );
+    if (issue || !period || !requiresConfirmation) return !issue;
+    const player = data.players.find((p) => p.id === playerId);
+    if (
+      !window.confirm(
+        `${player?.first_name ?? "Kind"} ${player?.last_name ?? ""}: ${TRAINING_GRACE_WARNING}.\n\nTrotzdem für diesen Trainingsbeginn einplanen?`,
+      )
+    )
+      return false;
+    setGraceConfirmations((current) => ({
+      ...current,
+      [playerId]: JSON.stringify(
+        trainingGraceConfirmation(period, previewStart, eventType),
+      ),
+    }));
+    return true;
+  }
+  function removeChild(playerId: string) {
+    setError("");
+    setChildren((current) => current.filter((id) => id !== playerId));
+    setGraceConfirmations((current) => {
+      const next = { ...current };
+      delete next[playerId];
+      return next;
+    });
+  }
   let previewStart = "";
   try {
     previewStart = localToUtc(day, startTime);
@@ -699,11 +739,14 @@ function EventEditor({
         trainer_id: String(f.get("trainer")),
         event_type: String(f.get("type")),
         player_ids: children,
+        grace_confirmations: [] as ReturnType<
+          typeof trainingGraceConfirmation
+        >[],
         note: String(f.get("note")),
         notify_parents: f.get("notify") === "on",
       };
       const participants = children.map((child) => {
-        const { period, issue } = trainingPeriod(
+        const { period, issue, requiresConfirmation } = trainingPeriod(
           data.periods,
           child,
           start,
@@ -713,6 +756,18 @@ function EventEditor({
           throw new Error(
             `${data.players.find((p) => p.id === child)?.first_name ?? "Kind"}: ${issue}`,
           );
+        if (requiresConfirmation) {
+          const confirmation = trainingGraceConfirmation(
+            period,
+            start,
+            input.event_type,
+          );
+          if (graceConfirmations[child] !== JSON.stringify(confirmation))
+            throw new Error(
+              `${data.players.find((p) => p.id === child)?.first_name ?? "Kind"}: ${TRAINING_GRACE_WARNING}. Bitte den Hinweis beim Kind bestätigen.`,
+            );
+          input.grace_confirmations.push(confirmation);
+        }
         return {
           id:
             event?.participants.find((p) => p.player_id === child)?.id ??
@@ -768,7 +823,11 @@ function EventEditor({
               required
               name="date"
               value={day}
-              onChange={(e) => setDay(e.target.value)}
+              onChange={(e) => {
+                setDay(e.target.value);
+                setGraceConfirmations({});
+                setError("");
+              }}
             />
           </label>
           <label>
@@ -778,7 +837,11 @@ function EventEditor({
               required
               name="start"
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={(e) => {
+                setStartTime(e.target.value);
+                setGraceConfirmations({});
+                setError("");
+              }}
             />
           </label>
           <label>
@@ -830,7 +893,11 @@ function EventEditor({
           <select
             name="type"
             value={eventType}
-            onChange={(e) => setEventType(e.target.value)}
+            onChange={(e) => {
+              setEventType(e.target.value);
+              setGraceConfirmations({});
+              setError("");
+            }}
           >
             <option>Gruppentraining</option>
             <option>Einzeltraining</option>
@@ -851,9 +918,7 @@ function EventEditor({
                   type="button"
                   className="secondary-button assigned-button"
                   key={id}
-                  onClick={() =>
-                    setChildren((rows) => rows.filter((row) => row !== id))
-                  }
+                  onClick={() => removeChild(id)}
                   aria-label={`${p?.first_name ?? "Spieler"} ${p?.last_name ?? ""} entfernen`}
                   title="Aus der Gruppe entfernen"
                 >
@@ -881,7 +946,7 @@ function EventEditor({
                 .includes(search.toLowerCase()),
             )
             .map((p) => {
-              const { period, issue } = trainingPeriod(
+              const { period, issue, requiresConfirmation } = trainingPeriod(
                 data.periods,
                 p.id,
                 previewStart,
@@ -903,40 +968,71 @@ function EventEditor({
               const stats = attendanceStats(rows);
               const split = disciplineStats(rows);
               return (
-                <label key={p.id} className="child-option">
+                <div key={p.id} className="child-option">
                   <input
                     type="checkbox"
+                    id={`training-player-${p.id}`}
+                    aria-label={`${p.first_name} ${p.last_name}`}
                     checked={children.includes(p.id)}
-                    onChange={(e) =>
-                      setChildren(
-                        e.target.checked
-                          ? [...children, p.id]
-                          : children.filter((id) => id !== p.id),
-                      )
-                    }
+                    onChange={(e) => {
+                      if (!e.target.checked) removeChild(p.id);
+                      else if (confirmGrace(p.id))
+                        setChildren((current) => [...current, p.id]);
+                    }}
                   />
                   <span>
-                    <b>
-                      {p.first_name} {p.last_name}
-                    </b>
-                    <small>
-                      {period
-                        ? `${period.product_name} · ${periodLabel(period.starts_at, period.ends_at)}`
-                        : "Kein Leistungszeitraum"}
-                    </small>
-                    <small>
-                      {stats.completed} angerechnet · {stats.planned} geplant ·
-                      Anspruch {period?.included_units ?? 0}
-                    </small>
-                    <small>
-                      Fußball {split.football.completed}/
-                      {disciplineUnits(period, "Gruppentraining")} · Athletik{" "}
-                      {split.athletics.completed}/
-                      {disciplineUnits(period, "Athletiktraining")}
-                    </small>
-                    {issue && <small className="error-message">{issue}</small>}
+                    <label htmlFor={`training-player-${p.id}`}>
+                      <b>
+                        {p.first_name} {p.last_name}
+                      </b>
+                      <small>
+                        {period
+                          ? `${period.product_name} · ${periodLabel(period.starts_at, period.ends_at)}`
+                          : "Kein Leistungszeitraum"}
+                      </small>
+                      <small>
+                        {stats.completed} angerechnet · {stats.planned} geplant
+                        · Anspruch {period?.included_units ?? 0}
+                      </small>
+                      <small>
+                        Fußball {split.football.completed}/
+                        {disciplineUnits(period, "Gruppentraining")} · Athletik{" "}
+                        {split.athletics.completed}/
+                        {disciplineUnits(period, "Athletiktraining")}
+                      </small>
+                      {issue && (
+                        <small className="error-message">{issue}</small>
+                      )}
+                      {requiresConfirmation && (
+                        <small className="error-message">
+                          {TRAINING_GRACE_WARNING}
+                        </small>
+                      )}
+                    </label>
+                    {requiresConfirmation &&
+                      children.includes(p.id) &&
+                      (graceConfirmations[p.id] ===
+                      JSON.stringify(
+                        trainingGraceConfirmation(
+                          period!,
+                          previewStart,
+                          eventType,
+                        ),
+                      ) ? (
+                        <small>
+                          Hinweis für diesen Trainingsbeginn bestätigt.
+                        </small>
+                      ) : (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => confirmGrace(p.id)}
+                        >
+                          Hinweis bestätigen
+                        </button>
+                      ))}
                   </span>
-                </label>
+                </div>
               );
             })}
         </div>
