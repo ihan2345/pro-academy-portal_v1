@@ -55,7 +55,7 @@ export function profileShell(s: ProfileSession): PortalData {
     reports: [],
     locations: [],
     trainers: [],
-    whatsapp: "",
+    whatsapp: process.env.WHATSAPP_NUMBER ?? "",
     camp_enabled: campEnabled(),
   };
 }

@@ -461,3 +461,10 @@ Releaseprüfung in isolierter Kopie: 44 Testdateien / 521 Tests erfolgreich; 11 
 ### Cloudflare-Kompatibilitätskorrektur
 
 Der erste Deploymentversuch mit Next 16.4.0 scheiterte im Worker an `Unexpected loadManifest(/.next/server/preview-props.json)`. Die vorherige Version `821a84a5-bb26-431d-a8f7-3b8e3c2a56e2` wurde unmittelbar wiederhergestellt und `/login` mit HTTP 200 geprüft. Next ist nun ausdrücklich auf die sicherheitsbereinigte, adapterkompatible Version 16.3.8 festgelegt. npm audit: null bekannte Schwachstellen. Neuer Produktionsbuild erfolgreich. Zusätzlich wurde das fertige Cloudflare-Artefakt unter lokalem workerd geprüft: Login HTTP 200, geschützter Profilbereich leitet ohne Anmeldung zum Login um, Finanz-API liefert ohne Anmeldung HTTP 401.
+
+
+### Live-Prüfung und letzte Kontaktkorrektur
+
+Die korrigierte Version `0162619c-6de9-4a1b-81c2-3e52284073a4` wurde erfolgreich aktiviert. Produktionsbindings einschließlich Secrets unverändert; ausgelieferte JS/CSS-Dateien stimmen mit dem Release-Artefakt überein. Im bereits angemeldeten Live-Adminbrowser wurden die Elternliste, Sortierung, ein Profil mit zwei Kindern, Monatsstatus, Bearbeitungsaktionen, Kalender, Stempelkarten-Auswahl und automatisch geladene Stripe-Finanzwerte geprüft. Keine Kundendaten geändert.
+
+Bei der Live-Sichtprüfung wurde der leere WhatsApp-Link in der neuen Profil-Shell entdeckt. Sie verwendet nun wie die bestehenden Bereiche `WHATSAPP_NUMBER`. Nach dieser kleinen Änderung erneut 28 gezielte Tests bestanden.
