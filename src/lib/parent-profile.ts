@@ -62,6 +62,8 @@ export interface ParentProfile {
   children: ProfileChild[];
   months: number;
   history_note: string;
+  earned_months?: number;
+  deducted_months?: number;
   calendar: Record<string, { attended: number; planned: number }>;
   units: ProfileUnit[];
   month: string;
@@ -126,7 +128,60 @@ export function familyStatus(months: number) {
   };
 }
 
-/** Elapsed membership since the earliest evidenced subscription, once per child. */
+/** Covered ranges are merged per child: parallel subscriptions never multiply time. */
+export function activeRanges(periods: ProfilePeriod[], now: string) {
+  const limit = Date.parse(now);
+  const ranges = periods
+    .filter((p) => p.status === "active")
+    .map((p) => [
+      Date.parse(p.starts_at),
+      Math.min(Date.parse(p.ends_at), limit),
+    ])
+    .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b) && b > a)
+    .sort((a, b) => a[0] - b[0]);
+  const merged: number[][] = [];
+  for (const [start, end] of ranges) {
+    const last = merged.at(-1);
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  return merged;
+}
+
+/** Calendar anniversaries in Berlin, including month-end and DST handling. */
+function monthCredits(start: number, end: number) {
+  const anchor =
+    Temporal.Instant.fromEpochMilliseconds(start).toZonedDateTimeISO(TIMEZONE);
+  const finish =
+    Temporal.Instant.fromEpochMilliseconds(end).toZonedDateTimeISO(TIMEZONE);
+  const possible = Math.max(
+    0,
+    (finish.year - anchor.year) * 12 + finish.month - anchor.month,
+  );
+  const credits: number[] = [];
+  for (let n = 1; n <= possible; n++) {
+    const at = anchor.add({ months: n }).epochMilliseconds;
+    if (at <= end) credits.push(at);
+  }
+  return credits;
+}
+
+export function subscriptionMonths(periods: ProfilePeriod[], now: string) {
+  return activeRanges(periods, now).reduce(
+    (n, [a, b]) => n + monthCredits(a, b).length,
+    0,
+  );
+}
+
+export function activeMembership(periods: ProfilePeriod[], now: string) {
+  const ranges = activeRanges(periods, now);
+  return {
+    since: ranges.length ? new Date(ranges[0][0]).toISOString() : null,
+    months: subscriptionMonths(periods, now),
+  };
+}
+
+/** Historical helper retained for callers explicitly asking for elapsed time. */
 export function membershipMonths(starts: string[], now: string) {
   const since =
     starts
@@ -154,38 +209,29 @@ export function membershipMonths(starts: string[], now: string) {
   };
 }
 
-/** Completed calendar months of covered time; overlaps never count twice for a child. */
-export function subscriptionMonths(periods: ProfilePeriod[], now: string) {
-  const limit = Date.parse(now);
-  const ranges = periods
-    .filter((p) => p.status === "active" && Date.parse(p.starts_at) < limit)
-    .map((p) => [
-      Date.parse(p.starts_at),
-      Math.min(Date.parse(p.ends_at), limit),
-    ])
-    .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b) && b > a)
-    .sort((a, b) => a[0] - b[0]);
-  const merged: number[][] = [];
-  for (const [start, end] of ranges) {
-    const last = merged.at(-1);
-    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
-    else merged.push([start, end]);
+/** Credits per child, one debit per wholly inactive family month; never carry debt. */
+export function familyMembership(periods: ProfilePeriod[], now: string) {
+  const events: { at: number; delta: number }[] = [];
+  for (const player of new Set(periods.map((p) => p.player_id))) {
+    for (const [a, b] of activeRanges(
+      periods.filter((p) => p.player_id === player),
+      now,
+    ))
+      events.push(...monthCredits(a, b).map((at) => ({ at, delta: 1 })));
   }
-  return merged.reduce((total, [start, end]) => {
-    const anchor =
-      Temporal.Instant.fromEpochMilliseconds(start).toZonedDateTimeISO(
-        TIMEZONE,
-      );
-    const finish =
-      Temporal.Instant.fromEpochMilliseconds(end).toZonedDateTimeISO(TIMEZONE);
-    let months = Math.max(
-      0,
-      (finish.year - anchor.year) * 12 + finish.month - anchor.month,
+  const earned = events.length;
+  const family = activeRanges(periods, now);
+  for (let i = 0; i < family.length; i++) {
+    const end = family[i + 1]?.[0] ?? Date.parse(now);
+    events.push(
+      ...monthCredits(family[i][1], end).map((at) => ({ at, delta: -1 })),
     );
-    if (Temporal.ZonedDateTime.compare(anchor.add({ months }), finish) > 0)
-      months--;
-    return total + Math.max(0, months);
-  }, 0);
+  }
+  // Debits first at a shared instant, so a zero balance cannot consume a new credit.
+  events.sort((a, b) => a.at - b.at || a.delta - b.delta);
+  let months = 0;
+  for (const { delta } of events) months = Math.max(0, months + delta);
+  return { months, earned_months: earned, deducted_months: earned - months };
 }
 export function trainingStats(units: ProfileUnit[], month: string) {
   const attended = units.filter((u) => !u.cancelled && isAttended(u.status));

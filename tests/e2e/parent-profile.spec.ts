@@ -606,3 +606,133 @@ test("parent edits own child but cannot edit foreign children or unlink", async 
     ).toBeNull();
   }
 });
+
+test("inactive family loses four status months and keeps the deduction after restart", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name === "mobile",
+    "One local mutation scenario is sufficient",
+  );
+  const { Temporal } = await import("@js-temporal/polyfill");
+  const { createHash } = await import("node:crypto");
+  const now = Temporal.Now.zonedDateTimeISO("Europe/Berlin").subtract({
+    minutes: 2,
+  });
+  const parent = await localDb
+    .from("parents")
+    .select("id")
+    .eq("full_name", twoChildFamily.name)
+    .single();
+  expect(parent.error).toBeNull();
+  const children = await localDb
+    .from("parent_players")
+    .select("player_id")
+    .eq("parent_id", parent.data!.id);
+  const mappings = await localDb
+    .from("subscription_players")
+    .select(
+      "player_id,stripe_item_id,subscriptions!inner(id,stripe_subscription_id,status,stripe_data)",
+    )
+    .in(
+      "player_id",
+      children.data!.map((c) => c.player_id),
+    );
+  expect(mappings.error).toBeNull();
+  const links = mappings.data as any[];
+  expect(links.length).toBeGreaterThan(0);
+  const subs = [
+    ...new Map(
+      links.map((l) => [l.subscriptions.id, l.subscriptions]),
+    ).values(),
+  ];
+  expect(
+    subs.every((s) => /^sub_[A-Za-z0-9]+$/.test(s.stripe_subscription_id)),
+  ).toBe(true);
+  const ids = subs.map((s) => s.id);
+  const previous = await localDb
+    .from("profile_subscription_history")
+    .select("*")
+    .in("subscription_id", ids);
+  expect(previous.error).toBeNull();
+  const first = links[0];
+  const range = (agoStart: number, agoEnd: number) => ({
+    item: first.stripe_item_id,
+    start: now.subtract({ months: agoStart }).epochMilliseconds / 1000,
+    end: now.subtract({ months: agoEnd }).epochMilliseconds / 1000,
+  });
+  async function seed(restart = false) {
+    for (const sub of subs) {
+      const signature = createHash("sha256")
+        .update(
+          JSON.stringify({
+            version: 2,
+            stripe: sub.stripe_subscription_id,
+            status: sub.status,
+            ended: sub.stripe_data?.ended_at,
+            items: sub.stripe_data?.items,
+          }),
+        )
+        .digest("hex");
+      const seeded = await localDb.from("profile_subscription_history").upsert({
+        subscription_id: sub.id,
+        source_signature: signature,
+        checked_at: new Date().toISOString(),
+        periods:
+          sub.id === first.subscriptions.id
+            ? restart
+              ? [range(21, 5), range(1, -1)]
+              : [range(20, 4)]
+            : [],
+      });
+      expect(seeded.error).toBeNull();
+    }
+  }
+  try {
+    await seed();
+    await login(page, twoChildFamily.key);
+    await page.goto("/profil");
+    await expect(
+      page.getByRole("heading", { name: "Gold", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("progressbar", { name: "Familienstatus" }),
+    ).toHaveAttribute("aria-valuenow", "12");
+    await expect(
+      page.getByText("16 aktive Abo-Monate − 4 Monate Inaktivitätsabzug", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: "output/profile-status/decay-profile.png",
+      fullPage: true,
+    });
+    await seed(true);
+    await page.reload();
+    await expect(
+      page.getByRole("progressbar", { name: "Familienstatus" }),
+    ).toHaveAttribute("aria-valuenow", "13");
+    await expect(
+      page.getByText("17 aktive Abo-Monate − 4 Monate Inaktivitätsabzug", {
+        exact: true,
+      }),
+    ).toBeVisible();
+  } finally {
+    expect(
+      (
+        await localDb
+          .from("profile_subscription_history")
+          .delete()
+          .in("subscription_id", ids)
+      ).error,
+    ).toBeNull();
+    if (previous.data!.length)
+      expect(
+        (
+          await localDb
+            .from("profile_subscription_history")
+            .insert(previous.data!)
+        ).error,
+      ).toBeNull();
+  }
+});

@@ -15,6 +15,12 @@ it("allows finance GET requests and refuses writes, other hosts and unrelated en
   await profileReadFetch("https://api.stripe.com/v1/charges?customer=cus_one", {
     method: "GET",
   });
+  await profileReadFetch("https://api.stripe.com/v1/subscriptions/sub_one", {
+    method: "GET",
+  });
+  await profileReadFetch("https://api.stripe.com/v1/invoices/in_one/lines", {
+    method: "GET",
+  });
   expect(network).toHaveBeenCalledWith(
     expect.anything(),
     expect.objectContaining({ redirect: "error" }),

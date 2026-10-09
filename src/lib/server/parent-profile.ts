@@ -9,7 +9,8 @@ import {
   childAge,
   eventUnit,
   profileCalendar,
-  membershipMonths,
+  activeMembership,
+  familyMembership,
   trainingStats,
   unitPreview,
   PROFILE_WEEK,
@@ -18,6 +19,7 @@ import {
   type ProfilePeriod,
   type ProfileUnit,
 } from "../parent-profile";
+import { profileActivePeriods } from "./profile-subscription-history";
 import type { PortalData } from "../types";
 
 export type ProfileSession = NonNullable<
@@ -106,39 +108,10 @@ async function subscriptionsFor(ids: string[]) {
   return collect(() =>
     serviceDb()
       .from("subscription_players")
-      .select("id,player_id,subscriptions!inner(id,status,stripe_data)")
+      .select(
+        "id,player_id,stripe_item_id,subscriptions!inner(id,stripe_subscription_id,status,stripe_data)",
+      )
       .in("player_id", ids),
-  );
-}
-function membershipFor(
-  player: string,
-  subscriptions: any[],
-  periods: ProfilePeriod[],
-  now: string,
-) {
-  const starts = subscriptions
-    .filter(
-      (s) =>
-        s.player_id === player &&
-        (s.subscriptions.status === "active" ||
-          periods.some(
-            (p) =>
-              p.player_id === player &&
-              p.status === "active" &&
-              p.subscription_id === s.subscriptions.id,
-          )),
-    )
-    .map((s) => s.subscriptions.stripe_data?.subscription_created_at)
-    .filter((s): s is string => typeof s === "string");
-  // Old imports without a Stripe start use the earliest evidenced active period.
-  return membershipMonths(
-    [
-      ...starts,
-      ...periods
-        .filter((p) => p.player_id === player && p.status === "active")
-        .map((p) => p.starts_at),
-    ],
-    now,
   );
 }
 export async function profileList(
@@ -213,6 +186,7 @@ export async function profileList(
     ...new Set(links.map((l) => l.player_id)),
   ]);
   const now = new Date().toISOString();
+  const activePeriods = await profileActivePeriods(subscriptions, periods, now);
   const rows: ProfileListRow[] = page.map((p) => {
     const children = links.filter((l) => l.parent_id === p.id);
     return {
@@ -233,11 +207,12 @@ export async function profileList(
             .map((x) => x.product_name),
         ),
       ],
-      months: children.reduce(
-        (n, c) =>
-          n + membershipFor(c.player_id, subscriptions, periods, now).months,
-        0,
-      ),
+      months: familyMembership(
+        activePeriods.filter((p) =>
+          children.some((c) => c.player_id === p.player_id),
+        ),
+        now,
+      ).months,
     };
   });
   if (sort === "months")
@@ -292,6 +267,7 @@ export async function loadParentProfile(
     month = monthStart(calendarDate(now));
   const periods = await periodsFor(ids);
   const subscriptions = await subscriptionsFor(ids);
+  const activePeriods = await profileActivePeriods(subscriptions, periods, now);
   const participants = ids.length
     ? await collect(() =>
         db
@@ -375,7 +351,10 @@ export async function loadParentProfile(
             .map((p) => p.product_name),
         ),
       ],
-      ...membershipFor(k.id, subscriptions, periods, now),
+      ...activeMembership(
+        activePeriods.filter((p) => p.player_id === k.id),
+        now,
+      ),
       camps: campsAvailable
         ? new Set(
             bookings
@@ -409,9 +388,9 @@ export async function loadParentProfile(
       : null,
     role: s.role!,
     children: children.filter((c) => visibleIds.has(c.id)),
-    months: children.reduce((n, c) => n + c.months, 0),
+    ...familyMembership(activePeriods, now),
     history_note:
-      "Abgeschlossene Monate seit dem ersten belegten Stripe-Abo je Kind, je Kind einmal gezählt und als Familie addiert – einschließlich Pausen und zugeordneter archivierter Kinder. Fehlt das Stripe-Startdatum, zählt der früheste erfasste aktive Abo-Zeitraum.",
+      "Abgeschlossene aktive Abo-Monate werden je Kind einmal gezählt und als Familie addiert. Jeder volle Monat ohne aktives Kinderabo zieht einen Statusmonat ab, höchstens bis null. Der Abzug bleibt nach einem Wiedereinstieg bestehen. Zugeordnete archivierte Kinder behalten ihre belegte Historie.",
     calendar: profileCalendar(visibleUnits, month, now),
     units: allUnits ? visibleUnits : unitPreview(visibleUnits, now),
     month,

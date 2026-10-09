@@ -540,7 +540,7 @@ export function ProfileView({
             <div className="profile-progress-area">
               <strong>
                 {status.tier === "ultimate"
-                  ? `${data.months} Abo-Monate`
+                  ? `${data.months} Statusmonate`
                   : `${data.months} / ${status.target} Monate`}
               </strong>
               <div
@@ -553,6 +553,14 @@ export function ProfileView({
               >
                 <span style={{ width: `${status.progress}%` }} />
               </div>
+              {data.earned_months !== undefined && (
+                <p className="profile-muted">
+                  {data.earned_months} aktive Abo-Monate
+                  {data.deducted_months
+                    ? ` − ${data.deducted_months} Monate Inaktivitätsabzug`
+                    : " · kein Inaktivitätsabzug"}
+                </p>
+              )}
               <small>{data.history_note}</small>
             </div>
           </section>
