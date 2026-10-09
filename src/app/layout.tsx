@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { ProfileListStateProvider } from "@/components/profile-list-state";
 export const metadata: Metadata = {
   title: "ProAcademy · Dein Trainingsportal",
   description:
@@ -20,7 +21,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="de">
-      <body>{children}</body>
+      <body>
+        <ProfileListStateProvider>{children}</ProfileListStateProvider>
+      </body>
     </html>
   );
 }

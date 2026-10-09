@@ -32,7 +32,7 @@ vi.mock("../src/lib/camps/import-core", async (original) => ({
 vi.mock("../src/lib/server/service-db", () => ({
   serviceDb: () => ({ from: f.from, rpc: f.rpc }),
 }));
-import { campReview } from "../src/lib/camps/local-review";
+import { campReview, reviewReference } from "../src/lib/camps/local-review";
 import { saveCampReview } from "../src/lib/camps/import-review";
 
 const campId = "a0000000-0000-4000-8000-000000000001";
@@ -133,7 +133,25 @@ it.each(["admin", "staff"])(
     f.session.role = role;
     const review = await campReview(campId);
     expect(review.families).toEqual(families);
-    expect(review.records[0].draft).toEqual(draft);
+    const visibleDraft =
+      role === "staff"
+        ? { ...draft, payment_id: reviewReference(draft.payment_id) }
+        : draft;
+    expect(review.records[0].draft).toEqual(visibleDraft);
+    if (role === "staff") {
+      const serialized = JSON.stringify(review);
+      for (const secret of [
+        "pi_paid",
+        "cs_live_paid",
+        "cus_paid",
+        '"amount"',
+        '"currency"',
+      ])
+        expect(serialized).not.toContain(secret);
+      await expect(saveCampReview(visibleDraft, false)).resolves.toEqual({
+        ok: true,
+      });
+    }
     await expect(saveCampReview(draft, false)).resolves.toEqual({ ok: true });
     expect(f.upsert).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -518,6 +518,13 @@ export function AdminView({
                         <td key={f.key}>
                           {slug === "eltern" && f.key === "billing_email" ? (
                             <ParentInviteButton parent={r} notify={notify} />
+                          ) : slug === "eltern" && f.key === "full_name" ? (
+                            <Link
+                              href={`/admin/elternprofile/${r.id}`}
+                              className="text-button"
+                            >
+                              {String(r[f.key] ?? "Profil")}
+                            </Link>
                           ) : f.key === "generation" ? (
                             ({
                               legacy: "Bestand",

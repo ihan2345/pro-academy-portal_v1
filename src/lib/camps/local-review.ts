@@ -5,7 +5,7 @@ import { requireCampAccess } from "./guard";
 import { campLocalEnabled } from "./runtime";
 import { campReviewEnabled } from "./processing-config";
 import { campSession, getCamp } from "./service";
-import { HttpError } from "@/lib/server/security";
+import { hashToken, HttpError } from "@/lib/server/security";
 import { serviceDb } from "@/lib/server/service-db";
 
 export const snapshotSchema = z.object({
@@ -37,9 +37,12 @@ export const snapshotSchema = z.object({
     }),
   ),
 });
-export async function campReview(campId: string) {
+export const reviewReference = (paymentId: string) =>
+  `review_${hashToken(paymentId)}`;
+
+export async function campReview(campId: string, internal = false) {
   await requireCampAccess();
-  await campSession(true);
+  const session = await campSession(true);
   await getCamp(campId);
   if (!campReviewEnabled())
     throw new HttpError(404, "Camp-Abgleich ist nicht eingerichtet.");
@@ -87,7 +90,7 @@ export async function campReview(campId: string) {
       .filter((b) => b.status === "cancelled")
       .map((b) => b.stripe_payment_id),
   );
-  return {
+  const resultData = {
     ...state,
     stale:
       !state.checked_at ||
@@ -109,5 +112,43 @@ export async function campReview(campId: string) {
           drafts.data.find((d) => d.payment_id === r.payment_id)?.data ?? null,
       })),
     families: families.data,
+  };
+  if (internal || session.role === "admin") return resultData;
+  return {
+    ...resultData,
+    error: resultData.error
+      ? "Camp-Prüfung vorübergehend nicht verfügbar."
+      : null,
+    sources: resultData.sources.map(() => ({
+      camp_id: campId,
+      payment_link_id: "",
+    })),
+    records: resultData.records.map((r) => ({
+      camp_id: r.camp_id,
+      payment_id: reviewReference(r.payment_id),
+      session_id: undefined,
+      parent_name: r.parent_name,
+      parent_email: r.parent_email,
+      parent_phone: r.parent_phone,
+      child_name: r.child_name,
+      age_at_booking: r.age_at_booking,
+      clothing_size: r.clothing_size,
+      created_at: r.created_at,
+      status: r.status,
+      imported: r.imported,
+      issues: [
+        ...new Set(
+          r.issues.map((issue) =>
+            /Zahl|Erstatt|Betrag|Stripe|Rabatt/i.test(issue)
+              ? "Buchung muss durch die Verwaltung geprüft werden."
+              : issue,
+          ),
+        ),
+      ],
+      // Drafts are validated at write time; never return the stored payment reference.
+      draft: r.draft
+        ? { ...r.draft, payment_id: reviewReference(r.payment_id) }
+        : null,
+    })),
   };
 }

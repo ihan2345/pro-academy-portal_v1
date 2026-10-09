@@ -139,6 +139,13 @@ export function Portal({
     setData(next);
     router.refresh();
   }
+  useEffect(() => {
+    const child = new URLSearchParams(window.location.search).get("child");
+    if (child && data.players.some((p) => p.id === child)) {
+      setSelected(child);
+      setSelectedPeriod("");
+    }
+  }, [data.players, section]);
   const player = data.players.find((p) => p.id === selected) ?? data.players[0];
   const periods = data.periods.filter((p) => p.player_id === player?.id);
   const now = new Date();
@@ -199,6 +206,7 @@ export function Portal({
     },
     { href: "/stempelkarte", title: "Stempelkarte", icon: Goal },
     { href: "/berichte", title: "Berichte", icon: FileText },
+    { href: "/profil", title: "Mein Profil", icon: UserRound },
     { href: "/konto", title: "Mein Konto", icon: Settings },
   ];
   const adminNav = [
@@ -210,6 +218,7 @@ export function Portal({
     },
     { href: "/admin/stempelkarten", title: "Stempelkarten", icon: Goal },
     { href: "/admin/spieler", title: "Spieler & Eltern", icon: Users },
+    { href: "/admin/elternprofile", title: "Elternprofile", icon: Users },
     { href: "/admin/mitarbeiter", title: "Mitarbeiter", icon: UserRound },
     { href: "/admin/standorte", title: "Standorte", icon: MapPin },
     { href: "/admin/produkte", title: "Produkte", icon: Goal },
@@ -228,12 +237,14 @@ export function Portal({
       ? [
           { href: "/team", title: "Trainingsplanung", icon: CalendarDays },
           { href: "/team/stempelkarten", title: "Stempelkarten", icon: Goal },
+          { href: "/team/elternprofile", title: "Elternprofile", icon: Users },
           { href: "/konto", title: "Mein Konto", icon: Settings },
         ]
       : data.camp_enabled && data.camp_access && data.camp_access !== "active"
         ? nav.filter(
             (n) =>
               n.href === "/konto" ||
+              n.href === "/profil" ||
               n.href === "/berichte" ||
               (data.camp_access === "past" && n.href === "/termine"),
           )
@@ -391,6 +402,17 @@ export function Portal({
           </div>
         </header>
         <main className="main-content">
+          {data.role === "parent" &&
+            (section === "" || section === "camps") && (
+              <Link className="panel profile-entry" href="/profil">
+                <UserRound size={24} />
+                <span>
+                  <strong>Mein Profil</strong>
+                  <small>Deine Familie und eure Academy-Entwicklung</small>
+                </span>
+                <ArrowRight size={20} />
+              </Link>
+            )}
           {children ? (
             children
           ) : (admin || team) &&

@@ -1,3 +1,11 @@
+import {
+  profileList,
+  loadParentProfile,
+  editParentProfile,
+  archiveProfileChild,
+  changeProfileChild,
+} from "@/lib/server/parent-profile";
+import { readProfileFinances } from "@/lib/server/parent-profile-finances";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -168,6 +176,114 @@ async function handler(
     const session = await sessionUser();
     if (!session?.role) throw new HttpError(401, "Bitte melde dich an.");
     const { db, user, role } = session;
+    if (path.startsWith("parent-profiles/")) {
+      const parts = path.split("/");
+      if (
+        parts.length === 2 &&
+        parts[1] === "list" &&
+        request.method === "GET"
+      ) {
+        const offset = z.coerce
+          .number()
+          .int()
+          .min(0)
+          .max(100000)
+          .parse(request.nextUrl.searchParams.get("offset") ?? 0);
+        return json(
+          await profileList(
+            session,
+            request.nextUrl.searchParams.get("search") ?? "",
+            offset,
+            z
+              .enum(["true", "false"])
+              .parse(
+                request.nextUrl.searchParams.get("includeInactive") ?? "false",
+              ) === "true",
+            z
+              .enum(["name", "months", "newest"])
+              .parse(request.nextUrl.searchParams.get("sort") ?? "name"),
+          ),
+        );
+      }
+      const target = z.uuid().parse(parts[1]);
+      if (parts.length === 2 && request.method === "GET")
+        return json(await loadParentProfile(session, target));
+      if (
+        parts.length === 3 &&
+        parts[2] === "units" &&
+        request.method === "GET"
+      ) {
+        const params = z
+          .object({
+            child: z.union([z.uuid(), z.literal("")]).default(""),
+            period: z.enum(["month", "all"]).default("all"),
+            state: z.enum(["planned", "past", "all"]).default("all"),
+            day: z.union([z.iso.date(), z.literal("")]).default(""),
+            offset: z.coerce.number().int().min(0).max(10000).default(0),
+            limit: z.coerce.number().int().min(1).max(25).default(25),
+          })
+          .parse(Object.fromEntries(request.nextUrl.searchParams));
+        const profile = await loadParentProfile(session, target, true);
+        if (
+          params.child &&
+          !profile.children.some((c) => c.id === params.child)
+        )
+          throw new HttpError(404, "Kind nicht verfügbar.");
+        const now = new Date().toISOString();
+        const units = profile.units
+          .filter(
+            (u) =>
+              (!params.child || u.player_id === params.child) &&
+              (!params.day || u.day === params.day) &&
+              (params.period !== "month" ||
+                u.day?.startsWith(profile.month.slice(0, 7))) &&
+              (params.state === "all" ||
+                (params.state === "planned"
+                  ? u.status === "planned" &&
+                    !u.cancelled &&
+                    !!u.starts_at &&
+                    u.starts_at > now
+                  : !u.starts_at || u.starts_at <= now)),
+          )
+          .sort(
+            (a, b) =>
+              (b.day ?? "").localeCompare(a.day ?? "") ||
+              a.id.localeCompare(b.id),
+          );
+        return json({
+          units: units.slice(params.offset, params.offset + params.limit),
+          more: units.length > params.offset + params.limit,
+        });
+      }
+      if (parts.length === 3 && request.method === "POST") {
+        if (parts[2] === "unlink" || parts[2] === "child")
+          return json(
+            await changeProfileChild(
+              session,
+              target,
+              parts[2],
+              await request.json(),
+            ),
+          );
+        if (parts[2] === "contact")
+          return json(
+            await editParentProfile(session, target, await request.json()),
+          );
+        if (parts[2] === "archive") {
+          const input = z
+            .object({ child_id: z.uuid() })
+            .strict()
+            .parse(await request.json());
+          return json(
+            await archiveProfileChild(session, target, input.child_id),
+          );
+        }
+        if (parts[2] === "finances")
+          return json(await readProfileFinances(session, target));
+      }
+      throw new HttpError(404, "Nicht gefunden.");
+    }
+
     if (path === "activity" && request.method === "POST") {
       const { error } = await db.rpc("touch_user_activity");
       if (error) throw new HttpError(503, "Aktivitätsstatus nicht verfügbar.");

@@ -43,7 +43,7 @@ type Record = {
   created_at: string;
   age_at_booking: string;
   clothing_size: string;
-  amount: number;
+  amount?: number;
   status: "paid" | "review" | "refunded";
   issues: string[];
   draft: Draft | null;
@@ -468,8 +468,9 @@ export function StripeReview({
               </div>
               <p>
                 Stripe-Angaben: {r.child_name} ·{" "}
-                {r.parent_name || "Kontakt noch zu klären"} · {money(r.amount)}{" "}
-                · Alter {r.age_at_booking || "unbekannt"} · Größe{" "}
+                {r.parent_name || "Kontakt noch zu klären"} ·{" "}
+                {r.amount != null ? money(r.amount) : ""} · Alter{" "}
+                {r.age_at_booking || "unbekannt"} · Größe{" "}
                 {r.clothing_size || "unbekannt"}
               </p>
               {r.issues.map((issue) => (

@@ -38,6 +38,13 @@ export function StampCards({
   } | null>(null);
   const [search, setSearch] = useState("");
   const [playerId, setPlayerId] = useState(data.players[0]?.id ?? "");
+  useEffect(() => {
+    const child = new URLSearchParams(window.location.search).get("child");
+    if (child && data.players.some((p) => p.id === child)) {
+      setPlayerId(child);
+      setPeriodId("");
+    }
+  }, [data.players]);
   const [periodId, setPeriodId] = useState("");
   const [card, setCard] = useState<Card | null>(null);
   const [recipient, setRecipient] = useState("");

@@ -641,7 +641,18 @@ export async function dashboard() {
           ),
         })),
       ),
-      bookings: check(bookings),
+      bookings:
+        session.role === "admin"
+          ? check(bookings)
+          : check(bookings).map(
+              ({
+                paid_amount,
+                paid_at,
+                stripe_session_id,
+                review_reason,
+                ...booking
+              }) => booking,
+            ),
       offers: check(offers),
       plans: check(plans),
       reports: check(reports),
@@ -655,15 +666,11 @@ export async function dashboard() {
         await db
           .from("camp_bookings")
           .select("id,camp_id,player_id,child_data,status,paid_at,paid_amount")
-          .or(
-            [
-              `parent_id.eq.${context.parent.id}`,
-              ...(context.children.length
-                ? [
-                    `player_id.in.(${context.children.map((c) => c.id).join(",")})`,
-                  ]
-                : []),
-            ].join(","),
+          .in(
+            "player_id",
+            context.children.length
+              ? context.children.map((c) => c.id)
+              : ["00000000-0000-0000-0000-000000000000"],
           )
           .in("status", ["paid", "review", "cancelled", "refunded"]),
       )

@@ -1,8 +1,9 @@
 import "server-only";
 import Stripe from "stripe";
+import { z } from "zod";
 import { campSession, getCamp, childBenefit } from "./service";
 import { requireCampAccess } from "./guard";
-import { campReview } from "./local-review";
+import { campReview, reviewReference } from "./local-review";
 import { serviceDb } from "@/lib/server/service-db";
 import { HttpError } from "@/lib/server/security";
 import { prepareCampImport, reviewDraftSchema } from "./import-core";
@@ -10,10 +11,21 @@ import { campImportIssue } from "./import-issues";
 export async function saveCampReview(raw: unknown, add: boolean) {
   await requireCampAccess();
   const session = await campSession(true);
-  const data = reviewDraftSchema.parse(raw);
-  await getCamp(data.camp_id);
-  const review = await campReview(data.camp_id);
-  const record = review.records.find((r) => r.payment_id === data.payment_id);
+  const reference = z
+    .object({ camp_id: z.uuid(), payment_id: z.string().max(100) })
+    .parse(raw);
+  await getCamp(reference.camp_id);
+  const review = await campReview(reference.camp_id, true);
+  const record = review.records.find((r) =>
+    session.role === "admin"
+      ? r.payment_id === reference.payment_id
+      : reviewReference(r.payment_id) === reference.payment_id ||
+        r.payment_id === reference.payment_id,
+  );
+  const data = reviewDraftSchema.parse({
+    ...(raw as object),
+    payment_id: record?.payment_id ?? "pi_missing",
+  });
   if (!record)
     throw new HttpError(
       404,
@@ -48,7 +60,7 @@ export async function saveCampReview(raw: unknown, add: boolean) {
           maxNetworkRetries: 1,
         }),
         data,
-        record.session_id,
+        record.session_id!,
         session.user.id,
         benefit,
       );

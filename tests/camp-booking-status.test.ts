@@ -16,6 +16,8 @@ vi.mock("../src/lib/server/service-db", () => ({
 vi.mock("../src/lib/server/supabase", () => ({ sessionUser: f.session }));
 vi.mock("../src/lib/camps/runtime", () => ({
   campPaymentMode: () => "test",
+  campLocalEnabled: () => false,
+  campPublicOrigin: () => null,
   campAppOrigin: () => "https://example.invalid",
 }));
 vi.mock("../src/lib/camps/stripe", () => ({
@@ -142,6 +144,7 @@ beforeEach(() => {
         return q;
       },
       in: (key: string, values: any[]) => {
+        call.filters.push([key, values]);
         predicates.push((r) => values.includes(r[key]));
         return q;
       },
@@ -246,8 +249,44 @@ it("shows a linked child's booking made by the other parent without exposing unr
   expect(result.bookings.map((b: any) => b.id)).toEqual(["own"]);
   expect(
     f.queries.find((q) => q.table === "camp_bookings").filters,
-  ).toContainEqual([
-    "or",
-    `parent_id.eq.${parentId},player_id.in.(${playerId},${siblingId})`,
-  ]);
+  ).toContainEqual(["player_id", [playerId, siblingId]]);
+});
+
+it("does not expose a former child's booking via the historical payer", async () => {
+  f.rows.camp_bookings = [
+    {
+      id: "former",
+      camp_id: campId,
+      parent_id: parentId,
+      player_id: "foreign",
+      status: "paid",
+    },
+  ];
+  expect((await dashboard()).bookings).toEqual([]);
+});
+it("staff dashboard omits personal payment information while keeping participants", async () => {
+  f.session.mockResolvedValue({ role: "staff", user: { id: "coach" } });
+  f.rows.camp_bookings = [
+    {
+      id: "booking",
+      camp_id: campId,
+      player_id: playerId,
+      status: "paid",
+      paid_amount: 10000,
+      paid_at: "2026-10-01",
+      stripe_session_id: "cs_secret",
+      review_reason: "Payment secret",
+    },
+  ];
+  const result = await dashboard();
+  expect(result.bookings).toHaveLength(1);
+  const serialized = JSON.stringify(result.bookings);
+  for (const key of [
+    "paid_amount",
+    "paid_at",
+    "stripe_session_id",
+    "review_reason",
+    "cs_secret",
+  ])
+    expect(serialized).not.toContain(key);
 });
