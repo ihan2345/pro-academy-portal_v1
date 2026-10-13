@@ -200,7 +200,7 @@ async function handler(
                 request.nextUrl.searchParams.get("includeInactive") ?? "false",
               ) === "true",
             z
-              .enum(["name", "months", "newest"])
+              .enum(["name", "months", "newest", "revenue"])
               .parse(request.nextUrl.searchParams.get("sort") ?? "name"),
           ),
         );

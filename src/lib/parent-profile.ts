@@ -78,6 +78,7 @@ export interface ProfileListRow {
   products: string[];
   months: number;
   last_seen_at?: string | null;
+  revenue?: number | null;
 }
 
 export function familyStatus(months: number) {

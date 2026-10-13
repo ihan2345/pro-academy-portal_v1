@@ -20,6 +20,7 @@ import {
   type ProfileUnit,
 } from "../parent-profile";
 import { profileActivePeriods } from "./profile-subscription-history";
+import { compareRevenue, readParentRevenue } from "./profile-revenue";
 import type { PortalData } from "../types";
 
 export type ProfileSession = NonNullable<
@@ -119,10 +120,12 @@ export async function profileList(
   search = "",
   offset = 0,
   includeInactive = false,
-  sort: "name" | "months" | "newest" = "name",
+  sort: "name" | "months" | "newest" | "revenue" = "name",
 ) {
   if (!s.role || !["staff", "admin"].includes(s.role))
     throw new HttpError(403, "Keine Berechtigung.");
+  if (sort === "revenue" && s.role !== "admin")
+    throw new HttpError(403, "Finanzdaten sind nur für Admins verfügbar.");
   const db = serviceDb();
   let q = db
     .from("parents")
@@ -158,9 +161,9 @@ export async function profileList(
       ascending: sort !== "newest",
     })
     .order("id");
-  // Ranking needs every matching family's months before pagination.
+  // Ranking needs every matching family before pagination.
   let parents: any[] = [];
-  if (sort === "months") {
+  if (sort === "months" || sort === "revenue") {
     for (let start = 0; ; start += 500) {
       if (start >= 10000)
         throw new HttpError(
@@ -172,7 +175,27 @@ export async function profileList(
       if (batch.length < 500) break;
     }
   } else parents = checked(await q.range(offset, offset + 25));
-  const page = sort === "months" ? parents : parents.slice(0, 25),
+  let revenue: Map<string, number | null> | undefined;
+  if (sort === "revenue" && parents.length) {
+    // Include other parents' mappings to detect shared/ambiguous customers.
+    const customerLinks = await collect(() =>
+      db
+        .from("parent_stripe_customers")
+        .select("id,parent_id,stripe_customer_id"),
+    );
+    revenue = await readParentRevenue(
+      s.role,
+      parents.map((p) => p.id),
+      customerLinks,
+    );
+    parents.sort((a, b) => compareRevenue(a, b, revenue!));
+  }
+  const page =
+      sort === "months"
+        ? parents
+        : sort === "revenue"
+          ? parents.slice(offset, offset + 25)
+          : parents.slice(0, 25),
     ids = page.map((p) => p.id);
   if (!ids.length) return { rows: [] as ProfileListRow[], more: false };
   const links = await collect(() =>
@@ -193,6 +216,7 @@ export async function profileList(
       id: p.id,
       name: p.full_name,
       email: p.contact_email,
+      ...(revenue ? { revenue: revenue.get(p.id) ?? null } : {}),
       children: children.filter((l) => !l.players.archived_at).length,
       products: [
         ...new Set(
@@ -242,7 +266,12 @@ export async function profileList(
   }
   return {
     rows: selected,
-    more: sort === "months" ? rows.length > offset + 25 : parents.length > 25,
+    more:
+      sort === "months"
+        ? rows.length > offset + 25
+        : sort === "revenue"
+          ? parents.length > offset + 25
+          : parents.length > 25,
   };
 }
 export async function loadParentProfile(

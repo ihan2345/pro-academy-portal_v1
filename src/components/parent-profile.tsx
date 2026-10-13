@@ -136,10 +136,19 @@ export function ProfileList({ base }: { base: string }) {
           >
             <option value="name">A–Z</option>
             <option value="months">Platzierung (Gesamtmonate)</option>
+            {base.startsWith("/admin/") && (
+              <option value="revenue">Umsatz (höchster zuerst)</option>
+            )}
             <option value="newest">Neu–Alt</option>
           </select>
         </label>
       </div>
+      {sort === "revenue" && (
+        <p className="profile-muted">
+          Gesamtumsatz aus Stripe-Zahlungen inklusive Camps, abzüglich
+          Erstattungen. Nicht eindeutig belegbare Euro-Umsätze stehen am Ende.
+        </p>
+      )}
       <label className="profile-inactive-filter">
         <input
           type="checkbox"
@@ -175,6 +184,14 @@ export function ProfileList({ base }: { base: string }) {
               <span>
                 <strong>{r.name}</strong>
                 <span className="profile-muted">{r.email}</span>
+                {sort === "revenue" && (
+                  <span className="profile-muted">
+                    Gesamtumsatz:{" "}
+                    {r.revenue == null
+                      ? "Nicht eindeutig verfügbar"
+                      : money(r.revenue, "eur")}
+                  </span>
+                )}
               </span>
               <span>
                 {r.children} Kinder
