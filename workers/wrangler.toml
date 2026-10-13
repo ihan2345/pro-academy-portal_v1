@@ -16,4 +16,4 @@ preview_urls = false
 # The container gateway owns the production schedule. Do not activate a second trigger.
 crons = []
 [env.production.vars]
-APP_URL = "https://proacademy-portal.proacademy-by-ak.workers.dev"
+APP_URL = "https://portal.proacademy-ak.com"

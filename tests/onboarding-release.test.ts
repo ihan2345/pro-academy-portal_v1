@@ -16,6 +16,7 @@ beforeAll(async () => {
   await db.exec(
     readFileSync("supabase/release/001-onboarding-mail.sql", "utf8"),
   );
+  await db.exec(readFileSync("supabase/release/010-portal-domain.sql", "utf8"));
   await db.query(
     "insert into auth.users values($1,'admin@example.invalid',now()),($2,'first@example.invalid',now())",
     [admin, user],
@@ -38,7 +39,7 @@ const invitation = () => ({
   parent_id: parent,
   actor_id: admin,
   token_hash: "a".repeat(64),
-  url: "https://proacademy-portal.proacademy-by-ak.workers.dev/einladung?token=local_only",
+  url: "https://portal.proacademy-ak.com/einladung?token=local_only",
 });
 it("requires release, verifies manual recipient and holds all automatic invitations", async () => {
   await expect(
@@ -118,4 +119,25 @@ it("does not grant public execution or permit a staff account to adopt a family"
   } finally {
     await db.exec("rollback");
   }
+});
+
+it("rejects the retired worker domain for new invitations", async () => {
+  await db.query(
+    "update system_settings set value=$1 where key='portal_delivery_release'",
+    [
+      {
+        enabled: true,
+        recipients: ["first@example.invalid"],
+        invitation_recipients: ["first@example.invalid"],
+      },
+    ],
+  );
+  await expect(
+    db.query("select release_parent_invitation($1)", [
+      {
+        ...invitation(),
+        url: "https://proacademy-portal.proacademy-by-ak.workers.dev/einladung?token=local_only",
+      },
+    ]),
+  ).rejects.toThrow("Invalid invitation link");
 });

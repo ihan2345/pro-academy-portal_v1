@@ -15,7 +15,7 @@ export async function releaseManualInvitation(
       "Manuelle Einladungen sind noch nicht freigegeben.",
     );
   const origin = process.env.APP_URL;
-  if (origin !== "https://proacademy-portal.proacademy-by-ak.workers.dev")
+  if (origin !== "https://portal.proacademy-ak.com")
     throw new HttpError(503, "Einladungsadresse ist nicht freigegeben.");
   const token = randomBytes(32).toString("hex");
   const result = await serviceDb().rpc("release_parent_invitation", {

@@ -23,10 +23,10 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ProAcademyRunner"] }],
   "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
-    "APP_URL": "https://proacademy-portal.proacademy-by-ak.workers.dev",
+    "APP_URL": "https://portal.proacademy-ak.com",
     "APP_MODE": "production",
     "CAMP_DEPLOYMENT_ENABLED": "true",
-    "CAMP_PUBLIC_ORIGIN": "https://proacademy-portal.proacademy-by-ak.workers.dev",
+    "CAMP_PUBLIC_ORIGIN": "https://portal.proacademy-ak.com",
     "CAMP_STRIPE_MODE": "live",
     "CAMP_LIVE_PAYMENTS_ENABLED": "true",
     "CAMP_REVIEW_ENABLED": "true",
