@@ -775,10 +775,12 @@ function RecordTable({
   rows,
   fields,
   empty,
+  rowHref,
 }: {
   rows: RecordRow[];
   fields: string[];
   empty: string;
+  rowHref?: (row: RecordRow) => string;
 }) {
   return (
     <section className="panel table-scroll">
@@ -793,11 +795,28 @@ function RecordTable({
         <tbody>
           {rows.map((r, i) => (
             <tr key={String(r.id ?? i)}>
-              {fields.map((f) => (
-                <td key={f}>
-                  {typeof r[f] === "object"
-                    ? JSON.stringify(r[f])
-                    : String(r[f] ?? "—")}
+              {fields.map((f, column) => (
+                <td key={f} style={rowHref ? { padding: 0 } : undefined}>
+                  {rowHref ? (
+                    <a
+                      className="log-detail-link"
+                      href={rowHref(r)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      tabIndex={column === 0 ? 0 : -1}
+                      title="Protokolldetail als Text öffnen"
+                    >
+                      {typeof r[f] === "object"
+                        ? JSON.stringify(r[f])
+                        : String(r[f] ?? "—")}
+                    </a>
+                  ) : (
+                    <>
+                      {typeof r[f] === "object"
+                        ? JSON.stringify(r[f])
+                        : String(r[f] ?? "—")}
+                    </>
+                  )}
                 </td>
               ))}
             </tr>
@@ -1281,16 +1300,28 @@ function Logs({
   const [tab, setTab] = useState("notification_jobs"),
     [rows, setRows] = useState<RecordRow[]>([]);
   useEffect(() => {
+    let active = true;
     api(`admin/${tab}`, undefined, "GET")
-      .then((r) => setRows(r.rows))
-      .catch((e) => notify(e.message));
+      .then((r) => {
+        if (active) setRows(r.rows);
+      })
+      .catch((e) => {
+        if (active) notify(e.message);
+      });
+    return () => {
+      active = false;
+    };
   }, [tab]);
   const fields =
     tab === "audit_log"
       ? ["created_at", "actor_type", "action", "table_name", "record_id"]
       : tab === "report_snapshots"
         ? ["created_at", "player_id", "version"]
-        : ["created_at", "kind", "status", "attempts", "last_error"];
+        : tab === "notification_deliveries"
+          ? ["created_at", "job_id", "attempt", "provider", "status", "error"]
+          : tab === "job_runs"
+            ? ["created_at", "status", "error"]
+            : ["created_at", "kind", "status", "attempts", "last_error"];
   return (
     <>
       <div className="segmented log-tabs">
@@ -1304,13 +1335,22 @@ function Logs({
           <button
             key={key}
             className={tab === key ? "selected" : ""}
-            onClick={() => setTab(key)}
+            onClick={() => {
+              setRows([]);
+              setTab(key);
+            }}
           >
             {label}
           </button>
         ))}
       </div>
+      <p className="profile-muted">
+        Zeile anklicken: Details mit IDs als Text in einem neuen Tab öffnen.
+      </p>
       <RecordTable
+        rowHref={(r) =>
+          `/api/admin/log-detail?table=${encodeURIComponent(tab)}&id=${encodeURIComponent(String(r.id))}`
+        }
         rows={rows.map((r) =>
           r.status === "held"
             ? {

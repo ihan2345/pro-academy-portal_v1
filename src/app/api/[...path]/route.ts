@@ -6,6 +6,7 @@ import {
   changeProfileChild,
 } from "@/lib/server/parent-profile";
 import { readProfileFinances } from "@/lib/server/parent-profile-finances";
+import { loadLogDetail } from "@/lib/server/log-detail";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -516,6 +517,21 @@ async function handler(
     if (path.startsWith("admin/")) {
       assertRole(role, "admin");
       const action = path.slice(6);
+      if (action === "log-detail" && request.method === "GET") {
+        const detail = await loadLogDetail(
+          role,
+          request.nextUrl.searchParams.get("table") ?? "",
+          request.nextUrl.searchParams.get("id") ?? "",
+        );
+        return new NextResponse(detail.text, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Content-Disposition": `inline; filename="${detail.filename}"`,
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      }
       if (action === "user-activity" && request.method === "POST") {
         const { ids } = z
           .object({ ids: z.array(z.uuid()).min(1).max(100) })
