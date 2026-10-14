@@ -53,10 +53,15 @@ export async function verifyOffer(
       400,
       "Zahlungslink muss genau einen einmaligen EUR-Preis im passenden Zahlungsmodus enthalten.",
     );
-  if (!link.allow_promotion_codes || link.customer_creation !== "always")
+  if (link.customer_creation !== "always")
     throw new HttpError(
       400,
-      "Im Zahlungslink müssen Rabattcodes und Kundenerstellung aktiviert sein.",
+      "Im Zahlungslink muss die Kundenerstellung aktiviert sein.",
+    );
+  if (Object.values(codes).some(Boolean) && !link.allow_promotion_codes)
+    throw new HttpError(
+      400,
+      "Im Zahlungslink ist die Eingabe von Rabattcodes nicht aktiviert.",
     );
   const productId =
     typeof price.product === "string" ? price.product : price.product.id;
@@ -70,10 +75,13 @@ export async function verifyOffer(
     const promo = promotions.data.find(
       (p) => p.code.toLowerCase() === code.toLowerCase(),
     );
+    if (!promo || !promo.coupon.valid)
+      throw new HttpError(
+        400,
+        `Der Rabattcode für ${percent} % ist bei Stripe nicht aktiv oder nicht mehr gültig. Bitte kontaktiere die Academy.`,
+      );
     if (
-      !promo ||
       promo.coupon.percent_off !== Number(percent) ||
-      !promo.coupon.valid ||
       (promo.coupon.applies_to?.products &&
         !promo.coupon.applies_to.products.includes(productId))
     )

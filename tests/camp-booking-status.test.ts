@@ -131,6 +131,12 @@ beforeEach(() => {
     });
     const q: any = {
       select: () => q,
+      ilike: (key: string, value: string) => {
+        predicates.push(
+          (r) => String(r[key]).toLowerCase() === value.toLowerCase(),
+        );
+        return q;
+      },
       order: () => q,
       lte: () => q,
       gt: () => q,
@@ -174,6 +180,43 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.useRealTimers());
+it.each(["admin", null])(
+  "lets a new customer book without checking unrelated discounts while signed in as %s",
+  async (role) => {
+    f.session.mockResolvedValue(role ? { role, user: { id: "user" } } : null);
+    f.rows.parents = [];
+    f.rows.camp_offers[0].codes = {
+      "10": "INACTIVE10",
+      "15": "INACTIVE15",
+      "20": "INACTIVE20",
+    };
+    const { player_id, ...newCustomer } = input;
+    await createBooking(newCustomer);
+    expect(f.verify).toHaveBeenCalledWith("price_camp", "plink_camp", {});
+    expect(f.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ benefit_percent: 0, customer_group: "new" }),
+    );
+  },
+);
+it("checks only the benefit applicable to the linked child", async () => {
+  f.rows.camp_offers[0].codes = {
+    "10": "INACTIVE10",
+    "15": "BENEFIT",
+    "20": "INACTIVE20",
+  };
+  await createBooking(input);
+  expect(f.verify).toHaveBeenCalledWith("price_camp", "plink_camp", {
+    "15": "BENEFIT",
+  });
+});
+it("does not silently drop an entitled discount when its code is missing", async () => {
+  f.rows.camp_offers[0].codes = { "10": "OTHER" };
+  await expect(createBooking(input)).rejects.toThrow(
+    "kein Rabattcode hinterlegt",
+  );
+  expect(f.verify).not.toHaveBeenCalled();
+  expect(f.insert).not.toHaveBeenCalled();
+});
 it.each(["paid", "review"])(
   "blocks %s children before Stripe and suppresses their discount",
   async (status) => {

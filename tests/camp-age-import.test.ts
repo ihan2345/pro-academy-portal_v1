@@ -332,3 +332,193 @@ it("keeps same-aged possible siblings for manual review instead of creating a du
   );
   expect((await db.query("select * from players")).rows).toHaveLength(1);
 });
+
+async function freeBooking() {
+  await db.query("update profiles set role='admin' where id=$1", [id(3)]);
+  await db.query(
+    "insert into plans(id,name,included_units,athletics_units,is_camp,camp_id,is_public) values($1,'FirstTouch',0,0,true,$2,false)",
+    [id(81), id(1)],
+  );
+  await db.query(
+    "insert into camp_offers(id,camp_id,plan_id,kind,stripe_price_id,stripe_product_id,stripe_payment_link_id,payment_url,amount,currency) values($1,$2,$3,'main','price_free','prod_free','plink_free','https://buy.stripe.com/fixture',22900,'eur')",
+    [id(82), id(1), id(81)],
+  );
+  await db.query(
+    `insert into camp_bookings(id,camp_id,offer_id,browser_token_hash,parent_data,child_data,customer_group,benefit_percent,expected_amount,currency,stripe_price_id,stripe_payment_link_id,status,stripe_session_id,stripe_payment_id,stripe_customer_id,paid_amount,review_reason) values($1,$2,$3,'hash','{"name":"New Parent","email":"new@example.invalid"}','{}','new',0,22900,'eur','price_free','plink_free','review','cs_live_free','cs_live_free','cus_free',0,'Rabatt prüfen')`,
+    [id(83), id(1), id(82)],
+  );
+  return {
+    camp_id: id(1),
+    booking_id: id(83),
+    actor_id: id(3),
+    special_discount_approved: true,
+    notes: "Sonderrabatt ausdrücklich genehmigt",
+    parent_id: null,
+    player_id: null,
+    new_child: false,
+    new_parent: { name: "New Parent", email: "new@example.invalid" },
+    child: {
+      first_name: "New",
+      last_name: "Child",
+      birth_date: "2015-01-01",
+      age_at_booking: 11,
+      age_recorded_on: "2026-10-01",
+      gender: "keine Angabe",
+      clothing_size: "140",
+    },
+    proof: {
+      session_id: "cs_live_free",
+      session_status: "complete",
+      payment_status: "paid",
+      livemode: true,
+      payment_intent: null,
+      total: 0,
+      subtotal: 22900,
+      discount: 22900,
+      currency: "eur",
+      quantity: 1,
+      payment_link_id: "plink_free",
+      price_id: "price_free",
+      product_id: "prod_free",
+      customer_id: "cus_free",
+      created_at: "2026-10-01T10:00:00Z",
+    },
+  };
+}
+const approveFree = (v: object) =>
+  db.query("select camp_approve_free_booking($1)", [v]);
+it("approves the existing free booking atomically, records the exception and holds all mail without creating an abo", async () => {
+  const v = await freeBooking();
+  await approveFree(v);
+  const b = (
+    await db.query<any>("select * from camp_bookings where id=$1", [id(83)])
+  ).rows[0];
+  expect(b).toMatchObject({
+    status: "paid",
+    paid_amount: 0,
+    manual_notifications_held: true,
+    review_reason: null,
+    stripe_payment_id: "cs_live_free",
+  });
+  expect(b.parent_id).toBeTruthy();
+  expect(b.player_id).toBeTruthy();
+  expect(b.payment_details.special_discount_approval).toMatchObject({
+    actor_id: id(3),
+    percent: 100,
+    reason: v.notes,
+  });
+  expect((await db.query("select * from subscriptions")).rows).toHaveLength(0);
+  expect(
+    (await db.query("select * from entitlement_periods")).rows,
+  ).toHaveLength(0);
+  expect(
+    (
+      await db.query(
+        "select * from notification_jobs where kind like 'camp_%' or kind='invitation'",
+      )
+    ).rows,
+  ).toHaveLength(0);
+  expect(
+    (
+      await db.query(
+        "select * from audit_log where action='CAMP_FREE_BOOKING_APPROVED'",
+      )
+    ).rows,
+  ).toHaveLength(1);
+  await db.exec("savepoint repeated");
+  await expect(approveFree(v)).rejects.toThrow("nicht zur Freigabe");
+  await db.exec("rollback to savepoint repeated");
+  expect((await db.query("select * from parents")).rows).toHaveLength(1);
+});
+it("permits explicit existing-family and new-child selection without duplicating the parent", async () => {
+  const v = await freeBooking();
+  await family();
+  await approveFree({
+    ...v,
+    new_parent: null,
+    parent_id: id(4),
+    new_child: true,
+    child: { ...v.child, first_name: "Other" },
+  });
+  const b = (
+    await db.query<any>("select * from camp_bookings where id=$1", [id(83)])
+  ).rows[0];
+  expect(b.parent_id).toBe(id(4));
+  expect((await db.query("select * from parents")).rows).toHaveLength(1);
+});
+it.each(["actor", "consent", "amount", "session", "product", "family"])(
+  "rejects invalid free approval %s without partial family creation",
+  async (kind) => {
+    const v: any = await freeBooking();
+    if (kind === "actor")
+      await db.query("update profiles set role='staff' where id=$1", [id(3)]);
+    if (kind === "consent") v.special_discount_approved = false;
+    if (kind === "amount") v.proof.total = 1;
+    if (kind === "session") v.proof.session_id = "cs_live_other";
+    if (kind === "product") v.proof.product_id = "prod_other";
+    if (kind === "family") {
+      v.new_parent = null;
+      v.parent_id = id(10);
+      v.player_id = id(11);
+    }
+    await db.exec("savepoint bad_approval");
+    await expect(approveFree(v)).rejects.toThrow();
+    await db.exec("rollback to savepoint bad_approval");
+    expect((await db.query("select * from parents")).rows).toHaveLength(0);
+    expect(
+      (
+        await db.query<any>("select status from camp_bookings where id=$1", [
+          id(83),
+        ])
+      ).rows[0].status,
+    ).toBe("review");
+  },
+);
+it("keeps special approval inaccessible to authenticated callers", async () => {
+  expect(
+    (
+      await db.query<any>(
+        "select has_function_privilege('authenticated','camp_approve_free_booking(jsonb)','execute') allowed",
+      )
+    ).rows[0].allowed,
+  ).toBe(false);
+});
+it("keeps Camp notifications blocked even when every other booking-confirmation gate is enabled", async () => {
+  const v = await freeBooking();
+  await approveFree(v);
+  await db.query(
+    "update camps set days=jsonb_build_array(jsonb_build_object('starts_at',now()+interval '14 days','ends_at',now()+interval '14 days 5 hours')) where id=$1",
+    [id(1)],
+  );
+  await db.query(
+    "update system_settings set value=$1 where key='camp_mail_release'",
+    [
+      {
+        enabled: true,
+        starts_after: "2020-01-01",
+        booking_confirmation_enabled: true,
+        booking_confirmation_from: "2020-01-01",
+      },
+    ],
+  );
+  const query =
+    "select camp_notification_allowed('new@example.invalid','camp_booking_confirmation',jsonb_build_object('booking_id',b.id,'starts_at',c.days->0->>'starts_at','ends_at',c.days->0->>'ends_at')) allowed from camp_bookings b join camps c on c.id=b.camp_id where b.id=$1";
+  expect((await db.query<any>(query, [id(83)])).rows[0].allowed).toBe(false);
+  await db.query(
+    "update camp_bookings set manual_notifications_held=false where id=$1",
+    [id(83)],
+  );
+  expect((await db.query<any>(query, [id(83)])).rows[0].allowed).toBe(true);
+});
+it("rejects full Camps without leaving a new family or child behind", async () => {
+  const v = await freeBooking();
+  await db.query("update camps set capacity=1 where id=$1", [id(1)]);
+  await db.query(
+    "insert into camp_bookings select (jsonb_populate_record(null::camp_bookings,to_jsonb(b)||jsonb_build_object('id',$2::uuid,'stripe_session_id','cs_live_other','stripe_payment_id','cs_live_other','status','paid'))).* from camp_bookings b where id=$1",
+    [id(83), id(84)],
+  );
+  await db.exec("savepoint capacity");
+  await expect(approveFree(v)).rejects.toThrow("Kapazität");
+  await db.exec("rollback to savepoint capacity");
+  expect((await db.query("select * from parents")).rows).toHaveLength(0);
+});

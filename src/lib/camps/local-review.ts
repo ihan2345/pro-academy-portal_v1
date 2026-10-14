@@ -67,7 +67,7 @@ export async function campReview(campId: string, internal = false) {
   const [bookings, drafts, families] = await Promise.all([
     db
       .from("camp_bookings")
-      .select("stripe_payment_id,status")
+      .select("stripe_payment_id,status,payment_details")
       .eq("camp_id", campId)
       .not("stripe_payment_id", "is", null),
     db
@@ -102,6 +102,18 @@ export async function campReview(campId: string, internal = false) {
       .filter(
         (r) =>
           r.camp_id === campId &&
+          !bookings.data.some(
+            (b) =>
+              b.stripe_payment_id === r.payment_id &&
+              b.status === "paid" &&
+              b.payment_details?.special_discount_approval?.session_id ===
+                r.session_id &&
+              r.amount === 0 &&
+              r.issues.every(
+                (issue) =>
+                  issue === "Kostenloser Checkout; Sonderrabatt manuell prüfen",
+              ),
+          ) &&
           !removed.has(r.payment_id) &&
           (!imported.has(r.payment_id) || r.status !== "paid"),
       )

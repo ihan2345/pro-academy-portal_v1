@@ -15,6 +15,7 @@ import { CampError, campApi, date } from "./shared";
 import { CampDiscountCopy } from "./discount-copy";
 import { BookingStatusButton } from "./booking-status";
 import { StripeReview } from "./stripe-review";
+import { FreeCampReview } from "./free-review";
 type Booking = {
   id: string;
   camp_id: string;
@@ -497,6 +498,12 @@ export function CampDashboard({
                   </Link>
                 )}
               </nav>
+              {view === "pruefung" && data.role === "admin" && (
+                <FreeCampReview
+                  campId={camp.id}
+                  onApproved={() => void load()}
+                />
+              )}
               {view === "pruefung" &&
                 (team && data.local_stripe_review ? (
                   <StripeReview

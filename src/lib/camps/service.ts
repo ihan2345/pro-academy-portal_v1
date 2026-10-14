@@ -348,10 +348,20 @@ export async function createBooking(input: unknown) {
         );
     }
   }
+  const bookingCodes: Record<string, string> = {};
+  if (benefit.percent > 0) {
+    const code = offer.codes[String(benefit.percent)];
+    if (!code)
+      throw new HttpError(
+        400,
+        `Für deinen Abo-Rabatt von ${benefit.percent} % ist kein Rabattcode hinterlegt. Bitte kontaktiere die Academy.`,
+      );
+    bookingCodes[String(benefit.percent)] = code;
+  }
   await verifyOffer(
     offer.stripe_price_id,
     offer.stripe_payment_link_id,
-    offer.codes,
+    bookingCodes,
   );
   const id = randomUUID();
   check(

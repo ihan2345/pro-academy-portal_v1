@@ -7,6 +7,7 @@ import {
 } from "@/lib/server/parent-profile";
 import { readProfileFinances } from "@/lib/server/parent-profile-finances";
 import { loadLogDetail } from "@/lib/server/log-detail";
+import { campEnabled } from "@/lib/camps/runtime";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -619,12 +620,26 @@ async function handler(
           const matches = (parents ?? []).filter((p) =>
             sameFamilyContact(p, c),
           );
+          const campBookings = campEnabled()
+            ? await serviceDb()
+                .from("camp_bookings")
+                .select("id,camp_id,status,paid_amount")
+                .eq("stripe_customer_id", c.id)
+                .order("created_at", { ascending: false })
+                .limit(25)
+            : { data: [], error: null };
+          if (campBookings.error)
+            throw new HttpError(
+              503,
+              "Camp-Zuordnung konnte nicht geprüft werden.",
+            );
           return json({
             id: c.id,
             name: c.name,
             email: c.email,
             family_matches: matches,
             ambiguous: matches.length > 1,
+            camp_bookings: campBookings.data,
             subscriptions: await subscriptionPreviewLoader(stripe)(c.id),
           });
         }

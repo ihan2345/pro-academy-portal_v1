@@ -908,6 +908,7 @@ function StripeImport({
   }
   async function selectCustomer(customer: RegistryCustomer) {
     setBusy(true);
+    setPlayerId("");
     try {
       setCurrent(
         await api(
@@ -1101,131 +1102,167 @@ function StripeImport({
           title="Zuordnung manuell bestätigen"
           close={() => setCurrent(null)}
         >
-          <form
-            className="form-body"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              try {
-                await api("admin/stripe-link", {
-                  customer_id: current.id,
-                  subscription_id: f.get("subscription"),
-                  item_id: f.get("item"),
-                  parent_id: f.get("parent_id") || undefined,
-                  parent_name: f.get("name"),
-                  email: f.get("email"),
-                  player_id: f.get("player"),
-                });
-                notify(
-                  "Zuordnung gespeichert. Einladung vorgemerkt, Versand gesperrt.",
-                );
-                setCustomers((rows) =>
-                  rows.map((row) =>
-                    row.id === current.id ? { ...row, assigned: true } : row,
-                  ),
-                );
-                setCurrent(null);
-                router.refresh();
-              } catch (e) {
-                notify((e as Error).message);
-              }
-            }}
-          >
-            <p>Stripe-Kunde: {String(current.id)}</p>
-            {(
-              current.subscriptions as {
-                id: string;
-                status: string;
-                items: { id: string; product: string }[];
-              }[]
-            ).map((sub) => (
-              <div className="stripe-subscription" key={sub.id}>
-                <b>{sub.status}</b> · {sub.id}
-                {sub.items.map((item) => (
-                  <p key={item.id}>
-                    {item.product}
-                    <br />
-                    <small>{item.id}</small>
-                  </p>
-                ))}
-              </div>
-            ))}
-            <p>
-              Eine Namens- oder E-Mail-Übereinstimmung ist nur ein Vorschlag.
-              Bitte die Zuordnung prüfen.
-            </p>
-            <label>
-              Bestehende Eltern-ID (optional)
-              <input
-                name="parent_id"
-                placeholder="Leer: passendes Konto verwenden oder neu anlegen"
-                defaultValue={String(
-                  (current.family_matches as RecordRow[] | undefined)
-                    ?.length === 1
-                    ? (current.family_matches as RecordRow[])[0].id
-                    : "",
-                )}
-              />
-            </label>
-            <p>
-              Gleicher Name und gleiche E-Mail verwenden dasselbe Elternkonto.
-              Weitere Stripe-Kunden-IDs werden diesem Konto hinzugefügt.
-            </p>
-            <label>
-              Name des Elternteils
-              <input
-                required
-                name="name"
-                defaultValue={String(current.name ?? "")}
-              />
-            </label>
-            <label>
-              Bestätigte Kontakt-E-Mail
-              <input
-                name="email"
-                type="email"
-                required
-                defaultValue={String(current.email ?? "")}
-              />
-            </label>
-            <label>
-              Stripe-Abonnement-ID
-              <input name="subscription" required placeholder="sub_…" />
-            </label>
-            <label>
-              Stripe-Abonnement-Item-ID
-              <input name="item" required placeholder="si_…" />
-            </label>
-            <label>
-              Kind
-              <select
-                name="player"
-                required
-                value={playerId || players[0]?.id || ""}
-                onChange={(e) => setPlayerId(e.target.value)}
-              >
-                {players.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.first_name} {p.last_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => setNewChild(true)}
+          {!(current.subscriptions as unknown[])?.length ? (
+            <section className="form-body">
+              <p>Stripe-Kunde: {String(current.id)}</p>
+              <h3>Kein Stripe-Abo vorhanden</h3>
+              <p>
+                Für Campbuchungen – auch mit 100 % Rabatt – werden keine Abo-
+                oder Item-IDs benötigt. Bitte die Campbuchung dort prüfen und
+                zuordnen.
+              </p>
+              {(
+                current.camp_bookings as
+                  | {
+                      id: string;
+                      camp_id: string;
+                      status: string;
+                      paid_amount: number | null;
+                    }[]
+                  | undefined
+              )?.map((b) => (
+                <p key={b.id}>
+                  <Link href={`/camps/${b.camp_id}/pruefung`}>
+                    Campbuchung {b.id} ·{" "}
+                    {b.status === "review" ? "Zur Prüfung" : b.status}
+                    {b.paid_amount === 0 ? " · 0 € Zahlbetrag" : ""}
+                  </Link>
+                </p>
+              ))}
+              <Link className="secondary-button" href="/camps">
+                Zum Camp-Bereich
+              </Link>
+            </section>
+          ) : (
+            <form
+              className="form-body"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                try {
+                  await api("admin/stripe-link", {
+                    customer_id: current.id,
+                    subscription_id: f.get("subscription"),
+                    item_id: f.get("item"),
+                    parent_id: f.get("parent_id") || undefined,
+                    parent_name: f.get("name"),
+                    email: f.get("email"),
+                    player_id: f.get("player"),
+                  });
+                  notify(
+                    "Zuordnung gespeichert. Einladung vorgemerkt, Versand gesperrt.",
+                  );
+                  setCustomers((rows) =>
+                    rows.map((row) =>
+                      row.id === current.id ? { ...row, assigned: true } : row,
+                    ),
+                  );
+                  setCurrent(null);
+                  router.refresh();
+                } catch (e) {
+                  notify((e as Error).message);
+                }
+              }}
             >
-              Neues Kind anlegen
-            </button>
-            <label className="checkbox-label">
-              <input type="checkbox" required /> Ich habe Kunde, Kind und
-              Elternkonto geprüft.
-            </label>
-            <button className="primary-button">
-              Zuordnen & Einladung vormerken
-            </button>
-          </form>
+              <p>Stripe-Kunde: {String(current.id)}</p>
+              {(
+                current.subscriptions as {
+                  id: string;
+                  status: string;
+                  items: { id: string; product: string }[];
+                }[]
+              ).map((sub) => (
+                <div className="stripe-subscription" key={sub.id}>
+                  <b>{sub.status}</b> · {sub.id}
+                  {sub.items.map((item) => (
+                    <p key={item.id}>
+                      {item.product}
+                      <br />
+                      <small>{item.id}</small>
+                    </p>
+                  ))}
+                </div>
+              ))}
+              <p>
+                Eine Namens- oder E-Mail-Übereinstimmung ist nur ein Vorschlag.
+                Bitte die Zuordnung prüfen.
+              </p>
+              <label>
+                Bestehende Eltern-ID (optional)
+                <input
+                  name="parent_id"
+                  placeholder="Leer: passendes Konto verwenden oder neu anlegen"
+                  defaultValue={String(
+                    (current.family_matches as RecordRow[] | undefined)
+                      ?.length === 1
+                      ? (current.family_matches as RecordRow[])[0].id
+                      : "",
+                  )}
+                />
+              </label>
+              <p>
+                Gleicher Name und gleiche E-Mail verwenden dasselbe Elternkonto.
+                Weitere Stripe-Kunden-IDs werden diesem Konto hinzugefügt.
+              </p>
+              <label>
+                Name des Elternteils
+                <input
+                  required
+                  name="name"
+                  defaultValue={String(current.name ?? "")}
+                />
+              </label>
+              <label>
+                Bestätigte Kontakt-E-Mail
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  defaultValue={String(current.email ?? "")}
+                />
+              </label>
+              <label>
+                Stripe-Abonnement-ID
+                <input name="subscription" required placeholder="sub_…" />
+              </label>
+              <label>
+                Stripe-Abonnement-Item-ID
+                <input name="item" required placeholder="si_…" />
+              </label>
+              <label>
+                Kind
+                <select
+                  name="player"
+                  required
+                  value={playerId || ""}
+                  onChange={(e) => setPlayerId(e.target.value)}
+                >
+                  <option value="" disabled>
+                    Kind ausdrücklich auswählen
+                  </option>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.first_name} {p.last_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setNewChild(true)}
+              >
+                Neues Kind anlegen
+              </button>
+              <label className="checkbox-label">
+                <input type="checkbox" required /> Ich habe Kunde, Kind und
+                Elternkonto geprüft.
+              </label>
+              <button className="primary-button">
+                Zuordnen & Einladung vormerken
+              </button>
+            </form>
+          )}
         </Modal>
       )}
       {newChild && (

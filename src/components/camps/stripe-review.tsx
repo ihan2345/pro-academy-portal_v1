@@ -19,7 +19,7 @@ type Draft = {
   age_range_confirmed?: boolean;
   new_parent?: { name: string; email: string; phone: string } | null;
 };
-type Family = {
+export type Family = {
   id: string;
   full_name: string;
   parent_players: {
@@ -34,7 +34,8 @@ type Family = {
     };
   }[];
 };
-type Record = {
+export type Record = {
+  booking_id?: string;
   payment_id: string;
   child_name: string;
   parent_name: string;
@@ -59,7 +60,7 @@ type Review = {
   families: Family[];
   imported_count: number;
 };
-function ReviewEditor({
+export function ReviewEditor({
   record,
   families,
   campId,
@@ -104,6 +105,14 @@ function ReviewEditor({
   );
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
+  const [proof, setProof] = useState<{
+    subtotal: number;
+    discount: number;
+    total: number;
+    session_id: string;
+    customer_id: string | null;
+  } | null>(null);
+  const [approved, setApproved] = useState(false);
   const update = (key: keyof Child, value: string | number | null) =>
     setDraft((d) => ({ ...d, child: { ...d.child, [key]: value } }));
   return (
@@ -117,13 +126,30 @@ function ReviewEditor({
           (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") ===
           "import";
         try {
-          await campApi(add ? "review-import" : "review-save", {
-            ...draft,
-            camp_id: campId,
-            payment_id: record.payment_id,
-          });
+          await campApi(
+            record.booking_id
+              ? "free-approve"
+              : add
+                ? "review-import"
+                : "review-save",
+            {
+              ...draft,
+              camp_id: campId,
+              payment_id: record.payment_id,
+              ...(record.booking_id
+                ? {
+                    booking_id: record.booking_id,
+                    special_discount_approved: approved,
+                  }
+                : {}),
+            },
+          );
           setMessage(
-            add ? "Kind zum Camp hinzugefügt." : "Angaben gespeichert.",
+            record.booking_id
+              ? "Campteilnahme mit 100 % Sonderrabatt bestätigt. Keine E-Mail freigegeben."
+              : add
+                ? "Kind zum Camp hinzugefügt."
+                : "Angaben gespeichert.",
           );
           await done();
         } catch (e) {
@@ -133,7 +159,53 @@ function ReviewEditor({
         }
       }}
     >
-      <fieldset disabled={busy} className="camp-review-fields">
+      <fieldset
+        disabled={busy}
+        className="camp-review-fields"
+        onChangeCapture={() => {
+          if (record.booking_id) setApproved(false);
+        }}
+      >
+        {record.booking_id && (
+          <section>
+            <p>Buchungs-ID: {record.booking_id}</p>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={async () => {
+                setBusy(true);
+                setMessage("");
+                setProof(null);
+                setApproved(false);
+                try {
+                  setProof(
+                    await campApi(`free-proof?booking_id=${record.booking_id}`),
+                  );
+                } catch (e) {
+                  setMessage((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Stripe-Nachweis prüfen
+            </button>
+            {proof && (
+              <>
+                <p>
+                  Stripe bestätigt: Checkout abgeschlossen · Preis{" "}
+                  {money(proof.subtotal)} · Rabatt {money(proof.discount)} (100
+                  %) · Zahlbetrag {money(proof.total)}.
+                </p>
+                <p>
+                  Checkout-ID: {proof.session_id}
+                  <br />
+                  Stripe-Kunde: {proof.customer_id ?? "Nicht gespeichert"}
+                </p>
+              </>
+            )}
+          </section>
+        )}
         <label>
           Familie
           <select
@@ -150,7 +222,12 @@ function ReviewEditor({
                 parent_id: null,
                 player_id: null,
                 new_child: e.target.value === "sibling",
-                child: { ...d.child, birth_date: undefined },
+                child: {
+                  ...d.child,
+                  birth_date: record.booking_id
+                    ? record.draft?.child.birth_date
+                    : undefined,
+                },
                 new_parent:
                   e.target.value === "new"
                     ? {
@@ -239,7 +316,10 @@ function ReviewEditor({
                         ...d.child,
                         first_name: child.first_name,
                         last_name: child.last_name,
-                        birth_date: undefined,
+                        birth_date: record.booking_id
+                          ? (child.camp_birth_date ??
+                            record.draft?.child.birth_date)
+                          : undefined,
                         gender: child.camp_gender || d.child.gender,
                         clothing_size:
                           d.child.clothing_size ||
@@ -296,6 +376,16 @@ function ReviewEditor({
               }
             />
             <small>Am {date(record.created_at)} · Angabe aus dem Kauf</small>
+            {record.booking_id && draft.child.birth_date && (
+              <small>
+                Bekanntes Geburtsdatum:{" "}
+                {new Intl.DateTimeFormat("de-DE", {
+                  dateStyle: "medium",
+                  timeZone: "UTC",
+                }).format(new Date(draft.child.birth_date))}
+                . Das Alter kann hier leer bleiben.
+              </small>
+            )}
           </label>
           <label>
             Geschlecht
@@ -335,38 +425,67 @@ function ReviewEditor({
           </label>
         )}
         <label>
-          Prüfnotiz
+          {record.booking_id
+            ? "Begründung der Sonderfreigabe (Pflichtfeld)"
+            : "Prüfnotiz"}
           <textarea
+            required={!!record.booking_id}
+            minLength={record.booking_id ? 3 : undefined}
             value={draft.notes}
             maxLength={2000}
             onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
           />
         </label>
+        {record.booking_id && (
+          <>
+            <label className="camp-inline-checkbox">
+              <input
+                type="checkbox"
+                checked={approved}
+                disabled={!proof}
+                onChange={(e) => setApproved(e.target.checked)}
+              />
+              100-%-Sonderrabatt, Elternteil und Kind geprüft und genehmigt.
+            </label>
+            <p>
+              Diese Freigabe erstellt kein Abo und keine Trainingseinheiten. Es
+              wird keine Einladung oder Eltern-E-Mail freigegeben. Admin,
+              Zeitpunkt und Begründung werden protokolliert.
+            </p>
+          </>
+        )}
         <p className="camp-muted">
           {draft.new_parent
             ? "Eltern und Kind werden erst beim Hinzufügen angelegt. Ein bestehender Kontakt mit derselben E-Mail muss zugeordnet werden. Es wird keine Einladung versendet."
             : "Die ausgewählte Eltern-Kind-Verknüpfung bleibt bestehen. Die Namen gelten für diese Camp-Buchung; das Alter bei Buchung und die Camp-Angaben werden am Kind hinterlegt. Bekannte Geburtsdaten bleiben erhalten."}
         </p>
         <div className="camp-actions">
-          <button className="secondary-button" type="submit" value="save">
-            Angaben speichern
-          </button>
+          {!record.booking_id && (
+            <button className="secondary-button" type="submit" value="save">
+              Angaben speichern
+            </button>
+          )}
           <button
             className="primary-button"
             type="submit"
             value="import"
             disabled={
-              record.status !== "paid" ||
+              (record.booking_id
+                ? !proof || !approved || draft.notes.trim().length < 3
+                : record.status !== "paid") ||
               (draft.new_parent
                 ? !draft.new_parent.name || !draft.new_parent.email
                 : !draft.parent_id || (!draft.new_child && !draft.player_id)) ||
-              draft.child.age_at_booking == null ||
+              (draft.child.age_at_booking == null &&
+                !(record.booking_id && draft.child.birth_date)) ||
               !draft.child.first_name ||
               !draft.child.last_name ||
               !draft.child.clothing_size
             }
           >
-            Zum Camp hinzufügen
+            {record.booking_id
+              ? "Campteilnahme mit 100 % Rabatt bestätigen"
+              : "Zum Camp hinzufügen"}
           </button>
         </div>
       </fieldset>

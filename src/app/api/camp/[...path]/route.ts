@@ -22,6 +22,11 @@ import {
 import { campReadiness } from "@/lib/camps/readiness";
 import { campReview } from "@/lib/camps/local-review";
 import { saveCampReview } from "@/lib/camps/import-review";
+import {
+  freeCampReview,
+  freeCampProof,
+  approveFreeCampBooking,
+} from "@/lib/camps/free-review";
 import { campAppOrigin } from "@/lib/camps/runtime";
 import { benefitSchema } from "@/lib/camps/domain";
 import { serviceDb, sessionDb } from "@/lib/server/supabase";
@@ -41,6 +46,14 @@ async function handler(
     if (req.method !== "GET") requireCampOrigin(req);
     const path = (await ctx.params).path.join("/");
     if (req.method === "GET") {
+      if (path === "free-review")
+        return json(
+          await freeCampReview(req.nextUrl.searchParams.get("camp_id") ?? ""),
+        );
+      if (path === "free-proof")
+        return json(
+          await freeCampProof(req.nextUrl.searchParams.get("booking_id") ?? ""),
+        );
       if (path === "review" || path === "local-review")
         return json(
           await campReview(z.uuid().parse(req.nextUrl.searchParams.get("id"))),
@@ -94,6 +107,8 @@ async function handler(
         return json(await saveCampReview(body, false));
       if (path === "review-import")
         return json(await saveCampReview(body, true));
+      if (path === "free-approve")
+        return json(await approveFreeCampBooking(body));
       if (path === "confirm")
         return json(
           await confirmPayment(
