@@ -426,3 +426,15 @@ Veröffentlichung weiterhin zurückgestellt. Für spätere Bereitstellung: SQL `
 „Angaben des Kindes bearbeiten“ enthält für verknüpfte Eltern und Admins zusätzlich Geschlecht, Verein, Position, starker Fuß, Größe in cm und Entwicklungsziele. Alle sechs Felder sind optional, werden am Kind gespeichert, erneut ins Formular geladen und können geleert werden. Geschlecht: männlich/weiblich/divers/keine Angabe; starker Fuß: rechts/links/beidfüßig/keine Angabe. Verein und Position sind Freitext, Ziele mehrzeilig (max. 2000 Zeichen), Größe ganzzahlig 50–250 cm. Camp-Buchungsangaben bleiben separat; keine bestehenden Daten werden automatisch überschrieben.
 
 Gezielte Migration `202610150001_child_optional_details.sql` vor der Portalveröffentlichung anwenden. Neue Eltern-RPC übernimmt die bestehenden Eigentümer-/Archivprüfungen, speichert Basis- und Zusatzfelder atomar und lässt bei fehlenden optionalen Schlüsseln bestehende Werte unverändert. Admins nutzen weiterhin ihre bestehende Berechtigung; Mitarbeiter erhalten keine neuen Schreibrechte. Keine produktive Migration, Veröffentlichung oder Elternaktivierung durchgeführt.
+
+### Veröffentlichung abgeschlossen – Konto-E-Mail-Einstellung und Kinderangaben (15.10.2026)
+
+Auf ausdrücklichen Auftrag „commit + deploy für die letzten änderungen“ wurde Funktionsstand `ea129a8` auf `main` gepusht und veröffentlicht. Die oben als lokal vorbereitet dokumentierten Funktionen sind damit produktiv verfügbar; die separate erste Elternwelle bleibt gesperrt bis zum Befehl **„5 Eltern aktivieren“**.
+
+- SQL 009 und Migration `202610150001_child_optional_details.sql` gezielt gemeinsam transaktional angewendet; anschließend Jobs-Runner und Portal bereitgestellt. Kein pauschales db push.
+- Portal-Version `fd572202-eb82-43a2-89cb-00bfe2b223b5`, Jobs-Runner-Version `5f1b63af-64c1-46ad-89e4-181f02dfaf7a`. Bestehende Laufzeitvariablen unverändert. Produktionsbuild mit expliziter Portal-URL und Produktionsmodus erstellt.
+- Prüfung: 652 Tests erfolgreich; nach letzter Worker-Fehlerbehandlungsanpassung zusätzlich alle 13 Trainingsmail-Worker-Tests erfolgreich. Next-/Cloudflare-Produktionsbuild und Container-Build erfolgreich.
+- Online: Login HTTP 200, anonyme Präferenzabfrage HTTP 403, unzulässiger Cross-Origin-Schreibzugriff HTTP 400. Ausgelieferte Bundles für E-Mail-Einstellung und optionale Kinderangaben bytegleich mit dem geprüften Build. Runner-Verbindungsprüfung für Supabase, Stripe, SMTP und PDF erfolgreich, ohne Versand.
+- Datenbank: sechs neue Kinderfelder vorhanden, kein anonymer Schreibzugriff, keine Präferenzdatensätze vorab angelegt. Bestehende Versandentscheidungen, Elternzustände und Freigaben im Vor-/Nachvergleich unverändert. Queue weiterhin 657 held, 32 sent, 1 uncertain. Keine Einladungen oder Testmails ausgelöst und keine alten Nachrichten freigegeben.
+
+Private technische Nachweise liegen unter `output/account-release/`. Die Magic-Link-Vorlage mit Browserhinweis ist ebenfalls im Commit enthalten und wurde bereits zuvor in Supabase veröffentlicht.
