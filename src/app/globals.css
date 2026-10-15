@@ -3452,3 +3452,12 @@ label {
 .premium-child.neon .profile-metrics { border-color:#34460033; }
 
 .profile-form textarea { resize: vertical; font: inherit; }
+
+.player-api-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.player-api-actions > button {
+  white-space: normal;
+}

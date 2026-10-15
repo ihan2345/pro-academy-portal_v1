@@ -2,7 +2,13 @@
 import { useState } from "react";
 import { Mail, ArrowRight, ShieldCheck } from "lucide-react";
 import { Brand } from "./portal";
-export function LoginForm({ initialError = "" }: { initialError?: string }) {
+export function LoginForm({
+  initialError = "",
+  playerId,
+}: {
+  initialError?: string;
+  playerId?: string;
+}) {
   const [email, setEmail] = useState(""),
     [message, setMessage] = useState(initialError),
     [busy, setBusy] = useState(false),
@@ -35,7 +41,10 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
                 const response = await fetch("/api/auth/login", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email }),
+                  body: JSON.stringify({
+                    email,
+                    ...(playerId ? { player_id: playerId } : {}),
+                  }),
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);

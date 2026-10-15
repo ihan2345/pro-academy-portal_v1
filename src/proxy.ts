@@ -37,6 +37,6 @@ export async function proxy(request: NextRequest) {
 }
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|brand/|sw.js|manifest.webmanifest|api/stripe/webhook|api/camp/webhook|api/cron|api/public/trainings/).*)",
+    "/((?!_next/static|_next/image|brand/|sw.js|manifest.webmanifest|api/stripe/webhook|api/camp/webhook|api/cron|api/public/trainings/|api/public/players/).*)",
   ],
 };

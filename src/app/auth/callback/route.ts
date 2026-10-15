@@ -23,7 +23,16 @@ export async function GET(request: NextRequest) {
           );
         store.delete("pa_invitation");
       }
-      return NextResponse.redirect(new URL("/", portalUrl));
+      const player = store.get("pa_player_redirect")?.value;
+      if (player) store.delete("pa_player_redirect");
+      const target =
+        player &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          player,
+        )
+          ? `/admin/spieler/${player}`
+          : "/";
+      return NextResponse.redirect(new URL(target, portalUrl));
     }
   }
   return NextResponse.redirect(new URL("/login?error=auth", portalUrl));

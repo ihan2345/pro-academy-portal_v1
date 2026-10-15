@@ -142,8 +142,8 @@ async function handler(
     if (request.method !== "GET") requireOrigin(request);
 
     if (path === "auth/login" && request.method === "POST") {
-      const { email } = z
-        .object({ email: z.email() })
+      const { email, player_id } = z
+        .object({ email: z.email(), player_id: z.uuid().optional() })
         .parse(await request.json());
       if (!isAllowedTestLogin(email))
         throw new HttpError(
@@ -165,6 +165,15 @@ async function handler(
         if (error) throw error;
         invitationValid = !!data;
       }
+      if (player_id)
+        store.set("pa_player_redirect", player_id, {
+          httpOnly: true,
+          secure: new URL(required("APP_URL")).protocol === "https:",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 3600,
+        });
+      else store.delete("pa_player_redirect");
       const db = await sessionDb();
       await db.auth.signInWithOtp({
         email,

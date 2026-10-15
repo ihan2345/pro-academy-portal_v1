@@ -95,3 +95,29 @@ describe("authentication redirects preserve the configured cookie host", () => {
     expect(response.cookies.get("pa_invitation")?.value).toHaveLength(64);
   });
 });
+
+it("returns a player-link login to the protected card, accepting only a UUID", async () => {
+  const player = "12345678-1234-4234-8234-123456789012";
+  mocks.get.mockImplementation((name) =>
+    name === "pa_player_redirect" ? { value: player } : undefined,
+  );
+  const r = await callback(
+    new NextRequest(
+      `http://127.0.0.1:3000/auth/callback?code=example&player=${player}`,
+    ),
+  );
+  expect(r.headers.get("location")).toBe(
+    `http://127.0.0.1:3000/admin/spieler/${player}`,
+  );
+  mocks.get.mockImplementation((name) =>
+    name === "pa_player_redirect"
+      ? { value: "https://attacker.example" }
+      : undefined,
+  );
+  const bad = await callback(
+    new NextRequest(
+      "http://127.0.0.1:3000/auth/callback?code=example&player=https://attacker.example",
+    ),
+  );
+  expect(bad.headers.get("location")).toBe("http://127.0.0.1:3000/");
+});

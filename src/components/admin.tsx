@@ -17,6 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Badge, Modal } from "./portal";
+import { PlayerApiShare } from "./player-api-share";
 import { api } from "./team";
 import {
   filterCustomers,
@@ -711,6 +712,9 @@ export function AdminView({
           </p>
           <button className="primary-button">Einstellungen speichern</button>
         </form>
+      )}
+      {slug === "einstellungen" && data.role === "admin" && (
+        <PlayerApiShare notify={notify} />
       )}
       {edit && config && (
         <Modal
