@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { EmailPreference, flushEmailPreference } from "./email-preference";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -828,6 +829,7 @@ export function Portal({
                   )}
                   {section === "konto" && (
                     <div className="account-grid">
+                      <EmailPreference email={data.email} notify={setToast} />
                       <section className="panel account-panel">
                         <h2>Dein Elternkonto</h2>
                         <div className="account-person">
@@ -923,6 +925,14 @@ export function Portal({
             <button
               className="secondary-button"
               onClick={async () => {
+                try {
+                  await flushEmailPreference();
+                } catch {
+                  setToast(
+                    "E-Mail-Einstellung konnte nicht gespeichert werden. Bitte vor dem Abmelden erneut versuchen.",
+                  );
+                  return;
+                }
                 const res = await fetch("/api/auth/logout", { method: "POST" });
                 if (res.ok) window.location.assign("/login");
                 else

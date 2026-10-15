@@ -34,6 +34,12 @@ export interface ProfileUnit {
   location: string;
 }
 export interface ProfileChild {
+  gender?: "männlich" | "weiblich" | "divers" | null;
+  club?: string | null;
+  position?: string | null;
+  strong_foot?: "rechts" | "links" | "beidfüßig" | null;
+  height_cm?: number | null;
+  development_goals?: string | null;
   first_name: string;
   last_name: string;
   birth_year: number | null;

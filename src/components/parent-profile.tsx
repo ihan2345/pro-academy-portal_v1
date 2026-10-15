@@ -948,6 +948,14 @@ export function ProfileView({
                   ? Number(form.get("birth_year"))
                   : null,
                 team: String(form.get("team")),
+                gender: form.get("gender") || null,
+                club: String(form.get("club") ?? ""),
+                position: String(form.get("position") ?? ""),
+                strong_foot: form.get("strong_foot") || null,
+                height_cm: form.get("height_cm")
+                  ? Number(form.get("height_cm"))
+                  : null,
+                development_goals: String(form.get("development_goals") ?? ""),
               });
             }}
           >
@@ -989,6 +997,69 @@ export function ProfileView({
                 name="team"
                 maxLength={40}
                 defaultValue={editableChild.team}
+              />
+            </label>
+            <p className="profile-muted">
+              Die folgenden Angaben sind freiwillig und können jederzeit wieder
+              entfernt werden.
+            </p>
+            <label>
+              Geschlecht (optional)
+              <select name="gender" defaultValue={editableChild.gender ?? ""}>
+                <option value="">Keine Angabe</option>
+                <option value="männlich">Männlich</option>
+                <option value="weiblich">Weiblich</option>
+                <option value="divers">Divers</option>
+              </select>
+            </label>
+            <label>
+              Verein (optional)
+              <input
+                name="club"
+                maxLength={120}
+                defaultValue={editableChild.club ?? ""}
+              />
+            </label>
+            <label>
+              Position (optional)
+              <input
+                name="position"
+                maxLength={80}
+                placeholder="z. B. Mittelfeld oder Torwart"
+                defaultValue={editableChild.position ?? ""}
+              />
+            </label>
+            <label>
+              Starker Fuß (optional)
+              <select
+                name="strong_foot"
+                defaultValue={editableChild.strong_foot ?? ""}
+              >
+                <option value="">Keine Angabe</option>
+                <option value="rechts">Rechts</option>
+                <option value="links">Links</option>
+                <option value="beidfüßig">Beidfüßig</option>
+              </select>
+            </label>
+            <label>
+              Größe in cm (optional)
+              <input
+                name="height_cm"
+                type="number"
+                min={50}
+                max={250}
+                step={1}
+                defaultValue={editableChild.height_cm ?? ""}
+              />
+            </label>
+            <label>
+              Entwicklungsziele (optional)
+              <textarea
+                name="development_goals"
+                rows={4}
+                maxLength={2000}
+                placeholder="Was möchte dein Kind im Training verbessern?"
+                defaultValue={editableChild.development_goals ?? ""}
               />
             </label>
             {error && (

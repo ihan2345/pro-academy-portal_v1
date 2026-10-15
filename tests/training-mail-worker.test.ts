@@ -68,7 +68,9 @@ it("does not send when the final eligibility check rejects a changed recipient o
           ? ++checks === 1
             ? job
             : null
-          : null,
+          : name === "email_job_preference_allows"
+            ? true
+            : null,
   }));
   const provider = { name: "proton", send: vi.fn() };
   expect(await processMail(provider)).toBe(0);
@@ -83,7 +85,9 @@ it("uses the existing provider and completion record exactly once", async () => 
         ? [job]
         : name === "prepare_training_notification"
           ? job
-          : null,
+          : name === "email_job_preference_allows"
+            ? true
+            : null,
   }));
   const provider = {
     name: "proton",
@@ -103,7 +107,9 @@ it("quarantines an uncertain SMTP result rather than scheduling a blind retry", 
         ? [job]
         : name === "prepare_training_notification"
           ? job
-          : null,
+          : name === "email_job_preference_allows"
+            ? true
+            : null,
   }));
   const provider = {
     name: "proton",
@@ -171,7 +177,9 @@ it("rechecks staff eligibility immediately before the existing SMTP provider", a
           ? ++checks === 1
             ? staffJob
             : null
-          : null,
+          : name === "email_job_preference_allows"
+            ? true
+            : null,
   }));
   const provider = { name: "proton", send: vi.fn() };
   expect(await processMail(provider)).toBe(0);
@@ -186,7 +194,9 @@ it("sends the team summary through the existing provider once after both checks"
         ? [staffJob]
         : name === "prepare_staff_training_notification"
           ? staffJob
-          : null,
+          : name === "email_job_preference_allows"
+            ? true
+            : null,
   }));
   const provider = {
     name: "proton",
@@ -204,4 +214,27 @@ it("fails closed for team summaries when the new database function is unavailabl
       payload: { ...staffJob.payload, training_notice: false },
     }),
   ).rejects.toMatchObject({ code: "PGRST202" });
+});
+
+it("blocks SMTP if a parent opted out after a mail was claimed", async () => {
+  mocks.rpc.mockImplementation(async (name: string) => ({
+    error: null,
+    data:
+      name === "claim_notifications"
+        ? [job]
+        : name === "prepare_training_notification"
+          ? job
+          : name === "email_job_preference_allows"
+            ? false
+            : null,
+  }));
+  const provider = { name: "proton", send: vi.fn() };
+  expect(await processMail(provider)).toBe(0);
+  expect(provider.send).not.toHaveBeenCalled();
+  expect(mocks.rpc).toHaveBeenCalledWith(
+    "finish_notification",
+    expect.objectContaining({
+      input: expect.objectContaining({ status: "held" }),
+    }),
+  );
 });

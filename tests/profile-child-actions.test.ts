@@ -45,3 +45,38 @@ it("parents cannot unlink children", async () => {
     changeProfileChild({ role: "parent" } as any, "parent", "unlink", {}),
   ).rejects.toThrow("Keine Berechtigung");
 });
+
+it("accepts optional football details, normalizes blanks and rejects invalid sizes and enums", () => {
+  const base = {
+    child_id: "a1234567-1234-4234-8234-123456789012",
+    first_name: "Ada",
+    last_name: "Test",
+    birth_year: 2015,
+    team: "U11",
+  };
+  expect(
+    profileChildSchema.parse({
+      ...base,
+      club: "  ",
+      development_goals: "  Ballkontrolle  ",
+      height_cm: 145,
+      strong_foot: "beidfüßig",
+      gender: null,
+    }),
+  ).toMatchObject({
+    club: null,
+    development_goals: "Ballkontrolle",
+    height_cm: 145,
+  });
+  for (const extra of [
+    { height_cm: 0 },
+    { height_cm: 251 },
+    { height_cm: 150.5 },
+    { strong_foot: "falsch" },
+    { gender: "falsch" },
+    { development_goals: "x".repeat(2001) },
+  ])
+    expect(profileChildSchema.safeParse({ ...base, ...extra }).success).toBe(
+      false,
+    );
+});

@@ -1,3 +1,4 @@
+import { emailPreferenceAllows } from "../src/lib/server/email-preference";
 import { serviceDb } from "../src/lib/server/service-db";
 import { HttpError, assertRole } from "../src/lib/server/security";
 import { renderReport, type ReportSnapshot } from "../src/lib/pdf";
@@ -95,6 +96,11 @@ export async function deliverManualStampCard(
         },
       ],
     };
+    if (!(await emailPreferenceAllows(job)))
+      throw new HttpError(
+        403,
+        "Der Empfänger hat den E-Mail-Empfang deaktiviert.",
+      );
     started = true;
     const result = await provider.send(mail);
     const final = await adminDb.rpc("finish_notification", {

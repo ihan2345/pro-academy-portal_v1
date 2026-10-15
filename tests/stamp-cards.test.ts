@@ -148,6 +148,8 @@ beforeEach(() => {
     }));
   mocks.from.mockImplementation(query);
   mocks.rpc.mockImplementation(async (name, { input }) => {
+    if (name === "email_job_preference_allows")
+      return { data: true, error: null };
     if (name === "finish_notification")
       Object.assign(
         saved.find((job) => job.id === input.id)!,
@@ -531,8 +533,24 @@ describe("direct manual stamp card delivery", () => {
       payload: { manual_email: true, actor_id: "coach" },
     });
     expect(
-      mocks.rpc.mock.calls.every(([name]) => name === "finish_notification"),
+      mocks.rpc.mock.calls.every(([name]) =>
+        ["finish_notification", "email_job_preference_allows"].includes(name),
+      ),
     ).toBe(true);
+  });
+  it("blocks direct manual delivery when the recipient opted out", async () => {
+    const mail = provider();
+    const original = mocks.rpc.getMockImplementation()!;
+    mocks.rpc.mockImplementation(async (name, args) =>
+      name === "email_job_preference_allows"
+        ? { data: false, error: null }
+        : original(name, args),
+    );
+    await expect(
+      sendViaRunner(db, "staff", "coach", input, mail),
+    ).rejects.toThrow();
+    expect(mail.send).not.toHaveBeenCalled();
+    expect(saved[0].status).toBe("held");
   });
   it("does not let simultaneous requests claim the same message twice", async () => {
     const mail = provider();

@@ -46,6 +46,9 @@ beforeAll(async () => {
   await db.exec(
     readFileSync("supabase/release/008-training-planning-grace.sql", "utf8"),
   );
+  await db.exec(
+    readFileSync("supabase/release/009-parent-email-preference.sql", "utf8"),
+  );
 });
 afterAll(async () => db.close());
 const query = async (sql: string, args: unknown[] = []) =>
@@ -1579,4 +1582,135 @@ it("keeps grace attendance and reporting charged to the original period", async 
   expect(new Date(row.snapshot.ends_at).toISOString()).toBe(
     "2025-10-07T12:40:49.000Z",
   );
+});
+
+it("defaults to enabled and saves only the signed-in parent's preference without opening release gates", async () => {
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+    id(101),
+  ]);
+  expect((await query("select my_email_preference() enabled"))[0].enabled).toBe(
+    true,
+  );
+  await db.exec("select set_my_email_preference(false)");
+  expect((await query("select my_email_preference() enabled"))[0].enabled).toBe(
+    false,
+  );
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+    id(102),
+  ]);
+  expect((await query("select my_email_preference() enabled"))[0].enabled).toBe(
+    true,
+  );
+  expect(
+    (await query("select count(*)::int n from parent_email_preferences"))[0].n,
+  ).toBe(1);
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+    id(101),
+  ]);
+  await db.exec(
+    "select set_my_email_preference(true); update parents set notifications_held=true",
+  );
+  expect(
+    (
+      await query(
+        "select parent_delivery_allowed('parent1@test.invalid','stamp_card','{}') allowed",
+      )
+    )[0].allowed,
+  ).toBe(false);
+});
+it("holds existing and new opt-out mail permanently, while allowing fresh mail after reactivation", async () => {
+  const event = await save();
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+    id(101),
+  ]);
+  await db.exec("select set_my_email_preference(false)");
+  const old = (
+    await query(
+      "select status,payload from notification_jobs where kind='planning'",
+    )
+  )[0];
+  expect(old.status).toBe("held");
+  expect(old.payload.email_preference_discarded).toBe(true);
+  await db.exec(
+    "insert into notification_jobs(idempotency_key,kind,recipient,payload) values('while-off','stamp_card','parent1@test.invalid','{}')",
+  );
+  expect(
+    (
+      await query(
+        "select payload from notification_jobs where idempotency_key='while-off'",
+      )
+    )[0].payload.email_preference_discarded,
+  ).toBe(true);
+  // Manual approval is subordinate to a parent's personal opt-out.
+  expect(
+    (
+      await query(
+        "select parent_delivery_allowed('parent1@test.invalid','planning',$1) allowed",
+        [
+          {
+            event_id: event,
+            player_id: id(11),
+            parent_id: id(21),
+            manual_training_notice: true,
+          },
+        ],
+      )
+    )[0].allowed,
+  ).toBe(false);
+  await db.exec("select set_my_email_preference(true)");
+  expect(
+    (
+      await query(
+        "select email_preference_allows('parent1@test.invalid','stamp_card',payload) allowed from notification_jobs where idempotency_key='while-off'",
+      )
+    )[0].allowed,
+  ).toBe(false);
+  expect(
+    (
+      await query(
+        "select parent_delivery_allowed('parent1@test.invalid','stamp_card','{}') allowed",
+      )
+    )[0].allowed,
+  ).toBe(true);
+});
+it("rejects unlinked users and direct preference-table writes", async () => {
+  await db.exec("savepoint unauthorized; set local role authenticated");
+  await expect(
+    db.exec("select set_my_email_preference(false)"),
+  ).rejects.toThrow();
+  await db.exec(
+    "rollback to savepoint unauthorized; savepoint direct_write; set local role authenticated",
+  );
+  await expect(
+    db.exec(
+      "insert into parent_email_preferences(parent_id,enabled) values('a0000000-0000-4000-8000-000000000021',false)",
+    ),
+  ).rejects.toThrow();
+  await db.exec("rollback to savepoint direct_write");
+});
+
+it("keeps an already claimed message suppressed through opt-out and immediate reactivation", async () => {
+  await save();
+  const claimed = (await query("select * from claim_notifications(20)"))[0];
+  expect(claimed).toBeTruthy();
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+    id(101),
+  ]);
+  await db.exec(
+    "select set_my_email_preference(false); select set_my_email_preference(true)",
+  );
+  expect(
+    (
+      await query("select email_job_preference_allows($1) allowed", [
+        claimed.id,
+      ])
+    )[0].allowed,
+  ).toBe(false);
+  expect(
+    (
+      await query("select status from notification_jobs where id=$1", [
+        claimed.id,
+      ])
+    )[0].status,
+  ).toBe("processing");
 });

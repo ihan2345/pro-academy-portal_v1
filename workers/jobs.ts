@@ -16,6 +16,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { backfillColumns, backfillEvent } from "../src/lib/backfills";
 import type { TrainingBackfill } from "../src/lib/types";
 import { optionalBackfills } from "../src/lib/server/v2-availability";
+import { emailPreferenceAllows } from "../src/lib/server/email-preference";
 import { serviceDb } from "../src/lib/server/service-db";
 import { processStripeInbox } from "../src/lib/server/stripe";
 import { processReports } from "../src/lib/server/reports";
@@ -288,6 +289,20 @@ export async function processMail(
         !(await prepareTrainingNotification(job, true))
       )
         continue;
+      if (!(await emailPreferenceAllows(job))) {
+        const held = await db.rpc("finish_notification", {
+          input: {
+            id: job.id,
+            lease_token: job.lease_token,
+            recipient: job.recipient,
+            provider: provider.name,
+            status: "held",
+            error: "Persönlicher E-Mail-Empfang deaktiviert",
+          },
+        });
+        if (held.error) throw held.error;
+        continue;
+      }
       started = true;
       const result = await provider.send(mail);
       const final = await db.rpc("finish_notification", {

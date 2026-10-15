@@ -385,3 +385,44 @@ Am 05.10.2026 auf ausdrücklichen Nutzerauftrag vollständig veröffentlicht:
 - Runner-Verbindungsprüfung für Supabase, Stripe, SMTP und PDF erfolgreich, ohne Versand.
 
 Private technische Nachweise liegen unter `output/staff-training-release/`.
+
+## Geplante erste Elternwelle – verbindliche Abstimmung 15.10.2026
+
+Status: NUR abgestimmt, nicht veröffentlicht oder aktiviert. Erst der ausdrückliche Nutzerbefehl **„5 Eltern aktivieren“** autorisiert die Freigabe dieser Welle. Keine Empfängerlisten, Familiensperren, Einladungen oder Versandaufträge vor diesem Befehl ändern. Der Befehl autorisiert die Vorbereitung/Freigabe; die Einladungen löst der Nutzer selbst über den bestehenden manuellen Button in Eltern verwalten aus. Keine automatische Einladung und kein Versand durch den Agenten aus dieser Planung ableiten.
+
+Zielgruppe: fünf Elternkonten für sechs Kinder mit neuem Leistungszeitraum am 14./15.10.2026:
+- Daniela Ehren-Herkt / Joe Ehren: Eltern-ID 273a49b0-78d1-475e-ba16-c7156c18c838.
+- Funda Oguz / Ayaz und Deniz Oguz: Eltern-ID 9b590a99-44ce-4b98-906f-ac074e432a54.
+- Gülistan Aksüzek / Boran Aksüzek: Eltern-ID b289155e-cea6-42f6-892f-36d3121b1edd.
+- Akis / Huseyin Seccad Akis: Eltern-ID e6f6af2d-95f1-454e-9dfe-4a3a711bf87c.
+- Köse / Ediz Köse: Eltern-ID 9ecd786c-e07b-460d-908e-b5acd82c7acf.
+
+Gewünschter Ablauf und verbindliche Grenzen:
+1. Vor Freigabe aktuelle Kontaktadressen, Zuordnungen, Kontoaktivierung und Laufzeit-/Datenbankfreigaben erneut lesend prüfen. Nur diese Eltern in reguläre Empfänger- und Einladungsfreigabe aufnehmen; bestehende interne Freigabe erhalten. MANUAL_INVITATIONS_ENABLED und Einladungsadresse prüfen. Keine Abo-/Leistungszeitraumdaten verschieben.
+2. Nutzer sendet frische Einladung über bestehenden manuellen Button. automatic_invitations bleibt aus. Das bloße Freigeben aktiviert kein Elternkonto; notifications_held nicht vorzeitig auf false setzen.
+3. Erst erfolgreiche bestätigte Anmeldung und accept_invitation gelten als Annahme: Elternkonto verknüpfen, consumed_at dokumentieren und Familiensperre aufheben.
+4. Ab Annahme sollen alle regulär vorgesehenen Portal-Mailarten nach ihren normalen Auslösebedingungen funktionieren. Maßgeblich ist das neue Benachrichtigungsereignis nach Annahme, NICHT das Trainingsdatum. Auch nach Annahme ausgelöste Bestätigungen, Nachträge oder Korrekturen zu früheren Terminen sind ausdrücklich erwünscht. Kein zusätzlicher Filter auf vergangene Termine oder alte Leistungszeiträume.
+5. Historische zurückgehaltene Aufträge nicht pauschal freigeben, löschen oder als versendet markieren. Aktivierung darf keinen Altmail-Schwall erzeugen. Keine Warteschlangenbereinigung beauftragt. Prüfen, ob Zusammenführung/Idempotenz alter Aufträge neue legitime Benachrichtigungen verhindert oder alte Aufträge unbeabsichtigt reaktiviert. Unklare Versandergebnisse nicht erneut senden.
+6. Bestehende ausdrückliche manuelle Mailmöglichkeiten bleiben auch VOR Annahme unverändert erlaubt. Keine neue Einladung-only-Sperre einführen.
+7. Normale Puffer-, Erinnerungs-, Empfängerzuordnungs-, Aktualitäts-, Rollen- und Duplikatschutzregeln bleiben bestehen. Aktivierung hängt anschließend nicht von einer aktuell offenen Browser-Session ab.
+8. Reguläre Arten: Planung, Änderungen, Entfernung (nach vorhandenen Informationsregeln), Erinnerung, Teilnahmebestätigung, Korrektur/Absage, Abschlussbericht, gezielter Stempelkartenversand, Nachtragsmitteilung. Manuelle/optionale Arten nicht durch die Freigabe zu automatischen Mails machen. Camp-Versand separat prüfen; eigene Freigaben nicht still ändern. Stripe-Mails bleiben Stripe-gesteuert.
+
+Lesender Stand dieser Besprechung: globaler Versand enabled=true; recipients und invitation_recipients nur interne Adresse; automatic_invitations=false. Fünf Ziel-Eltern ohne auth_user_id, notifications_held=true. Queue: 0 pending/processing, 657 held, 1 uncertain, 32 sent. Diese Zahlen sind eine Momentaufnahme und vor Ausführung neu zu prüfen.
+
+Spätere Wellen nach Aboverlängerung bleiben eine gewünschte Fortsetzung; keine automatische Verlängerungsfreigabe implementiert oder autorisiert. Separat konkretisieren. Nachtrags-Sofortbuchung und Stripe-Aborabattsteuerung bleiben ebenfalls zurückgestellt.
+
+### Persönliche E-Mail-Einstellung vor der Elternwelle (lokal vorbereitet)
+
+Nutzerauftrag: Unter Mein Konto ein standardmäßig aktiver E-Mail-Schalter mit Erklärung zu Trainingsplanung, Ankündigungen, Monatsberichten und individuellen Nachrichten. Die letzte Auswahl wird beim Verlassen gespeichert, nicht bei jedem Umschalten. Bestehende manuelle Versandmöglichkeiten bleiben grundsätzlich bestehen; eine ausdrücklich gespeicherte persönliche Abwahl blockiert jedoch auch manuelle Portal-Mails. Der Erklärungstext erzeugt keine neuen Mailarten oder Ankündigungsfunktion.
+
+Vorbereitet: eigene Elternpräferenz (Standard aktiv), authentifizierte RPCs ohne frei wählbare Eltern-ID, separater API-Endpunkt und Client-Komponente. Seitenlinks speichern vor Navigation; Abmeldung wartet vor Sessionende. Zurück-Navigation/Unmount, Tabwechsel und pagehide verwenden keepalive; ausstehende Auswahl bleibt tablokal für Wiederaufnahme gespeichert. Bei hartem Browserabbruch/Netzausfall ist Speicherung beim Verlassen nicht garantiert. Die gespeicherte Einstellung bleibt bis zu erfolgreichem Speichern maßgeblich. Ein An/Aus-Zyklus ohne Nettoänderung erzeugt keinen Schreibaufruf.
+
+Die persönliche Abwahl überschreibt normale und manuelle Portal-/Camp-Versandfreigaben, verändert aber keine administrativen Freigaben oder Kontoaktivierung. Anmelde-/Einladungsmails und externe Stripe-Mails bleiben unabhängig. Ausstehende und während Abwahl erzeugte Portal-Mails erhalten eine dauerhafte Ausschlussmarkierung; erneutes Aktivieren gibt nur neue berechtigte Nachrichten frei. Auch bereits beanspruchte Jobs werden vor SMTP anhand der aktuellen gespeicherten Präferenz und Markierung geprüft. Ein schon an SMTP übergebener Versand ist nicht rückholbar.
+
+Veröffentlichung weiterhin zurückgestellt. Für spätere Bereitstellung: SQL `supabase/release/009-parent-email-preference.sql` gezielt nach 008 anwenden, dann Jobs-Runner und Portal bereitstellen. Kein pauschales db push. SQL 009 ändert keine Empfängerlisten und schaltet keine Eltern frei. Der neue Worker benötigt die neue RPC zwingend; ohne Migration blockiert er Versand statt die Präferenzprüfung zu überspringen. Separate Veröffentlichung/Freigabe weiterhin erst nach Nutzeranweisung.
+
+### Optionale Kinderangaben (lokal vorbereitet, 15.10.2026)
+
+„Angaben des Kindes bearbeiten“ enthält für verknüpfte Eltern und Admins zusätzlich Geschlecht, Verein, Position, starker Fuß, Größe in cm und Entwicklungsziele. Alle sechs Felder sind optional, werden am Kind gespeichert, erneut ins Formular geladen und können geleert werden. Geschlecht: männlich/weiblich/divers/keine Angabe; starker Fuß: rechts/links/beidfüßig/keine Angabe. Verein und Position sind Freitext, Ziele mehrzeilig (max. 2000 Zeichen), Größe ganzzahlig 50–250 cm. Camp-Buchungsangaben bleiben separat; keine bestehenden Daten werden automatisch überschrieben.
+
+Gezielte Migration `202610150001_child_optional_details.sql` vor der Portalveröffentlichung anwenden. Neue Eltern-RPC übernimmt die bestehenden Eigentümer-/Archivprüfungen, speichert Basis- und Zusatzfelder atomar und lässt bei fehlenden optionalen Schlüsseln bestehende Werte unverändert. Admins nutzen weiterhin ihre bestehende Berechtigung; Mitarbeiter erhalten keine neuen Schreibrechte. Keine produktive Migration, Veröffentlichung oder Elternaktivierung durchgeführt.

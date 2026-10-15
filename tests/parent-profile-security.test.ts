@@ -44,6 +44,12 @@ create policy read_players on players for select to authenticated using(true);`)
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/202610150001_child_optional_details.sql",
+      "utf8",
+    ),
+  );
   for (const [id, role] of [
     [parent, "parent"],
     [foreign, "parent"],
@@ -159,7 +165,7 @@ it("rejects archived parents and oversized input", async () => {
 
 it("own child RPC permits only a current parent link and whitelisted fields", async () => {
   await db.query(
-    "insert into players values($1,'Original','Kind',2015,'U10',null)",
+    "insert into players(id,first_name,last_name,birth_year,team,archived_at) values($1,'Original','Kind',2015,'U10',null)",
     [parent],
   );
   await db.query("insert into parent_players values($1,$1,$1)", [parent]);
@@ -203,4 +209,66 @@ it("own child RPC permits only a current parent link and whitelisted fields", as
   await db.query("update parents set archived_at=null where id=$1", [parent]);
   await db.query("delete from parent_players where id=$1", [parent]);
   await expect(asUser(parent, sql, [parent])).rejects.toThrow();
+});
+
+it("saves optional child details atomically, rejects foreign access and permits clearing", async () => {
+  const child = "10000000-0000-4000-8000-000000000099";
+  await db.query(
+    "insert into players(id,first_name,last_name,birth_year,team) values($1,'Ada','Test',2015,'U11')",
+    [child],
+  );
+  await db.query(
+    "insert into parent_players(id,parent_id,player_id) values($1,$2,$1)",
+    [child, parent],
+  );
+  const sql =
+    "select update_own_child_profile_details($1,$2,'Ada','Test',2015,'U11',$3)";
+  const details = {
+    gender: "weiblich",
+    club: "FC Beispiel",
+    position: "Mittelfeld",
+    strong_foot: "links",
+    height_cm: 145,
+    development_goals: "Ballkontrolle verbessern",
+  };
+  await asUser(parent, sql, [parent, child, details]);
+  expect(
+    (
+      await db.query(
+        "select gender,club,position,strong_foot,height_cm,development_goals from players where id=$1",
+        [child],
+      )
+    ).rows[0],
+  ).toEqual(details);
+  for (const user of [foreign, staff, admin])
+    await expect(
+      asUser(user, sql, [parent, child, { club: "Unberechtigt" }]),
+    ).rejects.toThrow();
+  await expect(
+    asUser(parent, sql, [parent, child, { club: "Änderung", height_cm: 999 }]),
+  ).rejects.toThrow();
+  expect(
+    (await db.query("select club from players where id=$1", [child])).rows[0],
+  ).toEqual({ club: "FC Beispiel" });
+  await expect(
+    asUser(parent, sql, [parent, child, { archived_at: null }]),
+  ).rejects.toThrow();
+  await asUser(parent, sql, [parent, child, {}]);
+  expect(
+    (await db.query("select height_cm from players where id=$1", [child]))
+      .rows[0],
+  ).toEqual({ height_cm: 145 });
+  await asUser(parent, sql, [
+    parent,
+    child,
+    Object.fromEntries(Object.keys(details).map((k) => [k, null])),
+  ]);
+  expect(
+    (
+      await db.query(
+        "select gender,club,position,strong_foot,height_cm,development_goals from players where id=$1",
+        [child],
+      )
+    ).rows[0],
+  ).toEqual(Object.fromEntries(Object.keys(details).map((k) => [k, null])));
 });

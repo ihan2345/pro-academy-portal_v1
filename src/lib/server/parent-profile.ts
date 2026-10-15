@@ -286,7 +286,7 @@ export async function loadParentProfile(
     db
       .from("parent_players")
       .select(
-        `id,player_id,players!inner(id,first_name,last_name,birth_year,team,archived_at${camps ? ",camp_birth_date,camp_age_at_booking,camp_age_recorded_on" : ""})`,
+        `id,player_id,players!inner(id,first_name,last_name,birth_year,team,gender,club,position,strong_foot,height_cm,development_goals,archived_at${camps ? ",camp_birth_date,camp_age_at_booking,camp_age_recorded_on" : ""})`,
       )
       .eq("parent_id", parent.id),
   );
@@ -371,6 +371,12 @@ export async function loadParentProfile(
       last_name: k.last_name,
       birth_year: k.birth_year,
       team: k.team,
+      gender: k.gender,
+      club: k.club,
+      position: k.position,
+      strong_foot: k.strong_foot,
+      height_cm: k.height_cm,
+      development_goals: k.development_goals,
       age: childAge(k, calendarDate(now)),
       archived: !!k.archived_at,
       products: [
@@ -490,6 +496,30 @@ export const profileChildSchema = z
     last_name: z.string().trim().min(1).max(100),
     birth_year: z.number().int().min(1990).max(2100).nullable(),
     team: z.string().trim().max(40),
+    gender: z.enum(["männlich", "weiblich", "divers"]).nullable().optional(),
+    club: z
+      .string()
+      .trim()
+      .max(120)
+      .transform((v) => v || null)
+      .nullable()
+      .optional(),
+    position: z
+      .string()
+      .trim()
+      .max(80)
+      .transform((v) => v || null)
+      .nullable()
+      .optional(),
+    strong_foot: z.enum(["rechts", "links", "beidfüßig"]).nullable().optional(),
+    height_cm: z.number().int().min(50).max(250).nullable().optional(),
+    development_goals: z
+      .string()
+      .trim()
+      .max(2000)
+      .transform((v) => v || null)
+      .nullable()
+      .optional(),
   })
   .strict();
 export async function changeProfileChild(
@@ -525,13 +555,21 @@ export async function changeProfileChild(
   } else {
     const { child_id, ...fields } = profileChildSchema.parse(data);
     if (s.role === "parent") {
-      const result = await s.db.rpc("update_own_child_profile", {
+      const result = await s.db.rpc("update_own_child_profile_details", {
         target_parent: parent.id,
         target_child: child_id,
         new_first_name: fields.first_name,
         new_last_name: fields.last_name,
         new_birth_year: fields.birth_year,
         new_team: fields.team,
+        details: {
+          gender: fields.gender,
+          club: fields.club,
+          position: fields.position,
+          strong_foot: fields.strong_foot,
+          height_cm: fields.height_cm,
+          development_goals: fields.development_goals,
+        },
       });
       if (result.error)
         throw new HttpError(
