@@ -18,7 +18,8 @@ export async function collectCampReview(stripe, links) {
       });
       for (const session of batch.data) {
         sessionCount++;
-        if (session.payment_status !== "paid") continue;
+        if (!["paid", "no_payment_required"].includes(session.payment_status))
+          continue;
         if (
           !session.livemode ||
           session.mode !== "payment" ||
@@ -107,6 +108,8 @@ export async function collectCampReview(stripe, links) {
           age_at_booking: field("Alter des Kindes"),
           clothing_size: field("Kleidergröße des Kindes"),
           amount: session.amount_total,
+          subtotal: session.amount_subtotal,
+          discount: session.total_details?.amount_discount ?? 0,
           currency: session.currency,
           status: charge?.refunded
             ? "refunded"

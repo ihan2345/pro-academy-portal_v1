@@ -52,7 +52,11 @@ async function handler(
         );
       if (path === "free-proof")
         return json(
-          await freeCampProof(req.nextUrl.searchParams.get("booking_id") ?? ""),
+          await freeCampProof({
+            booking_id: req.nextUrl.searchParams.get("booking_id") || undefined,
+            session_id: req.nextUrl.searchParams.get("session_id") || undefined,
+            camp_id: req.nextUrl.searchParams.get("camp_id") || undefined,
+          }),
         );
       if (path === "review" || path === "local-review")
         return json(

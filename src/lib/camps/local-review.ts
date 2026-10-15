@@ -30,6 +30,8 @@ export const snapshotSchema = z.object({
       age_at_booking: z.string(),
       clothing_size: z.string(),
       amount: z.number(),
+      discount: z.number().optional(),
+      subtotal: z.number().nullable().optional(),
       currency: z.string(),
       status: z.enum(["paid", "review", "refunded"]),
       issues: z.array(z.string()),
@@ -108,10 +110,12 @@ export async function campReview(campId: string, internal = false) {
               b.status === "paid" &&
               b.payment_details?.special_discount_approval?.session_id ===
                 r.session_id &&
-              r.amount === 0 &&
               r.issues.every(
                 (issue) =>
-                  issue === "Kostenloser Checkout; Sonderrabatt manuell prüfen",
+                  issue ===
+                    "Kostenloser Checkout; Sonderrabatt manuell prüfen" ||
+                  issue ===
+                    "Sonderrabatt benötigt eine ausdrückliche Admin-Freigabe.",
               ),
           ) &&
           !removed.has(r.payment_id) &&
@@ -120,6 +124,12 @@ export async function campReview(campId: string, internal = false) {
       .map((r) => ({
         ...r,
         imported: imported.has(r.payment_id),
+        special_discount_review:
+          session.role === "admin" &&
+          !imported.has(r.payment_id) &&
+          r.status !== "refunded" &&
+          ((r.discount ?? 0) > 0 ||
+            r.issues.some((issue) => /Sonderrabatt/.test(issue))),
         draft:
           drafts.data.find((d) => d.payment_id === r.payment_id)?.data ?? null,
       })),

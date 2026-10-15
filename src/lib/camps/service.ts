@@ -415,7 +415,16 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
     throw new HttpError(403, "Zahlung gehört nicht zu diesem Buchungsablauf.");
   if (b.status === "cancelled")
     return { status: "cancelled", booking_id: b.id, camp_id: b.camp_id };
-  if (s.payment_status !== "paid")
+  if (
+    s.payment_status !== "paid" &&
+    !(
+      s.payment_status === "no_payment_required" &&
+      s.status === "complete" &&
+      s.amount_total === 0 &&
+      !s.payment_intent &&
+      s.total_details?.amount_discount === b.expected_amount
+    )
+  )
     return { status: "pending", booking_id: b.id, camp_id: b.camp_id };
   const lines = await stripe.checkout.sessions.listLineItems(s.id, {
     limit: 10,

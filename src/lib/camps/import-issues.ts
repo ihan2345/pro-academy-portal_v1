@@ -21,7 +21,7 @@ export function campImportIssue(message: string) {
   };
   return (
     labels[message] ??
-    (/^(Alter|Altersgrenze|Bekanntes Geburtsdatum|Geburtsdatum|Campbeginn|Gespeicherter Prüfentwurf|Familie|Elternname|Kind|Aktive Familie|Vorhandene Familie)/.test(
+    (/^(Sonderrabatt|Alter|Altersgrenze|Bekanntes Geburtsdatum|Geburtsdatum|Campbeginn|Gespeicherter Prüfentwurf|Familie|Elternname|Kind|Aktive Familie|Vorhandene Familie)/.test(
       message,
     )
       ? message

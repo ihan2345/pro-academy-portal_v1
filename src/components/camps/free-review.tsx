@@ -8,6 +8,7 @@ import {
 } from "./stripe-review";
 type Booking = {
   created_at: string;
+  paid_amount: number | null;
   id: string;
   camp_id: string;
   stripe_session_id: string | null;
@@ -61,9 +62,9 @@ export function FreeCampReview({
   if (!data?.bookings.length) return null;
   return (
     <section className="camp-panel">
-      <h2>Gratisbuchungen · Sonderrabatt prüfen</h2>
+      <h2>Sonderrabatte · Portalbuchungen prüfen</h2>
       <p>
-        Vorhandene Campbuchungen mit 0 € Zahlbetrag. Jede Freigabe erfordert
+        Campbuchungen mit Sonderrabatt von 1–100 %. Jede Freigabe erfordert
         einen aktuellen Stripe-Nachweis und eine ausdrückliche
         Admin-Bestätigung.
       </p>
@@ -78,7 +79,7 @@ export function FreeCampReview({
           created_at: b.created_at,
           age_at_booking: b.child_data.age_at_booking?.toString() ?? "",
           clothing_size: b.child_data.clothing_size,
-          amount: 0,
+          amount: b.paid_amount ?? undefined,
           status: "review",
           issues: [],
           imported: false,

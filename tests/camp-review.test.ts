@@ -183,3 +183,39 @@ describe("read-only local Camp reconciliation", () => {
     );
   });
 });
+
+it("retains partial discounts and completed no-payment-required checkouts for downstream approval", async () => {
+  const { stripe, session } = fixture();
+  stripe.checkout.sessions.list.mockResolvedValue({
+    has_more: false,
+    data: [
+      {
+        ...session,
+        amount_subtotal: 22900,
+        total_details: { amount_discount: 4351 },
+      } as any,
+      {
+        ...session,
+        id: "cs_live_free",
+        payment_intent: null,
+        payment_status: "no_payment_required",
+        status: "complete",
+        amount_subtotal: 22900,
+        amount_total: 0,
+        total_details: { amount_discount: 22900 },
+      } as any,
+    ],
+  });
+  const result = await collectCampReview(stripe, [source]);
+  expect(result.records[0]).toMatchObject({
+    discount: 4351,
+    subtotal: 22900,
+    amount: 18549,
+  });
+  expect(result.records[1]).toMatchObject({
+    discount: 22900,
+    amount: 0,
+    status: "review",
+    payment_id: "cs_live_free",
+  });
+});

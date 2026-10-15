@@ -86,21 +86,25 @@ beforeEach(() => {
   }));
 });
 describe("Camp payment confirmation", () => {
-  it("records a completed free Checkout for review without inventing a PaymentIntent or granting 100% entitlement", async () => {
-    expect(await confirmPayment("cs_live_free", true)).toMatchObject({
-      status: "review",
-      no_cost: true,
-    });
-    expect(f.retrievePayment).not.toHaveBeenCalled();
-    expect(f.rpc).toHaveBeenCalledWith("camp_confirm_payment", {
-      input: expect.objectContaining({
-        payment_id: "cs_live_free",
-        proof_kind: "no_cost_checkout",
-        total: 0,
-        review_reason: "Verwendeter Rabatt passt nicht zum Abo-Anrecht",
-      }),
-    });
-  });
+  it.each(["paid", "no_payment_required"])(
+    "records completed free Checkout %s for review without inventing a PaymentIntent or granting 100% entitlement",
+    async (status) => {
+      f.session.payment_status = status;
+      expect(await confirmPayment("cs_live_free", true)).toMatchObject({
+        status: "review",
+        no_cost: true,
+      });
+      expect(f.retrievePayment).not.toHaveBeenCalled();
+      expect(f.rpc).toHaveBeenCalledWith("camp_confirm_payment", {
+        input: expect.objectContaining({
+          payment_id: "cs_live_free",
+          proof_kind: "no_cost_checkout",
+          total: 0,
+          review_reason: "Verwendeter Rabatt passt nicht zum Abo-Anrecht",
+        }),
+      });
+    },
+  );
   it.each([
     "wrong price",
     "wrong link",

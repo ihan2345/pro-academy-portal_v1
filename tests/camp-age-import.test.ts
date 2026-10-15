@@ -522,3 +522,230 @@ it("rejects full Camps without leaving a new family or child behind", async () =
   await db.exec("rollback to savepoint capacity");
   expect((await db.query("select * from parents")).rows).toHaveLength(0);
 });
+
+it.each([1, 10, 99])(
+  "keeps new-customer %s percent discounts out of ordinary imports, rolling back all identities",
+  async (percent) => {
+    const discount = (22900 * percent) / 100;
+    await reject(
+      input({
+        subtotal: 22900,
+        amount: 22900 - discount,
+        evidence: { discount },
+        customer_group: "subscriber",
+        benefit_percent: 20,
+      }),
+      "Sonderrabatt",
+    );
+    for (const table of [
+      "parents",
+      "players",
+      "parent_players",
+      "camp_bookings",
+    ])
+      expect((await db.query(`select * from ${table}`)).rows).toHaveLength(0);
+  },
+);
+const approveDiscount = (v: object) =>
+  db.query<{ id: string }>("select camp_approve_discount_booking($1) id", [v]);
+async function directDiscount(percent = 99) {
+  await db.query("update profiles set role='admin' where id=$1", [id(3)]);
+  const total = 22900 - (22900 * percent) / 100;
+  return {
+    camp_id: id(1),
+    session_id: "cs_live_discount",
+    actor_id: id(3),
+    special_discount_approved: true,
+    notes: "Sonderrabatt nach Rücksprache genehmigt",
+    new_parent: { name: "Havva Kaya", email: "havva@example.invalid" },
+    child: input().child,
+    proof: {
+      session_id: "cs_live_discount",
+      client_reference_id: null,
+      payment_intent: total ? "pi_discount" : null,
+      charge_id: total ? "ch_discount" : null,
+      refunded: false,
+      disputed: false,
+      session_status: "complete",
+      payment_status: total ? "paid" : "no_payment_required",
+      livemode: true,
+      total,
+      subtotal: 22900,
+      discount: 22900 - total,
+      currency: "eur",
+      quantity: 1,
+      payment_link_id: "plink_age",
+      price_id: "price_age",
+      product_id: "prod_age",
+      customer_id: "cus_age",
+      created_at: "2026-10-01T10:00:00Z",
+    },
+  };
+}
+it.each([1, 99, 100])(
+  "atomically approves direct-link %s percent discounts with correct payment reference and audit",
+  async (percent) => {
+    const v = await directDiscount(percent);
+    const result = (await approveDiscount(v)).rows[0].id;
+    const b = (
+      await db.query<any>("select * from camp_bookings where id=$1", [result])
+    ).rows[0];
+    expect(b).toMatchObject({
+      status: "paid",
+      paid_amount: v.proof.total,
+      booking_origin: "stripe_import",
+      stripe_payment_id: v.proof.payment_intent ?? v.session_id,
+      manual_notifications_held: true,
+    });
+    expect(b.payment_details.special_discount_approval).toMatchObject({
+      percent,
+      actor_id: id(3),
+      reason: v.notes,
+    });
+    for (const table of ["parents", "players", "camp_bookings"])
+      expect((await db.query(`select * from ${table}`)).rows).toHaveLength(1);
+    expect((await db.query("select * from subscriptions")).rows).toHaveLength(
+      0,
+    );
+    expect(
+      (await db.query("select * from notification_jobs")).rows,
+    ).toHaveLength(0);
+    await db.exec("savepoint duplicate_discount");
+    await expect(approveDiscount(v)).rejects.toThrow("bereits vorhanden");
+    await db.exec("rollback to savepoint duplicate_discount");
+    expect((await db.query("select * from camp_bookings")).rows).toHaveLength(
+      1,
+    );
+  },
+);
+it.each([
+  "staff",
+  "consent",
+  "capacity",
+  "source",
+  "portal_reference",
+  "family",
+])("rolls back direct approval and staging on %s failure", async (reason) => {
+  const v: any = await directDiscount();
+  if (reason === "staff")
+    await db.query("update profiles set role='staff' where id=$1", [id(3)]);
+  if (reason === "consent") v.special_discount_approved = false;
+  if (reason === "capacity") {
+    await db.query("update camps set capacity=1 where id=$1", [id(1)]);
+    await db.query(
+      "insert into camp_review_snapshots(payment_link_id,camp_id,records) values('plink_age',$1,$2)",
+      [id(1), [{ payment_id: "pi_other", status: "paid" }]],
+    );
+  }
+  if (reason === "source") v.proof.product_id = "prod_wrong";
+  if (reason === "portal_reference") v.proof.client_reference_id = id(99);
+  if (reason === "family") {
+    v.new_parent = null;
+    v.parent_id = id(99);
+    v.player_id = id(98);
+  }
+  await db.exec("savepoint failed_discount");
+  await expect(approveDiscount(v)).rejects.toThrow();
+  await db.exec("rollback to savepoint failed_discount");
+  for (const table of ["parents", "players", "camp_bookings"])
+    expect((await db.query(`select * from ${table}`)).rows).toHaveLength(0);
+});
+it("requires admin approval even for staff manually importing a discounted new customer", async () => {
+  await reject(
+    input({
+      automatic: false,
+      actor_id: id(3),
+      processing_token: null,
+      new_parent: { name: "Havva Kaya", email: "havva@example.invalid" },
+      subtotal: 22900,
+      amount: 229,
+      evidence: { discount: 22671 },
+    }),
+    "Sonderrabatt",
+  );
+});
+it("keeps direct approval RPC private", async () => {
+  expect(
+    (
+      await db.query<any>(
+        "select has_function_privilege('authenticated','camp_approve_discount_booking(jsonb)','execute') allowed",
+      )
+    ).rows[0].allowed,
+  ).toBe(false);
+});
+
+it.each([10, 15, 20])(
+  "preserves automatic regular ABO discount %s percent for the matched child",
+  async (percent) => {
+    await family();
+    await db.query(
+      "insert into plans(name,included_units,athletics_units,stripe_price_id,camp_benefit_percent) values('FirstTouch',4,0,'price_abo',$1)",
+      [percent],
+    );
+    await db.query(
+      "insert into subscriptions(id,parent_id,stripe_customer_id,stripe_subscription_id,status,stripe_data) values($1,$2,'cus_age','sub_age','active',$3)",
+      [id(40), id(4), { items: [{ id: "si_age", price_id: "price_abo" }] }],
+    );
+    await db.query(
+      "insert into subscription_players(subscription_id,stripe_item_id,player_id) values($1,'si_age',$2)",
+      [id(40), id(5)],
+    );
+    const discount = (22900 * percent) / 100;
+    await run(
+      input({
+        subtotal: 22900,
+        amount: 22900 - discount,
+        evidence: { discount },
+      }),
+    );
+    expect(
+      (await db.query<any>("select status,paid_amount from camp_bookings"))
+        .rows[0],
+    ).toMatchObject({ status: "paid", paid_amount: 22900 - discount });
+  },
+);
+it("updates the original portal booking for partial discounts without creating a second booking", async () => {
+  const v: any = await freeBooking();
+  v.proof = {
+    ...v.proof,
+    total: 229,
+    discount: 22671,
+    payment_intent: "pi_discount",
+    charge_id: "ch_discount",
+    refunded: false,
+    disputed: false,
+  };
+  const result = (await approveDiscount(v)).rows[0].id;
+  expect(result).toBe(id(83));
+  const b = (await db.query<any>("select * from camp_bookings")).rows[0];
+  expect(b).toMatchObject({
+    paid_amount: 229,
+    stripe_payment_id: "pi_discount",
+    status: "paid",
+  });
+  expect(b.payment_details.special_discount_approval.percent).toBe(99);
+  expect((await db.query("select * from camp_bookings")).rows).toHaveLength(1);
+});
+it("also accepts direct checkouts from approved current portal offers and explicitly selected existing children", async () => {
+  await freeBooking();
+  await db.query("delete from camp_bookings where id=$1", [id(83)]);
+  await family();
+  const v: any = await directDiscount(99);
+  v.new_parent = null;
+  v.parent_id = id(4);
+  v.player_id = id(5);
+  v.proof.payment_link_id = "plink_free";
+  v.proof.price_id = "price_free";
+  v.proof.product_id = "prod_free";
+  const result = (await approveDiscount(v)).rows[0].id;
+  expect(
+    (
+      await db.query<any>(
+        "select parent_id,player_id from camp_bookings where id=$1",
+        [result],
+      )
+    ).rows[0],
+  ).toMatchObject({ parent_id: id(4), player_id: id(5) });
+  expect((await db.query("select * from parents")).rows).toHaveLength(1);
+  expect((await db.query("select * from players")).rows).toHaveLength(1);
+});

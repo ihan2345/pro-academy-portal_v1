@@ -29,6 +29,40 @@ export const reviewDraftSchema = z.object({
 });
 export class CampImportReviewError extends Error {}
 
+/** Both legacy payment links and current portal offers are approved Camp sources. */
+export async function campImportSource(
+  db: SupabaseClient,
+  campId: string,
+  linkId: string,
+) {
+  const legacy = await db
+    .from("camp_stripe_sources")
+    .select("*")
+    .eq("camp_id", campId)
+    .eq("payment_link_id", linkId)
+    .maybeSingle();
+  if (legacy.error) throw new Error("Camp-Quelle konnte nicht geprüft werden.");
+  if (legacy.data) return legacy.data;
+  const offer = await db
+    .from("camp_offers")
+    .select(
+      "camp_id,stripe_payment_link_id,stripe_price_id,stripe_product_id,amount",
+    )
+    .eq("camp_id", campId)
+    .eq("stripe_payment_link_id", linkId)
+    .maybeSingle();
+  if (offer.error) throw new Error("Camp-Angebot konnte nicht geprüft werden.");
+  return offer.data
+    ? {
+        camp_id: campId,
+        payment_link_id: offer.data.stripe_payment_link_id,
+        price_id: offer.data.stripe_price_id,
+        product_id: offer.data.stripe_product_id,
+        amount: offer.data.amount,
+      }
+    : null;
+}
+
 const id = (v: unknown): string | undefined =>
   typeof v === "string" ? v : (v as { id?: string } | null)?.id;
 export async function prepareCampImport(
@@ -64,14 +98,12 @@ export async function prepareCampImport(
     )
     .parse(raw);
   const session = await stripe.checkout.sessions.retrieve(sessionId);
-  const source = await db
-    .from("camp_stripe_sources")
-    .select("*")
-    .eq("camp_id", data.camp_id)
-    .eq("payment_link_id", id(session.payment_link) ?? "")
-    .single();
-  if (source.error || !source.data)
-    throw new Error("Stripe-Link ist diesem Camp nicht zugeordnet.");
+  const source = await campImportSource(
+    db,
+    data.camp_id,
+    id(session.payment_link) ?? "",
+  );
+  if (!source) throw new Error("Stripe-Link ist diesem Camp nicht zugeordnet.");
   const lines = await stripe.checkout.sessions.listLineItems(session.id, {
     limit: 100,
   });
@@ -84,8 +116,8 @@ export async function prepareCampImport(
     lines.has_more ||
     lines.data.length !== 1 ||
     lines.data[0].quantity !== 1 ||
-    lines.data[0].price?.id !== source.data.price_id ||
-    id(lines.data[0].price?.product) !== source.data.product_id
+    lines.data[0].price?.id !== source.price_id ||
+    id(lines.data[0].price?.product) !== source.product_id
   )
     throw new CampImportReviewError(
       "Zahlung oder Artikel passt nicht zur Buchung.",
@@ -175,9 +207,9 @@ export async function prepareCampImport(
     },
     customer_group: benefit.group,
     benefit_percent: benefit.percent,
-    payment_link_id: source.data.payment_link_id,
-    price_id: source.data.price_id,
-    product_id: source.data.product_id,
+    payment_link_id: source.payment_link_id,
+    price_id: source.price_id,
+    product_id: source.product_id,
     session_id: session.id,
     payment_id: data.payment_id,
     customer_id: id(session.customer) ?? null,

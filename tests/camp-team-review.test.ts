@@ -245,3 +245,25 @@ it("shows an age-boundary validation so the team can confirm it explicitly", asy
     ),
   ).rejects.toThrow("Altersgrenze zum Campbeginn unklar");
 });
+
+it("offers special-discount approval only to admins and retains scanned amounts", async () => {
+  f.snapshot.records[0].discount = 22671;
+  f.snapshot.records[0].subtotal = 22900;
+  f.snapshot.records[0].amount = 229;
+  f.session.role = "admin";
+  expect((await campReview(campId)).records[0]).toMatchObject({
+    special_discount_review: true,
+    discount: 22671,
+    amount: 229,
+  });
+  f.session.role = "staff";
+  const record = (await campReview(campId)).records[0];
+  for (const field of [
+    "special_discount_review",
+    "discount",
+    "subtotal",
+    "amount",
+    "session_id",
+  ])
+    expect(record[field as keyof typeof record]).toBeUndefined();
+});
