@@ -454,3 +454,11 @@ Profil-Links öffnen `/admin/spieler/<id>` als eigene geschützte Spielerkarte, 
 Bereitstellung: Migration `202610150002_player_api_share.sql` gezielt vor dem Portal anwenden. Keine Änderung am Jobs-Runner nötig. Diese Umsetzung hat keine Migration produktiv angewendet, keinen Export-Link erstellt und kein Deployment ausgelöst. Die Elternwelle und sämtliche Mailfreigaben bleiben unverändert bis „5 Eltern aktivieren“.
 
 Validierung: SQL-Rechte und Link-Lebenszyklus in PGlite; API-Rollen-/Originprüfungen, Widerruf während Abruf, dynamische Daten, archivierte und elternlose Kinder, mehrere Abos, keine privaten Zusatzfelder, 9-/10-Tage-Grenze, Monatsenden und Sommerzeit getestet. Isolierte Desktop-/Mobilprüfung der Linkverwaltung einschließlich Erstellen, Erneuern und Deaktivieren; keine echten Spielerdaten oder produktiven Freigaben verwendet. Nachweise unter `output/player-api/`.
+
+### Spieler-API veröffentlicht und geprüft (15.10.2026)
+
+Auf ausdrücklichen Auftrag „commit ü deploye“ wurde `ebde5fd` auf `main` gepusht. Die oben als lokal dokumentierte Spieler-API ist nun veröffentlicht. Migration `202610150002_player_api_share.sql` wurde gezielt transaktional angewendet, danach das Portal als Version `cda74f4c-3c98-442d-bcc5-778a699177ff` bereitgestellt. Cloudflare-Produktionsbuild erfolgreich; vorheriger Prüfstand: 666 Tests erfolgreich. Der Jobs-Runner wurde nicht verändert.
+
+Online geprüft: neue UI-Bundles bytegleich zum Produktionsbuild, Login HTTP 200, anonyme Linkverwaltung lesend/schreibend HTTP 401, fremder Origin HTTP 403, ungültige Export-Links HTTP 404 mit no-store, nicht angemeldeter Spielerkarte-Aufruf zur Anmeldung umgeleitet. Datenbankprüfung bestätigt: keine Freigabe vorab erstellt, kein anonymer Verwaltungszugriff, Tokenprüfung ausschließlich serverseitig. Admin kann den ersten Link jetzt unter Einstellungen erstellen.
+
+Laufzeitvariablen, Elternzustände, Mailfreigaben und deren Prüffunktion unverändert. Warteschlange weiterhin 657 held, 32 sent, 1 uncertain. Keine Einladungen, keine Testmails und keine Freigabe der fünf Eltern ausgelöst. Technische Nachweise unter `output/player-api/`.
