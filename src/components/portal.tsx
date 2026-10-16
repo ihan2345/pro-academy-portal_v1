@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { AdminNavigation } from "./admin-navigation";
 import { EmailPreference, flushEmailPreference } from "./email-preference";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -211,7 +212,7 @@ export function Portal({
     { href: "/konto", title: "Mein Konto", icon: Settings },
   ];
   const adminNav = [
-    { href: "/admin", title: "Verwaltung", icon: LayoutDashboard },
+    { href: "/admin", title: "Übersicht", icon: LayoutDashboard },
     {
       href: "/admin/trainingsplanung",
       title: "Trainingsplanung",
@@ -222,14 +223,7 @@ export function Portal({
     { href: "/admin/elternprofile", title: "Elternprofile", icon: Users },
     { href: "/admin/mitarbeiter", title: "Mitarbeiter", icon: UserRound },
     { href: "/admin/standorte", title: "Standorte", icon: MapPin },
-    { href: "/admin/produkte", title: "Produkte", icon: Goal },
-    { href: "/admin/stripe", title: "Stripe-Zuordnung", icon: Zap },
-    { href: "/admin/einladungen", title: "Einladungen", icon: ArrowUpRight },
-    {
-      href: "/admin/protokolle",
-      title: "Protokolle & Berichte",
-      icon: FileText,
-    },
+    { href: "#verwaltung", title: "Verwaltung", icon: Settings },
     { href: "/admin/einstellungen", title: "Einstellungen", icon: Settings },
   ];
   const activeNav = admin
@@ -310,25 +304,43 @@ export function Portal({
           {admin ? "ADMINBEREICH" : team ? "MITARBEITERPORTAL" : "ELTERNPORTAL"}
         </div>
         <nav>
-          {activeNav.map((item) => (
-            <Link
-              className={`nav-link ${"/" + section === item.href ? "active" : ""}`}
-              key={item.href}
-              href={item.href}
-              aria-label={item.title}
-              aria-current={"/" + section === item.href ? "page" : undefined}
-              title={sidebarCollapsed ? item.title : undefined}
-              onClick={() => setMobile(false)}
-            >
-              <item.icon size={19} />
-              <span>{item.title}</span>
-              {"count" in item &&
-                typeof item.count === "number" &&
-                item.count > 0 && (
-                  <span className="nav-count">{item.count}</span>
-                )}
-            </Link>
-          ))}
+          {activeNav.map((item) =>
+            item.href === "#verwaltung" ? (
+              <AdminNavigation
+                key="verwaltung"
+                section={section}
+                collapsed={sidebarCollapsed && !mobile}
+                expandSidebar={() => {
+                  setSidebarCollapsed(false);
+                  try {
+                    localStorage.setItem(
+                      "proacademy-sidebar-collapsed",
+                      "false",
+                    );
+                  } catch {}
+                }}
+                navigate={() => setMobile(false)}
+              />
+            ) : (
+              <Link
+                className={`nav-link ${"/" + section === item.href ? "active" : ""}`}
+                key={item.href}
+                href={item.href}
+                aria-label={item.title}
+                aria-current={"/" + section === item.href ? "page" : undefined}
+                title={sidebarCollapsed ? item.title : undefined}
+                onClick={() => setMobile(false)}
+              >
+                <item.icon size={19} />
+                <span>{item.title}</span>
+                {"count" in item &&
+                  typeof item.count === "number" &&
+                  item.count > 0 && (
+                    <span className="nav-count">{item.count}</span>
+                  )}
+              </Link>
+            ),
+          )}
         </nav>
         <div className="sidebar-bottom">
           <div className="support-box">

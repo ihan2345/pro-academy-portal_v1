@@ -494,3 +494,11 @@ Online bestätigt: Bearbeitungs-Bundle bytegleich zum Build; anonymer Schreibzug
 ### Ganze Spielerzeile klickbar – veröffentlicht (16.10.2026)
 
 Auf Nutzerauftrag veröffentlicht: Funktionscommit `6d29f78`, Portal-Version `0dd099e8-6e83-4296-98ee-125941531dde`. In „Spieler verwalten“ öffnet ein Klick auf jede nicht interaktive Fläche der Zeile die Spielerkarte. Namenslinks und die Aktionen Bearbeiten/Zuordnen behalten ihre eigene Funktion; Textauswahl löst keine Navigation aus. Desktop-/Mobilprüfung mit Klick auf Geburtsjahr und separatem Bearbeitungsbutton erfolgreich. Produktionsbuild einschließlich TypeScript erfolgreich, online ausgeliefertes Zeilen-Bundle bytegleich bestätigt; bestehende Zugriffssperren geprüft. Keine Migration, keine Änderung an Laufzeitvariablen oder Jobs-Runner und keine Änderung an Eltern-/Mailfreigaben. Nachweise unter `output/player-row/`.
+
+### Admin-Untermenü Verwaltung und Bearbeiten-Korrektur (lokal, 16.10.2026)
+
+Die Admin-Navigation bündelt Stripe-Zuordnung, Produkte & Berichte und Einladungen unter einem auf-/zuklappbaren Button „Verwaltung“. Die bisherigen getrennten Seiten Produkte und Protokolle & Berichte bleiben über eine gemeinsame Auswahlseite `/admin/produkte-berichte` erreichbar. Der frühere Startseitenlink „Verwaltung“ heißt nun „Übersicht“. Aktive Unterseiten öffnen das Menü automatisch und markieren ihren Bereich. Desktop, mobile Navigation, Tastaturbedienung und die eingeklappte Seitenleiste sind berücksichtigt. Rollenrechte und bisherige Seiten bleiben erhalten.
+
+Zusätzlich korrigiert: „Bearbeiten“ in der Spielerliste führt über `?edit=1` auf die Spielerkarte und öffnet direkt das neue vollständige Kinderformular; der alte Kurzdialog wird für diesen Button nicht mehr verwendet. Schließen entfernt den Bearbeitungsparameter. Andere Verwaltungsdialoge bleiben erhalten.
+
+Desktop-/Mobilprüfungen für beide Änderungen und TypeScript erfolgreich. Keine Veröffentlichung durchgeführt. Nachweise unter `output/admin-navigation/`, `output/player-row/` und `output/player-edit/`.

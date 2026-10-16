@@ -18,12 +18,23 @@ export type EditablePlayer = Pick<
   | "height_cm"
   | "development_goals"
 >;
-export function PlayerProfileEditor({ player }: { player: EditablePlayer }) {
+export function PlayerProfileEditor({
+  player,
+  initiallyOpen = false,
+}: {
+  player: EditablePlayer;
+  initiallyOpen?: boolean;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false),
+  const [open, setOpen] = useState(initiallyOpen),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [saved, setSaved] = useState(false);
+  function closeEditor() {
+    setOpen(false);
+    if (initiallyOpen)
+      router.replace(`/admin/spieler/${player.id}`, { scroll: false });
+  }
   return (
     <>
       <button
@@ -42,7 +53,7 @@ export function PlayerProfileEditor({ player }: { player: EditablePlayer }) {
         <Modal
           title="Angaben des Kindes bearbeiten"
           close={() => {
-            if (!busy) setOpen(false);
+            if (!busy) closeEditor();
           }}
         >
           <form
@@ -73,7 +84,7 @@ export function PlayerProfileEditor({ player }: { player: EditablePlayer }) {
                     form.get("development_goals") ?? "",
                   ),
                 });
-                setOpen(false);
+                closeEditor();
                 setSaved(true);
                 router.refresh();
               } catch (e) {

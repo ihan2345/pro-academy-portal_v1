@@ -27,6 +27,7 @@ const routes = [
   "admin/mitarbeiter",
   "admin/standorte",
   "admin/produkte",
+  "admin/produkte-berichte",
   "admin/stripe",
   "admin/einladungen",
   "admin/protokolle",

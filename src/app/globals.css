@@ -3474,3 +3474,25 @@ label {
 .training-table .player-profile-row {
   cursor: pointer;
 }
+
+.admin-navigation-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.admin-navigation-chevron { margin-left: auto; transition: transform .15s; }
+.admin-navigation-chevron.is-open { transform: rotate(180deg); }
+.admin-navigation-items { margin: 6px 0 10px 12px; display: grid; gap: 6px; }
+.admin-navigation-items[hidden] { display: none; }
+.admin-navigation-item { display: flex; gap: 10px; align-items: flex-start; padding: 12px 10px; border-radius: 7px; color: #c6cbd5; background: #171d29; }
+.admin-navigation-item > svg { flex-shrink: 0; margin-top: 2px; }
+.admin-navigation-item strong { display: block; font-size: 13px; }
+.admin-navigation-item small { display: block; font-size: 11px; line-height: 1.5; margin-top: 4px; color: #a9aeb9; }
+.admin-navigation-item:hover, .admin-navigation-item.active { background: #283426; color: var(--lime); }
+.admin-navigation-toggle:focus-visible, .admin-navigation-item:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+@media (min-width: 1101px) {
+  .sidebar-collapsed .admin-navigation-chevron { display: none; }
+}

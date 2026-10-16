@@ -350,6 +350,7 @@ export function AdminView({
                 einladungen: "Einladungen",
                 protokolle: "Protokolle & Berichte",
                 einstellungen: "Systemeinstellungen",
+                "produkte-berichte": "Produkte & Berichte",
               }[slug] ??
               "Alles im Blick"}
             <span className="greeting-dot">.</span>
@@ -370,6 +371,22 @@ export function AdminView({
         <p className="error-message" role="alert">
           {error}
         </p>
+      )}
+      {slug === "produkte-berichte" && (
+        <div className="admin-shortcuts">
+          <Link href="/admin/produkte" className="panel">
+            <Settings size={24} />
+            <h2>Produkte</h2>
+            <p>Tarife und enthaltene Trainingseinheiten verwalten.</p>
+            <span>Produkte öffnen →</span>
+          </Link>
+          <Link href="/admin/protokolle" className="panel">
+            <FileText size={24} />
+            <h2>Protokolle & Berichte</h2>
+            <p>Berichte, Versandstatus und Protokolle einsehen.</p>
+            <span>Protokolle & Berichte öffnen →</span>
+          </Link>
+        </div>
       )}
       {!slug && (
         <>
@@ -640,7 +657,11 @@ export function AdminView({
                       <td>
                         <button
                           className="text-button"
-                          onClick={() => setEdit(r)}
+                          onClick={() =>
+                            slug === "spieler"
+                              ? router.push(`/admin/spieler/${r.id}?edit=1`)
+                              : setEdit(r)
+                          }
                         >
                           Bearbeiten
                         </button>

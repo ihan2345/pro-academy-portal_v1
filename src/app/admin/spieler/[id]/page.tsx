@@ -9,10 +9,13 @@ import { formatDate } from "@/lib/domain";
 export const dynamic = "force-dynamic";
 export default async function PlayerCard({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { id } = await params;
+  const edit = (await searchParams).edit === "1";
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   let session;
   try {
@@ -51,7 +54,11 @@ export default async function PlayerCard({
         <Link href="/admin/spieler">← Spieler verwalten</Link>
         <h1>{player.spielername}</h1>
         <p>Spielerkarte{player.archiviert ? " · Archiviert" : ""}</p>
-        <PlayerProfileEditor player={editable.data} />
+        <PlayerProfileEditor
+          key={`${id}:${edit}`}
+          player={editable.data}
+          initiallyOpen={edit}
+        />
         {fields.map(([label, value]) => (
           <div className="account-row" key={label}>
             <span>{label}</span>
