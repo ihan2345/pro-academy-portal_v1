@@ -502,3 +502,7 @@ Die Admin-Navigation bündelt Stripe-Zuordnung, Produkte & Berichte und Einladun
 Zusätzlich korrigiert: „Bearbeiten“ in der Spielerliste führt über `?edit=1` auf die Spielerkarte und öffnet direkt das neue vollständige Kinderformular; der alte Kurzdialog wird für diesen Button nicht mehr verwendet. Schließen entfernt den Bearbeitungsparameter. Andere Verwaltungsdialoge bleiben erhalten.
 
 Desktop-/Mobilprüfungen für beide Änderungen und TypeScript erfolgreich. Keine Veröffentlichung durchgeführt. Nachweise unter `output/admin-navigation/`, `output/player-row/` und `output/player-edit/`.
+
+### Verwaltungs-Untermenü und Bearbeiten-Korrektur veröffentlicht (16.10.2026)
+
+Auf Nutzerauftrag „deploy“ wurden beide oben lokal beschriebenen Änderungen als Funktionscommit `1e23415` auf `main` gepusht und Portal-Version `7a9f8fca-4ec2-4943-9f10-6c5033064ca9` bereitgestellt. Produktionsbuild einschließlich TypeScript erfolgreich. Online: Untermenü, Auswahlseite und Bearbeiten-Link werden bytegleich zum Build ausgeliefert; Auswahlseite und Spielerkarte verlangen Anmeldung, Schreibzugriffe bleiben gegen anonyme und fremde Origins gesperrt. Laufzeitvariablen und Jobs-Runner unverändert. Keine Migration, keine Änderung produktiver Spieler-, Camp- oder Versanddaten. Nachweise unter `output/admin-navigation/`.
