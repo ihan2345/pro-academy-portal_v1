@@ -216,7 +216,11 @@ export async function renderReport(
       );
       y -= 30;
     } else y -= 18;
-    for (let i = 0; i < group.units; i++) {
+    for (
+      let i = 0;
+      i < (card ? Math.max(group.units, group.completed) : group.units);
+      i++
+    ) {
       // At most eight stamps on each A4 row, including the new 12-unit PRO pass.
       if (i > 0 && i % 8 === 0) y -= 48;
       if (y < 120) {
@@ -225,6 +229,7 @@ export async function renderReport(
         y -= 25;
       }
       const x = 60 + (i % 8) * 64,
+        excess = card && i >= group.units,
         done = i < group.completed,
         charged = done && i >= group.completed - group.charged,
         retrospective =
@@ -236,24 +241,28 @@ export async function renderReport(
         x,
         y,
         size: 19,
-        color: charged
-          ? red
-          : retrospective
-            ? amber
-            : done
-              ? lime
-              : planned
-                ? purple
-                : rgb(0.96, 0.95, 0.98),
-        borderColor: charged
-          ? red
-          : retrospective
-            ? amber
-            : done
-              ? lime
-              : planned
-                ? purple
-                : rgb(0.86, 0.84, 0.9),
+        color: excess
+          ? rgb(1, 0.94, 0.8)
+          : charged
+            ? red
+            : retrospective
+              ? amber
+              : done
+                ? lime
+                : planned
+                  ? purple
+                  : rgb(0.96, 0.95, 0.98),
+        borderColor: excess
+          ? rgb(0.73, 0.45, 0)
+          : charged
+            ? red
+            : retrospective
+              ? amber
+              : done
+                ? lime
+                : planned
+                  ? purple
+                  : rgb(0.86, 0.84, 0.9),
         borderWidth: 1,
       });
       text(
@@ -266,6 +275,21 @@ export async function renderReport(
       );
     }
     y -= 42;
+    if (card && group.completed > group.units) {
+      if (y < 120) {
+        footer();
+        nextPage();
+      }
+      text(
+        `${group.completed - group.units} Einheiten über dem aktuellen Kontingent (beige markiert).`,
+        40,
+        y,
+        10,
+        bold,
+        rgb(0.52, 0.32, 0),
+      );
+      y -= 24;
+    }
   }
   if (card || chargedPolicy) {
     if (y < 160) {

@@ -1,4 +1,9 @@
 import {
+  subscriptionReviews,
+  resolveSubscriptionReview,
+} from "@/lib/server/subscription-reviews";
+import { playerProfileList } from "@/lib/server/player-profiles";
+import {
   profileList,
   loadParentProfile,
   editParentProfile,
@@ -188,6 +193,33 @@ async function handler(
     const session = await sessionUser();
     if (!session?.role) throw new HttpError(401, "Bitte melde dich an.");
     const { db, user, role } = session;
+    if (path === "admin/subscription-reviews") {
+      if (request.method === "GET")
+        return json(
+          await subscriptionReviews(
+            session,
+            z.coerce
+              .number()
+              .int()
+              .min(0)
+              .max(100000)
+              .parse(request.nextUrl.searchParams.get("offset") ?? 0),
+          ),
+        );
+      if (request.method === "POST")
+        return json(
+          await resolveSubscriptionReview(session, await request.json()),
+        );
+    }
+    if (path === "player-profiles" && request.method === "GET") {
+      return json(
+        await playerProfileList(session, {
+          search: request.nextUrl.searchParams.get("search") ?? "",
+          sort: request.nextUrl.searchParams.get("sort") ?? "name",
+          cursor: request.nextUrl.searchParams.get("cursor") ?? undefined,
+        }),
+      );
+    }
     if (path.startsWith("parent-profiles/")) {
       const parts = path.split("/");
       if (

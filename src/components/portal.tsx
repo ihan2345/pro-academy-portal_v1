@@ -219,8 +219,8 @@ export function Portal({
       icon: CalendarDays,
     },
     { href: "/admin/stempelkarten", title: "Stempelkarten", icon: Goal },
-    { href: "/admin/spieler", title: "Spieler & Eltern", icon: Users },
     { href: "/admin/elternprofile", title: "Elternprofile", icon: Users },
+    { href: "/admin/spielerprofile", title: "Spielerprofil", icon: UserRound },
     { href: "/admin/mitarbeiter", title: "Mitarbeiter", icon: UserRound },
     { href: "/admin/standorte", title: "Standorte", icon: MapPin },
     { href: "#verwaltung", title: "Verwaltung", icon: Settings },
@@ -233,6 +233,11 @@ export function Portal({
           { href: "/team", title: "Trainingsplanung", icon: CalendarDays },
           { href: "/team/stempelkarten", title: "Stempelkarten", icon: Goal },
           { href: "/team/elternprofile", title: "Elternprofile", icon: Users },
+          {
+            href: "/team/spielerprofile",
+            title: "Spielerprofil",
+            icon: UserRound,
+          },
           { href: "/konto", title: "Mein Konto", icon: Settings },
         ]
       : data.camp_enabled && data.camp_access && data.camp_access !== "active"
@@ -729,7 +734,7 @@ export function Portal({
                       </p>
                       {stats.completed > (period?.included_units ?? 0) && (
                         <p>
-                          Zusätzlich angerechnet:{" "}
+                          Über dem aktuellen Kontingent:{" "}
                           {stats.completed - (period?.included_units ?? 0)}{" "}
                           Einheiten.
                         </p>
@@ -1069,7 +1074,7 @@ export function Stamps({
                 }
               />
               {stats.completed > units && (
-                <p>Zusätzlich angerechnet: {stats.completed - units}</p>
+                <p>Über dem aktuellen Kontingent: {stats.completed - units}</p>
               )}
             </section>
           );
@@ -1080,7 +1085,7 @@ export function Stamps({
   return (
     <div className="stamps">
       {stampSlots(
-        period?.included_units ?? 0,
+        Math.max(period?.included_units ?? 0, completed),
         completed,
         planned,
         charged,
@@ -1088,8 +1093,8 @@ export function Stamps({
       ).map((state, i) => (
         <div className="stamp-item" key={i}>
           <div
-            className={`stamp ${state}`}
-            aria-label={`Einheit ${i + 1}: ${state === "done" ? "absolviert" : state === "retrospective" ? "nachgetragen" : state === "charged" ? "angerechnet, abgesagt oder nicht erschienen" : state === "planned" ? "geplant" : "offen"}`}
+            className={`stamp ${state} ${i >= (period?.included_units ?? 0) ? "over-quota" : ""}`}
+            aria-label={`Einheit ${i + 1}${i >= (period?.included_units ?? 0) ? " über Kontingent" : ""}: ${state === "done" ? "absolviert" : state === "retrospective" ? "nachgetragen" : state === "charged" ? "angerechnet, abgesagt oder nicht erschienen" : state === "planned" ? "geplant" : "offen"}`}
           >
             {state === "charged" || state === "retrospective" ? (
               <span>OK</span>
@@ -1111,7 +1116,11 @@ export function Stamps({
               <span>{String(i + 1).padStart(2, "0")}</span>
             )}
           </div>
-          <small>Einheit {i + 1}</small>
+          <small>
+            {i >= (period?.included_units ?? 0)
+              ? "Über Kontingent"
+              : `Einheit ${i + 1}`}
+          </small>
         </div>
       ))}
     </div>

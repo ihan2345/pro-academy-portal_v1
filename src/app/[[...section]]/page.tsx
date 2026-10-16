@@ -1,3 +1,4 @@
+import { PlayerProfiles } from "@/components/player-profiles";
 import { ProfileList, ProfileView } from "@/components/parent-profile";
 import {
   profileSession,
@@ -39,6 +40,25 @@ export default async function Page({
   params: Promise<{ section?: string[] }>;
 }) {
   const section = (await params).section?.join("/") ?? "";
+  if (/^(admin|team)\/spielerprofile$/.test(section)) {
+    let session;
+    try {
+      session = await profileSession();
+    } catch (e) {
+      if (e instanceof HttpError && e.status === 401) redirect("/login");
+      throw e;
+    }
+    if (!canOpenPortalSection(session.role!, section))
+      redirect(portalHome(session.role!));
+    return (
+      <Portal initial={profileShell(session)} section={section}>
+        <PlayerProfiles
+          base={`/${section.split("/")[0]}/elternprofile`}
+          admin={session.role === "admin"}
+        />
+      </Portal>
+    );
+  }
   const profileRoute =
     /^(?:(admin|team)\/elternprofile(?:\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\/einheiten)?)?|profil(\/einheiten)?)$/i.exec(
       section,

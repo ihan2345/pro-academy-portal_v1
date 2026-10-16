@@ -4,11 +4,19 @@ import Link from "next/link";
 import {
   ChevronDown,
   Settings,
+  Users,
   Zap,
   FileText,
   ArrowUpRight,
 } from "lucide-react";
 const items = [
+  {
+    href: "/admin/spieler",
+    title: "Spieler & Eltern",
+    description: "Spieler und Eltern verwalten",
+    icon: Users,
+    sections: ["admin/spieler"],
+  },
   {
     href: "/admin/stripe",
     title: "Stripe-Zuordnung",

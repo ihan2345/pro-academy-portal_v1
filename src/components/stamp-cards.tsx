@@ -318,7 +318,7 @@ export function StampCards({
             </p>
             {stats.completed > card.snapshot.included_units && (
               <p>
-                Zusätzlich angerechnet:{" "}
+                Über dem aktuellen Kontingent:{" "}
                 {stats.completed - card.snapshot.included_units} Einheiten
               </p>
             )}

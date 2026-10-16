@@ -1,4 +1,5 @@
 "use client";
+import { SubscriptionReviews } from "./subscription-reviews";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -390,6 +391,7 @@ export function AdminView({
       )}
       {!slug && (
         <>
+          <SubscriptionReviews />
           <div className="admin-metrics">
             {[
               { n: data.players.length, t: "Spieler", i: Users },

@@ -86,3 +86,21 @@ it("keeps team stamp cards in the correct role navigation", () => {
   expect(canOpenPortalSection("staff", "admin/stempelkarten")).toBe(false);
   expect(canOpenPortalSection("admin", "team/stempelkarten")).toBe(false);
 });
+
+it("allows staff profile directories within the team area", () => {
+  for (const route of ["elternprofile", "spielerprofile"]) {
+    expect(canOpenPortalSection("staff", `team/${route}`)).toBe(true);
+    expect(canOpenPortalSection("staff", `team/${route}/some-id`)).toBe(true);
+    expect(canOpenPortalSection("admin", `admin/${route}`)).toBe(true);
+    expect(canOpenPortalSection("parent", `admin/${route}`)).toBe(false);
+  }
+  expect(canOpenPortalSection("parent", "profil")).toBe(true);
+  const html = renderToStaticMarkup(
+    createElement(Portal, {
+      initial: { ...portalFixture, role: "staff" },
+      section: "team",
+    }),
+  );
+  expect(html).toContain('href="/team/elternprofile"');
+  expect(html).toContain('href="/team/spielerprofile"');
+});

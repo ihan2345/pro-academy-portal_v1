@@ -53,13 +53,25 @@ export async function syncSubscription(id: string) {
     typeof subscription.customer === "string"
       ? subscription.customer
       : subscription.customer.id;
-  const items = subscription.items.data.map((item) => ({
+  const completeItems = [...subscription.items.data];
+  if (subscription.items.has_more) {
+    completeItems.length = 0;
+    for await (const item of stripe.subscriptionItems.list({
+      subscription: id,
+      limit: 100,
+    })) {
+      completeItems.push(item);
+      if (completeItems.length > 1000)
+        throw new Error("Zu viele Abo-Positionen für eine sichere Zuordnung.");
+    }
+  }
+  const items = completeItems.map((item) => ({
     id: item.id,
     price_id: item.price.id,
     quantity: item.quantity,
     ...periodFromStripe(item.current_period_start, item.current_period_end),
   }));
-  const { data, error } = await serviceDb().rpc("apply_stripe", {
+  const { data, error } = await serviceDb().rpc("apply_stripe_package_sync", {
     input: {
       stripe_subscription_id: subscription.id,
       stripe_customer_id: customer,

@@ -3496,3 +3496,63 @@ label {
 @media (min-width: 1101px) {
   .sidebar-collapsed .admin-navigation-chevron { display: none; }
 }
+
+/* Player directory reuses the parent profile's premium card themes. */
+.player-directory { min-width: 0; }
+.player-directory-controls { display:flex; align-items:end; flex-wrap:wrap; gap:14px; margin-bottom:16px; }
+.player-directory-controls .search-input { flex:1 1 260px; min-width:0; }
+.player-directory-sort { display:grid; gap:5px; font-size:12px; color:var(--muted); }
+.player-directory-sort select { max-width:100%; min-height:44px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:white; color:var(--ink); }
+.player-directory-count { margin:16px 0 8px; color:var(--muted); font-size:13px; }
+.player-directory-scroll { max-height:72dvh; min-height:280px; overflow:auto; overscroll-behavior-y:contain; scrollbar-gutter:stable; padding:12px 14px 24px 4px; border-radius:12px; }
+.player-directory-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr)); gap:22px; align-items:stretch; }
+.player-directory-card { min-width:0; width:auto; margin:0; padding:24px; display:flex; flex-direction:column; gap:14px; content-visibility:auto; contain-intrinsic-size:auto 430px; }
+.player-directory-card .profile-child-head { align-items:center; margin:0; }
+.player-directory-card h2 { font-size:21px; overflow-wrap:anywhere; }
+.player-directory-card .profile-product { min-height:42px; margin:0; overflow-wrap:anywhere; }
+.player-directory-card .profile-metrics { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:0; padding-top:18px; }
+.player-directory-card .profile-metrics > div { flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:4px; }
+.player-directory-card .profile-metrics strong { font-size:23px; }
+.player-directory-card .profile-metrics > div:last-child { grid-column:1 / -1; }
+.player-directory-family { display:grid; gap:8px; margin-top:auto; padding-top:16px; }
+.player-directory-family > span,.player-directory-family a { display:flex; gap:8px; align-items:center; }
+.player-directory-family a { justify-content:space-between; min-height:44px; overflow-wrap:anywhere; }
+.player-directory-skeleton { min-height:430px; border:1px solid var(--line); border-radius:24px; background:linear-gradient(140deg,#eeedf3,#f8f8fa); }
+.player-directory-load,.player-directory-empty { text-align:center; padding:24px 8px; color:var(--muted); }
+.player-directory-load button { margin-top:12px; }
+@media(max-width:600px) {
+  .player-directory-controls { align-items:stretch; gap:10px; }
+  .player-directory-sort { flex:1 1 100%; min-width:0; }
+  .player-directory-sort select { width:100%; font-size:16px; }
+  .player-directory-controls input { font-size:16px; }
+  .player-directory-scroll { max-height:70dvh; padding-right:6px; }
+  .player-directory-grid { grid-template-columns:minmax(0,1fr); gap:18px; }
+  .player-directory-card { padding:22px; }
+}
+
+.player-directory-card > .player-directory-card-link {
+  position:absolute;
+  inset:0;
+  z-index:2;
+  border-radius:inherit;
+}
+.player-directory-card-link:focus-visible {
+  outline:3px solid var(--child-accent,var(--purple));
+  outline-offset:-5px;
+}
+.player-directory-card > .player-directory-family { z-index:3; pointer-events:none; }
+.player-directory-family a { pointer-events:auto; }
+@media (hover:hover) {
+  .player-directory-card:has(.player-directory-card-link:hover) { border-color:var(--child-accent,var(--purple)); }
+}
+
+.subscription-review-preview { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:18px; padding:24px; margin-bottom:24px; }
+.subscription-review-preview p { margin-top:8px; }
+.subscription-review-body { display:grid; gap:20px; padding:24px; }
+.subscription-review-card { display:grid; gap:14px; border:1px solid var(--line); border-radius:12px; padding:20px; min-width:0; }
+.subscription-review-card label { display:grid; gap:6px; }
+.subscription-review-card select { width:100%; min-width:0; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:6px; background:white; }
+.subscription-review-card p { font-size:13px; color:var(--muted); }
+.stamp.over-quota { border:2px solid #bb7200; background:#fff0cd; color:#855100; box-shadow:0 0 0 3px #e6a12920; }
+.stamp-item:has(.over-quota) > small { color:#855100; font-weight:600; }
+@media(max-width:600px) { .subscription-review-body { padding:16px; } .subscription-review-card { padding:16px; } .subscription-review-card select { font-size:16px; } }
