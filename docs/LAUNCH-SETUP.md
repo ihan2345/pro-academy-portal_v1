@@ -462,3 +462,25 @@ Auf ausdrücklichen Auftrag „commit ü deploye“ wurde `ebde5fd` auf `main` g
 Online geprüft: neue UI-Bundles bytegleich zum Produktionsbuild, Login HTTP 200, anonyme Linkverwaltung lesend/schreibend HTTP 401, fremder Origin HTTP 403, ungültige Export-Links HTTP 404 mit no-store, nicht angemeldeter Spielerkarte-Aufruf zur Anmeldung umgeleitet. Datenbankprüfung bestätigt: keine Freigabe vorab erstellt, kein anonymer Verwaltungszugriff, Tokenprüfung ausschließlich serverseitig. Admin kann den ersten Link jetzt unter Einstellungen erstellen.
 
 Laufzeitvariablen, Elternzustände, Mailfreigaben und deren Prüffunktion unverändert. Warteschlange weiterhin 657 held, 32 sent, 1 uncertain. Keine Einladungen, keine Testmails und keine Freigabe der fünf Eltern ausgelöst. Technische Nachweise unter `output/player-api/`.
+
+### Verbindliche Vorgabe für zukünftige Camp-Checkouts (16.10.2026)
+
+Nutzerentscheidung nach Prüfung der Buchung Frank / Konstatin Valenbreder: Das aktuelle Camp ist ein Testcamp; aus dieser Abstimmung keine nachträgliche Reparatur oder Übernahme der Testbuchung ableiten. Für kommende Camps muss Stripe folgende Pflichtangaben liefern:
+
+- **Name des Kindes** – exakt diese Feldbezeichnung, kein „Name des Kondes“.
+- **Geburtsjahr** – entsprechend dem bereits im Spielerprofil gespeicherten `players.birth_year`; nicht Geburtsdatum oder Alter als Ersatz abfragen.
+- **Kleidergröße des Kindes** – verpflichtende Größenangabe.
+
+Vor Freigabe eines neuen Camps Zahlungslink und Preis dem Camp zuordnen und die Feldzuordnung Ende zu Ende prüfen. Checkout, Stripe-Auswertung, Prüfmaske und Import müssen das Geburtsjahr konsistent unterstützen; der aktuelle Import erwartet teilweise noch „Alter des Kindes“ und ist durch diese Dokumentation NICHT umgestellt. Keine erfundenen Geburtstage aus einem Geburtsjahr erzeugen. Bestehende Daten und historische Stripe-Formulare nicht rückwirkend umdeuten.
+
+Diese Vorgabe wurde nur dokumentiert. Keine Stripe-Felder, Camp-Konfigurationen, Buchungen, Elternfreigaben oder Versandaufträge geändert.
+
+### Spielerkarte aus der Verwaltung bearbeiten (lokal, 16.10.2026)
+
+Vor- und Nachname in „Spieler verwalten“ verlinken auf die bestehende Spielerkarte `/admin/spieler/<id>`. Dort öffnet „Angaben des Kindes bearbeiten“ ein vorausgefülltes Formular für Namen, Geburtsjahr, Altersklasse, Geschlecht, Verein, Position, starken Fuß, Größe und Entwicklungsziele. Freiwillige Felder können geleert werden. Speichern aktualisiert die Karte und dieselben Daten, die Spielerliste und Spieler-API lesen.
+
+Der zusätzliche Admin-Endpunkt `POST /api/admin/player-profile` verwendet die vorhandene strikte Kinderprofilvalidierung und ein Update des gewählten Spielers über die Admin-Session. Kein Upsert, keine erforderliche Elternverknüpfung und keine Veränderung des Archivstatus. Damit können auch archivierte oder nicht zugeordnete Spieler bearbeitet werden. Eltern und Mitarbeiter dürfen diesen Endpunkt nicht verwenden. Keine Migration erforderlich; noch nicht veröffentlicht.
+
+Prüfung dieser Erweiterung: sechs API-Tests für Adminrechte, fremde Origins, Feldvalidierung, Leeren optionaler Werte und fehlende Spieler erfolgreich. Isolierte Desktop-/Mobilprüfung bestätigt vorausgefülltes Formular, Leeren, Speichern und Aktualisierung der Karte. Keine produktiven Spielerdaten verändert. Nachweise unter `output/player-edit/`.
+
+Die vollständige TypeScript-Prüfung wurde nach mehreren Minuten ohne Ergebnis beendet: Der Prozess wartete wiederholt beim Lesen von Typdateien installierter Next-/Cloudflare-Bibliotheken. Kein erfolgreicher vollständiger Typecheck für diesen Stand behauptet; vor Veröffentlichung erneut ausführen. API- und UI-Prüfungen waren erfolgreich.

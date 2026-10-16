@@ -3461,3 +3461,12 @@ label {
 .player-api-actions > button {
   white-space: normal;
 }
+
+.player-editor-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}

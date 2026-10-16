@@ -4,6 +4,7 @@ import { profileSession, profileShell } from "@/lib/server/parent-profile";
 import { loadPlayerExport } from "@/lib/server/player-export";
 import { HttpError } from "@/lib/server/security";
 import { Portal } from "@/components/portal";
+import { PlayerProfileEditor } from "@/components/player-profile-editor";
 import { formatDate } from "@/lib/domain";
 export const dynamic = "force-dynamic";
 export default async function PlayerCard({
@@ -24,6 +25,16 @@ export default async function PlayerCard({
   if (session.role !== "admin") notFound();
   const player = (await loadPlayerExport(id)).find((p) => p.id === id);
   if (!player) notFound();
+  const editable = await session.db
+    .from("players")
+    .select(
+      "id,first_name,last_name,birth_year,team,gender,club,position,strong_foot,height_cm,development_goals",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (editable.error)
+    throw new HttpError(503, "Kinderdaten konnten nicht geladen werden.");
+  if (!editable.data) notFound();
   const fields = [
     ["Elternteil", player.elternteile.join(", ")],
     ["Geburtsjahr", player.geburtsjahr],
@@ -40,6 +51,7 @@ export default async function PlayerCard({
         <Link href="/admin/spieler">← Spieler verwalten</Link>
         <h1>{player.spielername}</h1>
         <p>Spielerkarte{player.archiviert ? " · Archiviert" : ""}</p>
+        <PlayerProfileEditor player={editable.data} />
         {fields.map(([label, value]) => (
           <div className="account-row" key={label}>
             <span>{label}</span>

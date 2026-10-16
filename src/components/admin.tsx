@@ -526,6 +526,14 @@ export function AdminView({
                             >
                               {String(r[f.key] ?? "Profil")}
                             </Link>
+                          ) : slug === "spieler" &&
+                            ["first_name", "last_name"].includes(f.key) ? (
+                            <Link
+                              href={`/admin/spieler/${r.id}`}
+                              className="text-button"
+                            >
+                              {String(r[f.key] ?? "Spielerprofil")}
+                            </Link>
                           ) : f.key === "generation" ? (
                             ({
                               legacy: "Bestand",

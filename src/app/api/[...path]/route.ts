@@ -4,6 +4,7 @@ import {
   editParentProfile,
   archiveProfileChild,
   changeProfileChild,
+  profileChildSchema,
 } from "@/lib/server/parent-profile";
 import { readProfileFinances } from "@/lib/server/parent-profile-finances";
 import { loadLogDetail } from "@/lib/server/log-detail";
@@ -731,6 +732,24 @@ async function handler(
         return json({ rows });
       }
       if (request.method === "POST") {
+        if (action === "player-profile") {
+          const { child_id, ...fields } = profileChildSchema.parse(
+            await request.json(),
+          );
+          const result = await db
+            .from("players")
+            .update(fields)
+            .eq("id", child_id)
+            .select("id")
+            .maybeSingle();
+          if (result.error)
+            throw new HttpError(
+              400,
+              "Kinderdaten konnten nicht gespeichert werden.",
+            );
+          if (!result.data) throw new HttpError(404, "Kind nicht verfügbar.");
+          return json({ ok: true });
+        }
         if (action === "training-api-link") {
           const { rotate } = z
             .object({ rotate: z.boolean().default(false) })
