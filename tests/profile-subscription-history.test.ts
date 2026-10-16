@@ -5,10 +5,23 @@ vi.mock("../src/lib/server/service-db", () => ({ serviceDb: () => db }));
 vi.mock("../src/lib/server/profile-stripe", () => ({
   profileStripeClient: client.get,
 }));
+import { activeMembership } from "../src/lib/parent-profile";
 import {
   readSubscriptionHistory,
   profileActivePeriods,
 } from "../src/lib/server/profile-subscription-history";
+function collection(rows: any[] = []) {
+  const q: any = {
+    select: () => q,
+    in: () => q,
+    eq: () => q,
+    order: () => q,
+    limit: () => q,
+    then: (resolve: any) =>
+      Promise.resolve({ data: rows, error: null }).then(resolve),
+  };
+  return q;
+}
 const line = (
   id: string,
   start: number,
@@ -108,10 +121,14 @@ it("maps each item to its own child, persists complete history and reuses fresh 
     rows = [row];
     return { error: null };
   });
-  db.from.mockImplementation(() => ({
-    select: () => ({ in: async () => ({ data: rows, error: null }) }),
-    upsert,
-  }));
+  db.from.mockImplementation((table) =>
+    ["subscription_players", "audit_log"].includes(table)
+      ? collection()
+      : {
+          select: () => ({ in: async () => ({ data: rows, error: null }) }),
+          upsert,
+        },
+  );
   const sub = {
     id: "db_one",
     stripe_subscription_id: "sub_one",
@@ -191,4 +208,122 @@ it("a later trial does not erase earlier paid service", async () => {
     { item: "si_one", start: 10, end: 50 },
     { item: "si_one", start: 60, end: 90 },
   ]);
+});
+
+const seconds = (date: string) => Date.parse(date) / 1000;
+function historyFixture(mappings: any[], audit: any[], invoiceLines: any[]) {
+  const api = stripe([
+    { id: "invoice", lines: { has_more: false, data: invoiceLines } },
+  ]);
+  api.subscriptions.retrieve.mockResolvedValue({
+    created: seconds("2026-01-01"),
+    start_date: seconds("2026-01-01"),
+    trial_end: null,
+    ended_at: null,
+  } as any);
+  client.get.mockReturnValue(api);
+  db.from.mockImplementation((table) => {
+    if (table === "subscription_players") return collection(mappings);
+    if (table === "audit_log") return collection(audit);
+    return {
+      select: () => ({ in: async () => ({ data: [], error: null }) }),
+      upsert: async () => ({ error: null }),
+    };
+  });
+  const sub = {
+    id: "db_history",
+    stripe_subscription_id: "sub_history",
+    status: "active",
+    stripe_data: {},
+  };
+  return mappings.map((m) => ({ ...m, subscriptions: sub }));
+}
+const mapping = (item: string, player = "phil") => ({
+  id: "mapping",
+  subscription_id: "db_history",
+  stripe_item_id: item,
+  player_id: player,
+});
+it("preserves eight paid months after Phil's October package change", async () => {
+  const old = mapping("si_old"),
+    current = mapping("si_new");
+  const links = historyFixture(
+    [current],
+    [{ id: "audit", old_value: old, new_value: current }],
+    [
+      line(
+        "old",
+        seconds("2026-02-12T04:58:25Z"),
+        seconds("2026-10-12T04:58:25Z"),
+        "si_old",
+      ),
+      line(
+        "new",
+        seconds("2026-10-12T04:58:25Z"),
+        seconds("2026-11-12T04:58:25Z"),
+        "si_new",
+      ),
+    ],
+  );
+  const periods = await profileActivePeriods(links, [], "2026-10-16T12:00:00Z");
+  expect(activeMembership(periods, "2026-10-16T12:00:00Z")).toEqual({
+    since: "2026-02-12T04:58:25.000Z",
+    months: 8,
+  });
+});
+it("retains multiple package changes and counts overlapping paid service only once", async () => {
+  const a = mapping("si_a"),
+    b = mapping("si_b"),
+    c = mapping("si_c");
+  const links = historyFixture(
+    [c],
+    [
+      { id: "a", old_value: a, new_value: b },
+      { id: "b", old_value: b, new_value: c },
+    ],
+    [
+      line("a", seconds("2026-02-12"), seconds("2026-08-12"), "si_a"),
+      line("b", seconds("2026-07-12"), seconds("2026-10-12"), "si_b"),
+      line("c", seconds("2026-10-12"), seconds("2026-11-12"), "si_c"),
+    ],
+  );
+  expect(
+    activeMembership(
+      await profileActivePeriods(links, [], "2026-10-16T12:00:00Z"),
+      "2026-10-16T12:00:00Z",
+    ).months,
+  ).toBe(8);
+});
+it("does not transfer the previous child's months or a sibling's item to a newly selected child", async () => {
+  const old = mapping("si_old", "sibling"),
+    current = mapping("si_new");
+  const links = historyFixture(
+    [current],
+    [{ id: "a", old_value: old, new_value: current }],
+    [
+      line("old", seconds("2026-02-12"), seconds("2026-10-12"), "si_old"),
+      line(
+        "unknown",
+        seconds("2026-01-01"),
+        seconds("2026-10-12"),
+        "si_unknown",
+      ),
+      line("new", seconds("2026-10-12"), seconds("2026-11-12"), "si_new"),
+    ],
+  );
+  const periods = await profileActivePeriods(links, [], "2026-10-16T12:00:00Z");
+  expect(periods).toHaveLength(1);
+  expect(activeMembership(periods, "2026-10-16T12:00:00Z").months).toBe(0);
+});
+it("rejects ambiguous reuse of the same Stripe item across children", async () => {
+  const old = mapping("si_same", "sibling"),
+    current = mapping("si_same");
+  const links = historyFixture(
+    [current],
+    [{ id: "a", old_value: old, new_value: current }],
+    [line("a", seconds("2026-02-12"), seconds("2026-11-12"), "si_same")],
+  );
+  await expect(
+    profileActivePeriods(links, [], "2026-10-16T12:00:00Z"),
+  ).rejects.toThrow("nicht eindeutig");
 });

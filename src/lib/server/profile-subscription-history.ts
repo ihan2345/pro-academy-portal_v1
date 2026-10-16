@@ -108,6 +108,70 @@ export async function readSubscriptionHistory(
   return result;
 }
 
+/** The audited mapping keeps old Stripe item IDs even after multiple package
+ * changes in one period. Read all current mappings for the subscriptions so a
+ * sibling's item can never be inferred from a shared subscription alone. */
+async function historicalOwners(
+  db: ReturnType<typeof serviceDb>,
+  subscriptionIds: string[],
+) {
+  async function collect(make: () => any): Promise<any[]> {
+    const rows: any[] = [];
+    let after: string | undefined;
+    for (let page = 0; page < 20; page++) {
+      let query = make().order("id").limit(500);
+      if (after) query = query.gt("id", after);
+      const result = await query;
+      if (result.error) throw fail();
+      rows.push(...result.data);
+      if (result.data.length < 500) return rows;
+      after = result.data.at(-1).id;
+    }
+    throw fail();
+  }
+  const owners = new Map<string, Set<string>>();
+  const add = (mapping: any) => {
+    if (
+      !mapping ||
+      !subscriptionIds.includes(mapping.subscription_id) ||
+      !mapping.stripe_item_id ||
+      !mapping.player_id
+    )
+      return;
+    const key = `${mapping.subscription_id}:${mapping.stripe_item_id}`;
+    const players = owners.get(key) ?? new Set<string>();
+    players.add(mapping.player_id);
+    owners.set(key, players);
+  };
+  // Keep PostgREST IN filters bounded, including profile-wide rankings.
+  for (let start = 0; start < subscriptionIds.length; start += 100) {
+    const mappings = await collect(() =>
+      db
+        .from("subscription_players")
+        .select("id,subscription_id,stripe_item_id,player_id")
+        .in("subscription_id", subscriptionIds.slice(start, start + 100)),
+    );
+    mappings.forEach(add);
+    for (let offset = 0; offset < mappings.length; offset += 100) {
+      const audit = await collect(() =>
+        db
+          .from("audit_log")
+          .select("id,old_value,new_value")
+          .eq("table_name", "subscription_players")
+          .in(
+            "record_id",
+            mappings.slice(offset, offset + 100).map((m) => m.id),
+          ),
+      );
+      for (const entry of audit) {
+        add(entry.old_value);
+        add(entry.new_value);
+      }
+    }
+  }
+  return owners;
+}
+
 /** Shared persistent cache, refreshed on relevant subscription changes or after six hours. */
 export async function profileActivePeriods(
   links: ProfileSubscriptionLink[],
@@ -192,9 +256,25 @@ export async function profileActivePeriods(
   const result = storedPeriods.filter(
     (p) => !p.subscription_id || !sourced.has(p.subscription_id),
   );
+  const owners = await historicalOwners(db, [...sourced]);
+  const emitted = new Set<string>();
   for (const link of links) {
     for (const period of histories.get(link.subscriptions.id) ?? []) {
-      if (period.item !== link.stripe_item_id) continue;
+      const assigned = owners.get(`${link.subscriptions.id}:${period.item}`);
+      if (assigned && assigned.size > 1 && assigned.has(link.player_id)) {
+        throw new HttpError(
+          503,
+          "Die historische Kinderzuordnung dieses Abos ist nicht eindeutig. Bitte prüfen.",
+        );
+      }
+      if (
+        period.item !== link.stripe_item_id &&
+        !(assigned?.size === 1 && assigned.has(link.player_id))
+      )
+        continue;
+      const key = `${link.player_id}:${link.subscriptions.id}:${period.item}:${period.start}:${period.end}`;
+      if (emitted.has(key)) continue;
+      emitted.add(key);
       result.push({
         player_id: link.player_id,
         subscription_id: link.subscriptions.id,
