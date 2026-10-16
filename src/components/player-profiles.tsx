@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Search, Users } from "lucide-react";
+import { ArrowUpRight, Search, Stamp, Users } from "lucide-react";
 import { childCardTheme, childInitials } from "@/lib/parent-profile";
 import { durationLabel, formatDate } from "@/lib/domain";
 import type {
@@ -263,8 +263,19 @@ function PlayerFeed({
                 </p>
               )}
               <div className="player-directory-family">
-                <span className="profile-muted">
-                  <Users size={14} /> Elternprofil
+                <span className="profile-muted player-directory-family-heading">
+                  <span>
+                    <Users size={14} /> Elternprofil
+                  </span>
+                  <Link
+                    className="player-directory-stamp-link"
+                    href={`${base.startsWith("/admin/") ? "/admin" : "/team"}/stempelkarten?child=${encodeURIComponent(c.id)}`}
+                    aria-label={`Stempelkarte von ${c.name} öffnen`}
+                    title="Stempelkarte öffnen"
+                    prefetch={false}
+                  >
+                    <Stamp size={18} aria-hidden="true" />
+                  </Link>
                 </span>
                 {c.parents.map((p) => (
                   <Link

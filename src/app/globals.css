@@ -3556,3 +3556,9 @@ label {
 .stamp.over-quota { border:2px solid #bb7200; background:#fff0cd; color:#855100; box-shadow:0 0 0 3px #e6a12920; }
 .stamp-item:has(.over-quota) > small { color:#855100; font-weight:600; }
 @media(max-width:600px) { .subscription-review-body { padding:16px; } .subscription-review-card { padding:16px; } .subscription-review-card select { font-size:16px; } }
+
+.player-directory-family-heading { justify-content:space-between; }
+.player-directory-family-heading > span { display:flex; align-items:center; gap:8px; }
+.player-directory-family .player-directory-stamp-link { display:inline-flex; align-items:center; justify-content:center; width:44px; min-width:44px; height:44px; border-radius:10px; color:inherit; }
+.player-directory-stamp-link:hover { background:color-mix(in srgb,currentColor 12%,transparent); }
+.player-directory-stamp-link:focus-visible { outline:2px solid currentColor; outline-offset:2px; }

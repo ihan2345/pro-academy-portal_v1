@@ -142,7 +142,7 @@ try {
       page.locator(".player-directory-card-link").first(),
     ).toHaveAttribute("href", "/admin/spieler/child-0");
     await expect(
-      page.locator(".player-directory-family a").first(),
+      page.locator(".player-directory-family .child-edit-button").first(),
     ).toHaveAttribute("href", "/admin/elternprofile/parent-0");
     await expect(
       page.getByRole("option", {
@@ -181,6 +181,10 @@ try {
     );
     await page.locator(".player-directory-card-link").first().click();
     await expect(page).toHaveURL(/\/admin\/spieler\/child-1$/);
+    const stamp = page.getByRole("link", { name: "Stempelkarte von Spieler 1 Beispiel öffnen", exact: true });
+    await expect(stamp).toHaveAttribute("href", "/admin/stempelkarten?child=child-0");
+    await stamp.click();
+    await expect(page).toHaveURL(/\/admin\/stempelkarten\?child=child-0$/);
     assert.deepEqual(errors, []);
     await page.close();
     console.log(`${name}: pagination, retry, sort, search, overflow passed`);
