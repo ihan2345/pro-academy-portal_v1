@@ -1,10 +1,14 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   tables: {} as Record<string, any[]>,
   reads: [] as { table: string; ids?: string[] }[],
   revenue: vi.fn(),
   backfillError: false,
 }));
+vi.mock("../src/lib/server/config", () => ({
+  required: () => "player-profile-cursor-test-key-not-a-real-credential",
+}));
+afterEach(() => vi.useRealTimers());
 vi.mock("../src/lib/server/service-db", () => ({
   serviceDb: () => ({
     from: (table: string) => {
@@ -214,4 +218,74 @@ it("orders active subscription tiers globally with the highest tier first", asyn
     "player-23",
     "player-22",
   ]);
+});
+
+it("loads all 93 players across fresh workers and expired ranking caches", async () => {
+  const template = state.tables.players[0];
+  state.tables.players = Array.from({ length: 93 }, (_, i) => ({
+    ...template,
+    id: `child-${String(i).padStart(3, "0")}`,
+    first_name: `Kind ${String(i).padStart(3, "0")}`,
+  }));
+  state.tables.subscription_players = state.tables.players.map((p, i) => ({
+    id: `subscription-${i}`,
+    player_id: p.id,
+    players: p,
+    subscriptions: { status: "active" },
+  }));
+  let page = await playerProfileList(session(), {});
+  const ids = page.rows.map((r) => r.id);
+  vi.useFakeTimers();
+  while (page.next) {
+    // Independent module state simulates routing to another Cloudflare isolate.
+    vi.resetModules();
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+    const worker = await import("../src/lib/server/player-profiles");
+    page = await worker.playerProfileList(session(), { cursor: page.next });
+    expect(page.rows.length).toBeLessThanOrEqual(10);
+    ids.push(...page.rows.map((r) => r.id));
+    expect(ids.length).toBeLessThanOrEqual(93);
+  }
+  expect(ids).toEqual(state.tables.players.map((p) => p.id));
+  expect(new Set(ids).size).toBe(93);
+});
+it("resumes after a cache timeout even when the last loaded child was removed", async () => {
+  vi.useFakeTimers();
+  const first = await playerProfileList(session(), {});
+  state.tables.players[9].archived_at = "2026-01-01";
+  vi.setSystemTime(Date.now() + 6 * 60_000);
+  const next = await playerProfileList(session(), { cursor: first.next });
+  expect(next.rows.map((p) => p.id)).toEqual(
+    state.tables.players.slice(10, 20).map((p) => p.id),
+  );
+});
+it("rejects tampered continuations before reading profile data", async () => {
+  const first = await playerProfileList(session(), {});
+  const token = first.next!;
+  const changed =
+    token.slice(0, 35) + (token[35] === "A" ? "B" : "A") + token.slice(36);
+  state.reads = [];
+  await expect(
+    playerProfileList(session(), { cursor: changed }),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(state.reads).toHaveLength(0);
+});
+it.each([
+  "name",
+  "newest",
+  "subscription",
+  "hours",
+  "months",
+  "revenue",
+] as const)("continues %s ordering on another worker", async (sort) => {
+  state.revenue.mockResolvedValue(new Map());
+  const first = await playerProfileList(session(), { sort });
+  const warm = await playerProfileList(session(), { sort, cursor: first.next });
+  vi.resetModules();
+  const worker = await import("../src/lib/server/player-profiles");
+  const cold = await worker.playerProfileList(session(), {
+    sort,
+    cursor: first.next,
+  });
+  expect(cold.rows.map((p) => p.id)).toEqual(warm.rows.map((p) => p.id));
 });

@@ -1,5 +1,12 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+  randomUUID,
+} from "node:crypto";
+import { required } from "./config";
 import { z } from "zod";
 import { serviceDb } from "./service-db";
 import { assertRole, HttpError } from "./security";
@@ -30,11 +37,12 @@ export const playerProfileQuery = z.object({
     .default("name"),
   cursor: z
     .string()
-    .regex(/^[0-9a-f-]{36}:\d+$/)
+    .max(4096)
+    .regex(/^v1\.[A-Za-z0-9_-]+$/)
     .optional(),
 });
-// A short-lived, user-scoped ordering snapshot keeps scrolling stable without
-// recalculating a full ranking or calling Stripe for every ten-card batch.
+// The cache only accelerates ranking. An authenticated cursor carries the last
+// ordering key so another worker (or an expired cache) can resume independently.
 interface Entry {
   id: string;
   name: string;
@@ -379,26 +387,12 @@ export async function playerProfileList(
     key = JSON.stringify([query.sort, query.search]);
   for (const [id, snapshot] of snapshots)
     if (snapshot.expires < Date.now()) snapshots.delete(id);
-  let token: string,
-    snapshot: Snapshot,
-    offset = 0;
-  if (query.cursor) {
-    const [id, position] = query.cursor.split(":");
-    token = id;
-    offset = Number(position);
-    const stored = snapshots.get(id);
-    if (!stored || stored.owner !== owner || stored.query !== key)
-      throw new HttpError(409, "Die Liste ist abgelaufen. Bitte neu laden.");
-    snapshot = stored;
-    if (
-      !Number.isSafeInteger(offset) ||
-      offset < 0 ||
-      offset % 10 ||
-      offset > snapshot.entries.length
-    )
-      throw new HttpError(400, "Ungültige Seitenposition.");
-  } else {
-    token = randomUUID();
+  const continuation = query.cursor
+    ? readCursor(query.cursor, owner, key)
+    : null;
+  const token = continuation?.token ?? randomUUID();
+  let snapshot = snapshots.get(token);
+  if (!snapshot || snapshot.owner !== owner || snapshot.query !== key) {
     snapshot = {
       owner,
       query: key,
@@ -408,14 +402,83 @@ export async function playerProfileList(
     if (snapshots.size >= 32) snapshots.delete(snapshots.keys().next().value!);
     snapshots.set(token, snapshot);
   }
-  const rows = await hydrate(
-    snapshot.entries.slice(offset, offset + 10),
-    query.sort,
-  );
+  const remaining = continuation
+    ? snapshot.entries.filter(
+        (entry) =>
+          comparePlayerProfiles(entry, continuation.after, query.sort) > 0,
+      )
+    : snapshot.entries;
+  const batch = remaining.slice(0, 10);
+  const rows = await hydrate(batch, query.sort);
+  const last = batch.at(-1);
   return {
     rows,
     total: snapshot.entries.length,
     next:
-      offset + 10 < snapshot.entries.length ? `${token}:${offset + 10}` : null,
+      remaining.length > 10 && last
+        ? writeCursor({
+            owner,
+            query: key,
+            token,
+            after: {
+              id: last.id,
+              name: last.name,
+              created: last.created,
+              rank: last.rank,
+            },
+          })
+        : null,
   };
+}
+
+const cursorPayload = z.object({
+  owner: z.string(),
+  query: z.string(),
+  token: z.uuid(),
+  after: z.object({
+    id: z.string(),
+    name: z.string(),
+    created: z.string(),
+    rank: z.number().nullable().optional(),
+  }),
+});
+type Cursor = z.infer<typeof cursorPayload>;
+function cursorKey() {
+  return createHash("sha256")
+    .update("player-profiles:cursor:v1:")
+    .update(required("SUPABASE_SERVICE_ROLE_KEY"))
+    .digest();
+}
+function writeCursor(value: Cursor) {
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", cursorKey(), nonce);
+  const data = Buffer.concat([
+    cipher.update(JSON.stringify(value), "utf8"),
+    cipher.final(),
+  ]);
+  return `v1.${Buffer.concat([nonce, cipher.getAuthTag(), data]).toString("base64url")}`;
+}
+function readCursor(value: string, owner: string, query: string): Cursor {
+  try {
+    const bytes = Buffer.from(value.slice(3), "base64url");
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      cursorKey(),
+      bytes.subarray(0, 12),
+    );
+    decipher.setAuthTag(bytes.subarray(12, 28));
+    const data = Buffer.concat([
+      decipher.update(bytes.subarray(28)),
+      decipher.final(),
+    ]);
+    const cursor = cursorPayload.parse(JSON.parse(data.toString("utf8")));
+    if (cursor.owner !== owner || cursor.query !== query)
+      throw Error("Cursor scope mismatch");
+    return cursor;
+  } catch {
+    throw new HttpError(
+      409,
+      "Die Seitenreferenz ist ungültig. Bitte die Liste neu laden.",
+    );
+  }
 }

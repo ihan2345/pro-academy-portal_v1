@@ -68,7 +68,7 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless: true });
-const cards = Array.from({ length: 35 }, (_, i) => ({
+const cards = Array.from({ length: 93 }, (_, i) => ({
   id: `child-${i}`,
   first_name: `Spieler ${i + 1}`,
   last_name: "Beispiel",
@@ -157,9 +157,20 @@ try {
     await expect(page.getByText("Test: Verbindung unterbrochen")).toBeVisible();
     await page.getByRole("button", { name: "Erneut versuchen" }).click();
     await expect(page.locator(".player-directory-card")).toHaveCount(20);
+    for (let expected = 30; expected <= 100; expected += 10) {
+      await page
+        .locator(".player-directory-scroll")
+        .evaluate((e) => (e.scrollTop = e.scrollHeight));
+      await expect(page.locator(".player-directory-card")).toHaveCount(
+        Math.min(expected, 93),
+      );
+    }
+    await expect(
+      page.getByText("93 von 93 Spielern", { exact: true }),
+    ).toBeVisible();
     await page.getByLabel("Spielerprofile sortieren").selectOption("newest");
     await expect(page.locator(".player-directory-card").first()).toContainText(
-      "Spieler 35 Beispiel",
+      "Spieler 93 Beispiel",
     );
     await page
       .getByLabel("Spieler oder Eltern suchen")
