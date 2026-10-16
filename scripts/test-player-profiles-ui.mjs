@@ -79,7 +79,7 @@ const cards = Array.from({ length: 93 }, (_, i) => ({
   archived: false,
   products: [["First Touch"], ["Gamechanger"], ["Next Level"]][i % 3],
   since: "2025-01-01",
-  months: 12 + i,
+  months: [2, 3, 5, 6, 9, 10, 15, 16][i % 8],
   camps: 2,
   stats: {
     all: { count: 30 + i, minutes: 1800 + i * 60 },
@@ -149,6 +149,23 @@ try {
         name: "Abo (Pro → Gamechanger → Firsttouch)",
       }),
     ).toHaveCount(1);
+    const displayedCards = page.locator(".player-directory-card");
+    await expect(
+      displayedCards.nth(0).locator(".player-membership-medal"),
+    ).toHaveCount(0);
+    for (const [index, label, numeral] of [
+      [1, "Bronze", "3"],
+      [3, "Silber", "2"],
+      [5, "Gold", "1"],
+      [7, "Ultimativ", null],
+    ]) {
+      const medal = displayedCards
+        .nth(index)
+        .getByRole("img", { name: `Abostatus: ${label}`, exact: true });
+      await expect(medal).toHaveCount(1);
+      if (numeral) await expect(medal.locator("text")).toHaveText(numeral);
+      else await expect(medal.locator("svg")).toHaveClass(/lucide-trophy/);
+    }
     await page.screenshot({ path: `${output}/${name}.png`, fullPage: true });
     failNext = true;
     await page
@@ -181,8 +198,14 @@ try {
     );
     await page.locator(".player-directory-card-link").first().click();
     await expect(page).toHaveURL(/\/admin\/spieler\/child-1$/);
-    const stamp = page.getByRole("link", { name: "Stempelkarte von Spieler 1 Beispiel öffnen", exact: true });
-    await expect(stamp).toHaveAttribute("href", "/admin/stempelkarten?child=child-0");
+    const stamp = page.getByRole("link", {
+      name: "Stempelkarte von Spieler 1 Beispiel öffnen",
+      exact: true,
+    });
+    await expect(stamp).toHaveAttribute(
+      "href",
+      "/admin/stempelkarten?child=child-0",
+    );
     await stamp.click();
     await expect(page).toHaveURL(/\/admin\/stempelkarten\?child=child-0$/);
     assert.deepEqual(errors, []);

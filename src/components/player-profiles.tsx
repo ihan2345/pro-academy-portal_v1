@@ -1,8 +1,12 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Search, Stamp, Users } from "lucide-react";
-import { childCardTheme, childInitials } from "@/lib/parent-profile";
+import { ArrowUpRight, Search, Stamp, Trophy, Users } from "lucide-react";
+import {
+  childCardTheme,
+  childInitials,
+  familyStatus,
+} from "@/lib/parent-profile";
 import { durationLabel, formatDate } from "@/lib/domain";
 import type {
   PlayerProfilePage,
@@ -225,7 +229,7 @@ function PlayerFeed({
               </p>
               <p className="profile-muted">
                 Mitglied seit {c.since ? formatDate(c.since) : "–"} · {c.months}{" "}
-                Monate
+                Monate <MembershipMedal months={c.months} />
               </p>
               <div className="profile-metrics">
                 <div>
@@ -336,5 +340,65 @@ function PlayerFeed({
         </div>
       </div>
     </>
+  );
+}
+
+function MembershipMedal({ months }: { months: number }) {
+  const status = familyStatus(months);
+  const gradient = useId();
+  if (status.tier === "starter") return null;
+  const label = `Abostatus: ${status.label}`;
+  const number =
+    status.tier === "bronze" ? 3 : status.tier === "silver" ? 2 : 1;
+  return (
+    <span
+      className={`player-membership-medal ${status.tier}`}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      {status.tier === "ultimate" ? (
+        <Trophy size={24} strokeWidth={1.8} aria-hidden="true" />
+      ) : (
+        <svg width="25" height="30" viewBox="0 0 28 34" aria-hidden="true">
+          <defs>
+            <linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="var(--medal-light)" />
+              <stop offset="0.5" stopColor="var(--medal-main)" />
+              <stop offset="1" stopColor="var(--medal-dark)" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M5 1h7l4 11-6 3zM16 1h7l-5 14-6-3z"
+            fill="var(--medal-dark)"
+          />
+          <circle
+            cx="14"
+            cy="21"
+            r="11.5"
+            fill={`url(#${gradient})`}
+            stroke="var(--medal-dark)"
+          />
+          <circle
+            cx="14"
+            cy="21"
+            r="8.5"
+            fill="none"
+            stroke="var(--medal-light)"
+            strokeOpacity="0.8"
+          />
+          <text
+            x="14"
+            y="25.5"
+            textAnchor="middle"
+            fontSize="13"
+            fontWeight="800"
+            fill="var(--medal-ink)"
+          >
+            {number}
+          </text>
+        </svg>
+      )}
+    </span>
   );
 }
