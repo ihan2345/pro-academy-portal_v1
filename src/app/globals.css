@@ -3564,8 +3564,8 @@ label {
 .player-directory-stamp-link:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
 
 .player-membership-medal { display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; width:28px; height:32px; margin-left:4px; position:relative; z-index:3; flex-shrink:0; }
-.player-membership-medal.bronze { --medal-light:#ffe0b1; --medal-main:#d19456; --medal-dark:#925227; --medal-ink:#512b14; }
+.player-membership-medal.bronze { --medal-light:#bc825a; --medal-main:#884423; --medal-dark:#4c2515; --medal-ink:#fff0df; }
 .player-membership-medal.silver { --medal-light:#fff; --medal-main:#cdd6e0; --medal-dark:#7c8b9d; --medal-ink:#303946; }
-.player-membership-medal.gold { --medal-light:#fff4b4; --medal-main:#f3cc50; --medal-dark:#aa7419; --medal-ink:#5b3c07; }
+.player-membership-medal.gold { --medal-light:#fffbd6; --medal-main:#ffd526; --medal-dark:#b67b08; --medal-ink:#583900; filter:drop-shadow(0 0 2px #ffe26480); }
 .player-membership-medal.ultimate { color:#af7411; }
 .player-membership-medal.ultimate svg { fill:#f4ce59; filter:drop-shadow(0 1px 1px #0003); }

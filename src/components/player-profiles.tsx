@@ -364,6 +364,13 @@ function MembershipMedal({ months }: { months: number }) {
           <defs>
             <linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
               <stop offset="0" stopColor="var(--medal-light)" />
+              {status.tier === "gold" && (
+                <>
+                  <stop offset="0.22" stopColor="#ffd43b" />
+                  <stop offset="0.38" stopColor="#fffef0" />
+                  <stop offset="0.46" stopColor="#fff3a1" />
+                </>
+              )}
               <stop offset="0.5" stopColor="var(--medal-main)" />
               <stop offset="1" stopColor="var(--medal-dark)" />
             </linearGradient>
