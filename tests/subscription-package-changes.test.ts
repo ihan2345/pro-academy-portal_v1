@@ -326,6 +326,7 @@ it("keeps annual history while voiding obsolete future allowances on a monthly d
       new Date(p.starts_at).getTime() <= Date.now() &&
       new Date(p.ends_at).getTime() > Date.now(),
   );
+  if (!live) throw new Error("Expected a current annual allowance");
   const current = item("si_month", first, iso(-1), iso(29));
   await query("select apply_stripe_package_sync($1)", [
     payload("sub_year", [current]),
@@ -337,7 +338,7 @@ it("keeps annual history while voiding obsolete future allowances on a monthly d
     "select * from entitlement_periods where subscription_id=$1 order by starts_at",
     [sid],
   );
-  expect(after.find((p) => p.id === live.id).included_units).toBe(4);
+  expect(after.find((p) => p.id === live.id)?.included_units).toBe(4);
   expect(
     after
       .filter((p) => new Date(p.starts_at).getTime() > Date.now())

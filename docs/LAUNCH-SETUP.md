@@ -506,3 +506,13 @@ Desktop-/Mobilprüfungen für beide Änderungen und TypeScript erfolgreich. Kein
 ### Verwaltungs-Untermenü und Bearbeiten-Korrektur veröffentlicht (16.10.2026)
 
 Auf Nutzerauftrag „deploy“ wurden beide oben lokal beschriebenen Änderungen als Funktionscommit `1e23415` auf `main` gepusht und Portal-Version `7a9f8fca-4ec2-4943-9f10-6c5033064ca9` bereitgestellt. Produktionsbuild einschließlich TypeScript erfolgreich. Online: Untermenü, Auswahlseite und Bearbeiten-Link werden bytegleich zum Build ausgeliefert; Auswahlseite und Spielerkarte verlangen Anmeldung, Schreibzugriffe bleiben gegen anonyme und fremde Origins gesperrt. Laufzeitvariablen und Jobs-Runner unverändert. Keine Migration, keine Änderung produktiver Spieler-, Camp- oder Versanddaten. Nachweise unter `output/admin-navigation/`.
+
+### Spielerprofile und sofortige Paketwechsel veröffentlicht — 16.10.2026
+
+Auf ausdrücklichen Nutzerauftrag wurde Funktionscommit `d23a310` veröffentlicht. Enthalten sind die Spielerprofil-Übersicht für Admin und Mitarbeiter mit nachgeladenen Karten, die Verschiebung von „Spieler & Eltern“ unter Verwaltung sowie sofortige Paketwechsel mit Zuordnungsprüfung und Markierung überschüssiger Stempel.
+
+Migration `supabase/release/011-subscription-package-changes.sql` wurde gezielt transaktional auf dem bestehenden Produktionsprojekt angewendet. Tabellen, RPCs und Berechtigungen wurden geprüft; beim Einspielen blieben 205 Leistungszeiträume und 109 Kinderzuordnungen erhalten. Die Migration selbst führt keinen rückwirkenden Stripe-Abgleich aus.
+
+Portal-Version: `40fbff19-9092-4800-b9a7-b929c8afc19a`. Jobs-Version: `626acc4f-ccf1-4f91-af94-0deda9429828`, bestehender Fünf-Minuten-Cron unverändert. Alle Laufzeitvariablen wurden mit dem Zustand vor Veröffentlichung verglichen und sind unverändert.
+
+Validierung: 690 Tests vor Veröffentlichung erfolgreich; sauberer Produktionsbuild einschließlich vollständiger TypeScript-Prüfung erfolgreich nach Korrektur einer möglichen Undefined-Referenz im neuen Test. Alle neun Paketwechsel-Datenbanktests danach nochmals erfolgreich. Jobs-Build und Jobs-Typecheck erfolgreich. Online ausgelieferte Spielerprofil-, Prüfungs- und Überkontingent-Assets stimmen bytegleich mit dem Build überein. Anonyme Profilseiten leiten zum Login; APIs und fremde Schreib-Origins bleiben gesperrt. Authentifizierter, rein technischer Runner-Check: Supabase, Stripe, SMTP und PDF erfolgreich, ohne manuellen Joblauf oder Testmail. Bestehende Altfälle wurden im Rahmen dieser Veröffentlichung nicht separat neu synchronisiert. Private Nachweise unter `output/package-change-release/`.
