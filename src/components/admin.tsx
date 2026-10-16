@@ -514,7 +514,34 @@ export function AdminView({
                         (assignment === "assigned"),
                   )
                   .map((r) => (
-                    <tr key={String(r.id)}>
+                    <tr
+                      key={String(r.id)}
+                      className={
+                        slug === "spieler" ? "player-profile-row" : undefined
+                      }
+                      onClick={
+                        slug === "spieler"
+                          ? (event) => {
+                              if (
+                                event.defaultPrevented ||
+                                (event.target as HTMLElement).closest(
+                                  "a, button, input, select, textarea, label, summary, [role='button']",
+                                ) ||
+                                window.getSelection()?.toString()
+                              )
+                                return;
+                              const href = `/admin/spieler/${r.id}`;
+                              if (event.metaKey || event.ctrlKey)
+                                window.open(
+                                  href,
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                );
+                              else router.push(href);
+                            }
+                          : undefined
+                      }
+                    >
                       {config.fields.map((f) => (
                         <td key={f.key}>
                           {slug === "eltern" && f.key === "billing_email" ? (

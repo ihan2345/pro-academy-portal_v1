@@ -3470,3 +3470,7 @@ label {
   display: grid;
   gap: 18px;
 }
+
+.training-table .player-profile-row {
+  cursor: pointer;
+}
