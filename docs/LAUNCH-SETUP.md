@@ -484,3 +484,9 @@ Der zusätzliche Admin-Endpunkt `POST /api/admin/player-profile` verwendet die v
 Prüfung dieser Erweiterung: sechs API-Tests für Adminrechte, fremde Origins, Feldvalidierung, Leeren optionaler Werte und fehlende Spieler erfolgreich. Isolierte Desktop-/Mobilprüfung bestätigt vorausgefülltes Formular, Leeren, Speichern und Aktualisierung der Karte. Keine produktiven Spielerdaten verändert. Nachweise unter `output/player-edit/`.
 
 Die vollständige TypeScript-Prüfung wurde nach mehreren Minuten ohne Ergebnis beendet: Der Prozess wartete wiederholt beim Lesen von Typdateien installierter Next-/Cloudflare-Bibliotheken. Kein erfolgreicher vollständiger Typecheck für diesen Stand behauptet; vor Veröffentlichung erneut ausführen. API- und UI-Prüfungen waren erfolgreich.
+
+### Bearbeitbare Spielerkarte veröffentlicht (16.10.2026)
+
+Auf Nutzerauftrag „deploy“ wurde Funktionscommit `bb12027` auf `main` gepusht und Portal-Version `2dc53db3-1a1e-4206-9da4-c3b40a216eef` veröffentlicht. Keine Datenbankmigration erforderlich. Der zuvor blockierte Typecheck wurde durch einen sauberen, separaten Build mit `npm ci` aus dem bestehenden Lockfile gelöst: Next-/Cloudflare-Produktionsbuild einschließlich TypeScript erfolgreich. Alle 17 gezielten Spielerprofil-/Exporttests liefen auch mit den frisch installierten Abhängigkeiten erfolgreich.
+
+Online bestätigt: Bearbeitungs-Bundle bytegleich zum Build; anonymer Schreibzugriff HTTP 401, fremder Origin HTTP 403; Spielerkarte verlangt weiterhin Anmeldung. Bestehende API-Sperrprüfungen erfolgreich. Laufzeitvariablen unverändert, Jobs-Runner unverändert. Keine produktiven Spielerdaten, Camp-Zuordnungen, Elternaktivierungen oder Mailfreigaben verändert. Nachweise unter `output/player-edit/`.
