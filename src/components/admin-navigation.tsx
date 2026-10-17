@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ActivityBadge } from "./activities";
 import {
+  Activity,
   ChevronDown,
   Settings,
   Users,
@@ -9,7 +11,7 @@ import {
   FileText,
   ArrowUpRight,
 } from "lucide-react";
-const items = [
+const adminItems = [
   {
     href: "/admin/spieler",
     title: "Spieler & Eltern",
@@ -41,15 +43,31 @@ const items = [
 ];
 export function AdminNavigation({
   section,
+  role = "admin",
   collapsed,
   expandSidebar,
   navigate,
 }: {
   section: string;
+  role?: "admin" | "staff";
   collapsed: boolean;
   expandSidebar: () => void;
   navigate: () => void;
 }) {
+  const base = role === "admin" ? "/admin" : "/team";
+  const items = [
+    ...(role === "admin" ? adminItems : []),
+    {
+      href: `${base}/aktivitaeten`,
+      title: "Aktivitäten",
+      description: "Was in der Academy passiert",
+      icon: Activity,
+      sections: [
+        `${base.slice(1)}/aktivitaeten`,
+        `${base.slice(1)}/aktivitaeten/alle`,
+      ],
+    },
+  ];
   const active = items.some((item) => item.sections.includes(section));
   const [open, setOpen] = useState(active);
   useEffect(() => {
@@ -94,7 +112,10 @@ export function AdminNavigation({
           >
             <item.icon size={18} />
             <span>
-              <strong>{item.title}</strong>
+              <strong>
+                {item.title}
+                {item.title === "Aktivitäten" && <ActivityBadge />}
+              </strong>
               <small>{item.description}</small>
             </span>
           </Link>

@@ -238,6 +238,7 @@ export function Portal({
             title: "Spielerprofil",
             icon: UserRound,
           },
+          { href: "#verwaltung", title: "Verwaltung", icon: Settings },
           { href: "/konto", title: "Mein Konto", icon: Settings },
         ]
       : data.camp_enabled && data.camp_access && data.camp_access !== "active"
@@ -313,6 +314,7 @@ export function Portal({
             item.href === "#verwaltung" ? (
               <AdminNavigation
                 key="verwaltung"
+                role={admin ? "admin" : "staff"}
                 section={section}
                 collapsed={sidebarCollapsed && !mobile}
                 expandSidebar={() => {
@@ -394,11 +396,15 @@ export function Portal({
             <ChevronRight size={14} />
             <b>
               {activeNav.find((n) => n.href === "/" + section)?.title ??
-                (section === "konto"
-                  ? "Mein Konto"
-                  : section === "admin/eltern"
-                    ? "Eltern"
-                    : "Übersicht")}
+                (section.includes("/aktivitaeten")
+                  ? section.endsWith("/alle")
+                    ? "Alle Aktivitäten"
+                    : "Aktivitäten"
+                  : section === "konto"
+                    ? "Mein Konto"
+                    : section === "admin/eltern"
+                      ? "Eltern"
+                      : "Übersicht")}
             </b>
           </div>
           <div className="topbar-right">

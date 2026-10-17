@@ -1,3 +1,4 @@
+import { activityList, activitySummary } from "@/lib/server/activities";
 import {
   subscriptionReviews,
   resolveSubscriptionReview,
@@ -193,6 +194,19 @@ async function handler(
     const session = await sessionUser();
     if (!session?.role) throw new HttpError(401, "Bitte melde dich an.");
     const { db, user, role } = session;
+    if (path === "activities" || path === "activities/summary") {
+      if (request.method !== "GET")
+        throw new HttpError(405, "Aktivitäten sind ausschließlich lesbar.");
+      if (path === "activities/summary")
+        return json(await activitySummary(session));
+      return json(
+        await activityList(session, {
+          window: request.nextUrl.searchParams.get("window") ?? "0",
+          asOf: request.nextUrl.searchParams.get("asOf") ?? undefined,
+          cursor: request.nextUrl.searchParams.get("cursor") ?? undefined,
+        }),
+      );
+    }
     if (path === "admin/subscription-reviews") {
       if (request.method === "GET")
         return json(

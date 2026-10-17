@@ -1,3 +1,4 @@
+import { Activities } from "@/components/activities";
 import { PlayerProfiles } from "@/components/player-profiles";
 import { ProfileList, ProfileView } from "@/components/parent-profile";
 import {
@@ -40,6 +41,23 @@ export default async function Page({
   params: Promise<{ section?: string[] }>;
 }) {
   const section = (await params).section?.join("/") ?? "";
+  if (/^(admin|team)\/aktivitaeten(\/alle)?$/.test(section)) {
+    let session;
+    try {
+      session = await profileSession();
+    } catch (e) {
+      if (e instanceof HttpError && e.status === 401) redirect("/login");
+      throw e;
+    }
+    if (!canOpenPortalSection(session.role!, section))
+      redirect(portalHome(session.role!));
+    const base = `/${section.split("/")[0]}/aktivitaeten`;
+    return (
+      <Portal initial={profileShell(session)} section={section}>
+        <Activities base={base} all={section.endsWith("/alle")} />
+      </Portal>
+    );
+  }
   if (/^(admin|team)\/spielerprofile$/.test(section)) {
     let session;
     try {
