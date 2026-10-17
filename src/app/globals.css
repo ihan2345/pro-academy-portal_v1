@@ -3596,10 +3596,9 @@ label {
 .activity-action { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:10px; color:#935008; font-size:13px; }
 .activity-help { position:relative; }
 .activity-help > button { display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; cursor:pointer; list-style:none; }
-.activity-help > button::-webkit-details-marker { display:none; }
 .activity-help > button:hover,.activity-help > button:focus-visible { background:#f7e8cd; outline:2px solid #be8529; }
-.activity-help-content { position:absolute; z-index:8; width:min(390px,70vw); right:0; top:100%; padding:16px; border:1px solid #e3d4b9; border-radius:12px; background:#fffaf0; color:#3a3326; box-shadow:0 8px 30px #0002; }
+.activity-help-content { position:static; flex-basis:100%; max-width:560px; box-sizing:border-box; padding:16px; border:1px solid #e3d4b9; border-radius:12px; background:#fffaf0; color:#3a3326; box-shadow:0 8px 30px #0002; }
 .activity-help-content a { color:#673ab7; font-weight:700; font-size:13px; }
-@media(max-width:600px) { .activity-day,.activity-open { padding:14px; } .activity-day > summary span { display:block; margin:4px 0 0 18px; } .activity-help { flex-basis:100%; min-width:0; } .activity-help-content { position:static; width:100%; margin:8px 0 0; box-sizing:border-box; } .activity-entry { gap:9px; } }
+@media(max-width:600px) { .activity-day,.activity-open { padding:14px; } .activity-day > summary span { display:block; margin:4px 0 0 18px; } .activity-entry { gap:9px; } }
 
 .activity-help > button { border:0; background:transparent; color:inherit; }

@@ -160,6 +160,18 @@ try {
       ).toBeVisible();
       const box = await page.locator(".activity-help-content").boundingBox();
       assert(box && box.x >= 0 && box.x + box.width <= width);
+      const panel = await page.locator(".activity-open").boundingBox();
+      assert(
+        panel &&
+          box.x >= panel.x &&
+          box.y >= panel.y &&
+          box.x + box.width <= panel.x + panel.width &&
+          box.y + box.height <= panel.y + panel.height,
+      );
+      const helpLink = page.getByRole("link", { name: "Zur Abo-Prüfung →" });
+      await helpLink.hover();
+      await expect(helpLink).toBeVisible();
+      await helpLink.click({ trial: true });
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth > innerWidth,

@@ -313,12 +313,7 @@ function ActivityRows({ rows }: { rows: Activity[] }) {
               </time>{" "}
               · {row.actor}
             </small>
-            {row.help && (
-              <div className="activity-action">
-                <strong>Problem: Aktion erforderlich!</strong>
-                <ActivityHelp title={row.title} help={row.help} />
-              </div>
-            )}
+            {row.help && <ActivityHelp title={row.title} help={row.help} />}
           </div>
         </li>
       ))}
@@ -339,10 +334,7 @@ function ActivityHelp({
   const open = hovered || pinned;
   return (
     <div
-      className="activity-help"
-      onPointerEnter={(event) => {
-        if (event.pointerType === "mouse") setHovered(true);
-      }}
+      className="activity-action activity-help"
       onPointerLeave={() => setHovered(false)}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget))
@@ -355,8 +347,12 @@ function ActivityHelp({
         }
       }}
     >
+      <strong>Problem: Aktion erforderlich!</strong>
       <button
         type="button"
+        onPointerEnter={(event) => {
+          if (event.pointerType === "mouse") setHovered(true);
+        }}
         aria-label={`Hilfsanleitung: ${title}`}
         aria-expanded={open}
         aria-controls={id}
