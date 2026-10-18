@@ -20,7 +20,8 @@
     "camp:worker": "NODE_OPTIONS=--conditions=react-server tsx workers/camp/runner.ts",
     "camp:dev": "node --env-file=.env.local scripts/camp/dev.mjs",
     "camp:reset": "node --env-file=.env.local scripts/camp/reset.mjs reset=v0",
-    "reset=v0": "node --env-file=.env.local scripts/camp/reset.mjs reset=v0"
+    "reset=v0": "node --env-file=.env.local scripts/camp/reset.mjs reset=v0",
+    "pai": "node scripts/pai.mjs"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",

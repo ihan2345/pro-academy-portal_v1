@@ -1,3 +1,4 @@
+import { paiEnabled } from "./switch";
 import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -21,7 +22,7 @@ export async function paiSession() {
   return s;
 }
 export function runtimeReady() {
-  if (process.env.PAI_ENABLED !== "true") return false;
+  if (!paiEnabled()) return false;
   const production = process.env.APP_MODE === "production";
   if (production)
     return (
@@ -78,6 +79,7 @@ export async function configuration() {
   };
 }
 export async function enabled(s: ProfileSession) {
+  if (!paiEnabled()) return false;
   if (s.role !== "parent") return true;
   return checked(await s.db.rpc("pai_preference")) === true;
 }

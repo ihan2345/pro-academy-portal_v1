@@ -130,3 +130,18 @@ Trainingsübersichten liefern jetzt interne Eventreferenzen. Das neue lesende We
 `get_ending_service_periods` liest gültige Leistungszeiträume direkt aus der sitzungsgebundenen Datenbankabfrage, mit Spieler, Produkt, Beginn und Ende. Standardfenster ohne Rückfrage: heute bis einschließlich Tag 29 danach in Europe/Berlin. Ergebnisse sind nach Endzeit sortiert, enthalten vollständige Trefferzahl und eine 30-Zeilen-Seitennavigation. Eltern bleiben durch Sitzungs-RLS auf eigene Kinder beschränkt. Die exklusive Endgrenze und der letzte enthaltene Kalendertag sind ausdrücklich getrennt; Zeitraumende wird nicht als Kündigung interpretiert.
 
 63 pAi-Tests und Typecheck erfolgreich. Die genaue Frage „welche Leistungszeiträume enden?“ wurde im echten Modelltest mit synthetischen Daten trotz vorherigen Abo-Kontexts direkt an das neue Werkzeug geleitet und mit Spieler, Produkt und Enddatum beantwortet. Keine Migration erforderlich.
+
+## Zentraler Aktiv-/Deaktiv-Schalter
+
+Einziger globaler Laufzeitparameter: `PAI_ENABLED`. Nur der exakte Wert `true` aktiviert pAi; `false`, fehlende oder ungültige Werte sperren es. In Produktion wird der Parameter als Cloudflare-Secret-Binding gehalten und bewusst nicht als feste Wrangler-Variable versioniert. Normale Deployments erhalten den Schalter.
+
+```sh
+npm run pai -- deaktivieren
+npm run pai -- aktivieren
+```
+
+Alternativ akzeptiert der Befehl `aktiv` und `deaktiv`. Er benötigt die Cloudflare-Anmeldung und ändert ausschließlich diesen Parameter für den Produktions-Worker. Kein erneuter Build, keine Datenbankänderung, kein Löschen von Konfiguration, Kontingenten oder Verlauf. Die Aufbewahrungsfrist läuft während der Pause weiter. Ein abgelaufener API-Schlüssel muss unabhängig vom Schalter erneuert werden.
+
+Deaktiviert liefern `/pai`, `/admin/pai` und sämtliche `/api/pai/*`-Pfade HTTP 404 ohne Sitzung-/Datenabfrage. Zusätzlich prüfen die Seiten, die API und die Chat-/Werkzeug-Freigabe den Schalter. Keine Adminausnahme. Bereits im Browser angezeigte Inhalte werden dadurch nicht aus dem Browser gelöscht; weitere Serverzugriffe sind gesperrt. Aktivieren stellt den versteckten Direktlink-Zugang mit den bisherigen Rollenrechten wieder her, ohne Maskottchen oder Menüpunkt einzublenden.
+
+Auf Nutzerwunsch wird der Produktionsschalter nach Einführung auf **deaktiviert** gestellt. „pAi aktivieren“ im Chat entspricht künftig dem oben dokumentierten Aktivierungsbefehl.

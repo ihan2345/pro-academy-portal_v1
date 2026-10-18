@@ -26,6 +26,7 @@ const params = (action: string) => ({
 });
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv("PAI_ENABLED", "true");
   vi.stubEnv("APP_URL", "http://127.0.0.1:3117");
   m.session.mockResolvedValue({
     role: "parent",
@@ -78,3 +79,31 @@ it("rejects preference target injection instead of allowing another user", async
   expect(r.status).toBe(400);
   expect(m.rpc).not.toHaveBeenCalled();
 });
+
+it.each([
+  "status",
+  "history",
+  "preference",
+  "chat",
+  "admin",
+  "admin/config",
+  "admin/override",
+  "admin/user",
+])(
+  "globally disables %s before authentication and database calls",
+  async (action) => {
+    vi.stubEnv("PAI_ENABLED", "false");
+    for (const method of ["GET", "POST", "DELETE"]) {
+      const response = await GET(
+        new Request(`http://127.0.0.1:3117/api/pai/${action}`, { method }),
+        params(action),
+      );
+      expect(response.status).toBe(404);
+    }
+    expect(m.session).not.toHaveBeenCalled();
+    expect(m.chat).not.toHaveBeenCalled();
+    expect(m.context).not.toHaveBeenCalled();
+    expect(m.history).not.toHaveBeenCalled();
+    expect(m.rpc).not.toHaveBeenCalled();
+  },
+);
