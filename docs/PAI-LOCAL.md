@@ -118,3 +118,9 @@ Der erste authentifizierte Produktionsversuch zeigte eine Laufzeitabweichung, di
 58 pAi-Tests, Rollen-UI-Prüfung und Cloudflare-Produktionsbuild erfolgreich. Drei nachweislich vor dem Provideraufruf gescheiterte Produktionsanfragen hatten keine Tokenkosten und keine angerechneten Fragen; ihre zusammen 0,60 USD Unsicherheitsreserve wurde freigegeben. Funktionscommit: `abaf0f0`.
 
 Korrigierte Produktionsversion: `793251c3-b2f7-499b-b05a-f59599ea6b5d`, 100 % Traffic. Online-Zugriffsschutz, Secret-Bindings und Bundle-Abgleich erneut erfolgreich.
+
+### Teilnehmerlisten für Trainings-Folgefragen
+
+Trainingsübersichten liefern jetzt interne Eventreferenzen. Das neue lesende Werkzeug `get_training_participants` lädt ausgewählte Termine und deren Teilnehmer mit Anwesenheitsstatus. Admin/Staff nutzen die bestehenden Academyrechte; Eltern sehen auch bei gemeinsamen Gruppenterminen ausschließlich ihre eigenen aktiven Kinder. Sitzungs-RLS wird durch einen expliziten Filter auf die sichtbaren Kinder ergänzt. Nicht sichtbare Termine werden vor dem Teilnehmerabruf abgewiesen; entfernte Teilnehmer ausgeschlossen, Einplanung und Anwesenheit getrennt ausgewiesen. Vollständige Statuszählung, sichtbare Namensliste maximal 60 je Termin mit Auszugshinweis.
+
+61 pAi-Tests, Typecheck und Cloudflarebuild erfolgreich. Ein echter Modelltest mit ausschließlich synthetischen Daten löste „Wer hat daran teilgenommen?“ selbstständig über `get_training_history` und `get_training_participants` auf und unterschied Anwesenheit von bloßer Einplanung. Keine Migration nötig.

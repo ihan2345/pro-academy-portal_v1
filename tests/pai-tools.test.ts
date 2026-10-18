@@ -109,3 +109,74 @@ it("does not expose admin statistics to parents or coaches", async () => {
     ).rejects.toThrow("nicht erlaubt");
   expect(m.from).not.toHaveBeenCalled();
 });
+function rosterQuery(data: any[]) {
+  const q: any = {};
+  for (const key of ["select", "eq", "is", "in", "order", "limit", "gt"])
+    q[key] = vi.fn(() => q);
+  q.then = (resolve: any) =>
+    Promise.resolve({ data, error: null }).then(resolve);
+  return q;
+}
+it("returns recorded attendance separately from planning and excludes removed players", async () => {
+  const events = rosterQuery([
+    { id: ids[0], title: "Training", status: "scheduled" },
+  ]);
+  const participants = rosterQuery([
+    {
+      id: "a",
+      status: "attended_manual",
+      players: { first_name: "Mila", last_name: "Test" },
+    },
+    {
+      id: "b",
+      status: "planned",
+      players: { first_name: "Leon", last_name: "Test" },
+    },
+    {
+      id: "c",
+      status: "absent",
+      removed_from_event: true,
+      players: { first_name: "Removed", last_name: "Test" },
+    },
+  ]);
+  m.from.mockImplementation((table) =>
+    table === "training_events" ? events : participants,
+  );
+  const result = await executeTool(
+    session("admin"),
+    "get_training_participants",
+    { event_ids: [ids[0]] },
+  );
+  expect(result.trainings[0].counts).toEqual({
+    attended_manual: 1,
+    planned: 1,
+  });
+  expect(result.trainings[0].participants).toHaveLength(2);
+  expect(participants.eq).toHaveBeenCalledWith("event_id", ids[0]);
+});
+it("explicitly restricts a shared training roster to the parent's own children", async () => {
+  const participants = rosterQuery([]);
+  m.from.mockImplementation((table) =>
+    table === "training_events"
+      ? rosterQuery([{ id: ids[0], title: "Shared training" }])
+      : table === "players"
+        ? rosterQuery([{ id: ids[1] }])
+        : participants,
+  );
+  const result = await executeTool(
+    session("parent"),
+    "get_training_participants",
+    { event_ids: [ids[0]] },
+  );
+  expect(participants.in).toHaveBeenCalledWith("player_id", [ids[1]]);
+  expect(result.scope).toContain("Nur eigene Kinder");
+});
+it("does not read participants when the event is not visible to the session", async () => {
+  m.from.mockReturnValue(rosterQuery([]));
+  await expect(
+    executeTool(session("parent"), "get_training_participants", {
+      event_ids: [ids[0]],
+    }),
+  ).rejects.toThrow("nicht verfügbar");
+  expect(m.from.mock.calls.map((c) => c[0])).toEqual(["training_events"]);
+});

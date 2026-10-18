@@ -9,7 +9,7 @@ import { attendanceStats, isRemovedParticipant } from "../../domain";
 import { backfillEvent, backfillColumns } from "../../backfills";
 import { campEnabled, campPaymentMode } from "../../camps/runtime";
 
-import { analytics } from "./analytics";
+import { analytics, collectRows } from "./analytics";
 import { billing, subscriptionEndings } from "./billing";
 const dateFields = {
   start: {
@@ -22,6 +22,18 @@ const dateFields = {
   },
 };
 const schemas = {
+  get_training_participants: {
+    description:
+      "Teilnehmer und tatsächlicher Anwesenheitsstatus der ausgewählten Trainings. Event-IDs aus get_training_history selbst auflösen; nie Nutzer nach IDs fragen. Eltern sehen ausschließlich eigene Kinder, Team alle berechtigten Teilnehmer. Geplant ist keine bestätigte Teilnahme.",
+    fields: {
+      event_ids: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 1,
+        maxItems: 6,
+      },
+    },
+  },
   get_subscription_endings: {
     description:
       "Explizit gekündigte Abos mit Endtermin und zugeordneten Kindern. Eltern nur eigene Kinder, Team academyweit. Standard nächste 30 Tage. Kein Finanzzugriff. Leistungszeitraumende ist keine Kündigung.",
@@ -131,6 +143,69 @@ export async function executeTool(
   if (!(await enabled(s))) throw new HttpError(403, "pAi ist deaktiviert.");
   if (!toolDefinitions(s.role!).some((t) => t.name === name))
     throw new HttpError(403, "Werkzeug nicht erlaubt.");
+  if (name === "get_training_participants") {
+    const { event_ids } = z
+      .object({ event_ids: z.array(z.uuid()).min(1).max(6) })
+      .strict()
+      .parse(raw);
+    const events = checked(
+      await s.db
+        .from("training_events")
+        .select("id,title,starts_at,ends_at,status,locations(name)")
+        .in("id", [...new Set(event_ids)]),
+    );
+    if (events.length !== new Set(event_ids).size)
+      throw new HttpError(403, "Training nicht verfügbar.");
+    const ownChildren =
+      s.role === "parent"
+        ? await collectRows(() =>
+            s.db.from("players").select("id").is("archived_at", null),
+          )
+        : null;
+    const result = [];
+    for (const event of events) {
+      const rows =
+        ownChildren?.length === 0
+          ? []
+          : await collectRows(() => {
+              let q = s.db
+                .from("event_participants")
+                .select(
+                  "id,status,removed_from_event,players!inner(first_name,last_name)",
+                )
+                .eq("event_id", event.id);
+              if (ownChildren)
+                q = q.in(
+                  "player_id",
+                  ownChildren.map((p) => p.id),
+                );
+              return q;
+            });
+      const visible = rows.filter((r) => !isRemovedParticipant(r as any));
+      const counts: Record<string, number> = {};
+      for (const row of visible)
+        counts[row.status] = (counts[row.status] ?? 0) + 1;
+      result.push({
+        event,
+        counts,
+        participants: visible
+          .slice(0, 60)
+          .map((r) => ({
+            name: `${r.players.first_name} ${r.players.last_name}`,
+            status: r.status,
+          })),
+        more: visible.length > 60,
+      });
+    }
+    return {
+      scope:
+        s.role === "parent"
+          ? "Nur eigene Kinder; keine vollständige Gruppenliste"
+          : "Academy",
+      trainings: result,
+      note: "attended_auto/attended_manual = Teilnahme erfasst; planned = nur eingeplant, absent = gefehlt, excused = entschuldigt, cancelled = Teilnahme abgesagt. Bei abgesagtem Training keine tatsächliche Durchführung behaupten. Entfernte Teilnehmer sind ausgeschlossen.",
+    };
+  }
   if (name === "get_subscription_endings") return subscriptionEndings(s, raw);
   if (name === "get_portal_report") return analytics(s, raw);
   if (name === "get_billing_report") return billing(s, raw);
@@ -250,7 +325,7 @@ export async function executeTool(
     }
     if (name === "get_training_history") {
       const now = new Date().toISOString();
-      const columns = "title,starts_at,ends_at,status,locations(name)";
+      const columns = "id,title,starts_at,ends_at,status,locations(name)";
       const [past, upcoming] = await Promise.all([
         s.db
           .from("training_events")
@@ -287,7 +362,7 @@ export async function executeTool(
       await s.db
         .from("event_participants")
         .select(
-          "id,status,reason,removed_from_event,training_events!inner(title,starts_at,ends_at,status,locations(name))",
+          "id,status,reason,removed_from_event,training_events!inner(id,title,starts_at,ends_at,status,locations(name))",
         )
         .eq("player_id", player_id)
         .order("starts_at", {
