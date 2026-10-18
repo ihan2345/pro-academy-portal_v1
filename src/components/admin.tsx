@@ -1,4 +1,5 @@
 "use client";
+import { StripeParentInputs } from "./stripe-parent-inputs";
 import { SubscriptionReviews } from "./subscription-reviews";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -1194,6 +1195,9 @@ function StripeImport({
           title="Zuordnung manuell bestätigen"
           close={() => setCurrent(null)}
         >
+          <div style={{ padding: "16px 24px" }}>
+            <StripeParentInputs customer={String(current.id)} />
+          </div>
           {!(current.subscriptions as unknown[])?.length ? (
             <section className="form-body">
               <p>Stripe-Kunde: {String(current.id)}</p>

@@ -1,3 +1,4 @@
+import { stripeParentInputs } from "@/lib/server/stripe-parent-inputs";
 import { activityList, activitySummary } from "@/lib/server/activities";
 import {
   subscriptionReviews,
@@ -204,6 +205,20 @@ async function handler(
           window: request.nextUrl.searchParams.get("window") ?? "0",
           asOf: request.nextUrl.searchParams.get("asOf") ?? undefined,
           cursor: request.nextUrl.searchParams.get("cursor") ?? undefined,
+        }),
+      );
+    }
+    if (path === "admin/stripe-parent-inputs") {
+      if (request.method !== "GET")
+        throw new HttpError(
+          405,
+          "Elternangaben sind hier ausschließlich lesbar.",
+        );
+      return json(
+        await stripeParentInputs(session, {
+          customer: request.nextUrl.searchParams.get("customer"),
+          subscription:
+            request.nextUrl.searchParams.get("subscription") ?? undefined,
         }),
       );
     }

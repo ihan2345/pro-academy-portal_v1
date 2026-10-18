@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { reviewExplanation } from "@/lib/subscription-reviews";
+import { StripeParentInputs } from "./stripe-parent-inputs";
 import { Modal } from "./portal";
 import { formatDate } from "@/lib/domain";
 import type {
@@ -240,6 +241,10 @@ function ReviewCard({
             : "Nicht bekannt"}
         </p>
       </div>
+      <StripeParentInputs
+        customer={r.context.customerId}
+        subscription={r.context.subscriptionId}
+      />
       <p>
         <strong>Warum ist eine Prüfung nötig?</strong>
         <br />

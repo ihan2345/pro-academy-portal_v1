@@ -117,6 +117,27 @@ try {
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.route("**/api/**", async (route) => {
+      if (route.request().url().includes("stripe-parent-inputs"))
+        return route.fulfill({
+          json: {
+            entries: [
+              {
+                sessionId: "cs_demo",
+                submittedAt: "2026-10-17",
+                subscriptionId: "sub_example",
+                fields: [
+                  {
+                    key: "child",
+                    label: "Name des Kindes",
+                    value: "Max Elternangabe",
+                  },
+                  { key: "birth", label: "Geburtsdatum", value: "01.01.2015" },
+                ],
+              },
+            ],
+            partial: false,
+          },
+        });
       if (!route.request().url().includes("subscription-reviews"))
         return route.fulfill({ json: { ok: true } });
       if (route.request().method() === "GET")
@@ -183,19 +204,37 @@ try {
     await page.unroute("**/api/**");
     await page.route("**/api/**", (route) =>
       route.fulfill({
-        json: route.request().url().includes("subscription-reviews")
+        json: route.request().url().includes("stripe-parent-inputs")
           ? {
-              rows: [
+              entries: [
                 {
-                  ...review,
-                  suggestions: [],
-                  candidates: [],
-                  context: { ...context, parents: [] },
+                  sessionId: "cs_demo",
+                  submittedAt: "2026-10-17",
+                  subscriptionId: "sub_example",
+                  fields: [
+                    {
+                      key: "child",
+                      label: "Name des Kindes",
+                      value: "Max Elternangabe",
+                    },
+                  ],
                 },
               ],
-              total: 1,
+              partial: false,
             }
-          : { ok: true },
+          : route.request().url().includes("subscription-reviews")
+            ? {
+                rows: [
+                  {
+                    ...review,
+                    suggestions: [],
+                    candidates: [],
+                    context: { ...context, parents: [] },
+                  },
+                ],
+                total: 1,
+              }
+            : { ok: true },
       }),
     );
     await page.reload();
@@ -210,6 +249,9 @@ try {
       page.getByRole("link", { name: /Diesen Kunden zuordnen/ }),
     ).toHaveAttribute("href", "/admin/stripe?customer=cus_example");
     await expect(page.getByText(/erika@example.com/)).toBeVisible();
+    await expect(
+      page.getByText("Max Elternangabe", { exact: true }),
+    ).toBeVisible();
     await page.screenshot({
       path: `${output}/${name}-unlinked.png`,
       fullPage: true,

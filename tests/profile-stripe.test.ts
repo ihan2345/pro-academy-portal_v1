@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-it("allows finance GET requests and refuses writes, other hosts and unrelated endpoints", async () => {
+it("allows finance and checkout GET requests and refuses writes, other hosts and unrelated endpoints", async () => {
   const network = vi.fn().mockResolvedValue(new Response("{}"));
   vi.stubGlobal("fetch", network);
   await profileReadFetch("https://api.stripe.com/v1/charges?customer=cus_one", {
@@ -21,6 +21,10 @@ it("allows finance GET requests and refuses writes, other hosts and unrelated en
   await profileReadFetch("https://api.stripe.com/v1/invoices/in_one/lines", {
     method: "GET",
   });
+  await profileReadFetch(
+    "https://api.stripe.com/v1/checkout/sessions?customer=cus_one",
+    { method: "GET" },
+  );
   expect(network).toHaveBeenCalledWith(
     expect.anything(),
     expect.objectContaining({ redirect: "error" }),
@@ -28,6 +32,7 @@ it("allows finance GET requests and refuses writes, other hosts and unrelated en
   network.mockClear();
   for (const [url, method] of [
     ["https://api.stripe.com/v1/refunds", "POST"],
+    ["https://api.stripe.com/v1/checkout/sessions", "POST"],
     ["https://api.stripe.com/v1/customers/cus_one", "DELETE"],
     ["https://api.stripe.com/v1/subscriptions", "GET"],
     ["https://example.com/v1/charges", "GET"],
