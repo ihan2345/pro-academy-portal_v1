@@ -110,3 +110,11 @@ Die additive Migration `202610170001_pai.sql` und der Retention-Job wurden auf d
 Der Nutzer hat den zuvor temporär verwendeten Schlüssel in dieser Veröffentlichung ausdrücklich auch für Produktion bereitgestellt. Er wurde ausschließlich als `PAI_PRODUCTION_API_KEY` im Cloudflare-Worker hinterlegt, nicht ins Repository oder Browser-Bundle übernommen. Die Produktionsschalter sind aktiv; bestehende Variablen und Secret-Bindings wurden erhalten.
 
 Aktive Portal-Version nach Secret-Einrichtung: `e1958df3-2baa-43e0-8e55-8bfca20fd713` (100 % Traffic). 794 Tests erfolgreich; separater Build aus dem Lockfile einschließlich TypeScript/OpenNext erfolgreich. Verborgene Einstiegspunkte und direkter Zugriff wurden lokal für drei Rollen geprüft. Online bestätigt: Login-Weiterleitung, API-Authentifizierung, Origin-Schutz, fehlende lokale Loginroute und bytegleiche Auslieferung des Chat-Bundles. OpenAI-Modellzugriff mit dem bereitgestellten Schlüssel bestätigt; kein authentifizierter Chat mit produktiven Familiendaten als Test ausgeführt. Private Nachweise unter `output/pai-release/`.
+
+### Cloudflare-Korrektur nach erster Nutzung
+
+Der erste authentifizierte Produktionsversuch zeigte eine Laufzeitabweichung, die im Node-Test nicht auftrat: Cloudflare lehnt `fetch(..., { redirect: "error" })` ab. Der OpenAI-Aufruf verwendet nun `manual`; Weiterleitungen werden nicht verfolgt und bleiben erfolglose Antworten. Ein echter Responses-Aufruf in der lokalen Cloudflare-/workerd-Laufzeit lieferte danach HTTP 200 und die Testantwort „bereit“ (ohne personenbezogene Daten). Die nur für Eltern verfügbare persönliche Aktivierung wird auf `/pai` nur für Eltern gerendert.
+
+58 pAi-Tests, Rollen-UI-Prüfung und Cloudflare-Produktionsbuild erfolgreich. Drei nachweislich vor dem Provideraufruf gescheiterte Produktionsanfragen hatten keine Tokenkosten und keine angerechneten Fragen; ihre zusammen 0,60 USD Unsicherheitsreserve wurde freigegeben. Funktionscommit: `abaf0f0`.
+
+Korrigierte Produktionsversion: `793251c3-b2f7-499b-b05a-f59599ea6b5d`, 100 % Traffic. Online-Zugriffsschutz, Secret-Bindings und Bundle-Abgleich erneut erfolgreich.
