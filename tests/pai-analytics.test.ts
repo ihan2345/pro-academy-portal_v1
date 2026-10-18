@@ -8,6 +8,7 @@ vi.mock("../src/lib/server/profile-stripe", () => ({
 }));
 import {
   analytics,
+  endingPeriods,
   attendanceReport,
   collectRows,
   reportWindow,
@@ -17,7 +18,17 @@ import { billing, summarizeBilling } from "../src/lib/server/pai/billing";
 const person = { first_name: "Test", last_name: "Kind" };
 function query(data: any[]) {
   const q: any = {};
-  for (const key of ["select", "eq", "is", "order", "limit", "gt", "in"])
+  for (const key of [
+    "select",
+    "eq",
+    "is",
+    "order",
+    "limit",
+    "gt",
+    "in",
+    "gte",
+    "lt",
+  ])
     q[key] = vi.fn(() => q);
   q.then = (resolve: any) =>
     Promise.resolve({ data, error: null }).then(resolve);
@@ -220,4 +231,56 @@ it("open invoices have complete currency totals even when the displayed list is 
   expect(result.invoices).toHaveLength(30);
   expect(result.more).toBe(true);
   expect(result.invoices[0].overdue).toBe(false);
+});
+it("lists ending service periods from the session without querying Stripe or subscription status", async () => {
+  const q = query([
+    {
+      id: "period",
+      product_name: "FirstTouch",
+      starts_at: "2026-10-01T00:00:00+02:00",
+      ends_at: "2026-11-01T00:00:00+01:00",
+      included_units: 4,
+      athletics_units: 0,
+      players: { first_name: "Mila", last_name: "Test" },
+    },
+  ]);
+  q.gte = vi.fn(() => q);
+  q.lt = vi.fn(() => q);
+  const from = vi.fn(() => q);
+  const result = await endingPeriods({ role: "parent", db: { from } } as any, {
+    start: "2026-11-01",
+    end: "2026-11-30",
+    offset: 0,
+  });
+  expect(from).toHaveBeenCalledWith("entitlement_periods");
+  expect(q.eq).toHaveBeenCalledWith("status", "active");
+  expect(result.scope).toBe("Eigene Kinder");
+  expect(result.periods[0]).toMatchObject({
+    player: "Mila Test",
+    product: "FirstTouch",
+    lastServiceDate: "2026-10-31",
+  });
+  expect(m.serviceFrom).not.toHaveBeenCalled();
+  expect(m.stripe).not.toHaveBeenCalled();
+});
+it("provides chronological pages and an exact total for large period lists", async () => {
+  const rows = Array.from({ length: 35 }, (_, i) => ({
+    id: String(i).padStart(2, "0"),
+    product_name: "Test",
+    starts_at: "2026-10-01T00:00:00Z",
+    ends_at: "2026-10-31T23:00:00Z",
+    players: { first_name: "Test", last_name: String(i) },
+  })).reverse();
+  const q = query(rows);
+  q.gte = () => q;
+  q.lt = () => q;
+  const s: any = { role: "staff", db: { from: () => q } };
+  const first = await endingPeriods(s, { start: null, end: null, offset: 0 });
+  const second = await endingPeriods(s, { start: null, end: null, offset: 30 });
+  expect(first.total).toBe(35);
+  expect(first.periods).toHaveLength(30);
+  expect(first.nextOffset).toBe(30);
+  expect(second.periods).toHaveLength(5);
+  expect(second.more).toBe(false);
+  expect(second.periods[0].player).toBe("Test 30");
 });

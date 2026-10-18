@@ -310,3 +310,59 @@ export async function scopedSubscriptions(s: ProfileSession): Promise<any[]> {
   }
   return result;
 }
+
+export async function endingPeriods(s: ProfileSession, raw: unknown) {
+  const args = z
+    .object({
+      start: z.iso.date().nullable(),
+      end: z.iso.date().nullable(),
+      offset: z.number().int().min(0).max(10000),
+    })
+    .strict()
+    .parse(raw);
+  if (!["parent", "staff", "admin"].includes(s.role!))
+    throw new HttpError(403, "Keine Berechtigung.");
+  const today = Temporal.Now.zonedDateTimeISO("Europe/Berlin").toPlainDate();
+  const window = reportWindow(
+    args.start ?? today.toString(),
+    args.end ?? today.add({ days: 29 }).toString(),
+  );
+  const rows = await collectRows(() =>
+    s.db
+      .from("entitlement_periods")
+      .select(
+        "id,product_name,starts_at,ends_at,included_units,athletics_units,players!inner(first_name,last_name,archived_at)",
+      )
+      .eq("status", "active")
+      .is("players.archived_at", null)
+      .gte("ends_at", window.from)
+      .lt("ends_at", window.until),
+  );
+  rows.sort(
+    (a, b) =>
+      Date.parse(a.ends_at) - Date.parse(b.ends_at) || a.id.localeCompare(b.id),
+  );
+  const periods = rows.slice(args.offset, args.offset + 30).map((p) => ({
+    player: `${p.players.first_name} ${p.players.last_name}`,
+    product: p.product_name,
+    startsAt: p.starts_at,
+    endsAt: p.ends_at,
+    lastServiceDate: Temporal.Instant.from(p.ends_at)
+      .subtract({ nanoseconds: 1 })
+      .toZonedDateTimeISO("Europe/Berlin")
+      .toPlainDate()
+      .toString(),
+    includedUnits: p.included_units,
+    athleticsUnits: p.athletics_units,
+  }));
+  return {
+    scope: s.role === "parent" ? "Eigene Kinder" : "Academy",
+    window,
+    total: rows.length,
+    periods,
+    more: args.offset + 30 < rows.length,
+    nextOffset: args.offset + 30 < rows.length ? args.offset + 30 : null,
+    totalsComplete: true,
+    note: "Endende gültige Leistungszeiträume aus dem Portal, keine Abo-Kündigungen. endsAt ist die exklusive Endgrenze; lastServiceDate der letzte enthaltene Kalendertag in Europe/Berlin. Keine Aussage über automatische Verlängerung oder Restverbrauch. Bei mehr Treffern nächste Seite mit nextOffset abrufen oder den Auszug ausdrücklich benennen.",
+  };
+}

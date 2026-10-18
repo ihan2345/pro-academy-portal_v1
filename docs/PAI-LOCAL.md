@@ -124,3 +124,9 @@ Korrigierte Produktionsversion: `793251c3-b2f7-499b-b05a-f59599ea6b5d`, 100 % Tr
 Trainingsübersichten liefern jetzt interne Eventreferenzen. Das neue lesende Werkzeug `get_training_participants` lädt ausgewählte Termine und deren Teilnehmer mit Anwesenheitsstatus. Admin/Staff nutzen die bestehenden Academyrechte; Eltern sehen auch bei gemeinsamen Gruppenterminen ausschließlich ihre eigenen aktiven Kinder. Sitzungs-RLS wird durch einen expliziten Filter auf die sichtbaren Kinder ergänzt. Nicht sichtbare Termine werden vor dem Teilnehmerabruf abgewiesen; entfernte Teilnehmer ausgeschlossen, Einplanung und Anwesenheit getrennt ausgewiesen. Vollständige Statuszählung, sichtbare Namensliste maximal 60 je Termin mit Auszugshinweis.
 
 61 pAi-Tests, Typecheck und Cloudflarebuild erfolgreich. Ein echter Modelltest mit ausschließlich synthetischen Daten löste „Wer hat daran teilgenommen?“ selbstständig über `get_training_history` und `get_training_participants` auf und unterschied Anwesenheit von bloßer Einplanung. Keine Migration nötig.
+
+### Endende Leistungszeiträume
+
+`get_ending_service_periods` liest gültige Leistungszeiträume direkt aus der sitzungsgebundenen Datenbankabfrage, mit Spieler, Produkt, Beginn und Ende. Standardfenster ohne Rückfrage: heute bis einschließlich Tag 29 danach in Europe/Berlin. Ergebnisse sind nach Endzeit sortiert, enthalten vollständige Trefferzahl und eine 30-Zeilen-Seitennavigation. Eltern bleiben durch Sitzungs-RLS auf eigene Kinder beschränkt. Die exklusive Endgrenze und der letzte enthaltene Kalendertag sind ausdrücklich getrennt; Zeitraumende wird nicht als Kündigung interpretiert.
+
+63 pAi-Tests und Typecheck erfolgreich. Die genaue Frage „welche Leistungszeiträume enden?“ wurde im echten Modelltest mit synthetischen Daten trotz vorherigen Abo-Kontexts direkt an das neue Werkzeug geleitet und mit Spieler, Produkt und Enddatum beantwortet. Keine Migration erforderlich.

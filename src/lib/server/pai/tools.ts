@@ -9,7 +9,7 @@ import { attendanceStats, isRemovedParticipant } from "../../domain";
 import { backfillEvent, backfillColumns } from "../../backfills";
 import { campEnabled, campPaymentMode } from "../../camps/runtime";
 
-import { analytics, collectRows } from "./analytics";
+import { analytics, collectRows, endingPeriods } from "./analytics";
 import { billing, subscriptionEndings } from "./billing";
 const dateFields = {
   start: {
@@ -22,6 +22,14 @@ const dateFields = {
   },
 };
 const schemas = {
+  get_ending_service_periods: {
+    description:
+      "Welche Leistungszeiträume enden/laufen aus? Direkte Liste aus entitlement_periods mit Spieler, Produkt und Enddatum. Eltern eigene Kinder, Team academyweit. Ohne Datum nächste 30 Tage; offset 0 für erste Seite. NICHT Abo-Kündigungen und NICHT allgemeiner Abo-Status. Keine Stripe-Abfrage erforderlich.",
+    fields: {
+      ...dateFields,
+      offset: { type: "integer", minimum: 0, maximum: 10000 },
+    },
+  },
   get_training_participants: {
     description:
       "Teilnehmer und tatsächlicher Anwesenheitsstatus der ausgewählten Trainings. Event-IDs aus get_training_history selbst auflösen; nie Nutzer nach IDs fragen. Eltern sehen ausschließlich eigene Kinder, Team alle berechtigten Teilnehmer. Geplant ist keine bestätigte Teilnahme.",
@@ -188,12 +196,10 @@ export async function executeTool(
       result.push({
         event,
         counts,
-        participants: visible
-          .slice(0, 60)
-          .map((r) => ({
-            name: `${r.players.first_name} ${r.players.last_name}`,
-            status: r.status,
-          })),
+        participants: visible.slice(0, 60).map((r) => ({
+          name: `${r.players.first_name} ${r.players.last_name}`,
+          status: r.status,
+        })),
         more: visible.length > 60,
       });
     }
@@ -207,6 +213,7 @@ export async function executeTool(
     };
   }
   if (name === "get_subscription_endings") return subscriptionEndings(s, raw);
+  if (name === "get_ending_service_periods") return endingPeriods(s, raw);
   if (name === "get_portal_report") return analytics(s, raw);
   if (name === "get_billing_report") return billing(s, raw);
   if (name === "get_own_children") {
