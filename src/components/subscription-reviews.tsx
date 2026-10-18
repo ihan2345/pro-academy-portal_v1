@@ -162,6 +162,7 @@ function ReviewCard({
           ? r.candidates[0].id
           : "",
     ),
+    [legacyConfirmed, setLegacyConfirmed] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const sameChild =
@@ -184,6 +185,7 @@ function ReviewCard({
               signature: r.signature,
               player_id: player,
               previous_item_id: previous || null,
+              confirm_legacy_tariff: legacyConfirmed,
             }),
           });
           const data = await response.json();
@@ -348,6 +350,37 @@ function ReviewCard({
           ? "Das Kontingent wird sofort angepasst. Einheiten des laufenden Zeitraums bleiben auf der Stempelkarte; überschüssige Einheiten werden markiert."
           : "Teilnahmen werden niemals auf ein anderes Kind übertragen. Bei einer regulären Verlängerung beginnt ein neuer Zeitraum."}
       </p>
+      {r.requiresLegacyConfirmation && (
+        <section
+          style={{
+            padding: 16,
+            border: "1px solid #d49b35",
+            borderRadius: 10,
+            background: "#fff8e8",
+          }}
+        >
+          <strong>Bestandstarif für einen neuen Abschluss</strong>
+          <p>
+            Dieses Abo wurde nach der Tarifumstellung über einen alten Link
+            abgeschlossen. Der günstigere Bestandstarif ist für ausgewählte
+            Kunden möglich und benötigt deine ausdrückliche Freigabe.
+          </p>
+          <label>
+            <input
+              type="checkbox"
+              checked={legacyConfirmed}
+              disabled={busy}
+              onChange={(e) => setLegacyConfirmed(e.target.checked)}
+            />
+            Ich bestätige, dass dieses Abo den günstigeren Bestandstarif
+            erhalten darf.
+          </label>
+          <p>
+            Die Freigabe gilt für dieses Abo und diesen Tarif, auch bei späteren
+            Verlängerungen. Sie ändert keine Preise in Stripe.
+          </p>
+        </section>
+      )}
       {r.quantity !== 1 && (
         <p role="alert">
           Diese Abo-Position enthält mehrere Plätze und muss zuerst getrennt
@@ -370,6 +403,7 @@ function ReviewCard({
         className="primary-button"
         disabled={
           busy ||
+          (r.requiresLegacyConfirmation && !legacyConfirmed) ||
           !player ||
           r.units === null ||
           r.quantity !== 1 ||

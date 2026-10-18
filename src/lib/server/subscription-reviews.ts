@@ -42,7 +42,7 @@ export async function subscriptionReviews(
   const response = await db
     .from("subscription_assignment_reviews")
     .select(
-      "id,signature,created_at,item,subscription_id,previous_item_ids,suggested_player_ids,subscriptions!inner(parent_id,stripe_customer_id,stripe_subscription_id,status,synced_at)",
+      "id,signature,created_at,item,subscription_id,previous_item_ids,suggested_player_ids,subscriptions!inner(parent_id,stripe_customer_id,stripe_subscription_id,status,synced_at,stripe_data)",
       { count: "exact" },
     )
     .eq("status", "pending")
@@ -55,34 +55,41 @@ export async function subscriptionReviews(
     customerIds = [
       ...new Set(rows.map((r) => r.subscriptions.stripe_customer_id)),
     ];
-  const [oldMappings, customerLinks, plans, customers] = await Promise.all([
-    collect(() =>
-      db
-        .from("subscription_players")
-        .select(
-          "id,subscription_id,stripe_item_id,player_id,players!inner(id,first_name,last_name,archived_at)",
-        )
-        .in("subscription_id", subIds),
-    ),
-    collect(() =>
-      db
-        .from("parent_stripe_customers")
-        .select("id,parent_id,stripe_customer_id")
-        .in("stripe_customer_id", customerIds),
-    ),
-    collect(() =>
-      db
-        .from("plans")
-        .select("id,stripe_price_id,name,included_units")
-        .eq("active", true),
-    ),
-    collect(() =>
-      db
-        .from("stripe_customer_registry")
-        .select("id,name,email")
-        .in("id", customerIds),
-    ),
-  ]);
+  const [oldMappings, customerLinks, plans, customers, approvals] =
+    await Promise.all([
+      collect(() =>
+        db
+          .from("subscription_players")
+          .select(
+            "id,subscription_id,stripe_item_id,player_id,players!inner(id,first_name,last_name,archived_at)",
+          )
+          .in("subscription_id", subIds),
+      ),
+      collect(() =>
+        db
+          .from("parent_stripe_customers")
+          .select("id,parent_id,stripe_customer_id")
+          .in("stripe_customer_id", customerIds),
+      ),
+      collect(() =>
+        db
+          .from("plans")
+          .select("id,stripe_price_id,name,included_units,generation")
+          .eq("active", true),
+      ),
+      collect(() =>
+        db
+          .from("stripe_customer_registry")
+          .select("id,name,email")
+          .in("id", customerIds),
+      ),
+      collect(() =>
+        db
+          .from("subscription_legacy_approvals")
+          .select("id,subscription_id,stripe_price_id")
+          .in("subscription_id", subIds),
+      ),
+    ]);
   // Read missing customer details only; opening the review never creates links.
   const customerDetails = new Map(customers.map((c) => [c.id, c]));
   await Promise.all(
@@ -191,6 +198,16 @@ export async function subscriptionReviews(
             .filter((p) => familyIds.has(p.id))
             .map((p) => ({ id: p.id, name: p.full_name })),
         },
+        requiresLegacyConfirmation:
+          plan?.generation === "legacy" &&
+          (!r.subscriptions.stripe_data?.subscription_created_at ||
+            Date.parse(r.subscriptions.stripe_data.subscription_created_at) >=
+              Date.parse("2026-08-31T22:00:00Z")) &&
+          !approvals.some(
+            (a) =>
+              a.subscription_id === r.subscription_id &&
+              a.stripe_price_id === r.item.price_id,
+          ),
         product: plan?.name ?? "Tarif noch nicht zugeordnet",
         units: plan?.included_units ?? null,
         startsAt: r.item.starts_at,
@@ -208,6 +225,7 @@ export const subscriptionReviewDecision = z
     signature: z.string().regex(/^[a-f0-9]{32}$/),
     player_id: z.uuid(),
     previous_item_id: z.string().min(1).max(200).nullable(),
+    confirm_legacy_tariff: z.boolean().optional().default(false),
   })
   .strict();
 export async function resolveSubscriptionReview(

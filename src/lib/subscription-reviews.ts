@@ -14,6 +14,7 @@ export interface SubscriptionReview {
     priceId: string;
     parents: { id: string; name: string }[];
   };
+  requiresLegacyConfirmation: boolean;
   product: string;
   units: number | null;
   startsAt: string;

@@ -132,3 +132,32 @@ it.each(["staff", "parent", undefined])(
     expect(mock.retrieve).not.toHaveBeenCalled();
   },
 );
+it("flags a new legacy subscription until its exact tariff has an approval", async () => {
+  mock.tables.stripe_customer_registry = [
+    { id: "cus_example", name: "Parent", email: "p@test.test" },
+  ];
+  mock.tables.plans[0].generation = "legacy";
+  mock.tables.subscription_assignment_reviews[0].subscriptions.stripe_data = {
+    subscription_created_at: "2026-10-16T06:38:42Z",
+  };
+  expect(
+    (await subscriptionReviews({ role: "admin" } as any)).rows[0]
+      .requiresLegacyConfirmation,
+  ).toBe(true);
+  mock.tables.subscription_legacy_approvals = [
+    {
+      id: "approval",
+      subscription_id: "sub_local",
+      stripe_price_id: "other_price",
+    },
+  ];
+  expect(
+    (await subscriptionReviews({ role: "admin" } as any)).rows[0]
+      .requiresLegacyConfirmation,
+  ).toBe(true);
+  mock.tables.subscription_legacy_approvals[0].stripe_price_id = "price";
+  expect(
+    (await subscriptionReviews({ role: "admin" } as any)).rows[0]
+      .requiresLegacyConfirmation,
+  ).toBe(false);
+});

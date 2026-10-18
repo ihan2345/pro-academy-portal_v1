@@ -86,6 +86,7 @@ const context = {
 };
 const review = {
   context,
+  requiresLegacyConfirmation: true,
   id: "10000000-0000-0000-0000-000000000001",
   signature: "a".repeat(32),
   product: "FirstTouch",
@@ -149,6 +150,7 @@ try {
         signature: review.signature,
         player_id: firstChild,
         previous_item_id: "si_old_1",
+        confirm_legacy_tariff: true,
       });
       attempt++;
       if (attempt === 1)
@@ -193,6 +195,10 @@ try {
       path: `${output}/${name}-review.png`,
       fullPage: true,
     });
+    await expect(
+      page.getByRole("button", { name: "Zuordnung bestätigen" }),
+    ).toBeDisabled();
+    await page.getByRole("checkbox", { name: /Ich bestätige/ }).check();
     await page.getByRole("button", { name: "Zuordnung bestätigen" }).click();
     await expect(page.getByRole("alert")).toContainText(
       "Prüfung bitte erneut bestätigen",
