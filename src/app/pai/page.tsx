@@ -14,7 +14,7 @@ export default async function Page() {
       <section className="panel pai-page">
         <h1>pAi</h1>
         <PaiChat role={s.role} />
-        <PaiPreference />
+        {s.role === "parent" && <PaiPreference />}
         {s.role === "admin" && <Link href="/admin/pai">pAi verwalten</Link>}
       </section>
     </Portal>

@@ -89,6 +89,7 @@ it("settles a usable answer once with provider tokens, no stored provider respon
   expect((await chat(session, input)).answer).toBe("Verified answer");
   const body = JSON.parse(fetch.mock.calls[0][1].body);
   expect(body.store).toBe(false);
+  expect(fetch.mock.calls[0][1].redirect).toBe("manual");
   expect(m.rpc.mock.calls.at(-1)).toEqual([
     "pai_finish",
     expect.objectContaining({
@@ -157,20 +158,18 @@ it("refunds a technical tool failure when no useful portal data was obtained", a
 it("supplies the verified admin role and keeps historical instructions subordinate", async () => {
   const admin = { ...session, role: "admin" };
   m.session.mockResolvedValue(admin);
-  const fetch = vi
-    .fn()
-    .mockResolvedValue(
-      Response.json({
-        status: "completed",
-        usage: { input_tokens: 100, output_tokens: 20 },
-        output: [
-          {
-            type: "message",
-            content: [{ type: "output_text", text: "Antwort" }],
-          },
-        ],
-      }),
-    );
+  const fetch = vi.fn().mockResolvedValue(
+    Response.json({
+      status: "completed",
+      usage: { input_tokens: 100, output_tokens: 20 },
+      output: [
+        {
+          type: "message",
+          content: [{ type: "output_text", text: "Antwort" }],
+        },
+      ],
+    }),
+  );
   vi.stubGlobal("fetch", fetch);
   await chat(admin, input);
   const body = JSON.parse(fetch.mock.calls[0][1].body);

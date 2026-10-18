@@ -142,7 +142,7 @@ export async function chat(s: ProfileSession, input: unknown) {
         },
         body,
         signal: AbortSignal.timeout(30000),
-        redirect: "error",
+        redirect: "manual",
       });
       if (!response.ok) {
         if (response.status >= 400 && response.status < 500) uncertain = false;
