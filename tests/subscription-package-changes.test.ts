@@ -64,6 +64,15 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync(
+      "supabase/release/014-completed-subscription-reviews.sql",
+      "utf8",
+    ),
+  );
+  await db.exec(
+    readFileSync("supabase/release/015-legacy-tariff-confirmation.sql", "utf8"),
+  );
   await query(
     "insert into auth.users values($1,'admin@example.invalid',now())",
     [admin],
@@ -274,9 +283,7 @@ it("queues ambiguous mappings with the old children as suggestions", async () =>
       )
     )[0].status,
   ).toBe("resolved");
-  await expect(
-    query("select resolve_subscription_assignment($1)", [confirm]),
-  ).rejects.toThrow("geändert");
+  await query("select resolve_subscription_assignment($1)", [confirm]);
   await query("select set_config('request.jwt.claim.sub','',false)");
 });
 it("keeps direct entitlement edits and unauthorized confirmations blocked", async () => {
@@ -386,4 +393,226 @@ it("does not apply scheduled future periods to the current card", async () => {
       sid,
     ]),
   ).toHaveLength(1);
+});
+
+it("closes already mapped reviews on sync only once a valid allowance exists", async () => {
+  const next = item("si_already", first);
+  const input = payload("sub_already", [next]);
+  const sid = (
+    await query("select apply_stripe_package_sync($1) id", [input])
+  )[0].id;
+  await query(
+    "insert into subscription_players(subscription_id,stripe_item_id,player_id) values($1,$2,$3)",
+    [sid, next.id, child],
+  );
+  expect(
+    (await query("select close_completed_subscription_reviews($1) n", [sid]))[0]
+      .n,
+  ).toBe(0);
+  await query("select apply_stripe_package_sync($1)", [
+    payload("sub_already", [next]),
+  ]);
+  expect(
+    (
+      await query(
+        "select status,resolved_player_id from subscription_assignment_reviews where subscription_id=$1",
+        [sid],
+      )
+    )[0],
+  ).toMatchObject({ status: "resolved", resolved_player_id: child });
+  expect(
+    await query("select id from entitlement_periods where subscription_id=$1", [
+      sid,
+    ]),
+  ).toHaveLength(1);
+  await query("select apply_stripe_package_sync($1)", [
+    payload("sub_already", [next]),
+  ]);
+  expect(
+    await query("select id from entitlement_periods where subscription_id=$1", [
+      sid,
+    ]),
+  ).toHaveLength(1);
+});
+it("accepts an existing identical assignment without inserting a duplicate and rejects a different child", async () => {
+  const next = item("si_confirm_existing", first);
+  const input = payload("sub_confirm_existing", [next]);
+  const sid = (
+    await query("select apply_stripe_package_sync($1) id", [input])
+  )[0].id;
+  await query(
+    "insert into subscription_players(subscription_id,stripe_item_id,player_id) values($1,$2,$3)",
+    [sid, next.id, child],
+  );
+  await query(
+    "update subscription_assignment_reviews set suggested_player_ids=array[$2::uuid] where subscription_id=$1",
+    [sid, child],
+  );
+  const review = (
+    await query(
+      "select * from subscription_assignment_reviews where subscription_id=$1",
+      [sid],
+    )
+  )[0];
+  const decision = {
+    review_id: review.id,
+    signature: review.signature,
+    player_id: child,
+    previous_item_id: null,
+  };
+  await query("select set_config('request.jwt.claim.sub',$1,false)", [admin]);
+  await query("select resolve_subscription_assignment($1)", [decision]);
+  await query("select resolve_subscription_assignment($1)", [decision]);
+  expect(
+    await query(
+      "select id from subscription_players where subscription_id=$1",
+      [sid],
+    ),
+  ).toHaveLength(1);
+  expect(
+    await query("select id from entitlement_periods where subscription_id=$1", [
+      sid,
+    ]),
+  ).toHaveLength(1);
+  const other = "50000000-0000-0000-0000-000000000099";
+  await query(
+    "insert into players(id,first_name,last_name) values($1,'Other','Child')",
+    [other],
+  );
+  await query(
+    "update subscription_assignment_reviews set status='pending',suggested_player_ids=array[$2::uuid] where id=$1",
+    [review.id, other],
+  );
+  await expect(
+    query("select resolve_subscription_assignment($1)", [
+      { ...decision, player_id: other },
+    ]),
+  ).rejects.toThrow("bereits einem anderen Kind");
+  expect(
+    (
+      await query(
+        "select player_id from subscription_players where subscription_id=$1",
+        [sid],
+      )
+    )[0].player_id,
+  ).toBe(child);
+  await query("select set_config('request.jwt.claim.sub','',false)");
+});
+it("keeps automatic cleanup inaccessible to application roles", async () => {
+  const rows = await query(
+    "select has_function_privilege('authenticated','public.close_completed_subscription_reviews(uuid)','execute') app,has_function_privilege('service_role','public.close_completed_subscription_reviews(uuid)','execute') service",
+  );
+  expect(rows[0]).toEqual({ app: false, service: false });
+});
+
+it("requires an explicit admin approval for a newly purchased legacy tariff and retains it on renewal", async () => {
+  const next = item("si_discount", first);
+  const input = {
+    ...payload("sub_discount", [next]),
+    subscription_created_at: "2026-10-16T06:38:42Z",
+  };
+  const sid = (
+    await query("select apply_stripe_package_sync($1) id", [input])
+  )[0].id;
+  await query(
+    "insert into subscription_players(subscription_id,stripe_item_id,player_id) values($1,$2,$3)",
+    [sid, next.id, child],
+  );
+  await query("select apply_stripe_package_sync($1)", [
+    { ...input, retrieved_at: iso(1) },
+  ]);
+  expect(
+    await query("select id from entitlement_periods where subscription_id=$1", [
+      sid,
+    ]),
+  ).toHaveLength(0);
+  await query(
+    "update subscription_assignment_reviews set suggested_player_ids=array[$2::uuid] where subscription_id=$1",
+    [sid, child],
+  );
+  const r = (
+    await query(
+      "select * from subscription_assignment_reviews where subscription_id=$1",
+      [sid],
+    )
+  )[0];
+  const decision = {
+    review_id: r.id,
+    signature: r.signature,
+    player_id: child,
+    previous_item_id: null,
+  };
+  await query("select set_config('request.jwt.claim.sub',$1,false)", [admin]);
+  await expect(
+    query("select resolve_subscription_assignment($1)", [decision]),
+  ).rejects.toThrow("ausdrücklich bestätigen");
+  expect(
+    await query(
+      "select id from subscription_legacy_approvals where subscription_id=$1",
+      [sid],
+    ),
+  ).toHaveLength(0);
+  await query("select resolve_subscription_assignment($1)", [
+    { ...decision, confirm_legacy_tariff: true },
+  ]);
+  expect(
+    (
+      await query(
+        "select approved_by from subscription_legacy_approvals where subscription_id=$1",
+        [sid],
+      )
+    )[0].approved_by,
+  ).toBe(admin);
+  expect(
+    await query("select id from entitlement_periods where subscription_id=$1", [
+      sid,
+    ]),
+  ).toHaveLength(1);
+  const renewal = {
+    ...input,
+    retrieved_at: iso(2),
+    items: [{ ...next, starts_at: next.ends_at, ends_at: iso(50) }],
+  };
+  await query("select apply_stripe_package_sync($1)", [renewal]);
+  expect(
+    await query("select id from entitlement_periods where subscription_id=$1", [
+      sid,
+    ]),
+  ).toHaveLength(2);
+  expect(
+    (
+      await query(
+        "select status from subscription_assignment_reviews where subscription_id=$1",
+        [sid],
+      )
+    )[0].status,
+  ).toBe("resolved");
+  // Another legacy price on the same subscription needs a fresh approval.
+  const changed = {
+    ...input,
+    retrieved_at: iso(3),
+    items: [{ ...next, price_id: game }],
+  };
+  await query("select apply_stripe_package_sync($1)", [changed]);
+  expect(
+    (
+      await query(
+        "select status from subscription_assignment_reviews where subscription_id=$1",
+        [sid],
+      )
+    )[0].status,
+  ).toBe("pending");
+  expect(
+    await query(
+      "select id from subscription_legacy_approvals where subscription_id=$1 and stripe_price_id=$2",
+      [sid, game],
+    ),
+  ).toHaveLength(0);
+  const grants = (
+    await query(
+      "select has_table_privilege('authenticated','subscription_legacy_approvals','insert') app,has_table_privilege('service_role','subscription_legacy_approvals','insert') service",
+    )
+  )[0];
+  expect(grants).toEqual({ app: false, service: false });
+  await query("select set_config('request.jwt.claim.sub','',false)");
 });

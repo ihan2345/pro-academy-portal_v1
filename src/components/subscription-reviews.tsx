@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { reviewExplanation } from "@/lib/subscription-reviews";
+import { StripeParentInputs } from "./stripe-parent-inputs";
 import { Modal } from "./portal";
 import { formatDate } from "@/lib/domain";
 import type {
@@ -49,14 +52,17 @@ export function SubscriptionReviews() {
             : error
               ? "Prüfung derzeit nicht verfügbar"
               : data?.total
-                ? `${data.total} Paketwechsel benötigen eine eindeutige Kinderzuordnung.`
+                ? `${data.total} Abo-Positionen benötigen eine eindeutige Kinderzuordnung.`
                 : "Keine offenen Zuordnungen."}
         </p>
         {!!data?.total && (
           <p className="profile-muted">
             {[
               ...new Set(
-                data.rows.flatMap((r) => r.suggestions.map((s) => s.name)),
+                data.rows.flatMap((r) => [
+                  r.context.customerName ?? r.context.customerId,
+                  ...r.suggestions.map((s) => s.name),
+                ]),
               ),
             ]
               .slice(0, 4)
@@ -79,12 +85,21 @@ export function SubscriptionReviews() {
         )
       )}
       {open && (
-        <Modal title="Paketwechsel prüfen" close={() => setOpen(false)}>
+        <Modal title="Abo-Zuordnungen prüfen" close={() => setOpen(false)}>
           <div className="subscription-review-body">
             <p>
-              Das bisher zugeordnete Kind ist nur ein Vorschlag. Bestätige für
-              jede neue Abo-Position die passende Zuordnung.
+              Hier erscheinen neue Abos und unklare Paketwechsel. Prüfe zuerst
+              den Kunden und die Familie, dann die passende Kinderzuordnung.
+              Vorschläge werden niemals automatisch bestätigt.
             </p>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={loading}
+              onClick={refresh}
+            >
+              Zuordnungen neu laden
+            </button>
             {error && <p role="alert">{error}</p>}
             {loading ? (
               <p role="status">Wird geladen …</p>
@@ -141,8 +156,13 @@ function ReviewCard({
   const first = r.suggestions.length === 1 ? r.suggestions[0] : null;
   const [previous, setPrevious] = useState(first?.previousItemId ?? ""),
     [player, setPlayer] = useState(
-      r.candidates.some((c) => c.id === first?.playerId) ? first!.playerId : "",
+      r.candidates.some((c) => c.id === first?.playerId)
+        ? first!.playerId
+        : r.candidates.length === 1 && !r.suggestions.length
+          ? r.candidates[0].id
+          : "",
     ),
+    [legacyConfirmed, setLegacyConfirmed] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const sameChild =
@@ -165,6 +185,7 @@ function ReviewCard({
               signature: r.signature,
               player_id: player,
               previous_item_id: previous || null,
+              confirm_legacy_tariff: legacyConfirmed,
             }),
           });
           const data = await response.json();
@@ -186,6 +207,94 @@ function ReviewCard({
       <p className="profile-muted">
         {formatDate(r.startsAt)} – {formatDate(r.endsAt)}
       </p>
+      <div className="profile-muted" style={{ overflowWrap: "anywhere" }}>
+        <p>
+          <strong>Kunde:</strong>{" "}
+          {r.context.customerName ?? "Name nicht verfügbar"}
+          {r.context.customerEmail
+            ? ` · ${r.context.customerEmail}`
+            : " · E-Mail nicht verfügbar"}
+        </p>
+        <p>
+          <strong>Familie im Portal:</strong>{" "}
+          {r.context.parents.map((p) => p.name).join(" · ") ||
+            "Noch nicht verknüpft"}
+        </p>
+        <p>
+          <strong>Abo-Status:</strong>{" "}
+          {(
+            {
+              active: "Aktiv",
+              trialing: "Testphase",
+              past_due: "Zahlung überfällig",
+              canceled: "Gekündigt",
+              unpaid: "Unbezahlt",
+              paused: "Pausiert",
+              incomplete: "Unvollständig",
+              incomplete_expired: "Abgelaufen",
+            } as Record<string, string>
+          )[r.context.status] ?? "Unbekannt"}{" "}
+          · {r.quantity} {r.quantity === 1 ? "Platz" : "Plätze"}
+        </p>
+        <p>
+          Zur Prüfung seit {formatDate(r.context.createdAt)} · Letzter Abgleich:{" "}
+          {r.context.syncedAt
+            ? formatDate(r.context.syncedAt)
+            : "Nicht bekannt"}
+        </p>
+      </div>
+      <StripeParentInputs
+        customer={r.context.customerId}
+        subscription={r.context.subscriptionId}
+      />
+      <p>
+        <strong>Warum ist eine Prüfung nötig?</strong>
+        <br />
+        {reviewExplanation(r)}
+      </p>
+      {r.context.customerDetailsUnavailable && (
+        <p>
+          Kundendetails sind derzeit nicht vollständig verfügbar. Die
+          Stripe-Referenzen stehen unten zur Kontrolle bereit.
+        </p>
+      )}
+      {!r.candidates.length && (
+        <div role="status">
+          <p>
+            <strong>Nächster Schritt:</strong>{" "}
+            {r.context.parents.length
+              ? "Prüfe unter Spieler & Eltern die Kinder der genannten Familie. Lege ein fehlendes Kind an oder prüfe dessen Archivierung. Lade danach diese Prüfung neu."
+              : "Öffne die Stripe-Zuordnung für diesen Kunden. Prüfe die Kundendaten und verknüpfe ihn mit der passenden Familie und dem Kind. Lade danach diese Prüfung neu."}
+          </p>
+          <Link
+            className="secondary-button"
+            href={
+              r.context.parents.length
+                ? "/admin/spieler"
+                : `/admin/stripe?customer=${encodeURIComponent(r.context.customerId)}`
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {r.context.parents.length
+              ? "Spieler & Eltern öffnen"
+              : "Diesen Kunden zuordnen"}{" "}
+            ↗
+          </Link>
+        </div>
+      )}
+      <details style={{ overflowWrap: "anywhere" }}>
+        <summary>Referenzen zur Kontrolle</summary>
+        <p>
+          Stripe-Kunde: {r.context.customerId}
+          <br />
+          Abo: {r.context.subscriptionId}
+          <br />
+          Abo-Position: {r.context.itemId}
+          <br />
+          Tarif: {r.context.priceId}
+        </p>
+      </details>
       {!!r.suggestions.length && (
         <label>
           Bisherige Zuordnung ersetzen
@@ -217,14 +326,19 @@ function ReviewCard({
         <select
           required
           value={player}
-          disabled={busy}
+          disabled={busy || !r.candidates.length}
           onChange={(e) => setPlayer(e.target.value)}
         >
-          <option value="">Kind auswählen</option>
+          <option value="">
+            {r.candidates.length
+              ? "Kind auswählen"
+              : "Keine zugeordneten aktiven Kinder verfügbar"}
+          </option>
           {r.candidates.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
-              {r.suggestions.some((s) => s.playerId === c.id)
+              {r.suggestions.some((s) => s.playerId === c.id) ||
+              (r.candidates.length === 1 && !r.suggestions.length)
                 ? " · Vorschlag"
                 : ""}
             </option>
@@ -236,6 +350,37 @@ function ReviewCard({
           ? "Das Kontingent wird sofort angepasst. Einheiten des laufenden Zeitraums bleiben auf der Stempelkarte; überschüssige Einheiten werden markiert."
           : "Teilnahmen werden niemals auf ein anderes Kind übertragen. Bei einer regulären Verlängerung beginnt ein neuer Zeitraum."}
       </p>
+      {r.requiresLegacyConfirmation && (
+        <section
+          style={{
+            padding: 16,
+            border: "1px solid #d49b35",
+            borderRadius: 10,
+            background: "#fff8e8",
+          }}
+        >
+          <strong>Bestandstarif für einen neuen Abschluss</strong>
+          <p>
+            Dieses Abo wurde nach der Tarifumstellung über einen alten Link
+            abgeschlossen. Der günstigere Bestandstarif ist für ausgewählte
+            Kunden möglich und benötigt deine ausdrückliche Freigabe.
+          </p>
+          <label>
+            <input
+              type="checkbox"
+              checked={legacyConfirmed}
+              disabled={busy}
+              onChange={(e) => setLegacyConfirmed(e.target.checked)}
+            />
+            Ich bestätige, dass dieses Abo den günstigeren Bestandstarif
+            erhalten darf.
+          </label>
+          <p>
+            Die Freigabe gilt für dieses Abo und diesen Tarif, auch bei späteren
+            Verlängerungen. Sie ändert keine Preise in Stripe.
+          </p>
+        </section>
+      )}
       {r.quantity !== 1 && (
         <p role="alert">
           Diese Abo-Position enthält mehrere Plätze und muss zuerst getrennt
@@ -243,7 +388,11 @@ function ReviewCard({
         </p>
       )}
       {r.units === null && (
-        <p role="alert">Bitte zuerst den unbekannten Tarif zuordnen.</p>
+        <p role="alert">
+          Bitte zuerst unter Verwaltung → Produkte & Berichte → Produkte den
+          Stripe-Tarif zuordnen. Die Tarif-ID steht unter „Referenzen zur
+          Kontrolle“.
+        </p>
       )}
       {error && (
         <p role="alert" className="profile-error">
@@ -254,6 +403,7 @@ function ReviewCard({
         className="primary-button"
         disabled={
           busy ||
+          (r.requiresLegacyConfirmation && !legacyConfirmed) ||
           !player ||
           r.units === null ||
           r.quantity !== 1 ||
