@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwindcss" source("../");
 @theme {
   --color-brand-dark: #0b0f1a;
   --color-brand-lime: #8eff01;
@@ -3602,3 +3602,100 @@ label {
 @media(max-width:600px) { .activity-day,.activity-open { padding:14px; } .activity-day > summary span { display:block; margin:4px 0 0 18px; } .activity-entry { gap:9px; } }
 
 .activity-help > button { border:0; background:transparent; color:inherit; }
+
+/* pAi: shared portal entry, respecting mobile navigation and safe areas. */
+.pai-launcher { position:fixed; z-index:35; right:max(20px,env(safe-area-inset-right)); bottom:calc(24px + env(safe-area-inset-bottom)); display:flex; align-items:center; gap:5px; background:#0b0f1a; color:#8eff01; border:2px solid #8eff01; border-radius:22px; padding:8px 14px 8px 8px; box-shadow:0 6px 24px #0b0f1a33; font-weight:800; cursor:pointer; }
+.pai-launcher svg { width:48px; height:54px; }
+.pai-launcher:hover { transform:translateY(-2px); }
+.pai-chat { display:grid; gap:16px; max-width:850px; margin:auto; }
+.pai-chat form { display:grid; gap:10px; }
+.pai-chat textarea { min-height:90px; width:100%; resize:vertical; padding:12px; border:1px solid #cbd0db; border-radius:12px; font:inherit; }
+.pai-usage { padding:16px; border-radius:14px; background:#f1f0fa; border-left:4px solid #8b53fe; }
+.pai-usage p { margin:8px 0; }
+.pai-messages { display:grid; gap:14px; overflow-wrap:anywhere; }
+.pai-messages p { padding:16px; border-radius:12px; white-space:pre-wrap; }
+.pai-question { background:#f0f4eb; margin-left:20px; }
+.pai-answer { background:#f0eff7; margin-right:20px; }
+.pai-suggestions { display:flex; flex-wrap:wrap; gap:8px; }
+.pai-disabled { padding:18px; background:#f0eff7; border-radius:12px; }
+.pai-admin { display:grid; gap:20px; }
+.pai-admin .panel { padding:22px; }
+.pai-metrics,.pai-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; }
+.pai-metrics strong { display:block; font-size:25px; }
+.pai-fields { margin:18px 0; }
+.pai-fields label { display:grid; gap:8px; }
+.pai-fields input,.pai-fields select { width:100%; padding:10px; border:1px solid #cbd0db; border-radius:8px; }
+.pai-budget-warning,.pai-release-stop { padding:16px; background:#fff2db; border:1px solid #e5ba76; border-radius:12px; }
+.modal:has(.pai-chat) { width:min(740px,94vw); max-height:90dvh; overflow:auto; }
+@media(max-width:760px) { .pai-launcher { bottom:calc(88px + env(safe-area-inset-bottom)); right:12px; padding:5px 10px; } .pai-launcher svg { width:36px; height:42px; } .modal-backdrop:has(.pai-chat) { padding:0; } .modal:has(.pai-chat) { width:100%; height:100dvh; max-height:100dvh; border-radius:0; padding-bottom:calc(20px + env(safe-area-inset-bottom)); } }
+@media(prefers-reduced-motion:reduce) { .pai-launcher:hover { transform:none; } }
+.modal .pai-chat { padding:0 20px 24px; }
+.pai-admin .table-wrap { overflow-x:auto; margin:18px 0; }
+.pai-admin table { width:100%; min-width:850px; border-collapse:collapse; text-align:left; }
+.pai-admin th,.pai-admin td { padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:middle; }
+.pai-admin th { background:var(--surface); font-size:12px; color:var(--muted); }
+.pai-admin td:first-child { min-width:170px; }
+.pai-admin td { font-size:13px; }
+.pai-admin button + button { margin-left:8px; }
+
+/* Shared conversation layout for the page and the mascot dialog. */
+.pai-chat { gap:20px; color:#182034; width:100%; padding:24px; }
+.pai-welcome { display:flex; align-items:center; gap:14px; }
+.pai-avatar { display:grid; place-items:center; flex:none; width:46px; height:46px; border-radius:15px; background:#5226aa; color:white; font-weight:850; }
+.pai-welcome strong { font-size:18px; }
+.pai-welcome p { margin:4px 0 0; color:#526077; font-size:14px; }
+.pai-quota { border:1px solid #d9dce8; border-radius:12px; background:#f8f9fc; font-size:13px; }
+.pai-quota summary { cursor:pointer; padding:12px 16px; font-weight:650; }
+.pai-quota summary span { float:right; color:#5d488f; font-size:12px; }
+.pai-usage { background:#f1ecfc; margin:0 12px 12px; }
+.pai-messages { gap:28px; min-height:160px; max-height:55dvh; overflow-y:auto; overscroll-behavior:contain; padding:8px 8px 16px; scrollbar-gutter:stable; }
+.pai-turn { display:grid; gap:20px; }
+.pai-messages .pai-question { justify-self:end; width:fit-content; max-width:88%; margin:0; padding:14px 18px; border-radius:18px 18px 4px 18px; background:#26354e; color:#fff; }
+.pai-messages .pai-answer { margin:0; padding:18px 20px; background:#f0eafa; border:1px solid #d9c9f4; border-radius:4px 18px 18px 18px; color:#211b35; }
+.pai-message-author { display:block; font-size:12px; font-weight:800; letter-spacing:.02em; margin-bottom:8px; }
+.pai-message-author span { font-weight:500; color:#625178; margin-left:8px; }
+.pai-messages p { padding:0; margin:0; border-radius:0; line-height:1.65; white-space:pre-wrap; font-size:15px; }
+.pai-answer-text { display:grid; gap:12px; }
+.pai-empty { text-align:center; align-self:center; padding:28px 16px; color:#536078; }
+.pai-empty h3 { color:#232e44; margin:0 0 10px; font-size:23px; }
+.pai-suggestions { gap:8px; }
+.pai-suggestions .secondary-button { font-size:12px; font-weight:550; padding:9px 12px; border:1px solid #cbd1df; background:white; color:#34435d; border-radius:12px; text-align:left; }
+.pai-chat form { padding:14px; border:1px solid #aeb8cb; border-radius:16px; background:white; box-shadow:0 4px 18px #14223b0a; gap:10px; }
+.pai-chat form label { font-size:12px; color:#45536d; font-weight:700; }
+.pai-chat textarea { min-height:64px; max-height:160px; border:0; padding:4px; border-radius:4px; background:transparent; font-size:15px; color:#17233a; }
+.pai-chat textarea::placeholder { color:#64718a; }
+.pai-chat form:focus-within { border-color:#7140c4; box-shadow:0 0 0 3px #7140c419; }
+.pai-chat form .primary-button { justify-self:end; background:#592bb0; color:white; border-color:#592bb0; padding:10px 20px; border-radius:10px; }
+.pai-chat form .primary-button:disabled { background:#e1e5ee; border-color:#e1e5ee; color:#58657c; opacity:1; }
+.pai-footnote { font-size:11px; color:#58657b; line-height:1.6; }
+.pai-chat > .text-button { justify-self:start; font-size:12px; color:#59667c; }
+.modal:has(.pai-chat) { width:min(800px,94vw); display:flex; flex-direction:column; overflow:hidden; }
+.modal:has(.pai-chat) .modal-heading { flex-shrink:0; padding:20px 24px; background:#18243b; color:white; border:0; }
+.modal:has(.pai-chat) .modal-heading h2 { color:white; font-size:18px; }
+.modal:has(.pai-chat) .modal-heading button { color:white; }
+.modal .pai-chat { overflow-y:auto; min-height:0; padding:20px 24px; gap:16px; }
+.modal .pai-messages { max-height:35dvh; }
+@media(max-width:760px) {
+  .pai-chat { padding:16px 0; gap:16px; }
+  .modal .pai-chat { padding:16px; }
+  .pai-welcome strong { font-size:16px; }
+  .pai-quota summary span { display:none; }
+  .pai-messages { padding:4px 0 12px; gap:24px; }
+  .pai-messages .pai-question { max-width:94%; }
+  .pai-messages .pai-answer { padding:16px; }
+  .pai-messages p { font-size:14px; }
+  .modal .pai-messages { max-height:38dvh; }
+  .pai-suggestions .secondary-button { font-size:11px; padding:8px 10px; }
+}
+.pai-suggestions[hidden] { display:none; }
+.pai-page > h1 { padding:24px 24px 0; margin:0; font-size:24px; }
+.modal:has(.pai-chat) { height:min(850px,90dvh); }
+.modal .pai-chat { display:flex; flex-direction:column; flex:1; }
+.modal .pai-chat > * { flex-shrink:0; }
+.modal .pai-messages { flex:1 1 auto; min-height:180px; max-height:none; }
+@media(max-width:760px) {
+  .modal:has(.pai-chat) { width:100%; height:100dvh; max-height:100dvh; }
+  .modal-backdrop:has(.pai-chat) { padding:0; }
+  .modal .pai-welcome { display:none; }
+  .modal .pai-messages { min-height:160px; }
+}

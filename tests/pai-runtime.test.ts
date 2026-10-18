@@ -1,0 +1,22 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { runtimeReady, providerKey } from "../src/lib/server/pai/service";
+afterEach(() => vi.unstubAllEnvs());
+it("requires local database for test keys and never falls back in production", () => {
+  vi.stubEnv("PAI_ENABLED", "true");
+  vi.stubEnv("APP_URL", "http://127.0.0.1:3117");
+  vi.stubEnv("APP_MODE", "test");
+  vi.stubEnv("PAI_TEST_API_KEY", "synthetic");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://production.supabase.co");
+  expect(runtimeReady()).toBe(false);
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:55321");
+  expect(runtimeReady()).toBe(true);
+  vi.stubEnv("APP_MODE", "production");
+  vi.stubEnv("PAI_PRODUCTION_API_KEY", "");
+  vi.stubEnv("PAI_PRODUCTION_CONFIRMED", "true");
+  expect(runtimeReady()).toBe(false);
+  expect(() => providerKey()).toThrow();
+  vi.stubEnv("PAI_PRODUCTION_API_KEY", "synthetic-production");
+  expect(providerKey()).toBe("synthetic-production");
+  vi.stubEnv("PAI_PRODUCTION_CONFIRMED", "false");
+  expect(runtimeReady()).toBe(false);
+});
