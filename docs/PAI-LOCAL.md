@@ -1,6 +1,6 @@
 # pAi V3 – lokaler Umsetzungsstand
 
-Branch: `pAi`. Commit, Push und Veröffentlichung des versteckten Zugangs sind vom Nutzer freigegeben. Der Produktionsschlüssel wird separat als Secret benötigt.
+Branch: `pAi`. Commit, Push und Veröffentlichung des versteckten Zugangs sind vom Nutzer freigegeben. Der vom Nutzer ausdrücklich für Produktion bereitgestellte Schlüssel ist als Cloudflare-Secret eingerichtet.
 
 ## Bestätigte Regeln
 
@@ -100,3 +100,13 @@ Standortkapazitäten sind im Trainingsmodell nicht hinterlegt: Vergleich nach Tr
 ## Versteckter Zugang
 
 Maskottchen, pAi-Navigation, Admin-Menüeintrag und Kontoseiten-Einstellung sind entfernt. `/pai` bleibt authentifiziert direkt erreichbar und ist mit `noindex` versehen. Admins finden die Verwaltung nur innerhalb der pAi-Seite. Das Verstecken ist keine zusätzliche Berechtigungsgrenze. Ohne Produktions-Secret liefert die veröffentlichte Seite keine KI-Antworten.
+
+## Veröffentlichung am 18.10.2026
+
+Auf ausdrücklichen Nutzerauftrag wurde Branch `pAi` committed, mit den aktuellen Änderungen aus `main` zusammengeführt und gepusht. Der Zugang ist ausschließlich direkt unter `https://portal.proacademy-ak.com/pai` sichtbar und verlangt Anmeldung. Maskottchen, Navigationseinträge und die pAi-Kontoeinstellung außerhalb dieser Seite sind entfernt.
+
+Die additive Migration `202610170001_pai.sql` und der Retention-Job wurden auf dem bestehenden Projekt `vgxaatawsbzgsmqiaepj` eingerichtet. Bestandszahlen blieben bei Anwendung unverändert: 126 Spieler, 113 Eltern, 219 Leistungszeiträume. Der initiale Budgetwert beträgt 5 USD monatlich, Chattexte werden 30 Tage aufbewahrt.
+
+Der Nutzer hat den zuvor temporär verwendeten Schlüssel in dieser Veröffentlichung ausdrücklich auch für Produktion bereitgestellt. Er wurde ausschließlich als `PAI_PRODUCTION_API_KEY` im Cloudflare-Worker hinterlegt, nicht ins Repository oder Browser-Bundle übernommen. Die Produktionsschalter sind aktiv; bestehende Variablen und Secret-Bindings wurden erhalten.
+
+Aktive Portal-Version nach Secret-Einrichtung: `e1958df3-2baa-43e0-8e55-8bfca20fd713` (100 % Traffic). 794 Tests erfolgreich; separater Build aus dem Lockfile einschließlich TypeScript/OpenNext erfolgreich. Verborgene Einstiegspunkte und direkter Zugriff wurden lokal für drei Rollen geprüft. Online bestätigt: Login-Weiterleitung, API-Authentifizierung, Origin-Schutz, fehlende lokale Loginroute und bytegleiche Auslieferung des Chat-Bundles. OpenAI-Modellzugriff mit dem bereitgestellten Schlüssel bestätigt; kein authentifizierter Chat mit produktiven Familiendaten als Test ausgeführt. Private Nachweise unter `output/pai-release/`.
