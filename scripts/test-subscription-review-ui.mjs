@@ -69,35 +69,164 @@ await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless: true });
 
-const firstChild="50000000-0000-0000-0000-000000000001",secondChild="50000000-0000-0000-0000-000000000002";
-const review={id:"10000000-0000-0000-0000-000000000001",signature:"a".repeat(32),product:"FirstTouch",units:4,startsAt:"2026-10-01",endsAt:"2026-11-01",quantity:1,
- suggestions:[{playerId:firstChild,name:"Max Beispiel",previousItemId:"si_old_1"},{playerId:secondChild,name:"Alex Beispiel",previousItemId:"si_old_2"}],
- candidates:[{id:firstChild,name:"Max Beispiel"},{id:secondChild,name:"Alex Beispiel"}]};
+const firstChild = "50000000-0000-0000-0000-000000000001",
+  secondChild = "50000000-0000-0000-0000-000000000002";
+const context = {
+  customerId: "cus_example",
+  customerName: "Erika Beispiel",
+  customerEmail: "erika@example.com",
+  customerDetailsUnavailable: false,
+  subscriptionId: "sub_example",
+  status: "active",
+  createdAt: "2026-10-17",
+  syncedAt: "2026-10-18",
+  itemId: "si_new",
+  priceId: "price_example",
+  parents: [{ id: "parent", name: "Erika Beispiel" }],
+};
+const review = {
+  context,
+  id: "10000000-0000-0000-0000-000000000001",
+  signature: "a".repeat(32),
+  product: "FirstTouch",
+  units: 4,
+  startsAt: "2026-10-01",
+  endsAt: "2026-11-01",
+  quantity: 1,
+  suggestions: [
+    { playerId: firstChild, name: "Max Beispiel", previousItemId: "si_old_1" },
+    {
+      playerId: secondChild,
+      name: "Alex Beispiel",
+      previousItemId: "si_old_2",
+    },
+  ],
+  candidates: [
+    { id: firstChild, name: "Max Beispiel" },
+    { id: secondChild, name: "Alex Beispiel" },
+  ],
+};
 try {
- for(const [name,viewport] of [["desktop",{width:1440,height:1000}],["mobile",{width:390,height:844}]]) {
-  const page=await browser.newPage({viewport});let saved=false,attempt=0;const errors=[];
-  page.on("pageerror",e=>errors.push(e.message));
-  await page.route("**/api/**",async route=>{
-   if(!route.request().url().includes("subscription-reviews"))return route.fulfill({json:{ok:true}});
-   if(route.request().method()==="GET")return route.fulfill({json:{rows:saved?[]:[review],total:saved?0:1}});
-   assert.deepEqual(route.request().postDataJSON(),{review_id:review.id,signature:review.signature,player_id:firstChild,previous_item_id:"si_old_1"});
-   attempt++;if(attempt===1)return route.fulfill({status:409,json:{error:"Prüfung bitte erneut bestätigen"}});
-   saved=true;return route.fulfill({json:{ok:true}});
-  });
-  await page.goto(base);await expect(page.getByRole("button",{name:"Kinder und Vorschläge prüfen →"})).toBeVisible();
-  await expect(page.locator(".stamp.over-quota")).toHaveCount(2);
-  await page.screenshot({path:`${output}/${name}-overview.png`,fullPage:true});
-  await page.getByRole("button",{name:"Kinder und Vorschläge prüfen →"}).click();
-  await expect(page.getByRole("button",{name:"Zuordnung bestätigen"})).toBeDisabled();
-  await page.getByLabel("Bisherige Zuordnung ersetzen").selectOption("si_old_1");
-  await expect(page.getByLabel("Kind für das neue Paket")).toHaveValue(firstChild);
-  await expect(page.getByText(/Das Kontingent wird sofort angepasst/)).toBeVisible();
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-  await page.screenshot({path:`${output}/${name}-review.png`,fullPage:true});
-  await page.getByRole("button",{name:"Zuordnung bestätigen"}).click();
-  await expect(page.getByRole("alert")).toContainText("Prüfung bitte erneut bestätigen");
-  await page.getByRole("button",{name:"Zuordnung bestätigen"}).click();
-  await expect(page.getByText("Alle Zuordnungen sind geprüft.")).toBeVisible();
-  assert.deepEqual(errors,[]);await page.close();console.log(`${name}: review suggestion, confirmation, retry and quota markers passed`);
- }
-} finally {await browser.close();server.close();}
+  for (const [name, viewport] of [
+    ["desktop", { width: 1440, height: 1000 }],
+    ["mobile", { width: 390, height: 844 }],
+  ]) {
+    const page = await browser.newPage({ viewport });
+    let saved = false,
+      attempt = 0;
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.route("**/api/**", async (route) => {
+      if (!route.request().url().includes("subscription-reviews"))
+        return route.fulfill({ json: { ok: true } });
+      if (route.request().method() === "GET")
+        return route.fulfill({
+          json: { rows: saved ? [] : [review], total: saved ? 0 : 1 },
+        });
+      assert.deepEqual(route.request().postDataJSON(), {
+        review_id: review.id,
+        signature: review.signature,
+        player_id: firstChild,
+        previous_item_id: "si_old_1",
+      });
+      attempt++;
+      if (attempt === 1)
+        return route.fulfill({
+          status: 409,
+          json: { error: "Prüfung bitte erneut bestätigen" },
+        });
+      saved = true;
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.goto(base);
+    await expect(
+      page.getByRole("button", { name: "Kinder und Vorschläge prüfen →" }),
+    ).toBeVisible();
+    await expect(page.locator(".stamp.over-quota")).toHaveCount(2);
+    await page.screenshot({
+      path: `${output}/${name}-overview.png`,
+      fullPage: true,
+    });
+    await page
+      .getByRole("button", { name: "Kinder und Vorschläge prüfen →" })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Zuordnung bestätigen" }),
+    ).toBeDisabled();
+    await page
+      .getByLabel("Bisherige Zuordnung ersetzen")
+      .selectOption("si_old_1");
+    await expect(page.getByLabel("Kind für das neue Paket")).toHaveValue(
+      firstChild,
+    );
+    await expect(
+      page.getByText(/Das Kontingent wird sofort angepasst/),
+    ).toBeVisible();
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+    );
+    await page.screenshot({
+      path: `${output}/${name}-review.png`,
+      fullPage: true,
+    });
+    await page.getByRole("button", { name: "Zuordnung bestätigen" }).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "Prüfung bitte erneut bestätigen",
+    );
+    await page.getByRole("button", { name: "Zuordnung bestätigen" }).click();
+    await expect(
+      page.getByText("Alle Zuordnungen sind geprüft."),
+    ).toBeVisible();
+    await page.unroute("**/api/**");
+    await page.route("**/api/**", (route) =>
+      route.fulfill({
+        json: route.request().url().includes("subscription-reviews")
+          ? {
+              rows: [
+                {
+                  ...review,
+                  suggestions: [],
+                  candidates: [],
+                  context: { ...context, parents: [] },
+                },
+              ],
+              total: 1,
+            }
+          : { ok: true },
+      }),
+    );
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Kinder und Vorschläge prüfen →" })
+      .click();
+    await expect(
+      page.getByText(/Dieser Stripe-Kunde ist noch keiner Familie/),
+    ).toBeVisible();
+    await expect(page.getByLabel("Kind für das neue Paket")).toBeDisabled();
+    await expect(
+      page.getByRole("link", { name: /Diesen Kunden zuordnen/ }),
+    ).toHaveAttribute("href", "/admin/stripe?customer=cus_example");
+    await expect(page.getByText(/erika@example.com/)).toBeVisible();
+    await page.screenshot({
+      path: `${output}/${name}-unlinked.png`,
+      fullPage: true,
+    });
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+    );
+    assert.deepEqual(errors, []);
+    await page.close();
+    console.log(
+      `${name}: review suggestion, confirmation, retry and quota markers passed`,
+    );
+  }
+} finally {
+  await browser.close();
+  server.close();
+}

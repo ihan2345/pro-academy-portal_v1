@@ -968,6 +968,36 @@ function StripeImport({
       setBusy(false);
     }
   }
+  useEffect(() => {
+    const customer = new URLSearchParams(window.location.search).get(
+      "customer",
+    );
+    if (!customer || !/^cus_[A-Za-z0-9]+$/.test(customer)) return;
+    let cancelled = false;
+    setBusy(true);
+    api(
+      `admin/stripe-customer-detail?id=${encodeURIComponent(customer)}`,
+      undefined,
+      "GET",
+    )
+      .then((result) => {
+        if (!cancelled) setCurrent(result);
+      })
+      .catch((error) => {
+        if (!cancelled)
+          setStatus(
+            error instanceof Error
+              ? error.message
+              : "Kunde konnte nicht geladen werden.",
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   async function selectCustomer(customer: RegistryCustomer) {
     setBusy(true);
     setPlayerId("");

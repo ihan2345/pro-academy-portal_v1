@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import type { ProfileSession } from "./parent-profile";
+import { profileStripeClient } from "./profile-stripe";
 import { serviceDb } from "./service-db";
 import { assertRole, HttpError } from "./security";
 import type { SubscriptionReviewPage } from "../subscription-reviews";
@@ -41,7 +42,7 @@ export async function subscriptionReviews(
   const response = await db
     .from("subscription_assignment_reviews")
     .select(
-      "id,signature,item,subscription_id,previous_item_ids,suggested_player_ids,subscriptions!inner(parent_id,stripe_customer_id)",
+      "id,signature,created_at,item,subscription_id,previous_item_ids,suggested_player_ids,subscriptions!inner(parent_id,stripe_customer_id,stripe_subscription_id,status,synced_at)",
       { count: "exact" },
     )
     .eq("status", "pending")
@@ -54,7 +55,7 @@ export async function subscriptionReviews(
     customerIds = [
       ...new Set(rows.map((r) => r.subscriptions.stripe_customer_id)),
     ];
-  const [oldMappings, customerLinks, plans] = await Promise.all([
+  const [oldMappings, customerLinks, plans, customers] = await Promise.all([
     collect(() =>
       db
         .from("subscription_players")
@@ -75,7 +76,35 @@ export async function subscriptionReviews(
         .select("id,stripe_price_id,name,included_units")
         .eq("active", true),
     ),
+    collect(() =>
+      db
+        .from("stripe_customer_registry")
+        .select("id,name,email")
+        .in("id", customerIds),
+    ),
   ]);
+  // Read missing customer details only; opening the review never creates links.
+  const customerDetails = new Map(customers.map((c) => [c.id, c]));
+  await Promise.all(
+    customerIds.map(async (id) => {
+      if (customerDetails.get(id)?.name && customerDetails.get(id)?.email)
+        return;
+      try {
+        const customer = await profileStripeClient().customers.retrieve(id, {
+          timeout: 6000,
+          maxNetworkRetries: 0,
+        });
+        if (!customer.deleted)
+          customerDetails.set(id, {
+            id,
+            name: customer.name,
+            email: customer.email,
+          });
+      } catch {
+        /* Keep local details and explicit missing-data notice. */
+      }
+    }),
+  );
   const parentIds = [
     ...new Set(
       [
@@ -93,6 +122,11 @@ export async function subscriptionReviews(
           )
           .in("parent_id", parentIds)
           .is("players.archived_at", null),
+      )
+    : [];
+  const parents = parentIds.length
+    ? await collect(() =>
+        db.from("parents").select("id,full_name").in("id", parentIds),
       )
     : [];
   const name = (p: any) => `${p.first_name} ${p.last_name}`;
@@ -136,6 +170,27 @@ export async function subscriptionReviews(
       return {
         id: r.id,
         signature: r.signature,
+        context: {
+          customerId: r.subscriptions.stripe_customer_id,
+          customerName:
+            customerDetails.get(r.subscriptions.stripe_customer_id)?.name ??
+            null,
+          customerEmail:
+            customerDetails.get(r.subscriptions.stripe_customer_id)?.email ??
+            null,
+          customerDetailsUnavailable:
+            !customerDetails.get(r.subscriptions.stripe_customer_id)?.name ||
+            !customerDetails.get(r.subscriptions.stripe_customer_id)?.email,
+          subscriptionId: r.subscriptions.stripe_subscription_id,
+          status: r.subscriptions.status,
+          createdAt: r.created_at,
+          syncedAt: r.subscriptions.synced_at,
+          itemId: r.item.id,
+          priceId: r.item.price_id,
+          parents: parents
+            .filter((p) => familyIds.has(p.id))
+            .map((p) => ({ id: p.id, name: p.full_name })),
+        },
         product: plan?.name ?? "Tarif noch nicht zugeordnet",
         units: plan?.included_units ?? null,
         startsAt: r.item.starts_at,
