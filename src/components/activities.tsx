@@ -1,7 +1,12 @@
 "use client";
 import { useEffect, useId, useState } from "react";
 import Link from "next/link";
-import { Activity as ActivityIcon, Info, RefreshCw } from "lucide-react";
+import {
+  Activity as ActivityIcon,
+  Info,
+  RefreshCw,
+  TriangleAlert,
+} from "lucide-react";
 import type { Activity, ActivityPage, ActivitySummary } from "@/lib/activities";
 import { calendarDate } from "@/lib/calendar";
 import { formatDate, formatTime } from "@/lib/domain";
@@ -20,7 +25,7 @@ export function ActivityBadge() {
           if (!r.ok) throw Error();
           return r.json();
         })
-        .then((d: ActivitySummary) => setCount(d.recent))
+        .then((d: ActivitySummary) => setCount(d.open))
         .catch(() => {});
     };
     update();
@@ -35,8 +40,8 @@ export function ActivityBadge() {
   return count === null ? null : (
     <span
       className="activity-badge"
-      title={`${count} Aktivitäten in den letzten 72 Stunden`}
-      aria-label={`${count} Aktivitäten in den letzten 72 Stunden`}
+      title={`${count} offene Vorgänge mit Handlungsbedarf`}
+      aria-label={`${count} offene Vorgänge mit Handlungsbedarf`}
     >
       {count}
     </span>
@@ -295,12 +300,20 @@ function DateGroup({
     </details>
   );
 }
-function ActivityRows({ rows }: { rows: Activity[] }) {
+export function ActivityRows({ rows }: { rows: Activity[] }) {
   return (
     <ol className="activity-list">
       {rows.map((row) => (
         <li key={row.id} className={`activity-entry ${row.tone}`}>
-          <ActivityIcon size={19} aria-hidden="true" />
+          {row.help ? (
+            <TriangleAlert
+              size={19}
+              style={{ color: "#c62828" }}
+              aria-label="Aktion erforderlich"
+            />
+          ) : (
+            <ActivityIcon size={19} aria-hidden="true" />
+          )}
           <div>
             <h3>{row.title}</h3>
             {row.subject && (

@@ -14,7 +14,9 @@ const cursorSchema = z
   .strict();
 const querySchema = z
   .object({
-    window: z.enum(["0", "1", "2", "all", "issues"]).default("0"),
+    window: z.enum(["0", "1", "2", "all", "issues", "week"]).default("0"),
+    scope: z.enum(["all", "stripe"]).default("all"),
+    limit: z.union([z.literal(3), z.literal(50)]).default(50),
     asOf: stamp.optional(),
     cursor: z.string().max(512).optional(),
   })
@@ -79,7 +81,21 @@ export async function activityList(
         count ? { count: "exact", head: true } : undefined,
       )
       .lte("occurred_at", asOf);
-    if (parsed.window === "issues") q = q.eq("is_open", true);
+    if (parsed.scope === "stripe")
+      q = q.in("kind", [
+        "stripe",
+        "subscription",
+        "assignment",
+        "review",
+        "period",
+        "package",
+      ]);
+    if (parsed.window === "week")
+      q = q.gt(
+        "occurred_at",
+        new Date(Date.parse(asOf) - 7 * 24 * HOUR).toISOString(),
+      );
+    else if (parsed.window === "issues") q = q.eq("is_open", true);
     else if (parsed.window !== "all") {
       const n = Number(parsed.window);
       q = q.gt(
@@ -97,7 +113,7 @@ export async function activityList(
   let q = base()
     .order("occurred_at", { ascending: false })
     .order("id", { ascending: false })
-    .limit(51);
+    .limit(parsed.limit + 1);
   if (cursor)
     q = q.or(
       `occurred_at.lt.${cursor.at},and(occurred_at.eq.${cursor.at},id.lt.${cursor.id})`,
@@ -105,13 +121,13 @@ export async function activityList(
   const [response, count] = await Promise.all([q, base(true)]);
   const rows = checked(response) as any[];
   checked(count);
-  const batch = rows.slice(0, 50),
+  const batch = rows.slice(0, parsed.limit),
     last = batch.at(-1);
   return {
     rows: batch.map((r) => describeActivity(r, session.role === "admin")),
     total: count.count ?? 0,
     next:
-      rows.length > 50 && last
+      rows.length > parsed.limit && last
         ? Buffer.from(
             JSON.stringify({ at: last.occurred_at, id: last.id }),
           ).toString("base64url")

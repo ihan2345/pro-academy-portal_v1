@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { Portal } from "../../src/components/portal";
+import { StripeActivityPreview } from "../../src/components/stripe-activity-preview";
 import { Activities } from "../../src/components/activities";
 import { portalFixture } from "../fixtures/portal";
 const staff = location.pathname.startsWith("/team"),
@@ -10,6 +11,10 @@ createRoot(document.getElementById("root")!).render(
     initial={{ ...portalFixture, role: staff ? "staff" : "admin" }}
     section={location.pathname.slice(1)}
   >
-    <Activities base={base} all={location.pathname.endsWith("/alle")} />
+    {location.pathname.endsWith("stripe-preview") ? (
+      <StripeActivityPreview />
+    ) : (
+      <Activities base={base} all={location.pathname.endsWith("/alle")} />
+    )}
   </Portal>,
 );

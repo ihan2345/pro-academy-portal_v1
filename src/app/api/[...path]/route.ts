@@ -203,6 +203,10 @@ async function handler(
       return json(
         await activityList(session, {
           window: request.nextUrl.searchParams.get("window") ?? "0",
+          scope: request.nextUrl.searchParams.get("scope") ?? "all",
+          limit: request.nextUrl.searchParams.has("limit")
+            ? Number(request.nextUrl.searchParams.get("limit"))
+            : 50,
           asOf: request.nextUrl.searchParams.get("asOf") ?? undefined,
           cursor: request.nextUrl.searchParams.get("cursor") ?? undefined,
         }),

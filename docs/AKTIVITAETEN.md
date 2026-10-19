@@ -1,6 +1,6 @@
 # Aktivitäten
 
-Verwaltung → Aktivitäten ist für Admins und Mitarbeiter/Coaches lesbar. Eltern haben keinen Zugriff. Der Menü-Badge zählt Ereignisse der letzten 72 Stunden, nicht ungelesene Nachrichten.
+Verwaltung → Aktivitäten ist für Admins und Mitarbeiter/Coaches lesbar. Eltern haben keinen Zugriff. Der Menü-Badge zählt offene Vorgänge mit Handlungsbedarf, unabhängig vom Alter. Die Übersicht zeigt zusätzlich die letzten drei Stripe-bezogenen Aktivitäten (Abgleiche, Abo-/Paketänderungen und Zuordnungen). Ein Button lädt die letzten sieben Tage mit weiterer Paginierung. Ein rotes Achtung-Icon kennzeichnet für Admins erforderliche Aktionen.
 
 „Heute“ umfasst die letzten 24 Stunden und ist geöffnet. Die beiden weiteren Abschnitte umfassen 24–48 und 48–72 Stunden; sie laden beim ersten Öffnen. „Alle Aktivitäten“ öffnet eine eigene Seite mit Datumsgruppen (Europe/Berlin). Je Abruf werden maximal 50 Einträge geladen. Ein stabiler Zeit-/ID-Cursor ermöglicht weiteres Nachladen ohne serverseitigen Sitzungsspeicher.
 

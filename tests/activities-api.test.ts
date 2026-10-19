@@ -25,6 +25,10 @@ vi.mock("../src/lib/server/service-db", () => ({
           filters.push((r) => r[k] === v);
           return q;
         },
+        in: (key: string, values: string[]) => {
+          filters.push((r) => values.includes(r[key]));
+          return q;
+        },
         order: () => q,
         limit: (n: number) => {
           cap = n;
@@ -109,4 +113,34 @@ it("bounds pages and returns a worker-independent continuation", async () => {
   expect(mock.queries.some((q) => q.cursor?.includes(first.rows[49].id))).toBe(
     true,
   );
+});
+
+it("limits Stripe preview to three and filters the seven-day window without unrelated events", async () => {
+  mock.rows = [
+    row(1, 1),
+    { ...row(2, 2), kind: "attendance" },
+    row(3, 3),
+    row(4, 4),
+    row(5, 167),
+    row(6, 168),
+    row(7, 200),
+  ];
+  const preview = await activityList({ role: "admin" } as any, {
+    scope: "stripe",
+    window: "all",
+    limit: 3,
+    asOf: now,
+  });
+  expect(preview.rows.map((r) => r.id)).toEqual([
+    row(1, 1).id,
+    row(3, 3).id,
+    row(4, 4).id,
+  ]);
+  const week = await activityList({ role: "admin" } as any, {
+    scope: "stripe",
+    window: "week",
+    asOf: now,
+  });
+  expect(week.rows).toHaveLength(4);
+  expect(week.total).toBe(4);
 });

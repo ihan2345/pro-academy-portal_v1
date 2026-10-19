@@ -109,6 +109,21 @@ try {
         assert.equal(route.request().method(), "GET");
       if (url.pathname === "/api/activities/summary")
         return route.fulfill({ json: { asOf: now, recent: 57, open: 1 } });
+      if (
+        url.pathname === "/api/activities" &&
+        url.searchParams.get("scope") === "stripe"
+      ) {
+        const count = url.searchParams.get("window") === "week" ? 4 : 3;
+        return route.fulfill({
+          json: {
+            rows: Array.from({ length: count }, (_, i) =>
+              make(`stripe-${i}`, now, i === 0),
+            ),
+            total: count,
+            next: null,
+          },
+        });
+      }
       if (url.pathname !== "/api/activities")
         return route.fulfill({ json: { ok: true } });
       const win = url.searchParams.get("window");
@@ -220,6 +235,32 @@ try {
       ),
       false,
     );
+    if (role === "admin") {
+      await page.goto(`${base}/admin/stripe-preview`);
+      await expect(page.locator(".activity-entry")).toHaveCount(3);
+      await expect(
+        page.getByLabel("Aktion erforderlich", { exact: true }),
+      ).toHaveCount(1);
+      await page
+        .getByRole("button", { name: "Stripe-Aktivitäten der letzten 7 Tage" })
+        .click();
+      await expect(page.locator(".activity-entry")).toHaveCount(4);
+      await page
+        .getByRole("button", { name: "Zurück zu den letzten 3" })
+        .click();
+      await expect(page.locator(".activity-entry")).toHaveCount(3);
+      await expect(page.locator(".activity-badge").first()).toHaveText("1");
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > innerWidth,
+        ),
+        false,
+      );
+      await page.screenshot({
+        path: `${output}/${label}-stripe.png`,
+        fullPage: true,
+      });
+    }
     assert.deepEqual(errors, []);
     await page.close();
     console.log(
