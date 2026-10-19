@@ -396,15 +396,17 @@ export function Portal({
             <ChevronRight size={14} />
             <b>
               {activeNav.find((n) => n.href === "/" + section)?.title ??
-                (section.includes("/aktivitaeten")
-                  ? section.endsWith("/alle")
-                    ? "Alle Aktivitäten"
-                    : "Aktivitäten"
-                  : section === "konto"
-                    ? "Mein Konto"
-                    : section === "admin/eltern"
-                      ? "Eltern"
-                      : "Übersicht")}
+                (section === "admin/pai"
+                  ? "pAi verwalten"
+                  : section.includes("/aktivitaeten")
+                    ? section.endsWith("/alle")
+                      ? "Alle Aktivitäten"
+                      : "Aktivitäten"
+                    : section === "konto"
+                      ? "Mein Konto"
+                      : section === "admin/eltern"
+                        ? "Eltern"
+                        : "Übersicht")}
             </b>
           </div>
           <div className="topbar-right">

@@ -1,4 +1,5 @@
 "use client";
+import { PlatformFeatures } from "@/components/platform-features";
 import { StripeParentInputs } from "./stripe-parent-inputs";
 import { StripeActivityPreview } from "./stripe-activity-preview";
 import { SubscriptionReviews } from "./subscription-reviews";
@@ -731,6 +732,7 @@ export function AdminView({
         </>
       )}
       {slug === "protokolle" && <Logs data={data} notify={notify} />}
+      {slug === "einstellungen" && <PlatformFeatures linkOnly />}
       {slug === "einstellungen" && (
         <form
           className="panel account-panel settings-panel"

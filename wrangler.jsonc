@@ -29,6 +29,7 @@
       "vars": {
         "APP_MODE": "production",
         "LOCAL_PROFILE_STRIPE_READ": "false",
+        "PAI_PRODUCTION_CONFIRMED": "true",
         "APP_URL": "https://portal.proacademy-ak.com",
         "NEXT_PUBLIC_APP_URL": "https://portal.proacademy-ak.com",
         "SUPABASE_ENVIRONMENT": "production",

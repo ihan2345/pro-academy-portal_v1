@@ -1,6 +1,18 @@
+import { paiEnabled } from "@/lib/server/pai/switch";
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 export async function proxy(request: NextRequest) {
+  if (
+    /^(?:\/pai|\/admin\/pai|\/api\/pai)(?:\/|$)/.test(
+      request.nextUrl.pathname,
+    ) &&
+    !(await paiEnabled())
+  ) {
+    return new NextResponse(null, {
+      status: 404,
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
   if (
     process.env.CAMP_LOCAL_ENABLED === "true" &&
     process.env.NODE_ENV === "development" &&
