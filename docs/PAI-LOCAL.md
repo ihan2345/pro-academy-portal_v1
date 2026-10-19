@@ -206,4 +206,6 @@ Die angemeldete Oberfläche liest nur `{pai: boolean}` über
 Verwaltungsaktionen. Änderungen im selben Browser werden sofort neu abgefragt,
 andere aktive Sitzungen alle 30 Sekunden sowie bei Fokus/Seitenwechsel.
 Fehler blenden den Zugang aus. Persönliche Elternpräferenzen und Kontingente
-bleiben unverändert. Der Produktionsschalter bleibt deaktiviert.
+bleiben unverändert. Das Deployment verändert den Produktionsschalter nicht.
+Bei der abschließenden Prüfung war pAi bereits durch den berechtigten Admin
+aktiviert; diese Einstellung wurde beibehalten.
