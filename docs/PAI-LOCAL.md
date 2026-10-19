@@ -209,3 +209,71 @@ Fehler blenden den Zugang aus. Persönliche Elternpräferenzen und Kontingente
 bleiben unverändert. Das Deployment verändert den Produktionsschalter nicht.
 Bei der abschließenden Prüfung war pAi bereits durch den berechtigten Admin
 aktiviert; diese Einstellung wurde beibehalten.
+
+## Lokaler Entwurf: Chatleiste mit zwei GIFs (19.10.2026)
+
+Nur lokal umgesetzt, nicht gepusht oder veröffentlicht: Der Launcher wurde
+zu einer kleinen Chatleiste. Die bereitgestellten GIFs liegen als lokale
+Kopien unter `public/pai-mascots`; nur ihre Frame-Verzögerungen wurden auf
+insgesamt 5 Sekunden verteilt, die Bilddaten und Originaldateien bleiben
+unverändert. Das jeweils letzte Bild wurde separat als PNG gespeichert.
+Ablauf: 5 Sekunden GIF, 10 Sekunden letztes Bild mit Beispielfrage, 10 Sekunden
+Pause ohne Figur/Sprechblase, danach das andere GIF. Die Chatleiste bleibt.
+
+Beispielfragen werden nach Eltern-/Coach-/Adminrolle gewählt. Anklicken öffnet
+den Chat mit vorausgefüllter Frage und sendet nichts automatisch. Bei
+reduzierter Bewegung wird eine ruhige Standbildvariante angezeigt. Während
+der Chat geöffnet ist, pausiert die Maskottchenanzeige. Der bestehende globale
+pAi-Schalter steuert weiterhin die Sichtbarkeit. Nur die lokale Testdatenbank
+wurde für die Vorschau aktiviert; keine Produktionsänderung.
+
+Geprüft: TypeScript sowie lokaler Browsertest für beide GIF-Phasen, 5/10/10-Takt,
+Rollenfragen, Übernahme als Entwurf, mobile Breite und reduzierte Bewegung.
+
+Lokale Korrektur der Vordergrunddarstellung: Der bisherige Multiply-Modus
+wurde entfernt, weil er die Figur vor dunklen Karten abdunkelte. Verlustfreie
+animierte WebP-Kopien besitzen nun echte Transparenz für den randverbundenen
+hellen Hintergrund. Die gelieferten GIF-Originale bleiben unverändert.
+`scripts/pai/prepare-transparent-mascots.py` erstellt die Animationen und
+transparenten letzten Einzelbilder reproduzierbar; Gesamtdauer je Animation
+weiterhin 5 Sekunden. Die Figur liegt in einer eigenen Vordergrundebene.
+Auf `/pai` bleibt die Animation sichtbar, die Vorschlags-Sprechblasen entfallen.
+Andere Portalseiten behalten rollenbasierte Vorschläge. Lokal mit dunkler
+Testfläche und im Browser geprüft; keine Veröffentlichung.
+
+Lokaler Chat-Popup: Der Klick auf die Chatleiste öffnet rechts unten ein
+kompaktes Fenster (Desktop maximal 400 × 560 px, mobil höchstens 75 % der
+Viewporthöhe). Auf `/pai` sind sowohl Chatleiste als auch Vorschlagsblasen
+verborgen; der Animationszyklus bleibt bestehen. Öffnen, Schließen, Maße und
+Sichtbarkeit lokal im Browser geprüft; Typecheck erfolgreich.
+
+## Veröffentlichung mit separatem Maskottchen-Schalter (19.10.2026)
+
+Der lokale Entwurf wird auf Nutzerauftrag veröffentlicht. Die frühere
+Kennzeichnung „nicht veröffentlicht“ beschreibt die vorherige Vorschauphase.
+`platform_features.key = 'pai_mascot'` steuert nur die Figuren. Der existierende
+Admin mit `manage_features` sieht **pAi-Maskottchen** direkt beim pAi-Schalter.
+Chatleiste und rollenbasierte Sprechblasen bleiben auch ohne Figur erhalten;
+auf `/pai` sind beide weiterhin ausgeblendet. Figurenbreite jetzt 98 px am
+Desktop / 74 px mobil, Abstand zur Leiste 4 px. Der Popup-Chat ist kompakt.
+
+Migration `202610190002_pai_mascot.sql` ergänzt eine Zeile und einen
+Datenbanktrigger: pAi deaktivieren setzt auch das Maskottchen auf `false`.
+Eine Aktivierung des Maskottchens bei deaktiviertem pAi wird in der Datenbank
+abgewiesen, auch bei direktem RPC-Aufruf. Ein erneutes Aktivieren von pAi
+aktiviert das Maskottchen nicht automatisch. Rechte und Änderungsprotokoll
+verwenden die vorhandene Funktionsverwaltung; keine zusätzliche Adminrolle.
+Die Erstinstallation übernimmt den aktuellen pAi-Zustand für das Maskottchen,
+ohne den Master-Schalter zu ändern.
+
+Die angemeldete Oberfläche liest jetzt `{pai, mascot}`. Der Server liefert
+`mascot=true` nur zusammen mit `pai=true`. Beim Ausschalten werden keine
+Animationsdateien mehr geladen; Vorschläge haben einen unabhängigen Takt.
+Die frühere CSS-Überblendung ist vollständig entfernt. Transparente animierte
+WebP-Kopien erhalten die GIF-Bewegung, Dauer 5 s; Standbild 10 s, Pause 10 s.
+
+Freigabeprüfung: 840 Tests erfolgreich, Cloudflarebuild inklusive TypeScript
+erfolgreich. Lokaler Browser prüft Figur aus bei weiter sichtbarer Sprechblase
+und Leiste, Master-Kaskade, abgewiesenen API-Aktivierungsversuch, Elternverbot
+und die reine Animationsansicht auf `/pai`. Produktionsmigration eingespielt;
+pAi blieb aktiv, Maskottchen bei Erstinstallation ebenfalls aktiviert.

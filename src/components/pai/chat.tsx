@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { MessageCircle, ArrowUpRight } from "lucide-react";
+import { MascotCycle } from "./mascot-cycle";
+import { paiSuggestions } from "@/lib/pai/suggestions";
 import { Modal } from "../portal";
 import { disabledMessage, type PaiStatus } from "@/lib/pai/domain";
 export async function paiApi(path: string, method = "GET", body?: unknown) {
@@ -103,12 +106,18 @@ function AnswerText({ text }: { text: string }) {
     </div>
   );
 }
-export function PaiChat({ role }: { role: string }) {
+export function PaiChat({
+  role,
+  initialQuestion = "",
+}: {
+  role: string;
+  initialQuestion?: string;
+}) {
   const [status, setStatus] = useState<PaiStatus | null>(null),
     [messages, setMessages] = useState<
       { id: string; prompt: string; answer: string }[]
     >([]),
-    [text, setText] = useState(""),
+    [text, setText] = useState(initialQuestion),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const questionId = useId();
@@ -179,24 +188,7 @@ export function PaiChat({ role }: { role: string }) {
       refresh().catch((e) => setError(e.message));
     }
   }
-  const suggestions =
-    role === "parent"
-      ? [
-          "Wie viele Trainingseinheiten habe ich noch?",
-          "Warum habe ich dieses Abzeichen?",
-          "Wie oft haben meine Kinder diesen Monat trainiert?",
-        ]
-      : role === "admin"
-        ? [
-            "Wie viele Spieler haben ein aktives Abo?",
-            "Welcher Standort hatte diesen Monat die meisten Trainingsstunden?",
-            "Welche Rechnungen sind noch offen?",
-          ]
-        : [
-            "Welche Spieler haben diesen Monat häufig gefehlt?",
-            "Wie viele Trainingsstunden hatte jeder Trainer diesen Monat?",
-            "Wie viele Spieler haben ein aktives Abo?",
-          ];
+  const suggestions = paiSuggestions(role);
   return (
     <section className="pai-chat">
       <div className="pai-welcome">
@@ -375,51 +367,65 @@ export function PaiChat({ role }: { role: string }) {
     </section>
   );
 }
-export function PaiLauncher({ role }: { role: string }) {
+export function PaiLauncher({
+  role,
+  showSuggestions = true,
+  showBar = true,
+  showMascot = false,
+}: {
+  role: string;
+  showSuggestions?: boolean;
+  showBar?: boolean;
+  showMascot?: boolean;
+}) {
   const [open, setOpen] = useState(false),
-    [revision, setRevision] = useState(0);
+    [revision, setRevision] = useState(0),
+    [draft, setDraft] = useState("");
   useEffect(() => {
     const update = () => setRevision((n) => n + 1);
     window.addEventListener("pai-preference", update);
     return () => window.removeEventListener("pai-preference", update);
   }, []);
+  function openQuestion(question: string) {
+    setDraft(question);
+    setOpen(true);
+  }
   return (
     <>
-      <button
-        className="pai-launcher"
-        onClick={() => setOpen(true)}
-        aria-label="pAi-Assistent öffnen"
-      >
-        <svg viewBox="0 0 64 72" aria-hidden="true">
-          <circle cx="32" cy="12" r="9" fill="#ffd4ae" />
-          <path
-            d="M20 24L9 40M44 24l11 16M25 48l-7 19M39 48l7 19"
-            stroke="#8eff01"
-            strokeWidth="9"
-            strokeLinecap="round"
+      {!open && (
+        <aside className="pai-chat-dock" aria-label="pAi Chatleiste">
+          <MascotCycle
+            showMascot={showMascot}
+            role={role}
+            onQuestion={openQuestion}
+            showSuggestions={showSuggestions}
           />
-          <path d="M20 22h24l-3 29H23z" fill="#8b53fe" />
-          <text
-            x="32"
-            y="42"
-            textAnchor="middle"
-            fill="white"
-            fontSize="13"
-            fontWeight="bold"
-          >
-            PA
-          </text>
-          <circle cx="53" cy="61" r="9" fill="white" />
-          <path d="m53 55 5 4-2 6h-6l-2-6z" fill="#0b0f1a" />
-        </svg>
-        <span>pAi</span>
-      </button>
+          {showBar && (
+            <button
+              type="button"
+              className="pai-chat-bar"
+              onClick={() => openQuestion("")}
+              aria-label="pAi-Assistent öffnen"
+            >
+              <span className="pai-chat-bar-icon">
+                <MessageCircle size={16} />
+              </span>
+              <span>
+                <strong>pAi</strong>
+                <small>Dein Academy-Assistent</small>
+              </span>
+              <ArrowUpRight size={15} aria-hidden="true" />
+            </button>
+          )}
+        </aside>
+      )}
       {open && (
         <Modal
+          className="pai-popup"
           title="pAi · Dein Academy-Assistent"
           close={() => setOpen(false)}
         >
-          <PaiChat key={revision} role={role} />
+          <PaiChat key={revision} role={role} initialQuestion={draft} />
         </Modal>
       )}
     </>

@@ -1,12 +1,22 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-const m = vi.hoisted(() => ({ client: vi.fn(), single: vi.fn(), db: vi.fn() }));
+const m = vi.hoisted(() => ({
+  client: vi.fn(),
+  single: vi.fn(),
+  rows: vi.fn(),
+  db: vi.fn(),
+}));
 vi.mock("@supabase/ssr", () => ({ createServerClient: m.client }));
 vi.mock("../src/lib/server/service-db", () => ({ serviceDb: m.db }));
-import { paiEnabled } from "../src/lib/server/pai/switch";
+import { paiEnabled, paiVisibility } from "../src/lib/server/pai/switch";
 import { proxy } from "../src/proxy";
 beforeEach(() => {
-  const q = { select: vi.fn(() => q), eq: vi.fn(() => q), single: m.single };
+  const q = {
+    select: vi.fn(() => q),
+    eq: vi.fn(() => q),
+    single: m.single,
+    in: m.rows,
+  };
   m.db.mockReturnValue({ from: vi.fn(() => q) });
   m.single.mockResolvedValue({ data: { enabled: false }, error: null });
 });
@@ -66,4 +76,31 @@ it("does not gate management or unrelated portal pages", async () => {
     (await proxy(new NextRequest("https://portal.proacademy-ak.com/pai")))
       .status,
   ).toBe(200);
+});
+
+it("never exposes a mascot without the master and tolerates missing child flags", async () => {
+  for (const [rows, expected] of [
+    [[], { pai: false, mascot: false }],
+    [[{ key: "pai_mascot", enabled: true }], { pai: false, mascot: false }],
+    [[{ key: "pai", enabled: true }], { pai: true, mascot: false }],
+    [
+      [
+        { key: "pai", enabled: true },
+        { key: "pai_mascot", enabled: true },
+      ],
+      { pai: true, mascot: true },
+    ],
+    [
+      [
+        { key: "pai", enabled: false },
+        { key: "pai_mascot", enabled: true },
+      ],
+      { pai: false, mascot: false },
+    ],
+  ] as const) {
+    m.rows.mockResolvedValue({ data: rows });
+    expect(await paiVisibility()).toEqual(expected);
+  }
+  m.rows.mockResolvedValue({ error: {}, data: [] });
+  expect(await paiVisibility()).toEqual({ pai: false, mascot: false });
 });

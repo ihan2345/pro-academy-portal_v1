@@ -105,7 +105,8 @@ export function Portal({
     [detail, setDetail] = useState<Training | null>(null),
     [toast, setToast] = useState("");
   const router = useRouter();
-  const paiVisible = usePaiAvailability(section);
+  const { pai: paiVisible, mascot: mascotVisible } =
+    usePaiAvailability(section);
   useEffect(() => {
     try {
       setSidebarCollapsed(
@@ -973,7 +974,14 @@ export function Portal({
               {"Sicher abmelden"}
             </button>
           )}
-          {paiVisible && <PaiLauncher role={data.role} />}
+          {paiVisible && (
+            <PaiLauncher
+              showMascot={mascotVisible}
+              role={data.role}
+              showSuggestions={section !== "pai"}
+              showBar={section !== "pai"}
+            />
+          )}
           <footer className="content-footer">
             <span>© 2026 ProAcademy by Ayhan & Karaman</span>
             <div>
@@ -1322,11 +1330,13 @@ function Schedule({
 }
 export function Modal({
   title,
+  className = "",
   active = true,
   close,
   children,
 }: {
   title: string;
+  className?: string;
   active?: boolean;
   close: () => void;
   children: React.ReactNode;
@@ -1383,7 +1393,7 @@ export function Modal({
         ref={ref}
         role="dialog"
         aria-modal="true"
-        className="modal"
+        className={`modal ${className}`}
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >

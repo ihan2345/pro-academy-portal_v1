@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 /** UI follows the global switch; every pAi operation still checks it server-side. */
 export function usePaiAvailability(section: string) {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState({ pai: false, mascot: false });
   useEffect(() => {
     let live = true;
     let pending: AbortController | undefined;
@@ -17,9 +17,14 @@ export function usePaiAvailability(section: string) {
           signal: controller.signal,
         });
         const data = response.ok ? await response.json() : null;
-        if (live && !controller.signal.aborted) setVisible(data?.pai === true);
+        if (live && !controller.signal.aborted)
+          setVisible({
+            pai: data?.pai === true,
+            mascot: data?.pai === true && data?.mascot === true,
+          });
       } catch {
-        if (live && !controller.signal.aborted) setVisible(false);
+        if (live && !controller.signal.aborted)
+          setVisible({ pai: false, mascot: false });
       }
     }
     const update = () => {

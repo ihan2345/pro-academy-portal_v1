@@ -30,6 +30,8 @@ export function PlatformFeatures({
       live = false;
     };
   }, [linkOnly]);
+  const paiActive =
+    features?.some((f) => f.key === "pai" && f.enabled) === true;
   if (optional && !features) return null;
   if (linkOnly)
     return features ? (
@@ -51,10 +53,27 @@ export function PlatformFeatures({
       {error && <p role="alert">{error}</p>}
       {!features && !error && <p>Wird geladen …</p>}
       {features?.map((feature) => (
-        <div className="account-row" key={feature.key}>
+        <div
+          className="account-row"
+          key={feature.key}
+          data-feature={feature.key}
+        >
           <div>
-            <strong>{feature.key === "pai" ? "pAi" : feature.key}</strong>
+            <strong>
+              {feature.key === "pai"
+                ? "pAi"
+                : feature.key === "pai_mascot"
+                  ? "pAi-Maskottchen"
+                  : feature.key}
+            </strong>
             <p>{feature.enabled ? "Aktiviert" : "Deaktiviert"}</p>
+            {feature.key === "pai_mascot" && (
+              <p className="muted">
+                {paiActive
+                  ? "Nur die Figuren. Chatleiste und Sprechblasen bleiben sichtbar."
+                  : "Zuerst pAi aktivieren."}
+              </p>
+            )}
             <small>
               Zuletzt geändert:{" "}
               {new Date(feature.updated_at).toLocaleString("de-DE", {
@@ -66,7 +85,7 @@ export function PlatformFeatures({
           <button
             type="button"
             className={feature.enabled ? "secondary-button" : "primary-button"}
-            disabled={busy}
+            disabled={busy || (feature.key === "pai_mascot" && !paiActive)}
             aria-pressed={feature.enabled}
             onClick={async () => {
               setBusy(true);
