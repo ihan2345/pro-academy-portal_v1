@@ -84,6 +84,13 @@ export function PlatformFeatures({
                 const data = await r.json();
                 if (!r.ok) throw Error(data.error);
                 setFeatures(data.features);
+                window.dispatchEvent(new Event("platform-features-changed"));
+                try {
+                  localStorage.setItem(
+                    "platform-features-changed",
+                    String(Date.now()),
+                  );
+                } catch {}
               } catch (e) {
                 setError((e as Error).message);
               } finally {

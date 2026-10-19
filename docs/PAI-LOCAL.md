@@ -190,3 +190,20 @@ TypeScript erfolgreich. Lokaler Browsertest mit synthetischem Admin:
 Einstellungen-Link gefunden, aktiviert, `/pai` erreichbar, deaktiviert,
 `/api/pai/status` gesperrt; Elternkonto auf Verwaltungsseite/API abgewiesen.
 Produktiv genau eine `manage_features`-Berechtigung und Schalter `false` geprüft.
+
+## Sichtbarer Zugang bei aktivem pAi (19.10.2026)
+
+Bei global aktiviertem pAi zeigt die gemeinsame Portaloberfläche für Eltern,
+Coaches und Admins einen Menüeintrag **pAi** und unten rechts das Maskottchen.
+Ein Klick öffnet den vorhandenen Chatdialog, auch auf der pAi-Seite selbst.
+Mobile Menüs und Dialoggrößen verwenden dieselbe gemeinsame Implementierung.
+Bei globaler Deaktivierung verschwinden beide Einstiege; die Serverzugriffe
+bleiben sofort gesperrt. Die früher vereinbarte ausschließlich versteckte
+Verlinkung ist durch diesen Nutzerauftrag ersetzt.
+
+Die angemeldete Oberfläche liest nur `{pai: boolean}` über
+`/api/platform/availability`; dieser Endpunkt erlaubt keine Chat-, Daten- oder
+Verwaltungsaktionen. Änderungen im selben Browser werden sofort neu abgefragt,
+andere aktive Sitzungen alle 30 Sekunden sowie bei Fokus/Seitenwechsel.
+Fehler blenden den Zugang aus. Persönliche Elternpräferenzen und Kontingente
+bleiben unverändert. Der Produktionsschalter bleibt deaktiviert.

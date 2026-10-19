@@ -2,6 +2,8 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { PaiLauncher } from "./pai/chat";
+import { usePaiAvailability } from "./pai/availability";
 import { AdminNavigation } from "./admin-navigation";
 import { EmailPreference, flushEmailPreference } from "./email-preference";
 import Image from "next/image";
@@ -103,6 +105,7 @@ export function Portal({
     [detail, setDetail] = useState<Training | null>(null),
     [toast, setToast] = useState("");
   const router = useRouter();
+  const paiVisible = usePaiAvailability(section);
   useEffect(() => {
     try {
       setSidebarCollapsed(
@@ -250,6 +253,8 @@ export function Portal({
               (data.camp_access === "past" && n.href === "/termine"),
           )
         : nav;
+  if (paiVisible)
+    activeNav.push({ href: "/pai", title: "pAi", icon: MessageCircle });
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
   async function openBilling(customerId?: string) {
@@ -968,6 +973,7 @@ export function Portal({
               {"Sicher abmelden"}
             </button>
           )}
+          {paiVisible && <PaiLauncher role={data.role} />}
           <footer className="content-footer">
             <span>© 2026 ProAcademy by Ayhan & Karaman</span>
             <div>
