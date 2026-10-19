@@ -109,16 +109,22 @@ try {
         assert.equal(route.request().method(), "GET");
       if (url.pathname === "/api/activities/summary")
         return route.fulfill({ json: { asOf: now, recent: 57, open: 1 } });
-      if (
-        url.pathname === "/api/activities" &&
-        url.searchParams.get("scope") === "stripe"
-      ) {
+      if (url.pathname === "/api/admin/stripe-activities") {
         const count = url.searchParams.get("window") === "week" ? 4 : 3;
         return route.fulfill({
           json: {
-            rows: Array.from({ length: count }, (_, i) =>
-              make(`stripe-${i}`, now, i === 0),
-            ),
+            rows: Array.from({ length: count }, (_, i) => ({
+              id: `evt_${i}`,
+              at: now,
+              title: "Rechnung bezahlt",
+              customer: "Beispielkunde",
+              subscriptionId: "sub_demo",
+              assignment: i === 0 ? "unassigned" : "assigned",
+              children: i === 0 ? [] : ["Beispielkind"],
+              actionRequired: i === 0,
+              actionLabel: "Kind zuordnen",
+              href: i === 0 ? "/admin/stripe?customer=cus_demo" : null,
+            })),
             total: count,
             next: null,
           },

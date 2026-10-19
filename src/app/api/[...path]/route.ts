@@ -1,3 +1,4 @@
+import { stripeActivities } from "@/lib/server/stripe-activities";
 import { stripeParentInputs } from "@/lib/server/stripe-parent-inputs";
 import { activityList, activitySummary } from "@/lib/server/activities";
 import {
@@ -208,6 +209,25 @@ async function handler(
             ? Number(request.nextUrl.searchParams.get("limit"))
             : 50,
           asOf: request.nextUrl.searchParams.get("asOf") ?? undefined,
+          cursor: request.nextUrl.searchParams.get("cursor") ?? undefined,
+        }),
+      );
+    }
+    if (path === "admin/stripe-activities") {
+      if (request.method !== "GET")
+        throw new HttpError(
+          405,
+          "Stripe-Ereignisse sind hier ausschließlich lesbar.",
+        );
+      return json(
+        await stripeActivities(session, {
+          window: request.nextUrl.searchParams.get("window") ?? "all",
+          limit: request.nextUrl.searchParams.has("limit")
+            ? Number(request.nextUrl.searchParams.get("limit"))
+            : 3,
+          asOf:
+            request.nextUrl.searchParams.get("asOf") ??
+            new Date().toISOString(),
           cursor: request.nextUrl.searchParams.get("cursor") ?? undefined,
         }),
       );

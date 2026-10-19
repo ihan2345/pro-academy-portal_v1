@@ -1,12 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { Activity, ActivityPage } from "@/lib/activities";
-import { ActivityRows } from "./activities";
+import type {
+  StripeActivity,
+  StripeActivityPage,
+} from "@/lib/stripe-activities";
+import Link from "next/link";
+import { TriangleAlert, CheckCircle2, Circle } from "lucide-react";
+import { formatDate, formatTime } from "@/lib/domain";
 
 export function StripeActivityPreview() {
   const [week, setWeek] = useState(false);
   const [asOf, setAsOf] = useState(() => new Date().toISOString());
-  const [rows, setRows] = useState<Activity[]>([]);
+  const [rows, setRows] = useState<StripeActivity[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [next, setNext] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -17,19 +22,18 @@ export function StripeActivityPreview() {
     setLoading(true);
     setError("");
     const query = new URLSearchParams({
-      scope: "stripe",
       window: week ? "week" : "all",
       limit: week ? "50" : "3",
       asOf,
       ...(cursor ? { cursor } : {}),
     });
-    fetch(`/api/activities?${query}`, {
+    fetch(`/api/admin/stripe-activities?${query}`, {
       signal: abort.signal,
       cache: "no-store",
     })
       .then(async (r) => {
         if (!r.ok) throw Error();
-        return r.json() as Promise<ActivityPage>;
+        return r.json() as Promise<StripeActivityPage>;
       })
       .then((page) => {
         if (abort.signal.aborted) return;
@@ -61,11 +65,65 @@ export function StripeActivityPreview() {
     >
       <h2>Stripe-Aktivitäten</h2>
       <p className="profile-muted">
-        {week ? "Letzte 7 Tage" : "Die letzten 3 Aktivitäten"} · Abo-Abgleiche,
-        Paketänderungen und Zuordnungen. Ein rotes Achtung-Icon zeigt offenen
-        Handlungsbedarf.
+        {week ? "Letzte 7 Tage" : "Die letzten 3 Aktivitäten"} ·
+        Originalereignisse von Stripe. Zuordnungsstatus: aktueller Stand im
+        Portal.
       </p>
-      <ActivityRows rows={rows} />
+      <ol className="activity-list">
+        {rows.map((row) => (
+          <li key={row.id} className="activity-entry">
+            {row.actionRequired ? (
+              <TriangleAlert
+                size={19}
+                style={{ color: "#c62828" }}
+                aria-label="Aktion erforderlich"
+              />
+            ) : row.assignment === "assigned" ? (
+              <CheckCircle2
+                size={19}
+                style={{ color: "#377240" }}
+                aria-hidden="true"
+              />
+            ) : (
+              <Circle size={19} aria-hidden="true" />
+            )}
+            <div>
+              <h3>{row.title}</h3>
+              <strong className="activity-subject">{row.customer}</strong>
+              <p>
+                <strong>
+                  {
+                    {
+                      assigned: "Bereits zugeordnet",
+                      unassigned: "Noch nicht zugeordnet",
+                      partial: "Teilweise zugeordnet",
+                      not_applicable: "Keine Abo-Zuordnung erforderlich",
+                    }[row.assignment]
+                  }
+                </strong>
+                {!!row.children.length && ` · ${row.children.join(" · ")}`}
+              </p>
+              <small>
+                <time dateTime={row.at}>
+                  {formatDate(row.at)} · {formatTime(row.at)}
+                </time>{" "}
+                · Stripe
+              </small>
+              {row.actionRequired && (
+                <p style={{ color: "#c62828" }}>
+                  Aktion erforderlich
+                  {row.href && (
+                    <>
+                      {" "}
+                      · <Link href={row.href}>{row.actionLabel} →</Link>
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
       {!loading && !error && !rows.length && (
         <p>
           Keine Stripe-Aktivitäten{week ? " in den letzten 7 Tagen" : ""}{" "}
