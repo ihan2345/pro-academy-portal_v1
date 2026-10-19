@@ -181,3 +181,47 @@ it("labels actual Stripe subscription changes", () => {
     "Neues Abo abgeschlossen",
   );
 });
+
+it("does not call a renewed period a package change", () => {
+  const old = {
+    items: {
+      data: [
+        {
+          id: "si_one",
+          price: { id: "price_same" },
+          quantity: 1,
+          current_period_end: 100,
+        },
+      ],
+    },
+  };
+  expect(
+    stripeEventTitle(
+      "customer.subscription.updated",
+      {
+        items: {
+          data: [
+            {
+              id: "si_one",
+              price: { id: "price_same" },
+              quantity: 1,
+              current_period_end: 200,
+            },
+          ],
+        },
+      },
+      old,
+    ),
+  ).toBe("Abo aktualisiert");
+  expect(
+    stripeEventTitle(
+      "customer.subscription.updated",
+      {
+        items: {
+          data: [{ id: "si_one", price: { id: "price_new" }, quantity: 1 }],
+        },
+      },
+      old,
+    ),
+  ).toBe("Abo-Paket geändert");
+});

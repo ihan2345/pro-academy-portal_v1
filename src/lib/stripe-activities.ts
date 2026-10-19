@@ -43,7 +43,37 @@ export function stripeEventTitle(
         object.cancel_at_period_end === false
       )
         return "Abo-Kündigung zurückgenommen";
-      if (previous.items || previous.plan) return "Abo-Paket geändert";
+      if (
+        Array.isArray(previous.items?.data) &&
+        Array.isArray(object.items?.data)
+      ) {
+        const changed = previous.items.data.some((old: any) => {
+          const current = object.items.data.find(
+            (item: any) => item.id === old.id,
+          );
+          const oldPrice =
+            typeof old.price === "string" ? old.price : old.price?.id;
+          const newPrice =
+            typeof current?.price === "string"
+              ? current.price
+              : current?.price?.id;
+          return (
+            !current ||
+            (oldPrice && newPrice && oldPrice !== newPrice) ||
+            (old.quantity !== undefined &&
+              current.quantity !== undefined &&
+              old.quantity !== current.quantity)
+          );
+        });
+        if (changed || previous.items.data.length !== object.items.data.length)
+          return "Abo-Paket geändert";
+      }
+      if (
+        previous.plan?.id &&
+        object.plan?.id &&
+        previous.plan.id !== object.plan.id
+      )
+        return "Abo-Paket geändert";
       return "Abo aktualisiert";
     case "customer.updated":
       return "Kundendaten aktualisiert";
