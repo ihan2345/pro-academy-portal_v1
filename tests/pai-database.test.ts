@@ -38,6 +38,7 @@ beforeAll(async () => {
   );
   for (const file of readdirSync("supabase/migrations").sort())
     await db.exec(readFileSync(`supabase/migrations/${file}`, "utf8"));
+  await db.exec("update platform_features set enabled=true where key='pai'");
   for (const [id, role] of [
     [parent, "parent"],
     [other, "parent"],
@@ -200,4 +201,58 @@ it("analytics session reads cannot see another family's players or payment mappi
   expect(
     await user(parent, "select id from players where id=$1", [two]),
   ).toEqual([]);
+});
+it("restricts global switches to a current admin with manage_features and audits changes", async () => {
+  await db.query(
+    "insert into platform_permissions(user_id,permission) values($1,'manage_features')",
+    [admin],
+  );
+  for (const id of [parent, other]) {
+    expect(
+      (await user(id, "select can_manage_features() as allowed"))[0].allowed,
+    ).toBe(false);
+    expect(await user(id, "select * from platform_features")).toEqual([]);
+    await expect(
+      user(id, "select set_platform_feature('pai',false,true)"),
+    ).rejects.toThrow("Forbidden");
+    await expect(
+      user(
+        id,
+        "insert into platform_permissions(user_id,permission) values($1,'manage_features')",
+        [id],
+      ),
+    ).rejects.toThrow();
+  }
+  expect(
+    (await user(admin, "select can_manage_features() as allowed"))[0].allowed,
+  ).toBe(true);
+  await expect(
+    user(admin, "update platform_features set enabled=false"),
+  ).rejects.toThrow();
+  await user(admin, "select set_platform_feature('pai',false,true)");
+  await expect(reserve(999)).rejects.toThrow("DISABLED");
+  await expect(user(parent, "select pai_preference(true)")).rejects.toThrow(
+    "DISABLED",
+  );
+  const audit = await db.query<any>(
+    "select actor_id,old_value,new_value from audit_log where table_name='platform_features' order by created_at desc limit 1",
+  );
+  expect(audit.rows[0].actor_id).toBe(admin);
+  expect(audit.rows[0].old_value.enabled).toBe(true);
+  expect(audit.rows[0].new_value.enabled).toBe(false);
+  await expect(
+    user(admin, "select set_platform_feature('pai',true,true)"),
+  ).rejects.toThrow("FEATURE_CHANGED");
+  await user(admin, "select set_platform_feature('pai',true,false)");
+  await db.query("delete from platform_permissions where user_id=$1", [admin]);
+  await expect(
+    user(admin, "select set_platform_feature('pai',false,true)"),
+  ).rejects.toThrow("Forbidden");
+  await db.query(
+    "insert into platform_permissions(user_id,permission) values($1,'manage_features')",
+    [parent],
+  );
+  expect(
+    (await user(parent, "select can_manage_features() as allowed"))[0].allowed,
+  ).toBe(false);
 });

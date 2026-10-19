@@ -1,4 +1,5 @@
 "use client";
+import { PlatformFeatures } from "@/components/platform-features";
 import { useEffect, useState } from "react";
 import {
   defaultConfig,
@@ -137,6 +138,7 @@ export function PaiAdmin() {
               . Laufende und unklare Reservierungen sind enthalten.
             </p>
           )}
+          <PlatformFeatures optional />
           <form
             className="panel"
             onSubmit={(e) => {
@@ -145,16 +147,6 @@ export function PaiAdmin() {
             }}
           >
             <h2>Standards und Budget</h2>
-            <label>
-              <input
-                type="checkbox"
-                checked={config.enabled}
-                onChange={(e) =>
-                  setConfig({ ...config, enabled: e.target.checked })
-                }
-              />{" "}
-              pAi freigegeben
-            </label>
             <div className="pai-fields">
               {Object.entries(config.bases).map(([key, v]) =>
                 number(`Basis ${labels[key]}`, v, (n) =>

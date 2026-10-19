@@ -3,8 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 export async function proxy(request: NextRequest) {
   if (
-    !paiEnabled() &&
-    /^(?:\/pai|\/admin\/pai|\/api\/pai)(?:\/|$)/.test(request.nextUrl.pathname)
+    /^(?:\/pai|\/admin\/pai|\/api\/pai)(?:\/|$)/.test(
+      request.nextUrl.pathname,
+    ) &&
+    !(await paiEnabled())
   ) {
     return new NextResponse(null, {
       status: 404,

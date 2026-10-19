@@ -8,7 +8,7 @@ import { PaiChat, PaiPreference } from "@/components/pai/chat";
 export const metadata = { robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 export default async function Page() {
-  if (!paiEnabled()) notFound();
+  if (!(await paiEnabled())) notFound();
   const s = await sessionUser();
   if (!s?.role) redirect("/login");
   return (

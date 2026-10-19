@@ -2,6 +2,8 @@
 
 Branch: `pAi`. Commit, Push und Veröffentlichung des versteckten Zugangs sind vom Nutzer freigegeben. Der vom Nutzer ausdrücklich für Produktion bereitgestellte Schlüssel ist als Cloudflare-Secret eingerichtet.
 
+Aktuelle Schalterbedienung: siehe **Zentrale Funktionsverwaltung (19.10.2026)** am Ende. Frühere Cloudflare-Schalteranweisungen gelten nicht mehr.
+
 ## Bestätigte Regeln
 
 - Eltern: höchster aktiver, eindeutig zugeordneter Abofaktor pro Konto.
@@ -56,7 +58,7 @@ Screenshots und Prüfprotokolle liegen in `output/pai`. Die OpenAI-Kosten dieser
 
 Abgelaufene Inhalte werden nicht mehr über die API ausgeliefert. Der lokale Cronjob `pai-retention` entfernt abgelaufene Fragen und Antworten spätestens beim nächsten Zehnminutenlauf. „Verlauf löschen“ löscht eigene Chattexte sofort, ohne Kontingente/Kosten zurückzusetzen. Nutzungs-/Kostenmetadaten bleiben erhalten; eine organisatorische Löschfrist für diese Metadaten ist vor Produktion festzulegen.
 
-- Sofort pausieren: Adminschalter oder `PAI_ENABLED=false` in der betreffenden Laufzeit.
+- Sofort pausieren: **Einstellungen → Funktionen → pAi deaktivieren** oder `npm run pai -- deaktivieren` (Produktion).
 - Lokale Vorschau stoppen: ihren Next-Prozess beenden.
 - Lokalen Bereinigungsjob stoppen: `select cron.unschedule('pai-retention');` ausschließlich in der lokalen Testdatenbank.
 - Vollständiger Datenbankrückbau: pAi-Tabellen und -Funktionen nach Sicherung gezielt entfernen. Keine bestehende Familien-/Trainingsdatenbank zurücksetzen. Der Schemasnapshot ist eine Sicherung, kein automatisch auszuführender Restore.
@@ -69,7 +71,7 @@ Abgelaufene Inhalte werden nicht mehr über die API ausgeliefert. Der lokale Cro
 Eine Implementierungsfreigabe ist keine Deployfreigabe. Vor Produktion sind separat zu bestätigen:
 
 1. Eigenes OpenAI-Projekt/Produktions-Secret und bestätigter Modellzugriff.
-2. `PAI_PRODUCTION_API_KEY`, `PAI_PRODUCTION_CONFIRMED=true`, `PAI_ENABLED=true` nur in der freigegebenen Umgebung; niemals Testschlüssel als Rückfall.
+2. `PAI_PRODUCTION_API_KEY`, `PAI_PRODUCTION_CONFIRMED=true`, globaler Datenbankschalter nur in der freigegebenen Umgebung; niemals Testschlüssel als Rückfall.
 3. Gültiges Budget, Preisprüfung, Datenverarbeitung/Datenschutzhinweise und Aufbewahrungsentscheidung auch für Nutzungsmetadaten.
 4. Geprüfte Zielinstanz und additive Migration; funktionierender Retention-Cronjob.
 5. Aktuelle RLS-/Familienzuordnungen und vollständige autoritative Mitgliedschaftshistorie.
@@ -131,7 +133,7 @@ Trainingsübersichten liefern jetzt interne Eventreferenzen. Das neue lesende We
 
 63 pAi-Tests und Typecheck erfolgreich. Die genaue Frage „welche Leistungszeiträume enden?“ wurde im echten Modelltest mit synthetischen Daten trotz vorherigen Abo-Kontexts direkt an das neue Werkzeug geleitet und mit Spieler, Produkt und Enddatum beantwortet. Keine Migration erforderlich.
 
-## Zentraler Aktiv-/Deaktiv-Schalter
+## Historisch: Cloudflare-Schalter (ersetzt am 19.10.2026)
 
 Einziger globaler Laufzeitparameter: `PAI_ENABLED`. Nur der exakte Wert `true` aktiviert pAi; `false`, fehlende oder ungültige Werte sperren es. In Produktion wird der Parameter als Cloudflare-Secret-Binding gehalten und bewusst nicht als feste Wrangler-Variable versioniert. Normale Deployments erhalten den Schalter.
 
@@ -147,3 +149,44 @@ Deaktiviert liefern `/pai`, `/admin/pai` und sämtliche `/api/pai/*`-Pfade HTTP 
 Auf Nutzerwunsch wird der Produktionsschalter nach Einführung auf **deaktiviert** gestellt. „pAi aktivieren“ im Chat entspricht künftig dem oben dokumentierten Aktivierungsbefehl.
 
 Schalter veröffentlicht und mit `npm run pai -- deaktivieren` auf `false` gesetzt. 822 Tests sowie Cloudflarebuild erfolgreich. Onlineprüfung: 28 Seiten-/API-Varianten gesperrt (404, bei abschließendem Slash nach kanonischer Weiterleitung); Login bleibt erreichbar. Alle anderen Runtime-Bindings erhalten. Lokale Vorschau ebenfalls deaktiviert. Nachweise: `output/pai-release/switch-verified.json`. Ein späterer Aktivierungsbefehl betrifft die Produktion; lokale Vorschauen verwenden ihren eigenen `PAI_ENABLED`-Umgebungswert.
+
+## Zentrale Funktionsverwaltung (19.10.2026)
+
+`platform_features.key = 'pai'` ist jetzt der einzige globale Freigabeschalter.
+`enabled=false` sperrt Seiten, pAi-APIs, neue Reservierungen und weitere
+KI-/Werkzeugrunden; fehlende Daten oder Datenbankfehler sperren ebenfalls.
+Die Prüfung wird nicht über Anfragen hinweg gecacht. Bereits an den Provider
+übermittelte Anfragen lassen sich nicht rückwirkend stoppen. Verlaufslöschung
+nach Aufbewahrungsfrist und Abrechnung laufender Anfragen bleiben möglich.
+
+`platform_permissions` vergibt `manage_features` zusätzlich zur bestehenden
+Adminrolle. Nur ein aktueller Admin mit dieser Berechtigung darf unter
+**Einstellungen → Funktionen** (`/admin/funktionen`) globale Schalter lesen und
+ändern. Der Bereich bleibt außerhalb der pAi-Sperre erreichbar. Der Schalter wird
+auch in „pAi verwalten“ für Berechtigte angezeigt. Berechtigungen sind nicht über Client-RPCs
+vergebbar; normale Admins können sich diese Zusatzberechtigung nicht geben.
+Änderungen laufen über die Sitzung und `set_platform_feature`, mit Prüfung des
+vorherigen Zustands gegen konkurrierende Änderungen und vorhandenem Auditlog.
+
+Die Migration `202610190001_platform_features.sql` legt zwei Tabellen an und
+startet mit deaktiviertem pAi. Die produktive Berechtigung wird separat nach
+Prüfung der Adminrolle für `f7e59dc5-6767-4666-b9b0-1b95d79e50aa` vergeben.
+Keine neue Auth-Rolle; keine fest codierte UUID in der Zugriffskontrolle.
+
+`npm run pai -- aktivieren` und `npm run pai -- deaktivieren` ändern denselben
+Datenbankeintrag über die angemeldete Supabase-CLI im Produktionsprojekt
+`vgxaatawsbzgsmqiaepj`. Diese privilegierten Betreiberbefehle werden als
+Systemänderung mit Grund protokolliert; UI-Änderungen mit Benutzer-ID.
+Kein Deployment für spätere Schalterwechsel erforderlich.
+
+Die früheren Anweisungen zu `PAI_ENABLED` sind damit überholt: die Variable wird
+nicht mehr gelesen. `pai_config.value.enabled` ist nur noch ein fest auf `true`
+gehaltener Kompatibilitätswert; im normalen Adminformular existiert kein
+zweiter globaler Schalter. Persönliche Elternfreigaben, Budget, Rollenrechte,
+API-Zugang und Aufbewahrungsfrist bleiben unverändert wirksam.
+
+Verifikation: 822 Tests erfolgreich; Cloudflare-Produktionsbuild einschließlich
+TypeScript erfolgreich. Lokaler Browsertest mit synthetischem Admin:
+Einstellungen-Link gefunden, aktiviert, `/pai` erreichbar, deaktiviert,
+`/api/pai/status` gesperrt; Elternkonto auf Verwaltungsseite/API abgewiesen.
+Produktiv genau eine `manage_features`-Berechtigung und Schalter `false` geprüft.

@@ -1,0 +1,106 @@
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+type Feature = { key: string; enabled: boolean; updated_at: string };
+export function PlatformFeatures({
+  linkOnly = false,
+  optional = false,
+}: {
+  linkOnly?: boolean;
+  optional?: boolean;
+}) {
+  const [features, setFeatures] = useState<Feature[] | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/platform/features", { cache: "no-store" })
+      .then(async (r) => {
+        if (!r.ok) {
+          if (r.status === 401 || r.status === 403) return;
+          throw Error("Funktionen konnten nicht geladen werden.");
+        }
+        const data = await r.json();
+        if (live) setFeatures(data.features);
+      })
+      .catch((e) => {
+        if (live && !linkOnly) setError(e.message);
+      });
+    return () => {
+      live = false;
+    };
+  }, [linkOnly]);
+  if (optional && !features) return null;
+  if (linkOnly)
+    return features ? (
+      <section className="panel account-panel">
+        <h2>Funktionen</h2>
+        <Link href="/admin/funktionen">Globale Funktionen verwalten</Link>
+      </section>
+    ) : null;
+  return (
+    <section className="panel account-panel settings-panel">
+      <h2>Globale Funktionen</h2>
+      {optional && (
+        <Link href="/admin/funktionen">Zur Funktionsverwaltung</Link>
+      )}
+      <p>
+        Änderungen gelten sofort für alle Benutzer. Gespeicherte Einstellungen
+        bleiben erhalten.
+      </p>
+      {error && <p role="alert">{error}</p>}
+      {!features && !error && <p>Wird geladen …</p>}
+      {features?.map((feature) => (
+        <div className="account-row" key={feature.key}>
+          <div>
+            <strong>{feature.key === "pai" ? "pAi" : feature.key}</strong>
+            <p>{feature.enabled ? "Aktiviert" : "Deaktiviert"}</p>
+            <small>
+              Zuletzt geändert:{" "}
+              {new Date(feature.updated_at).toLocaleString("de-DE", {
+                timeZone: "Europe/Berlin",
+              })}{" "}
+              (Berlin)
+            </small>
+          </div>
+          <button
+            type="button"
+            className={feature.enabled ? "secondary-button" : "primary-button"}
+            disabled={busy}
+            aria-pressed={feature.enabled}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              try {
+                const r = await fetch("/api/platform/features", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    key: feature.key,
+                    enabled: !feature.enabled,
+                    expected: feature.enabled,
+                  }),
+                });
+                const data = await r.json();
+                if (!r.ok) throw Error(data.error);
+                setFeatures(data.features);
+              } catch (e) {
+                setError((e as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {feature.enabled ? "Deaktivieren" : "Aktivieren"}
+          </button>
+        </div>
+      ))}
+      {features?.some((f) => f.key === "pai" && f.enabled) && (
+        <p>
+          <Link href="/pai">pAi öffnen</Link> ·{" "}
+          <Link href="/admin/pai">pAi verwalten</Link>
+        </p>
+      )}
+    </section>
+  );
+}

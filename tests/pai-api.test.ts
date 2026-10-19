@@ -1,5 +1,6 @@
 import { beforeEach, it, expect, vi } from "vitest";
 const m = vi.hoisted(() => ({
+  gate: vi.fn(),
   session: vi.fn(),
   enabled: vi.fn(),
   context: vi.fn(),
@@ -7,6 +8,7 @@ const m = vi.hoisted(() => ({
   chat: vi.fn(),
   rpc: vi.fn(),
 }));
+vi.mock("../src/lib/server/pai/switch", () => ({ paiEnabled: m.gate }));
 vi.mock("../src/lib/server/pai/service", () => ({
   paiSession: m.session,
   enabled: m.enabled,
@@ -26,7 +28,7 @@ const params = (action: string) => ({
 });
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.stubEnv("PAI_ENABLED", "true");
+  m.gate.mockResolvedValue(true);
   vi.stubEnv("APP_URL", "http://127.0.0.1:3117");
   m.session.mockResolvedValue({
     role: "parent",
@@ -92,7 +94,7 @@ it.each([
 ])(
   "globally disables %s before authentication and database calls",
   async (action) => {
-    vi.stubEnv("PAI_ENABLED", "false");
+    m.gate.mockResolvedValue(false);
     for (const method of ["GET", "POST", "DELETE"]) {
       const response = await GET(
         new Request(`http://127.0.0.1:3117/api/pai/${action}`, { method }),

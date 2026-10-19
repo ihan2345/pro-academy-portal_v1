@@ -1,23 +1,38 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { paiEnabled } from "../src/lib/server/pai/switch";
-const m = vi.hoisted(() => ({ client: vi.fn() }));
+const m = vi.hoisted(() => ({ client: vi.fn(), single: vi.fn(), db: vi.fn() }));
 vi.mock("@supabase/ssr", () => ({ createServerClient: m.client }));
+vi.mock("../src/lib/server/service-db", () => ({ serviceDb: m.db }));
+import { paiEnabled } from "../src/lib/server/pai/switch";
 import { proxy } from "../src/proxy";
+beforeEach(() => {
+  const q = { select: vi.fn(() => q), eq: vi.fn(() => q), single: m.single };
+  m.db.mockReturnValue({ from: vi.fn(() => q) });
+  m.single.mockResolvedValue({ data: { enabled: false }, error: null });
+});
 afterEach(() => {
   vi.unstubAllEnvs();
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
-it.each([undefined, "false", "aktiv", "TRUE", ""])(
-  "fails closed for %s",
-  (value) => {
-    vi.stubEnv("PAI_ENABLED", value);
-    expect(paiEnabled()).toBe(false);
-  },
-);
-it("can restore access with just the same true parameter", () => {
+it("fails closed on missing rows, database errors and exceptions", async () => {
+  for (const result of [
+    { data: null },
+    { data: { enabled: true }, error: {} },
+    { data: { enabled: "true" } },
+  ]) {
+    m.single.mockResolvedValue(result);
+    expect(await paiEnabled()).toBe(false);
+  }
+  m.single.mockRejectedValue(Error("offline"));
+  expect(await paiEnabled()).toBe(false);
+});
+it("reads each change without caching or an environment override", async () => {
   vi.stubEnv("PAI_ENABLED", "true");
-  expect(paiEnabled()).toBe(true);
+  expect(await paiEnabled()).toBe(false);
+  m.single.mockResolvedValue({ data: { enabled: true } });
+  expect(await paiEnabled()).toBe(true);
+  m.single.mockResolvedValue({ data: { enabled: false } });
+  expect(await paiEnabled()).toBe(false);
 });
 it.each([
   "/pai",
@@ -28,8 +43,7 @@ it.each([
   "/api/pai/history",
   "/api/pai/chat",
   "/api/pai/admin/config",
-])("blocks %s before any session/data calls", async (path) => {
-  vi.stubEnv("PAI_ENABLED", "false");
+])("blocks %s before session access", async (path) => {
   for (const method of ["GET", "POST", "DELETE"]) {
     const r = await proxy(
       new NextRequest("https://portal.proacademy-ak.com" + path, { method }),
@@ -39,14 +53,15 @@ it.each([
   }
   expect(m.client).not.toHaveBeenCalled();
 });
-it("leaves the rest of the portal accessible and restores pAi when enabled", async () => {
+it("does not gate management or unrelated portal pages", async () => {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
-  vi.stubEnv("PAI_ENABLED", "false");
-  expect(
-    (await proxy(new NextRequest("https://portal.proacademy-ak.com/konto")))
-      .status,
-  ).toBe(200);
-  vi.stubEnv("PAI_ENABLED", "true");
+  for (const path of ["/konto", "/admin/funktionen", "/api/platform/features"])
+    expect(
+      (await proxy(new NextRequest("https://portal.proacademy-ak.com" + path)))
+        .status,
+    ).toBe(200);
+  expect(m.single).not.toHaveBeenCalled();
+  m.single.mockResolvedValue({ data: { enabled: true } });
   expect(
     (await proxy(new NextRequest("https://portal.proacademy-ak.com/pai")))
       .status,

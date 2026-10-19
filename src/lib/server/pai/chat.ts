@@ -187,6 +187,8 @@ export async function chat(s: ProfileSession, input: unknown) {
         throw new HttpError(502, "Zu viele Werkzeugaufrufe.");
       messages.push(...output);
       for (const call of calls) {
+        if (!(await enabled(fresh)))
+          throw new HttpError(403, "pAi ist deaktiviert.");
         let data;
         try {
           data = await executeTool(

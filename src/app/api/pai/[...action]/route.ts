@@ -21,7 +21,7 @@ async function handle(
   request: Request,
   { params }: { params: Promise<{ action: string[] }> },
 ) {
-  if (!paiEnabled()) return json({ error: "Nicht gefunden." }, 404);
+  if (!(await paiEnabled())) return json({ error: "Nicht gefunden." }, 404);
   try {
     if (request.method !== "GET") requireOrigin(request);
     const s = await paiSession(),
