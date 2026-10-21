@@ -100,6 +100,21 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
     subject = `Eine Einheit wurde nachgetragen: ${payload.player_name}`;
     const contact = `https://wa.me/${(process.env.WHATSAPP_NUMBER ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(`Hallo ProAcademy-Team, ich habe eine Frage zur Nachtragung für ${payload.player_name}. Nachtrags-ID: ${payload.backfill_id}.`)}`;
     text = `Hallo,\neine Einheit für ${payload.player_name} wurde nachgetragen.\nLeistungszeitraum: ${periodLabel(payload.period_starts_at, payload.period_ends_at)}.\n${payload.occurred_on ? `Trainingsdatum: ${formatDate(`${payload.occurred_on}T12:00:00Z`)}.` : "Trainingsdatum nicht angegeben."}\nTrainingsdauer: ${durationLabel(Number(payload.duration_minutes))}.\nNotiz des Teams:\n${payload.parent_note}\nDie aktualisierte Stempelkarte findest du im Elternportal.${payload.snapshot_id ? " Eine neue Berichtsversion wurde vorgemerkt und wird nach der PDF-Erstellung verfügbar." : ""}\nFragen oder Unstimmigkeiten? Kontaktiere uns per WhatsApp:\n${contact}`;
+    if (payload.calendar_backfill) {
+      const status =
+        {
+          attended_manual: "Teilgenommen",
+          absent: "Gefehlt",
+          cancelled: "Teilnahme abgesagt",
+          excused: "Entschuldigt",
+        }[payload.status] ?? payload.status;
+      const impact =
+        payload.status === "excused"
+          ? "Keine Einheit angerechnet, keine Trainingsminuten."
+          : `Eine Einheit angerechnet, ${durationLabel(Number(payload.duration_minutes))} Trainingszeit.`;
+      subject = `Training nachgetragen: ${payload.player_name}`;
+      text = `Hallo,\nfür ${payload.player_name} wurde ein Training nachgetragen.\nTrainingsdatum: ${formatDate(`${payload.occurred_on}T12:00:00Z`)}.\nStatus: ${status}.\n${impact}\nLeistungszeitraum: ${periodLabel(payload.period_starts_at, payload.period_ends_at)}.\nDie aktualisierte Stempelkarte findest du im Elternportal.${payload.snapshot_id ? " Eine neue Berichtsversion wird nach der PDF-Erstellung verfügbar." : ""}\nFragen zur Nachtragung: ${contact}`;
+    }
     url = `${app}/stempelkarte`;
     actions.push({ label: "Frage zur Nachtragung per WhatsApp", url: contact });
   } else if (kind === "stamp_card") {

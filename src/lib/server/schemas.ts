@@ -6,6 +6,17 @@ export const trainingSchema = z
   .object({
     id: id.optional(),
     revision: z.number().int().positive().optional(),
+    request_id: id.optional(),
+    backfill_attendance: z
+      .array(
+        z.object({
+          player_id: id,
+          status: z.enum(["attended_manual", "absent", "excused", "cancelled"]),
+        }),
+      )
+      .max(100)
+      .default([]),
+    notify_backfill_parents: z.boolean().default(false),
     title: name,
     starts_at: z.iso.datetime({ offset: true }),
     ends_at: z.iso.datetime({ offset: true }),

@@ -1,6 +1,14 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync, readdirSync } from "node:fs";
-import { beforeAll, afterAll, beforeEach, afterEach, it, expect } from "vitest";
+import {
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+  describe,
+  it,
+  expect,
+} from "vitest";
 
 let db: PGlite;
 const id = (n: number) =>
@@ -1713,4 +1721,182 @@ it("keeps an already claimed message suppressed through opt-out and immediate re
       ])
     )[0].status,
   ).toBe("processing");
+});
+
+describe("calendar backfills", () => {
+  beforeEach(async () => {
+    // Install inside the existing rollback fixture; no second database harness.
+    await db.exec(
+      readFileSync("supabase/release/016-calendar-backfills.sql", "utf8")
+        .replace(/^begin;$/m, "")
+        .replace(/^commit;$/m, ""),
+    );
+  });
+  const past = () => ({
+    starts_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+    ends_at: new Date(Date.now() - 3 * 86400000 + 3600000).toISOString(),
+  });
+  const attendance = (n: number, status = "attended_manual") => ({
+    player_id: id(10 + n),
+    status,
+  });
+
+  it("records actual statuses, versions closed reports once and sends only opted-in backfill mail", async () => {
+    await db.exec(`with removed as (delete from entitlement_periods returning *)
+      insert into entitlement_periods select (jsonb_populate_record(null::entitlement_periods,
+        to_jsonb(removed)||jsonb_build_object('ends_at',now()-interval '1 day'))).* from removed`);
+    const periods = await query(
+      "select id from entitlement_periods order by id",
+    );
+    for (const p of periods) await query("select capture_report($1)", [p.id]);
+    const event = await save([1, 2, 3], undefined, {
+      ...past(),
+      request_id: id(800),
+      notify_backfill_parents: true,
+      backfill_attendance: [
+        attendance(1),
+        attendance(2, "absent"),
+        attendance(3, "excused"),
+      ],
+      note: "PRIVATE_NOTE",
+    });
+    expect(
+      (
+        await query("select status from event_participants order by player_id")
+      ).map((r) => r.status),
+    ).toEqual(["attended_manual", "absent", "excused"]);
+    const reports = await query(
+      "select snapshot from report_snapshots where version=2 order by player_id",
+    );
+    expect(
+      reports.map((r) => [
+        r.snapshot.completed,
+        r.snapshot.minutes,
+        r.snapshot.suppress_delivery,
+      ]),
+    ).toEqual([
+      [1, 60, true],
+      [1, 0, true],
+      [0, 0, true],
+    ]);
+    expect(
+      await query(
+        "select kind,count(*)::int count from notification_jobs group by kind",
+      ),
+    ).toEqual([{ kind: "training_backfill", count: 3 }]);
+    const jobs = await query("select payload,status from notification_jobs");
+    expect(jobs.every((j) => j.status === "pending")).toBe(true);
+    expect(JSON.stringify(jobs)).not.toContain("PRIVATE_NOTE");
+    const input = (
+      await query("select input from calendar_backfill_requests")
+    )[0].input;
+    expect((await query("select save_training($1) id", [input]))[0].id).toBe(
+      event,
+    );
+    expect(
+      (await query("select count(*)::int n from report_snapshots"))[0].n,
+    ).toBe(6);
+    expect(
+      (await query("select count(*)::int n from notification_jobs"))[0].n,
+    ).toBe(3);
+    await query("select auto_attendance()");
+    expect(
+      (await query("select count(*)::int n from notification_jobs"))[0].n,
+    ).toBe(3);
+  });
+
+  it("adds only the missing player, leaves existing attendance unchanged and defaults to no mail", async () => {
+    const event = await save([1], undefined, {
+      ...past(),
+      request_id: id(801),
+      backfill_attendance: [attendance(1)],
+    });
+    await save([1, 2], event, {
+      request_id: id(802),
+      backfill_attendance: [attendance(2, "cancelled")],
+    });
+    expect(
+      (
+        await query("select status from event_participants order by player_id")
+      ).map((r) => r.status),
+    ).toEqual(["attended_manual", "cancelled"]);
+    expect(await query("select * from notification_jobs")).toHaveLength(0);
+    await save([1], event);
+    await save([1, 2], event, {
+      request_id: id(803),
+      backfill_attendance: [attendance(2, "excused")],
+    });
+    expect(
+      (
+        await query(
+          "select status from event_participants where player_id=$1",
+          [id(12)],
+        )
+      )[0].status,
+    ).toBe("excused");
+    expect(await query("select * from event_participants")).toHaveLength(2);
+  });
+
+  it("rejects missing or duplicate statuses atomically and cannot bypass the team permission", async () => {
+    for (const choices of [[], [attendance(1), attendance(1)]]) {
+      await db.exec("savepoint invalid_backfill");
+      await expect(
+        save([1], undefined, {
+          ...past(),
+          request_id: id(804),
+          backfill_attendance: choices,
+        }),
+      ).rejects.toThrow(/Teilnahmestatus/);
+      await db.exec("rollback to savepoint invalid_backfill");
+    }
+    expect(await query("select * from training_events")).toHaveLength(0);
+    expect(await query("select * from notification_jobs")).toHaveLength(0);
+    expect(
+      (
+        await query(
+          "select has_function_privilege('authenticated','save_training_before_calendar_backfills(jsonb)','execute') allowed",
+        )
+      )[0].allowed,
+    ).toBe(false);
+    await query("select set_config('request.jwt.claim.sub',$1,true)", [
+      id(101),
+    ]);
+    await expect(
+      save([1], undefined, {
+        ...past(),
+        request_id: id(804),
+        backfill_attendance: [attendance(1)],
+      }),
+    ).rejects.toThrow("Forbidden");
+  });
+
+  it("preserves future planning and existing recipient holds", async () => {
+    const future = await save([1]);
+    expect(
+      (
+        await query("select status from event_participants where event_id=$1", [
+          future,
+        ])
+      )[0].status,
+    ).toBe("planned");
+    expect((await query("select kind from notification_jobs"))[0].kind).toBe(
+      "planning",
+    );
+    await query("update parents set notifications_held=true where id=$1", [
+      id(22),
+    ]);
+    await save([2], undefined, {
+      ...past(),
+      request_id: id(805),
+      notify_backfill_parents: true,
+      backfill_attendance: [attendance(2)],
+    });
+    expect(
+      (
+        await query(
+          "select status from notification_jobs where kind='training_backfill'",
+        )
+      )[0].status,
+    ).toBe("held");
+  });
 });

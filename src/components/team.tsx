@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MonthCalendar } from "./month-calendar";
 import { TrainingNotifications } from "./training-notifications";
 import { TrainingApiShare } from "./training-api-share";
@@ -460,9 +460,7 @@ export function TeamView({
                 ],
               });
               setEditor(null);
-              notify(
-                "Termin gespeichert. Benachrichtigungen wurden eingeplant.",
-              );
+              notify("Termin gespeichert.");
             } catch (e) {
               notify((e as Error).message);
               throw e;
@@ -643,6 +641,16 @@ function EventEditor({
   save: (input: unknown, event: Training) => Promise<void>;
   cancel: (event: Training, reason: string) => Promise<void>;
 }) {
+  const requestId = useRef(crypto.randomUUID());
+  const [backfillStatuses, setBackfillStatuses] = useState<
+    Record<string, Attendance>
+  >({});
+  const [endTime, setEndTime] = useState(
+    event ? formatTime(event.ends_at) : "18:00",
+  );
+  const [nextDay, setNextDay] = useState(
+    event ? formatDate(event.starts_at) !== formatDate(event.ends_at) : false,
+  );
   const [children, setChildren] = useState(
       event?.participants
         .filter((p) => !p.removed_from_event)
@@ -708,6 +716,20 @@ function EventEditor({
   } catch {
     // Incomplete input and ambiguous DST times are shown as validation issues.
   }
+  let hasEnded = false;
+  try {
+    const endDay = nextDay ? addDays(day, 1) : day;
+    hasEnded = Date.parse(localToUtc(endDay, endTime)) <= Date.now();
+  } catch {
+    /* Incomplete date/time is validated on submit. */
+  }
+  const addedChildren = children.filter(
+    (id) =>
+      !event?.participants.some(
+        (p) => p.player_id === id && !p.removed_from_event,
+      ),
+  );
+  const isBackfill = hasEnded && addedChildren.length > 0;
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -731,6 +753,19 @@ function EventEditor({
       const id = event?.id ?? crypto.randomUUID();
       const input = {
         id: event?.id,
+        request_id: requestId.current,
+        backfill_attendance:
+          Date.parse(end) <= Date.now()
+            ? addedChildren.map((player_id) => {
+                const status = backfillStatuses[player_id];
+                if (!status)
+                  throw new Error(
+                    "Bitte den Teilnahmestatus für jeden nachgetragenen Spieler auswählen.",
+                  );
+                return { player_id, status };
+              })
+            : [],
+        notify_backfill_parents: f.get("notify_backfill") === "on",
         revision: (event as Training & { revision?: number })?.revision ?? 1,
         title: String(f.get("title")),
         starts_at: start,
@@ -775,11 +810,14 @@ function EventEditor({
           player_id: child,
           period_id: period.id,
           status:
+            input.backfill_attendance.find((p) => p.player_id === child)
+              ?.status ??
             (event?.participants.find((p) => p.player_id === child)
               ?.removed_from_event
               ? "planned"
               : event?.participants.find((p) => p.player_id === child)
-                  ?.status) ?? ("planned" as const),
+                  ?.status) ??
+            ("planned" as const),
         };
       });
       const location = data.locations.find((l) => l.id === input.location_id)!;
@@ -850,7 +888,8 @@ function EventEditor({
               type="time"
               required
               name="end"
-              defaultValue={event ? formatTime(event.ends_at) : "18:00"}
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
             />
           </label>
         </div>
@@ -880,11 +919,8 @@ function EventEditor({
           <input
             type="checkbox"
             name="next_day"
-            defaultChecked={
-              event
-                ? formatDate(event.starts_at) !== formatDate(event.ends_at)
-                : false
-            }
+            checked={nextDay}
+            onChange={(e) => setNextDay(e.target.checked)}
           />
           Training endet am Folgetag
         </label>
@@ -1036,6 +1072,50 @@ function EventEditor({
               );
             })}
         </div>
+        {isBackfill && (
+          <fieldset style={{ minWidth: 0, display: "grid", gap: 16 }}>
+            <legend>Teilnahme nachtragen</legend>
+            {addedChildren.map((id) => {
+              const player = data.players.find((p) => p.id === id);
+              return (
+                <label key={id}>
+                  {player?.first_name} {player?.last_name}
+                  <select
+                    required
+                    style={{ minWidth: 0, width: "100%" }}
+                    value={backfillStatuses[id] ?? ""}
+                    onChange={(e) =>
+                      setBackfillStatuses((current) => ({
+                        ...current,
+                        [id]: e.target.value as Attendance,
+                      }))
+                    }
+                  >
+                    <option value="" disabled>
+                      Teilnahmestatus auswählen
+                    </option>
+                    <option value="attended_manual">
+                      Teilgenommen · 1 Einheit und Trainingszeit
+                    </option>
+                    <option value="absent">
+                      Gefehlt · 1 Einheit, keine Trainingszeit
+                    </option>
+                    <option value="cancelled">
+                      Teilnahme abgesagt · 1 Einheit, keine Trainingszeit
+                    </option>
+                    <option value="excused">
+                      Entschuldigt · keine Einheit
+                    </option>
+                  </select>
+                </label>
+              );
+            })}
+            <label className="checkbox-label">
+              <input name="notify_backfill" type="checkbox" /> Betroffene Eltern
+              per E-Mail über den Nachtrag informieren
+            </label>
+          </fieldset>
+        )}
         <label>
           Interne Notiz
           <textarea
@@ -1045,10 +1125,14 @@ function EventEditor({
             maxLength={2000}
           />
         </label>
-        <label className="checkbox-label">
-          <input name="notify" type="checkbox" defaultChecked /> Eltern per
-          E-Mail benachrichtigen
-        </label>
+        {(!isBackfill || event) && (
+          <label className="checkbox-label">
+            <input name="notify" type="checkbox" defaultChecked />{" "}
+            {isBackfill
+              ? "Eltern bestehender Teilnehmer über weitere Terminänderungen informieren"
+              : "Eltern per E-Mail benachrichtigen"}
+          </label>
+        )}
         {error && (
           <p className="error-message" role="alert">
             {error}

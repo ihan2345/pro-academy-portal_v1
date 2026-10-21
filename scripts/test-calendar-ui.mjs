@@ -94,6 +94,12 @@ try {
         cancellations.push(route.request().postDataJSON());
         return route.fulfill({ json: { ok: true } });
       }
+      if (url.pathname === "/api/activities/summary")
+        return route.fulfill({
+          json: { asOf: new Date().toISOString(), recent: 0, open: 0 },
+        });
+      if (url.pathname === "/api/platform/availability")
+        return route.fulfill({ json: { pai: false, mascot: false } });
       if (url.pathname.startsWith("/api/"))
         throw Error("Unexpected API request: " + url.pathname);
       await route.continue();
@@ -300,6 +306,12 @@ try {
         saves.push(route.request().postDataJSON());
         return route.fulfill({ json: { id: "grace-event" } });
       }
+      if (url.pathname === "/api/activities/summary")
+        return route.fulfill({
+          json: { asOf: new Date().toISOString(), recent: 0, open: 0 },
+        });
+      if (url.pathname === "/api/platform/availability")
+        return route.fulfill({ json: { pai: false, mascot: false } });
       if (url.pathname.startsWith("/api/"))
         throw Error("Unexpected API request: " + url.pathname);
       await route.continue();
@@ -381,6 +393,43 @@ try {
         event_type: "Einzeltraining",
       },
     ]);
+    // Same editor, historical date: explicit status and opt-in mail.
+    await page.goto(base + "?grace");
+    await page
+      .getByRole("button", { name: "Termin erstellen", exact: true })
+      .click();
+    await dialog.locator('input[name="date"]').fill("2026-10-06");
+    await dialog
+      .getByRole("checkbox", { name: "Levin Günes", exact: true })
+      .check();
+    const status = dialog.getByRole("combobox", {
+      name: "Levin Günes",
+      exact: true,
+    });
+    await status.waitFor();
+    assert.equal(
+      await dialog.locator('input[name="notify_backfill"]').isChecked(),
+      false,
+    );
+    await dialog.getByRole("button", { name: "Termin speichern" }).click();
+    assert.equal(saves.length, 1);
+    await status.selectOption("excused");
+    assert.ok(
+      await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+      "Nachtragsformular darf nicht horizontal überlaufen",
+    );
+    await page.screenshot({
+      path: `${output}/backfill-${viewport.width}.png`,
+      fullPage: true,
+    });
+    await dialog.getByRole("button", { name: "Termin speichern" }).click();
+    await dialog.waitFor({ state: "hidden" });
+    assert.equal(saves.length, 2);
+    assert.deepEqual(saves[1].backfill_attendance, [
+      { player_id: "max", status: "excused" },
+    ]);
+    assert.equal(saves[1].notify_backfill_parents, false);
+    assert.ok(saves[1].request_id);
     assert.deepEqual(errors, []);
     console.log(
       `grace ${viewport.width}: cancellation, confirmation, time/type changes, date boundary and save passed`,
