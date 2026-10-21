@@ -33,6 +33,10 @@ beforeAll(async () => {
  create function public.is_admin() returns boolean language sql security definer set search_path=public as $$select exists(select 1 from profiles where id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid and role='admin')$$;
  create table training_events(id uuid primary key default gen_random_uuid(),title text,event_type text,starts_at timestamptz,ends_at timestamptz,status text,location_id uuid,internal_note text);
  create table locations(id uuid primary key,name text,address text);
+ create table players(id uuid primary key,first_name text,last_name text,archived_at timestamptz);
+ create table parents(id uuid primary key,full_name text,stripe_customer_id text,contact_email text);
+ create table parent_players(parent_id uuid,player_id uuid,unique(parent_id,player_id));
+ create table parent_stripe_customers(parent_id uuid,stripe_customer_id text);
  create table event_participants(event_id uuid,removed_from_event boolean,player_id uuid,reason text);
  insert into profiles values('${admin}','admin'),('${staff}','staff');
  insert into locations values('10000000-0000-4000-8000-000000000001','Sportplatz','Platzweg 1');
@@ -44,6 +48,37 @@ beforeAll(async () => {
   await db.exec(
     readFileSync(
       "supabase/migrations/202610040014_training_api_share.sql",
+      "utf8",
+    ),
+  );
+
+  await db.exec(`
+    insert into players values
+      ('30000000-0000-4000-8000-000000000001','Test','Player',now()),
+      ('30000000-0000-4000-8000-000000000002','Removed','Player',null),
+      ('30000000-0000-4000-8000-000000000003','No','Parents',null),
+      ('30000000-0000-4000-8000-000000000004','No','Stripe',null);
+    insert into parents values
+      ('40000000-0000-4000-8000-000000000001','Parent A','cus_primary','PRIVATE_EMAIL'),
+      ('40000000-0000-4000-8000-000000000002','Parent B',null,'PRIVATE_EMAIL'),
+      ('40000000-0000-4000-8000-000000000003','Unrelated','cus_unrelated','PRIVATE_EMAIL'),
+      ('40000000-0000-4000-8000-000000000004','No Stripe',null,'PRIVATE_EMAIL');
+    insert into parent_players values
+      ('40000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001'),
+      ('40000000-0000-4000-8000-000000000002','30000000-0000-4000-8000-000000000001'),
+      ('40000000-0000-4000-8000-000000000003','30000000-0000-4000-8000-000000000002'),
+      ('40000000-0000-4000-8000-000000000004','30000000-0000-4000-8000-000000000004');
+    insert into parent_stripe_customers values
+      ('40000000-0000-4000-8000-000000000001','cus_primary'),
+      ('40000000-0000-4000-8000-000000000001','cus_additional'),
+      ('40000000-0000-4000-8000-000000000002','cus_second');
+    insert into event_participants values
+      ('20000000-0000-4000-8000-000000000003',false,'30000000-0000-4000-8000-000000000003','PRIVATE_REASON'),
+      ('20000000-0000-4000-8000-000000000003',false,'30000000-0000-4000-8000-000000000004','PRIVATE_REASON');
+  `);
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/202610210001_training_api_participants.sql",
       "utf8",
     ),
   );
@@ -135,8 +170,39 @@ describe("share storage and projection", () => {
     });
     expect(data.trainings[1].start_time).toBe("11:00");
     expect(JSON.stringify(data)).not.toMatch(
-      /PRIVATE|player_id|reason|internal_note|30000000/,
+      /PRIVATE|reason|internal_note|contact_email|cus_unrelated/,
     );
+  });
+  it("exports assigned players with deduplicated family accounts and authenticated profile URLs", async () => {
+    const data = await feed();
+    expect(data.version).toBe(2);
+    expect(data.trainings[0].participants).toEqual([
+      {
+        player_id: "30000000-0000-4000-8000-000000000001",
+        player_name: "Test Player",
+        profile_url:
+          "https://portal.proacademy-ak.com/admin/spieler/30000000-0000-4000-8000-000000000001",
+        parents: [
+          {
+            parent_id: "40000000-0000-4000-8000-000000000001",
+            parent_name: "Parent A",
+            stripe_customer_ids: ["cus_additional", "cus_primary"],
+          },
+          {
+            parent_id: "40000000-0000-4000-8000-000000000002",
+            parent_name: "Parent B",
+            stripe_customer_ids: ["cus_second"],
+          },
+        ],
+      },
+    ]);
+    expect(data.trainings[1].participants).toEqual([]);
+    expect(data.trainings[2].participants[0].parents).toEqual([]);
+    expect(
+      data.trainings[2].participants[1].parents[0].stripe_customer_ids,
+    ).toEqual([]);
+    for (const event of data.trainings)
+      expect(event.player_count).toBe(event.participants.length);
   });
   it("returns changed data with the same token, including more than 1000 events", async () => {
     await db.exec(
