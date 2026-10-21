@@ -1,4 +1,5 @@
 import "server-only";
+import { trialFeatureEnabled } from "../trials/server";
 import { optionalBackfills } from "./v2-availability";
 import { readAll } from "./read-all";
 import { backfillColumns } from "../backfills";
@@ -92,6 +93,7 @@ export async function loadPortal(section: string): Promise<PortalData> {
     backfills,
   ] = results.map((r) => r.data ?? []);
   return {
+    trial_enabled: trialFeatureEnabled(),
     camp_enabled: campsEnabled,
     camp_access: campAccess,
     role: session.role,

@@ -1,3 +1,6 @@
+import { TrialTeam } from "@/components/trials/team";
+import { trialFeatureEnabled } from "@/lib/trials/server";
+import "@/components/trials/trials.css";
 import { Activities } from "@/components/activities";
 import { PlayerProfiles } from "@/components/player-profiles";
 import { ProfileList, ProfileView } from "@/components/parent-profile";
@@ -41,6 +44,14 @@ export default async function Page({
   params: Promise<{ section?: string[] }>;
 }) {
   const section = (await params).section?.join("/") ?? "";
+  if (/^(admin|team)\/probetraining$/.test(section)) {
+    if (!trialFeatureEnabled()) notFound();
+    return (
+      <Portal initial={await loadPortal(section)} section={section}>
+        <TrialTeam />
+      </Portal>
+    );
+  }
   if (/^(admin|team)\/aktivitaeten(\/alle)?$/.test(section)) {
     let session;
     try {

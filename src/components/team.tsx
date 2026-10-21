@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { TrialParticipantActions } from "./trials/team";
+import "./trials/trials.css";
 import { MonthCalendar } from "./month-calendar";
 import { TrainingNotifications } from "./training-notifications";
 import { TrainingApiShare } from "./training-api-share";
@@ -153,6 +155,7 @@ export function TeamView({
           : e,
       );
       update({ ...data, events });
+      if (data.trial_enabled) window.dispatchEvent(new Event("trial-updated"));
       setExceptions({
         ...event,
         participants: event.participants.map((p) =>
@@ -369,6 +372,25 @@ export function TeamView({
                           })
                           .join(", ") || "Noch keine Spieler hinzugefügt"}
                       </p>
+                      {data.trial_enabled &&
+                        e.participants
+                          .filter(
+                            (p) => p.trial_request_id && !p.removed_from_event,
+                          )
+                          .map((p) => (
+                            <div key={p.id}>
+                              <TrialParticipantActions
+                                participant={p}
+                                name={
+                                  data.players.find((c) => c.id === p.player_id)
+                                    ?.first_name
+                                }
+                                base={
+                                  data.role === "admin" ? "/admin" : "/team"
+                                }
+                              />
+                            </div>
+                          ))}
                       {e.status === "cancelled" ? (
                         <p className="cancellation-note">
                           Vom Team abgesagt · keine Einheit angerechnet
@@ -447,6 +469,24 @@ export function TeamView({
           event={editor === "new" ? undefined : editor}
           defaultDate={date}
           close={() => setEditor(null)}
+          markTrial={(participantId, trialId) => {
+            if (editor === "new") return;
+            const changed = {
+              ...editor,
+              participants: editor.participants.map((p) =>
+                p.id === participantId
+                  ? { ...p, trial_request_id: trialId, period_id: null }
+                  : p,
+              ),
+            };
+            update({
+              ...data,
+              events: data.events.map((e) =>
+                e.id === changed.id ? changed : e,
+              ),
+            });
+            setEditor(changed);
+          }}
           save={async (input, local) => {
             try {
               const result = await api("team/events", input);
@@ -496,6 +536,8 @@ export function TeamView({
       {notificationEvent && !exceptions && (
         <TrainingNotifications
           event={notificationEvent}
+          trialEnabled={data.trial_enabled}
+          trialBase={data.role === "admin" ? "/admin" : "/team"}
           close={() => setNotificationEventId(null)}
           notify={notify}
           confirmIndividually={() => setExceptions(notificationEvent)}
@@ -531,15 +573,48 @@ export function TeamView({
             {exceptions.participants
               .filter((p) => !p.removed_from_event)
               .map((p) => (
-                <ExceptionRow
-                  key={p.id}
-                  name={
-                    data.players.find((c) => c.id === p.player_id)
-                      ?.first_name ?? "Kind"
-                  }
-                  status={p.status}
-                  onSave={(s, r, m) => status(exceptions, p.id, s, r, m)}
-                />
+                <div key={p.id}>
+                  {data.trial_enabled && (
+                    <TrialParticipantActions
+                      participant={p}
+                      name={
+                        data.players.find((c) => c.id === p.player_id)
+                          ?.first_name
+                      }
+                      base={data.role === "admin" ? "/admin" : "/team"}
+                      onMarked={(id) => {
+                        const events = data.events.map((e) =>
+                          e.id === exceptions.id
+                            ? {
+                                ...e,
+                                participants: e.participants.map((ep) =>
+                                  ep.id === p.id
+                                    ? {
+                                        ...ep,
+                                        trial_request_id: id,
+                                        period_id: null,
+                                      }
+                                    : ep,
+                                ),
+                              }
+                            : e,
+                        );
+                        update({ ...data, events });
+                        setExceptions(
+                          events.find((e) => e.id === exceptions.id)!,
+                        );
+                      }}
+                    />
+                  )}
+                  <ExceptionRow
+                    name={
+                      data.players.find((c) => c.id === p.player_id)
+                        ?.first_name ?? "Kind"
+                    }
+                    status={p.status}
+                    onSave={(s, r, m) => status(exceptions, p.id, s, r, m)}
+                  />
+                </div>
               ))}
             {notificationEventId === exceptions.id && (
               <button
@@ -633,6 +708,7 @@ function EventEditor({
   close,
   save,
   cancel,
+  markTrial,
 }: {
   data: PortalData;
   event?: Training;
@@ -640,6 +716,7 @@ function EventEditor({
   close: () => void;
   save: (input: unknown, event: Training) => Promise<void>;
   cancel: (event: Training, reason: string) => Promise<void>;
+  markTrial: (participantId: string, trialId: string) => void;
 }) {
   const requestId = useRef(crypto.randomUUID());
   const [backfillStatuses, setBackfillStatuses] = useState<
@@ -787,6 +864,13 @@ function EventEditor({
           start,
           input.event_type,
         );
+        const priorTrial = event?.participants.find(
+          (p) =>
+            p.player_id === child &&
+            p.trial_request_id &&
+            !p.removed_from_event,
+        );
+        if (priorTrial) return priorTrial;
         if (issue || !period)
           throw new Error(
             `${data.players.find((p) => p.id === child)?.first_name ?? "Kind"}: ${issue}`,
@@ -965,6 +1049,23 @@ function EventEditor({
             })}
           </div>
         )}
+        {data.trial_enabled &&
+          event &&
+          event.participants
+            .filter(
+              (p) => children.includes(p.player_id) && !p.removed_from_event,
+            )
+            .map((p) => (
+              <TrialParticipantActions
+                key={p.id}
+                participant={p}
+                name={
+                  data.players.find((c) => c.id === p.player_id)?.first_name
+                }
+                base={data.role === "admin" ? "/admin" : "/team"}
+                onMarked={(id) => markTrial(p.id, id)}
+              />
+            ))}
         <label className="search-input">
           <Search size={18} />
           <input

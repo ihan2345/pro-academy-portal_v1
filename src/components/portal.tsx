@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { TrialMenuBadge } from "./trials/team";
 import { PaiLauncher } from "./pai/chat";
 import { usePaiAvailability } from "./pai/availability";
 import { AdminNavigation } from "./admin-navigation";
@@ -222,6 +223,15 @@ export function Portal({
       title: "Trainingsplanung",
       icon: CalendarDays,
     },
+    ...(data.trial_enabled
+      ? [
+          {
+            href: "/admin/probetraining",
+            title: "Probetraining",
+            icon: UserRound,
+          },
+        ]
+      : []),
     { href: "/admin/stempelkarten", title: "Stempelkarten", icon: Goal },
     { href: "/admin/elternprofile", title: "Elternprofile", icon: Users },
     { href: "/admin/spielerprofile", title: "Spielerprofil", icon: UserRound },
@@ -235,6 +245,15 @@ export function Portal({
     : team
       ? [
           { href: "/team", title: "Trainingsplanung", icon: CalendarDays },
+          ...(data.trial_enabled
+            ? [
+                {
+                  href: "/team/probetraining",
+                  title: "Probetraining",
+                  icon: UserRound,
+                },
+              ]
+            : []),
           { href: "/team/stempelkarten", title: "Stempelkarten", icon: Goal },
           { href: "/team/elternprofile", title: "Elternprofile", icon: Users },
           {
@@ -346,6 +365,7 @@ export function Portal({
               >
                 <item.icon size={19} />
                 <span>{item.title}</span>
+                {item.title === "Probetraining" && <TrialMenuBadge />}
                 {"count" in item &&
                   typeof item.count === "number" &&
                   item.count > 0 && (

@@ -3,6 +3,7 @@ import { runnerRequest, scheduledRun, type RunnerEnv } from "./gateway";
 
 type Env = RunnerEnv & Record<string, unknown>;
 const forwarded = [
+  "TRIAL_TRAINING_ENABLED",
   "CAMP_DEPLOYMENT_ENABLED",
   "CAMP_PUBLIC_ORIGIN",
   "CAMP_REVIEW_ENABLED",

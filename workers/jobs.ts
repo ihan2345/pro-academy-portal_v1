@@ -1,4 +1,11 @@
 import {
+  TRIAL_MAIL_KINDS,
+  composeTrialMail,
+  trialMailAllowed,
+  holdTrialMail,
+  planTrialNotifications,
+} from "./trial-notifications";
+import {
   TRAINING_MAIL_KINDS,
   planTrainingReminders,
   prepareTrainingNotification,
@@ -64,6 +71,7 @@ export const captureProvider = new CaptureProvider(async (mail) => {
   );
 });
 export async function compose(job: Record<string, unknown>): Promise<Email> {
+  if (TRIAL_MAIL_KINDS.includes(String(job.kind))) return composeTrialMail(job);
   if (CAMP_MAIL_KINDS.includes(String(job.kind))) return composeCampMail(job);
   if (job.kind === "training_staff_attendance")
     return composeStaffTrainingConfirmation(job);
@@ -296,6 +304,13 @@ export async function processMail(
         if (!current) continue;
         job = current;
       }
+      if (
+        TRIAL_MAIL_KINDS.includes(String(job.kind)) &&
+        !(await trialMailAllowed(job))
+      ) {
+        await holdTrialMail(job, provider.name);
+        continue;
+      }
       mail = await compose(job);
       if (CAMP_MAIL_KINDS.includes(String(job.kind)))
         await requireCampMailRecipient(job);
@@ -316,6 +331,13 @@ export async function processMail(
           },
         });
         if (held.error) throw held.error;
+        continue;
+      }
+      if (
+        TRIAL_MAIL_KINDS.includes(String(job.kind)) &&
+        !(await trialMailAllowed(job))
+      ) {
+        await holdTrialMail(job, provider.name);
         continue;
       }
       started = true;
@@ -390,6 +412,7 @@ export async function runJobs() {
       if (r.error) throw r.error;
       return r.data;
     },
+    trial_mail: planTrialNotifications,
     reports: processReports,
     mail: () => processMail(),
     invitations: async () => {

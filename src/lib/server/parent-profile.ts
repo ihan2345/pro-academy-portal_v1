@@ -49,6 +49,7 @@ export async function profileSession() {
 }
 export function profileShell(s: ProfileSession): PortalData {
   return {
+    trial_enabled: process.env.TRIAL_TRAINING_ENABLED === "true",
     role: s.role!,
     user_name: s.name.split(" ")[0] || "Willkommen",
     email: s.user.email ?? "",

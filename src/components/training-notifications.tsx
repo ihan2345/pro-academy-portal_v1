@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { TrialParticipantActions } from "./trials/team";
 import { Modal } from "./portal";
 import { api } from "./team";
 import type { Training } from "@/lib/types";
@@ -46,8 +47,12 @@ export function TrainingNotifications({
   notify,
   confirmIndividually,
   updateParticipants,
+  trialEnabled = false,
+  trialBase = "/team",
 }: {
   event: Training;
+  trialEnabled?: boolean;
+  trialBase?: string;
   close: () => void;
   notify: (message: string) => void;
   confirmIndividually: () => void;
@@ -180,6 +185,33 @@ export function TrainingNotifications({
       }}
     >
       <div className="form-body training-notification-dialog">
+        {trialEnabled &&
+          event.participants
+            .filter((p) => !p.removed_from_event)
+            .map((p) => (
+              <div key={p.id}>
+                <TrialParticipantActions
+                  participant={p}
+                  name={
+                    preview?.rows.find((r) => r.player_id === p.player_id)
+                      ?.player_name ??
+                    preview?.unconfirmed.find((r) => r.id === p.id)?.name
+                  }
+                  base={trialBase}
+                  onMarked={(id) => {
+                    updateParticipants(
+                      event.participants.map((ep) =>
+                        ep.id === p.id
+                          ? { ...ep, trial_request_id: id, period_id: null }
+                          : ep,
+                      ),
+                    );
+                    setReload((v) => v + 1);
+                  }}
+                />
+              </div>
+            ))}
+
         <p>
           <strong>{event.title}</strong>
         </p>
