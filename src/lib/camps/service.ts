@@ -23,6 +23,7 @@ import {
   verifyOffer,
 } from "./stripe";
 
+import { trialCampChildren } from "./trial-children";
 import { campReviewEnabled } from "./processing-config";
 import { campAppOrigin, campPaymentMode, campLocalEnabled } from "./runtime";
 
@@ -82,11 +83,17 @@ export async function campContext() {
       )
       .eq("parent_id", parent.id),
   );
-  const children = links
+  const ordinaryChildren = links
     .map(
       (x) => x.players as unknown as { id: string; archived_at: string | null },
     )
     .filter((x) => !x.archived_at);
+  const trialChildren = await trialCampChildren(parent.id);
+  const children = [
+    ...new Map(
+      [...ordinaryChildren, ...trialChildren].map((c) => [c.id, c]),
+    ).values(),
+  ];
   return { role: s.role, children, parent };
 }
 export async function childBenefit(playerId: string) {

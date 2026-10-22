@@ -256,3 +256,45 @@ it("restricts global switches to a current admin with manage_features and audits
     (await user(parent, "select can_manage_features() as allowed"))[0].allowed,
   ).toBe(false);
 });
+it("keeps the mascot dependent on pAi, including operator writes, and requires manage_features", async () => {
+  await db.query(
+    "insert into platform_permissions(user_id,permission) values($1,'manage_features') on conflict do nothing",
+    [admin],
+  );
+  await user(admin, "select set_platform_feature('pai_mascot',true,false)");
+  await expect(
+    user(other, "select set_platform_feature('pai_mascot',false,true)"),
+  ).rejects.toThrow("Forbidden");
+  await user(admin, "select set_platform_feature('pai',false,true)");
+  expect(
+    (
+      await db.query<any>(
+        "select enabled from platform_features where key='pai_mascot'",
+      )
+    ).rows[0].enabled,
+  ).toBe(false);
+  await expect(
+    user(admin, "select set_platform_feature('pai_mascot',true,false)"),
+  ).rejects.toThrow("PAI_DISABLED");
+  await expect(
+    db.exec("update platform_features set enabled=true where key='pai_mascot'"),
+  ).rejects.toThrow("PAI_DISABLED");
+  await user(admin, "select set_platform_feature('pai',true,false)");
+  expect(
+    (
+      await db.query<any>(
+        "select enabled from platform_features where key='pai_mascot'",
+      )
+    ).rows[0].enabled,
+  ).toBe(false);
+  await user(admin, "select set_platform_feature('pai_mascot',true,false)");
+  // The privileged CLI changes the same row; its disable also cascades.
+  await db.exec("update platform_features set enabled=false where key='pai'");
+  expect(
+    (
+      await db.query<any>(
+        "select enabled from platform_features where key='pai_mascot'",
+      )
+    ).rows[0].enabled,
+  ).toBe(false);
+});

@@ -1,4 +1,5 @@
 import "server-only";
+import { trialFeatureInstalled } from "../trials/server";
 import { z } from "zod";
 import { serviceDb } from "./service-db";
 import { assertRole, HttpError } from "./security";
@@ -100,7 +101,7 @@ export async function stripeActivities(
       ? collect(() =>
           db
             .from("stripe_customer_registry")
-            .select("id,name")
+            .select("id,name,email")
             .in("id", customerIds),
         )
       : [],
@@ -141,6 +142,14 @@ export async function stripeActivities(
         ),
       ])
     : [[], []];
+  const trialProfiles = trialFeatureInstalled()
+    ? (checked(
+        await db
+          .from("trial_players")
+          .select("id,first_name,last_name,trial_families!inner(email)")
+          .is("converted_player_id", null),
+      ) as any[])
+    : [];
   const result: StripeActivity[] = events.map(
     ({ r, object, customerId, subscriptionId }) => {
       const sub = subs.find((s) => s.stripe_subscription_id === subscriptionId);
@@ -204,6 +213,13 @@ export async function stripeActivities(
             ),
           ),
         ] as string[],
+        trialCandidates: trialProfiles
+          .filter(
+            (p) =>
+              p.trial_families.email?.toLowerCase() ===
+              customers.find((c) => c.id === customerId)?.email?.toLowerCase(),
+          )
+          .map((p) => `${p.first_name} ${p.last_name}`),
         actionRequired,
         actionLabel: failed
           ? "Verarbeitung prüfen"

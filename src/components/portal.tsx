@@ -2,6 +2,9 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { TrialMenuBadge, TrialDashboard } from "./trials/team";
+import { PaiLauncher } from "./pai/chat";
+import { usePaiAvailability } from "./pai/availability";
 import { AdminNavigation } from "./admin-navigation";
 import { EmailPreference, flushEmailPreference } from "./email-preference";
 import Image from "next/image";
@@ -103,6 +106,8 @@ export function Portal({
     [detail, setDetail] = useState<Training | null>(null),
     [toast, setToast] = useState("");
   const router = useRouter();
+  const { pai: paiVisible, mascot: mascotVisible } =
+    usePaiAvailability(section);
   useEffect(() => {
     try {
       setSidebarCollapsed(
@@ -218,6 +223,15 @@ export function Portal({
       title: "Trainingsplanung",
       icon: CalendarDays,
     },
+    ...(data.trial_enabled
+      ? [
+          {
+            href: "/admin/probetraining",
+            title: "Probetraining",
+            icon: UserRound,
+          },
+        ]
+      : []),
     { href: "/admin/stempelkarten", title: "Stempelkarten", icon: Goal },
     { href: "/admin/elternprofile", title: "Elternprofile", icon: Users },
     { href: "/admin/spielerprofile", title: "Spielerprofil", icon: UserRound },
@@ -231,6 +245,15 @@ export function Portal({
     : team
       ? [
           { href: "/team", title: "Trainingsplanung", icon: CalendarDays },
+          ...(data.trial_enabled
+            ? [
+                {
+                  href: "/team/probetraining",
+                  title: "Probetraining",
+                  icon: UserRound,
+                },
+              ]
+            : []),
           { href: "/team/stempelkarten", title: "Stempelkarten", icon: Goal },
           { href: "/team/elternprofile", title: "Elternprofile", icon: Users },
           {
@@ -250,6 +273,14 @@ export function Portal({
               (data.camp_access === "past" && n.href === "/termine"),
           )
         : nav;
+  if (!admin && !team && data.trial_access)
+    activeNav.push({
+      href: "/probetraining/willkommen",
+      title: "Probetraining",
+      icon: UserRound,
+    });
+  if (paiVisible)
+    activeNav.push({ href: "/pai", title: "pAi", icon: MessageCircle });
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
   async function openBilling(customerId?: string) {
@@ -340,6 +371,7 @@ export function Portal({
               >
                 <item.icon size={19} />
                 <span>{item.title}</span>
+                {item.title === "Probetraining" && <TrialMenuBadge />}
                 {"count" in item &&
                   typeof item.count === "number" &&
                   item.count > 0 && (
@@ -439,6 +471,10 @@ export function Portal({
                 <ArrowRight size={20} />
               </Link>
             )}
+          {(section === "admin" || section === "team") &&
+            data.trial_enabled && (
+              <TrialDashboard base={admin ? "/admin" : "/team"} />
+            )}
           {children ? (
             children
           ) : (admin || team) &&
@@ -464,7 +500,19 @@ export function Portal({
               </section>
             </>
           ) : team || section === "admin/trainingsplanung" ? (
-            <TeamView data={data} update={update} notify={setToast} />
+            <TeamView
+              data={{
+                ...data,
+                players: [
+                  ...data.players,
+                  ...(data.trial_players ?? []).filter(
+                    (p) => !data.players.some((r) => r.id === p.id),
+                  ),
+                ],
+              }}
+              update={(next) => update({ ...next, players: data.players })}
+              notify={setToast}
+            />
           ) : admin ? (
             <AdminView data={data} section={section} notify={setToast} />
           ) : (
@@ -968,6 +1016,14 @@ export function Portal({
               {"Sicher abmelden"}
             </button>
           )}
+          {paiVisible && (
+            <PaiLauncher
+              showMascot={mascotVisible}
+              role={data.role}
+              showSuggestions={section !== "pai"}
+              showBar={section !== "pai"}
+            />
+          )}
           <footer className="content-footer">
             <span>© 2026 ProAcademy by Ayhan & Karaman</span>
             <div>
@@ -1316,11 +1372,13 @@ function Schedule({
 }
 export function Modal({
   title,
+  className = "",
   active = true,
   close,
   children,
 }: {
   title: string;
+  className?: string;
   active?: boolean;
   close: () => void;
   children: React.ReactNode;
@@ -1377,7 +1435,7 @@ export function Modal({
         ref={ref}
         role="dialog"
         aria-modal="true"
-        className="modal"
+        className={`modal ${className}`}
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >

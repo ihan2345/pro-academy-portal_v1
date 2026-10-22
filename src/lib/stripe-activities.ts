@@ -6,6 +6,7 @@ export interface StripeActivity {
   subscriptionId: string | null;
   assignment: "assigned" | "partial" | "unassigned" | "not_applicable";
   children: string[];
+  trialCandidates?: string[];
   actionRequired: boolean;
   actionLabel: string | null;
   href: string | null;

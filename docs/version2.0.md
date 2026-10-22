@@ -44,3 +44,13 @@ Die Migrationen `202609230010_training_backfills.sql` und `202609230011_stripe_c
 - `node scripts/test-v2-ui.mjs`: isolierte Desktop-/Mobilprüfung mit echten UI-Komponenten und simulierten API-Antworten; keine externen Dienste. Prüft 10/20/Rest-Paginierung, Suche, Sortierung, Einklappen, Datumsfilter, Formular und Nachtragsstempel.
 - Die bestehende Supabase-E2E-Suite benötigt die separat gestartete isolierte Testumgebung. Ihr Stripe-Test wurde an die neue Übersicht angepasst.
 - PDF-Muster und Browserbilder liegen unter `output/pdf/` und `output/v2-review/`. Diese Ausgabeordner werden nicht versioniert.
+
+## Kalendernachträge — veröffentlicht am 21.10.2026
+
+Auf ausdrücklichen Nutzerauftrag veröffentlicht: Bei neuen bereits beendeten Terminen und neu hinzugefügten beziehungsweise wieder aufgenommenen Spielern in vergangenen Terminen ist der tatsächliche Teilnahmestatus Pflicht. Teilnahme zählt als Einheit plus Zeit, Fehlzeit/Teilnahmeabsage als Einheit ohne Zeit, Entschuldigung ohne Einheit. Bestehende Teilnehmer und zukünftige Planung behalten ihren Ablauf; Teamabsagen bleiben unverändert kostenfrei.
+
+Für betroffene abgeschlossene Leistungszeiträume entsteht atomar eine neue Berichtsversion ohne zusätzliche Berichtsmail. Die optionale Nachtragsmail ist standardmäßig aus und geht nur an die betroffenen Familien; gewöhnliche Planungs-/Teilnahmemails werden für diese Nachträge unterdrückt. Bestehende Empfängerfreigaben und E-Mail-Einstellungen bleiben wirksam. Wiederholte identische Anfragen erzeugen keine doppelten Termine, Berichtsversionen oder Nachrichten.
+
+Veröffentlichung: Zuerst den passenden Jobs-Runner bereitstellen; anschließend `supabase/release/016-calendar-backfills.sql` nach den bestehenden Kalender-/Versanderweiterungen anwenden und die passende App bereitstellen. Der bisherige Stempelkarten-Nachtrag bleibt erhalten. Keine historischen Daten werden durch das Release umgeschrieben.
+
+Live-Abnahme: Portal `e47b5eba-e5e4-40ca-b38c-cc6cac186a25` und Jobs `a090a144-96ec-4fd1-9186-2dffb78759a7` bedienen jeweils 100 % des Verkehrs. SQL 016 gezielt angewendet; Rollenrechte und RLS geprüft. Laufzeitbindungen und Versandfreigaben unverändert. Kalenderdatei online bytegleich mit dem Produktionsbuild, Login und Zugriffsschutz erfolgreich geprüft. Runner-Verbindungsprüfung für Supabase, Stripe, SMTP und PDF erfolgreich. Keine Testnachträge oder Testmails angelegt; bestehende Termine, Teilnahmen, Nachträge und Berichte unverändert. Private Nachweise: `output/calendar-backfill-release/`.

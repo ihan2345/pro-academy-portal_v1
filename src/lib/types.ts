@@ -39,6 +39,7 @@ export interface Training {
     id: string;
     player_id: string;
     period_id: string | null;
+    trial_request_id?: string | null;
     status: Attendance;
     reason?: string | null;
     removed_from_event?: boolean;
@@ -60,6 +61,9 @@ export interface Report {
   athletics_units?: number;
 }
 export interface PortalData {
+  trial_access?: boolean;
+  trial_enabled?: boolean;
+  trial_players?: Player[];
   camp_enabled?: boolean;
   camp_access?: "active" | "past" | "only";
   role: Role;

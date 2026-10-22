@@ -1,0 +1,14 @@
+import { NextRequest,NextResponse } from 'next/server';
+import { serviceDb } from '@/lib/server/service-db';
+import { processMail,captureProvider } from '../../../../../workers/jobs';
+export async function POST(request:NextRequest) {
+ if(process.env.LOCAL_FAMILY_TEST!=='true'||process.env.NEXT_PUBLIC_SUPABASE_URL!=='http://127.0.0.1:55321'||request.headers.get('host')!=='127.0.0.1:3107'||request.headers.get('origin')!=='http://127.0.0.1:3107'||process.env.MAIL_PROVIDER!=='capture') return new NextResponse('Local only',{status:403});
+ const data=await request.formData();
+ try {
+  const db=serviceDb();const stage=String(data.get('stage'));
+  if(stage!=='mail') {const r=await db.rpc('local_trial_clock',{request:data.get('request'),stage});if(r.error)throw r.error;}
+  const planned=await db.rpc('plan_trial_notifications');if(planned.error)throw planned.error;
+  await processMail(captureProvider);
+  return NextResponse.redirect(new URL('/lokaler-test/probetraining','http://127.0.0.1:3107'),303);
+ } catch(e) { return NextResponse.json({error:(e as Error).message},{status:400}); }
+}

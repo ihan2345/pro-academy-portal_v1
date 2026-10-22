@@ -11,6 +11,7 @@ export default async function Page() {
   if (!(await paiEnabled())) notFound();
   const s = await sessionUser();
   if (!s?.role) redirect("/login");
+  if (s.customerStatus === "trial") redirect("/probetraining/willkommen");
   return (
     <Portal initial={profileShell(s)} section="pai">
       <section className="panel pai-page">

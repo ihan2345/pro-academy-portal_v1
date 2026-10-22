@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { cookies } from 'next/headers';
 import { sessionDb } from '@/lib/server/supabase';
+import { serviceDb } from '@/lib/server/service-db';
+import { ensureTrialAuth } from '@/lib/trials/server';
+import { trialLoginLink } from '@/lib/trials/links';
 export async function POST(request:NextRequest) {
  if(process.env.LOCAL_FAMILY_TEST!=='true' || process.env.NEXT_PUBLIC_SUPABASE_URL!=='http://127.0.0.1:55321' || request.headers.get('host')!=='127.0.0.1:3107' || request.headers.get('origin')!=='http://127.0.0.1:3107') return new NextResponse('Local access only',{status:403});
+ const key=String((await request.formData()).get('account')??'');
+ if(key.startsWith('trial:')&&process.env.TRIAL_TRAINING_ENABLED==='true') {
+  const id=key.slice(6);
+  if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))return new NextResponse('Unbekannte lokale Probefamilie',{status:400});
+  const {data:f,error}=await serviceDb().from('trial_families').select('id,parent_id,parent_name,email,email_verified_at,access_expires_at,created_at,trial_players(converted_player_id)').eq('id',id).is('stopped_at',null).single();
+  if(error||!f)return new NextResponse('Lokale Probefamilie nicht gefunden',{status:404});
+  if(Date.parse(f.created_at)+180*86400000<=Date.now())return new NextResponse('Willkommenszugang ist abgelaufen',{status:401});
+  if(!f.email_verified_at)return NextResponse.redirect(new URL(await trialLoginLink(f)),303);
+  try{await ensureTrialAuth(f);}catch(e){return NextResponse.json({error:(e as Error).message},{status:503});}
+  return NextResponse.redirect(new URL(f.trial_players.some(p=>p.converted_player_id)?'/profil':'/probetraining/willkommen','http://127.0.0.1:3107'),303);
+ }
  const state=JSON.parse(readFileSync(resolve('../accounts.private.json'),'utf8'));
- const key=(await request.formData()).get('account');
  const account=state.accounts.find((a:any)=>a.key===key);
  if(!account) return new NextResponse('Unbekanntes lokales Konto',{status:400});
  const db=await sessionDb();
  const {error}=await db.auth.signInWithPassword({email:account.email,password:state.password});
  if(error) return new NextResponse('Lokale Anmeldung fehlgeschlagen',{status:400});
+ (await cookies()).delete('pa_trial');
  return NextResponse.redirect(new URL(account.role==='admin'?'/admin':account.role==='staff'?'/team':'/konto','http://127.0.0.1:3107'),303);
 }

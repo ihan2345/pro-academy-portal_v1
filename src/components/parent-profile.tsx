@@ -544,43 +544,45 @@ export function ProfileView({
               </div>
             )}
           </section>
-          <section className={`panel profile-status ${status.tier}`}>
-            <div>
-              <span className="eyebrow">FAMILIENSTATUS</span>
-              <h2>{status.label}</h2>
-              <p>
-                {status.tier === "ultimate"
-                  ? "Ultimativ Status erreicht"
-                  : `Noch ${status.remaining} Monate bis ${status.next}`}
-              </p>
-            </div>
-            <div className="profile-progress-area">
-              <strong>
-                {status.tier === "ultimate"
-                  ? `${data.months} Statusmonate`
-                  : `${data.months} / ${status.target} Monate`}
-              </strong>
-              <div
-                className="profile-progress"
-                role="progressbar"
-                aria-label="Familienstatus"
-                aria-valuemin={0}
-                aria-valuemax={status.target}
-                aria-valuenow={Math.min(data.months, status.target)}
-              >
-                <span style={{ width: `${status.progress}%` }} />
-              </div>
-              {data.earned_months !== undefined && (
-                <p className="profile-muted">
-                  {data.earned_months} aktive Abo-Monate
-                  {data.deducted_months
-                    ? ` − ${data.deducted_months} Monate Inaktivitätsabzug`
-                    : " · kein Inaktivitätsabzug"}
+          {data.has_subscription_history !== false && (
+            <section className={`panel profile-status ${status.tier}`}>
+              <div>
+                <span className="eyebrow">FAMILIENSTATUS</span>
+                <h2>{status.label}</h2>
+                <p>
+                  {status.tier === "ultimate"
+                    ? "Ultimativ Status erreicht"
+                    : `Noch ${status.remaining} Monate bis ${status.next}`}
                 </p>
-              )}
-              <small>{data.history_note}</small>
-            </div>
-          </section>
+              </div>
+              <div className="profile-progress-area">
+                <strong>
+                  {status.tier === "ultimate"
+                    ? `${data.months} Statusmonate`
+                    : `${data.months} / ${status.target} Monate`}
+                </strong>
+                <div
+                  className="profile-progress"
+                  role="progressbar"
+                  aria-label="Familienstatus"
+                  aria-valuemin={0}
+                  aria-valuemax={status.target}
+                  aria-valuenow={Math.min(data.months, status.target)}
+                >
+                  <span style={{ width: `${status.progress}%` }} />
+                </div>
+                {data.earned_months !== undefined && (
+                  <p className="profile-muted">
+                    {data.earned_months} aktive Abo-Monate
+                    {data.deducted_months
+                      ? ` − ${data.deducted_months} Monate Inaktivitätsabzug`
+                      : " · kein Inaktivitätsabzug"}
+                  </p>
+                )}
+                <small>{data.history_note}</small>
+              </div>
+            </section>
+          )}
           <div className="profile-section-heading">
             <div>
               <h2>Zugeordnete Kinder</h2>

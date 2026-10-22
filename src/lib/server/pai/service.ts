@@ -19,6 +19,8 @@ import {
 export async function paiSession() {
   const s = await sessionUser();
   if (!s?.role) throw new HttpError(401, "Bitte melde dich an.");
+  if (s.customerStatus === "trial")
+    throw new HttpError(403, "pAi wird nach der Abo-Übernahme freigeschaltet.");
   return s;
 }
 export function runtimeReady() {
@@ -78,7 +80,7 @@ export async function configuration() {
   };
 }
 export async function enabled(s: ProfileSession) {
-  if (!(await paiEnabled())) return false;
+  if (s.customerStatus === "trial" || !(await paiEnabled())) return false;
   if (s.role !== "parent") return true;
   return checked(await s.db.rpc("pai_preference")) === true;
 }

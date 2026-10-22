@@ -333,3 +333,63 @@ it("staff dashboard omits personal payment information while keeping participant
   ])
     expect(serialized).not.toContain(key);
 });
+
+it("offers a trial child to its authenticated parent without a second entry or subscription discount, and keeps old camp reports accessible", async () => {
+  vi.stubEnv("TRIAL_TRAINING_ENABLED", "true");
+  try {
+    f.rows.parent_players = [];
+    f.rows.subscription_players = [];
+    f.rows.plans = [];
+    f.rows.trial_camp_children = [
+      {
+        parent_id: parentId,
+        id: playerId,
+        first_name: "Test",
+        last_name: "Child",
+        birth_year: 2015,
+        camp_birth_date: "2015-01-01",
+        archived_at: null,
+        trial: true,
+      },
+    ];
+    const available = await publicCamp(campId);
+    expect(available.context.children).toHaveLength(1);
+    expect(available.context.children[0].id).toBe(playerId);
+    expect((await discount(campId, playerId)).percent).toBe(0);
+    await createBooking(input);
+    expect(f.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parent_id: parentId,
+        player_id: playerId,
+        benefit_percent: 0,
+        customer_group: "new",
+      }),
+    );
+    // The same identity can be linked by an earlier camp payment; no duplicate selection.
+    f.rows.parent_players = [
+      { parent_id: parentId, players: { ...f.rows.trial_camp_children[0] } },
+    ];
+    expect((await publicCamp(campId)).context.children).toHaveLength(1);
+    f.rows.camps[0].status = "archived";
+    f.rows.camp_bookings = [
+      {
+        id: "historical",
+        camp_id: campId,
+        player_id: playerId,
+        status: "paid",
+      },
+    ];
+    f.rows.camp_reports = [
+      {
+        booking_id: "historical",
+        visible_to_parent: true,
+        content: "Campbericht",
+      },
+    ];
+    const history = await dashboard();
+    expect(history.camps).toHaveLength(1);
+    expect(history.reports[0].content).toBe("Campbericht");
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});

@@ -1,5 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { TrialParticipantActions } from "./trials/team";
+import "./trials/trials.css";
 import { MonthCalendar } from "./month-calendar";
 import { TrainingNotifications } from "./training-notifications";
 import { TrainingApiShare } from "./training-api-share";
@@ -153,6 +155,7 @@ export function TeamView({
           : e,
       );
       update({ ...data, events });
+      if (data.trial_enabled) window.dispatchEvent(new Event("trial-updated"));
       setExceptions({
         ...event,
         participants: event.participants.map((p) =>
@@ -369,6 +372,25 @@ export function TeamView({
                           })
                           .join(", ") || "Noch keine Spieler hinzugefügt"}
                       </p>
+                      {data.trial_enabled &&
+                        e.participants
+                          .filter(
+                            (p) => p.trial_request_id && !p.removed_from_event,
+                          )
+                          .map((p) => (
+                            <div key={p.id}>
+                              <TrialParticipantActions
+                                participant={p}
+                                name={
+                                  data.players.find((c) => c.id === p.player_id)
+                                    ?.first_name
+                                }
+                                base={
+                                  data.role === "admin" ? "/admin" : "/team"
+                                }
+                              />
+                            </div>
+                          ))}
                       {e.status === "cancelled" ? (
                         <p className="cancellation-note">
                           Vom Team abgesagt · keine Einheit angerechnet
@@ -376,7 +398,10 @@ export function TeamView({
                       ) : (
                         <p className="auto-label">
                           <Clock size={14} />
-                          {confirmationHint(e)}
+                          {e.participants.length > 0 &&
+                          e.participants.every((p) => p.trial_request_id)
+                            ? "Probetraining · Teilnahme nur manuell bestätigen"
+                            : confirmationHint(e)}
                         </p>
                       )}
                     </div>
@@ -437,7 +462,9 @@ export function TeamView({
           <p>
             Reguläre Teilnahmen werden nach zwölf aktiven Pufferstunden
             automatisch bestätigt. Zwischen 00:00 und 06:00 Uhr pausiert die
-            Zeit. Trage hier nur Ausnahmen ein.
+            Zeit. Trage hier nur Ausnahmen ein.{" "}
+            {data.trial_enabled &&
+              "Probetraining-Teilnahmen müssen immer manuell bestätigt werden."}
           </p>
         </div>
       )}
@@ -447,6 +474,24 @@ export function TeamView({
           event={editor === "new" ? undefined : editor}
           defaultDate={date}
           close={() => setEditor(null)}
+          markTrial={(participantId, trialId) => {
+            if (editor === "new") return;
+            const changed = {
+              ...editor,
+              participants: editor.participants.map((p) =>
+                p.id === participantId
+                  ? { ...p, trial_request_id: trialId, period_id: null }
+                  : p,
+              ),
+            };
+            update({
+              ...data,
+              events: data.events.map((e) =>
+                e.id === changed.id ? changed : e,
+              ),
+            });
+            setEditor(changed);
+          }}
           save={async (input, local) => {
             try {
               const result = await api("team/events", input);
@@ -460,9 +505,7 @@ export function TeamView({
                 ],
               });
               setEditor(null);
-              notify(
-                "Termin gespeichert. Benachrichtigungen wurden eingeplant.",
-              );
+              notify("Termin gespeichert.");
             } catch (e) {
               notify((e as Error).message);
               throw e;
@@ -498,6 +541,8 @@ export function TeamView({
       {notificationEvent && !exceptions && (
         <TrainingNotifications
           event={notificationEvent}
+          trialEnabled={data.trial_enabled}
+          trialBase={data.role === "admin" ? "/admin" : "/team"}
           close={() => setNotificationEventId(null)}
           notify={notify}
           confirmIndividually={() => setExceptions(notificationEvent)}
@@ -533,15 +578,48 @@ export function TeamView({
             {exceptions.participants
               .filter((p) => !p.removed_from_event)
               .map((p) => (
-                <ExceptionRow
-                  key={p.id}
-                  name={
-                    data.players.find((c) => c.id === p.player_id)
-                      ?.first_name ?? "Kind"
-                  }
-                  status={p.status}
-                  onSave={(s, r, m) => status(exceptions, p.id, s, r, m)}
-                />
+                <div key={p.id}>
+                  {data.trial_enabled && (
+                    <TrialParticipantActions
+                      participant={p}
+                      name={
+                        data.players.find((c) => c.id === p.player_id)
+                          ?.first_name
+                      }
+                      base={data.role === "admin" ? "/admin" : "/team"}
+                      onMarked={(id) => {
+                        const events = data.events.map((e) =>
+                          e.id === exceptions.id
+                            ? {
+                                ...e,
+                                participants: e.participants.map((ep) =>
+                                  ep.id === p.id
+                                    ? {
+                                        ...ep,
+                                        trial_request_id: id,
+                                        period_id: null,
+                                      }
+                                    : ep,
+                                ),
+                              }
+                            : e,
+                        );
+                        update({ ...data, events });
+                        setExceptions(
+                          events.find((e) => e.id === exceptions.id)!,
+                        );
+                      }}
+                    />
+                  )}
+                  <ExceptionRow
+                    name={
+                      data.players.find((c) => c.id === p.player_id)
+                        ?.first_name ?? "Kind"
+                    }
+                    status={p.status}
+                    onSave={(s, r, m) => status(exceptions, p.id, s, r, m)}
+                  />
+                </div>
               ))}
             {notificationEventId === exceptions.id && (
               <button
@@ -635,6 +713,7 @@ function EventEditor({
   close,
   save,
   cancel,
+  markTrial,
 }: {
   data: PortalData;
   event?: Training;
@@ -642,7 +721,18 @@ function EventEditor({
   close: () => void;
   save: (input: unknown, event: Training) => Promise<void>;
   cancel: (event: Training, reason: string) => Promise<void>;
+  markTrial: (participantId: string, trialId: string) => void;
 }) {
+  const requestId = useRef(crypto.randomUUID());
+  const [backfillStatuses, setBackfillStatuses] = useState<
+    Record<string, Attendance>
+  >({});
+  const [endTime, setEndTime] = useState(
+    event ? formatTime(event.ends_at) : "18:00",
+  );
+  const [nextDay, setNextDay] = useState(
+    event ? formatDate(event.starts_at) !== formatDate(event.ends_at) : false,
+  );
   const [children, setChildren] = useState(
       event?.participants
         .filter((p) => !p.removed_from_event)
@@ -708,6 +798,20 @@ function EventEditor({
   } catch {
     // Incomplete input and ambiguous DST times are shown as validation issues.
   }
+  let hasEnded = false;
+  try {
+    const endDay = nextDay ? addDays(day, 1) : day;
+    hasEnded = Date.parse(localToUtc(endDay, endTime)) <= Date.now();
+  } catch {
+    /* Incomplete date/time is validated on submit. */
+  }
+  const addedChildren = children.filter(
+    (id) =>
+      !event?.participants.some(
+        (p) => p.player_id === id && !p.removed_from_event,
+      ),
+  );
+  const isBackfill = hasEnded && addedChildren.length > 0;
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -731,6 +835,19 @@ function EventEditor({
       const id = event?.id ?? crypto.randomUUID();
       const input = {
         id: event?.id,
+        request_id: requestId.current,
+        backfill_attendance:
+          Date.parse(end) <= Date.now()
+            ? addedChildren.map((player_id) => {
+                const status = backfillStatuses[player_id];
+                if (!status)
+                  throw new Error(
+                    "Bitte den Teilnahmestatus für jeden nachgetragenen Spieler auswählen.",
+                  );
+                return { player_id, status };
+              })
+            : [],
+        notify_backfill_parents: f.get("notify_backfill") === "on",
         revision: (event as Training & { revision?: number })?.revision ?? 1,
         title: String(f.get("title")),
         starts_at: start,
@@ -752,6 +869,13 @@ function EventEditor({
           start,
           input.event_type,
         );
+        const priorTrial = event?.participants.find(
+          (p) =>
+            p.player_id === child &&
+            p.trial_request_id &&
+            !p.removed_from_event,
+        );
+        if (priorTrial) return priorTrial;
         if (issue || !period)
           throw new Error(
             `${data.players.find((p) => p.id === child)?.first_name ?? "Kind"}: ${issue}`,
@@ -775,11 +899,14 @@ function EventEditor({
           player_id: child,
           period_id: period.id,
           status:
+            input.backfill_attendance.find((p) => p.player_id === child)
+              ?.status ??
             (event?.participants.find((p) => p.player_id === child)
               ?.removed_from_event
               ? "planned"
               : event?.participants.find((p) => p.player_id === child)
-                  ?.status) ?? ("planned" as const),
+                  ?.status) ??
+            ("planned" as const),
         };
       });
       const location = data.locations.find((l) => l.id === input.location_id)!;
@@ -850,7 +977,8 @@ function EventEditor({
               type="time"
               required
               name="end"
-              defaultValue={event ? formatTime(event.ends_at) : "18:00"}
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
             />
           </label>
         </div>
@@ -880,11 +1008,8 @@ function EventEditor({
           <input
             type="checkbox"
             name="next_day"
-            defaultChecked={
-              event
-                ? formatDate(event.starts_at) !== formatDate(event.ends_at)
-                : false
-            }
+            checked={nextDay}
+            onChange={(e) => setNextDay(e.target.checked)}
           />
           Training endet am Folgetag
         </label>
@@ -929,6 +1054,23 @@ function EventEditor({
             })}
           </div>
         )}
+        {data.trial_enabled &&
+          event &&
+          event.participants
+            .filter(
+              (p) => children.includes(p.player_id) && !p.removed_from_event,
+            )
+            .map((p) => (
+              <TrialParticipantActions
+                key={p.id}
+                participant={p}
+                name={
+                  data.players.find((c) => c.id === p.player_id)?.first_name
+                }
+                base={data.role === "admin" ? "/admin" : "/team"}
+                onMarked={(id) => markTrial(p.id, id)}
+              />
+            ))}
         <label className="search-input">
           <Search size={18} />
           <input
@@ -1036,6 +1178,50 @@ function EventEditor({
               );
             })}
         </div>
+        {isBackfill && (
+          <fieldset style={{ minWidth: 0, display: "grid", gap: 16 }}>
+            <legend>Teilnahme nachtragen</legend>
+            {addedChildren.map((id) => {
+              const player = data.players.find((p) => p.id === id);
+              return (
+                <label key={id}>
+                  {player?.first_name} {player?.last_name}
+                  <select
+                    required
+                    style={{ minWidth: 0, width: "100%" }}
+                    value={backfillStatuses[id] ?? ""}
+                    onChange={(e) =>
+                      setBackfillStatuses((current) => ({
+                        ...current,
+                        [id]: e.target.value as Attendance,
+                      }))
+                    }
+                  >
+                    <option value="" disabled>
+                      Teilnahmestatus auswählen
+                    </option>
+                    <option value="attended_manual">
+                      Teilgenommen · 1 Einheit und Trainingszeit
+                    </option>
+                    <option value="absent">
+                      Gefehlt · 1 Einheit, keine Trainingszeit
+                    </option>
+                    <option value="cancelled">
+                      Teilnahme abgesagt · 1 Einheit, keine Trainingszeit
+                    </option>
+                    <option value="excused">
+                      Entschuldigt · keine Einheit
+                    </option>
+                  </select>
+                </label>
+              );
+            })}
+            <label className="checkbox-label">
+              <input name="notify_backfill" type="checkbox" /> Betroffene Eltern
+              per E-Mail über den Nachtrag informieren
+            </label>
+          </fieldset>
+        )}
         <label>
           Interne Notiz
           <textarea
@@ -1045,10 +1231,14 @@ function EventEditor({
             maxLength={2000}
           />
         </label>
-        <label className="checkbox-label">
-          <input name="notify" type="checkbox" defaultChecked /> Eltern per
-          E-Mail benachrichtigen
-        </label>
+        {(!isBackfill || event) && (
+          <label className="checkbox-label">
+            <input name="notify" type="checkbox" defaultChecked />{" "}
+            {isBackfill
+              ? "Eltern bestehender Teilnehmer über weitere Terminänderungen informieren"
+              : "Eltern per E-Mail benachrichtigen"}
+          </label>
+        )}
         {error && (
           <p className="error-message" role="alert">
             {error}

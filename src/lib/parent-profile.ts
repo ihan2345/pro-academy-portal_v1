@@ -68,6 +68,7 @@ export interface ParentProfile {
   children: ProfileChild[];
   months: number;
   history_note: string;
+  has_subscription_history?: boolean;
   earned_months?: number;
   deducted_months?: number;
   calendar: Record<string, { attended: number; planned: number }>;

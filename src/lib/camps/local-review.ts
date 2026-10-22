@@ -1,3 +1,4 @@
+import { includeTrialCampFamilies } from "./trial-children";
 import "server-only";
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
@@ -133,7 +134,7 @@ export async function campReview(campId: string, internal = false) {
         draft:
           drafts.data.find((d) => d.payment_id === r.payment_id)?.data ?? null,
       })),
-    families: families.data,
+    families: await includeTrialCampFamilies(families.data),
   };
   if (internal || session.role === "admin") return resultData;
   return {

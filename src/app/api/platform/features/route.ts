@@ -28,7 +28,9 @@ async function handle(request: Request) {
       if (error)
         throw new HttpError(
           error.code === "42501" ? 403 : 409,
-          "Änderung nicht gespeichert. Bitte neu laden und Berechtigung prüfen.",
+          error.message?.includes("PAI_DISABLED")
+            ? "Zuerst pAi aktivieren. Das Maskottchen bleibt deaktiviert."
+            : "Änderung nicht gespeichert. Bitte neu laden und Berechtigung prüfen.",
         );
     }
     const { data, error } = await s.db

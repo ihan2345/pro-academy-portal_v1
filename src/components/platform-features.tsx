@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 type Feature = { key: string; enabled: boolean; updated_at: string };
 export function PlatformFeatures({
   linkOnly = false,
@@ -9,6 +10,7 @@ export function PlatformFeatures({
   linkOnly?: boolean;
   optional?: boolean;
 }) {
+  const router = useRouter();
   const [features, setFeatures] = useState<Feature[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,6 +32,8 @@ export function PlatformFeatures({
       live = false;
     };
   }, [linkOnly]);
+  const paiActive =
+    features?.some((f) => f.key === "pai" && f.enabled) === true;
   if (optional && !features) return null;
   if (linkOnly)
     return features ? (
@@ -51,10 +55,36 @@ export function PlatformFeatures({
       {error && <p role="alert">{error}</p>}
       {!features && !error && <p>Wird geladen …</p>}
       {features?.map((feature) => (
-        <div className="account-row" key={feature.key}>
+        <div
+          className="account-row"
+          key={feature.key}
+          data-feature={feature.key}
+        >
           <div>
-            <strong>{feature.key === "pai" ? "pAi" : feature.key}</strong>
+            <strong>
+              {feature.key === "pai"
+                ? "pAi"
+                : feature.key === "pai_mascot"
+                  ? "pAi-Maskottchen"
+                  : feature.key === "trial_training"
+                    ? "Probetraining"
+                    : feature.key}
+            </strong>
             <p>{feature.enabled ? "Aktiviert" : "Deaktiviert"}</p>
+            {feature.key === "trial_training" && (
+              <p className="muted">
+                Steuert Anfragen, Probetraining-Bereiche und zugehörige Mails.
+                Beim Deaktivieren bleiben Daten und bestehende Campzugänge
+                erhalten.
+              </p>
+            )}
+            {feature.key === "pai_mascot" && (
+              <p className="muted">
+                {paiActive
+                  ? "Nur die Figuren. Chatleiste und Sprechblasen bleiben sichtbar."
+                  : "Zuerst pAi aktivieren."}
+              </p>
+            )}
             <small>
               Zuletzt geändert:{" "}
               {new Date(feature.updated_at).toLocaleString("de-DE", {
@@ -66,7 +96,7 @@ export function PlatformFeatures({
           <button
             type="button"
             className={feature.enabled ? "secondary-button" : "primary-button"}
-            disabled={busy}
+            disabled={busy || (feature.key === "pai_mascot" && !paiActive)}
             aria-pressed={feature.enabled}
             onClick={async () => {
               setBusy(true);
@@ -84,6 +114,14 @@ export function PlatformFeatures({
                 const data = await r.json();
                 if (!r.ok) throw Error(data.error);
                 setFeatures(data.features);
+                router.refresh();
+                window.dispatchEvent(new Event("platform-features-changed"));
+                try {
+                  localStorage.setItem(
+                    "platform-features-changed",
+                    String(Date.now()),
+                  );
+                } catch {}
               } catch (e) {
                 setError((e as Error).message);
               } finally {

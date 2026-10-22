@@ -21,7 +21,8 @@ export interface SubscriptionReview {
   endsAt: string;
   quantity: number;
   suggestions: { playerId: string; name: string; previousItemId: string }[];
-  candidates: { id: string; name: string }[];
+  candidates: { id: string; name: string; trial?: boolean }[];
+  manualTrialCandidates?: { id: string; name: string }[];
 }
 export interface SubscriptionReviewPage {
   rows: SubscriptionReview[];
@@ -29,6 +30,8 @@ export interface SubscriptionReviewPage {
 }
 
 export function reviewExplanation(r: SubscriptionReview): string {
+  if (r.candidates.some((c) => c.trial))
+    return "Mögliche Übernahme aus Probetraining: Die Familie stimmt über ihre Zuordnung oder E-Mail überein. Bitte das Kind prüfen. Bei Bestätigung werden vorhandene Angaben mit derselben Spieler-ID übernommen; keine erneute Erfassung erforderlich.";
   if (r.suggestions.length > 1)
     return "Mehrere bisherige Kinderzuordnungen kommen infrage. Bitte prüfe, welche Zuordnung dieses Paket ersetzt.";
   if (r.suggestions.length === 1)

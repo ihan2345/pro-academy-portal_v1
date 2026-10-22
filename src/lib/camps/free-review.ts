@@ -1,3 +1,4 @@
+import { includeTrialCampFamilies } from "./trial-children";
 import "server-only";
 import { z } from "zod";
 import { serviceDb } from "@/lib/server/service-db";
@@ -46,7 +47,10 @@ export async function freeCampReview(rawId: string) {
       .is("archived_at", null)
       .order("full_name"),
   ]);
-  return { bookings: checked(bookings), families: checked(families) };
+  return {
+    bookings: checked(bookings),
+    families: await includeTrialCampFamilies(checked(families)),
+  };
 }
 async function proof(reference: {
   booking_id?: string;

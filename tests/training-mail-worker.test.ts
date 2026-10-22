@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
 vi.mock("../src/lib/server/service-db", () => ({ serviceDb: () => mocks }));
-import { processMail } from "../workers/jobs";
+import { compose, processMail } from "../workers/jobs";
 import {
   composeTrainingNotice,
   composeStaffTrainingConfirmation,
@@ -237,4 +237,43 @@ it("blocks SMTP if a parent opted out after a mail was claimed", async () => {
       input: expect.objectContaining({ status: "held" }),
     }),
   );
+});
+
+it("renders calendar backfill status and stamp impact without internal notes", async () => {
+  const chain = {
+    select: () => chain,
+    eq: () => chain,
+    is: async () => ({
+      data: [{ parents: { contact_email: job.recipient } }],
+      error: null,
+    }),
+  };
+  mocks.from.mockReturnValue(chain);
+  for (const [status, minutes, impact] of [
+    ["attended_manual", 60, "Eine Einheit angerechnet"],
+    ["absent", 0, "Eine Einheit angerechnet"],
+    ["excused", 0, "Keine Einheit angerechnet"],
+  ] as const) {
+    const mail = await compose({
+      ...job,
+      kind: "training_backfill",
+      payload: {
+        calendar_backfill: true,
+        player_id: "child",
+        parent_id: "parent",
+        player_name: "Kind",
+        backfill_id: "request",
+        occurred_on: "2026-10-10",
+        status,
+        duration_minutes: minutes,
+        period_starts_at: "2026-10-01T00:00Z",
+        period_ends_at: "2026-11-01T00:00Z",
+        internal_note: "PRIVATE_NOTE",
+      },
+    });
+    expect(mail.subject).toBe("Training nachgetragen: Kind");
+    expect(mail.text).toContain(impact);
+    expect(mail.text).not.toContain("PRIVATE_NOTE");
+    expect(mail.text).not.toContain("undefined");
+  }
 });
