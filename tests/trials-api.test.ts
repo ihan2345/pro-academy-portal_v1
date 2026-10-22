@@ -30,7 +30,7 @@ vi.mock("@opennextjs/cloudflare", () => ({
 }));
 import { POST, GET } from "../src/app/api/probetraining/[action]/route";
 import { NextRequest } from "next/server";
-import { trialToken, trialTokenFamily } from "../src/lib/trials/tokens";
+import { scopedTrialToken, readTrialGrant } from "../src/lib/trials/tokens";
 import { trialApplicationSchema } from "../src/lib/trials/domain";
 const family = "b0000000-0000-4000-8000-000000000010",
   secret = "a".repeat(64),
@@ -125,32 +125,51 @@ it("reports generic identity matches with verified Academy contacts", async () =
   expect(text).toContain("+49 151 433 423 92");
   expect(text).not.toContain("TRIAL_MATCH");
 });
-it("verifies signed family access only through POST and binds feedback to the cookie family", async () => {
-  const token = trialToken(family, secret);
-  expect(trialTokenFamily(token, secret)).toBe(family);
-  expect(trialTokenFamily(token.slice(0, -1) + "z", secret)).toBeNull();
+it("uses single-use parent-bound login grants, keeps rating grants out of full login and attributes session feedback server-side", async () => {
+  const grant = {
+    purpose: "login" as const,
+    family,
+    parent: family,
+    nonce: family,
+    expires: Date.now() + 3600000,
+  };
+  const token = scopedTrialToken(grant, secret);
+  expect(readTrialGrant(token, secret, "login")).toEqual(grant);
+  expect(readTrialGrant(token + "x", secret, "login")).toBeNull();
+  expect(readTrialGrant(token, secret, "rating")).toBeNull();
+  expect(
+    readTrialGrant(
+      scopedTrialToken({ ...grant, expires: Date.now() - 1 }, secret),
+      secret,
+      "login",
+    ),
+  ).toBeNull();
+  mocks.session.mockResolvedValue({ role: "parent", user: { id: family } });
   const chain = {
     select: () => chain,
     eq: () => chain,
     single: async () => ({
       data: {
         id: family,
+        parent_id: family,
+        email: "parent@test.invalid",
+        created_at: new Date().toISOString(),
         email_verified_at: new Date().toISOString(),
-        access_expires_at: "2099-01-01",
         stopped_at: null,
+        parent_rating: 5,
+        event_id: family,
       },
       error: null,
     }),
   };
   mocks.from.mockReturnValue(chain);
-  const opened = await post("access", { token });
-  expect(opened.status).toBe(200);
-  expect(mocks.cookieSet).toHaveBeenCalledWith(
-    "pa_trial",
-    token,
-    expect.objectContaining({ httpOnly: true, secure: true, sameSite: "lax" }),
-  );
-  mocks.cookieGet.mockReturnValue({ value: token });
+  expect((await post("access", { token })).status).toBe(200);
+  expect(mocks.rpc).toHaveBeenCalledWith("consume_trial_access", {
+    nonce: family,
+    family,
+    parent: family,
+  });
+  expect(mocks.cookieSet).not.toHaveBeenCalled();
   await post("feedback", {
     action: "feedback",
     family_id: "forged",
@@ -162,9 +181,50 @@ it("verifies signed family access only through POST and binds feedback to the co
     "trial_parent_action",
     expect.objectContaining({ family }),
   );
+  const ratingToken = scopedTrialToken(
+    {
+      purpose: "rating",
+      family,
+      parent: family,
+      request: family,
+      event: family,
+      rating: 4,
+      expires: Date.now() + 3600000,
+    },
+    secret,
+  );
+  mocks.session.mockClear();
+  mocks.generateLink.mockClear();
+  mocks.verifyOtp.mockClear();
+  const rated = await post("rating", {
+    token: ratingToken,
+    family_id: "forged",
+    request_id: "forged",
+    rating: 1,
+  });
+  expect(rated.status).toBe(200);
+  expect(mocks.rpc).toHaveBeenLastCalledWith("trial_parent_action", {
+    family,
+    input: expect.objectContaining({
+      request_id: family,
+      event_id: family,
+      rating: 4,
+    }),
+  });
+  expect(mocks.session).not.toHaveBeenCalled();
+  expect(mocks.generateLink).not.toHaveBeenCalled();
+  expect(mocks.verifyOtp).not.toHaveBeenCalled();
+  expect((await post("access", { token: ratingToken })).status).toBe(401);
+  expect((await post("rating", { token: token })).status).toBe(401);
   const read = await GET(
     new NextRequest(`${origin}/api/probetraining/access?token=${token}`),
     { params: Promise.resolve({ action: "access" }) },
   );
   expect(read.status).toBe(404);
+  mocks.rpc.mockImplementation(async (name: string) =>
+    name === "consume_trial_access"
+      ? { error: { message: "used" }, data: null }
+      : { error: null, data: family },
+  );
+  expect((await post("access", { token })).status).toBe(401);
 });

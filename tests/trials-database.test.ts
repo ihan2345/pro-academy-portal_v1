@@ -39,8 +39,15 @@ beforeAll(async () => {
     "014-completed-subscription-reviews.sql",
     "015-legacy-tariff-confirmation.sql",
     "018-trial-profiles-feedback.sql",
+    "019-trial-release-rules.sql",
   ])
-    await db.exec(readFileSync(`supabase/release/${f}`, "utf8"));
+    await db
+      .exec(readFileSync(`supabase/release/${f}`, "utf8"))
+      .catch((e: any) => {
+        throw new Error(
+          `${f}: ${e.message}, position ${e.position}, internal ${e.internalPosition} ${e.internalQuery ?? ""}`,
+        );
+      });
 });
 afterAll(async () => db.close());
 beforeEach(async () => {
@@ -142,19 +149,16 @@ it("creates one free family request with up to three children and blocks normali
   expect(await q("select * from notification_jobs")).toHaveLength(1);
   expect(await q("select * from subscriptions")).toHaveLength(0);
   expect(await q("select * from entitlement_periods")).toHaveLength(0);
+  // Matching email cannot create a second application for the same parent.
   await rejected(
     "select create_trial_request($1,'other-ip')",
     [{ ...input(11), email: "PARENT10@test.invalid" }],
     /TRIAL_MATCH/,
   );
+  // Two criteria must match the same record (name+year, child+year, parent+child).
   await rejected(
     "select create_trial_request($1,'other-ip')",
-    [{ ...input(11), parent_name: "  FAMILIE 10 " }],
-    /TRIAL_MATCH/,
-  );
-  await rejected(
-    "select create_trial_request($1,'other-ip')",
-    [{ ...input(11), phone: "004915110000010" }],
+    [{ ...input(11), parent_name: " FAMILIE 10 " }],
     /TRIAL_MATCH/,
   );
   await rejected(
@@ -162,9 +166,13 @@ it("creates one free family request with up to three children and blocks normali
     [{ ...input(11), children: input(10).children }],
     /TRIAL_MATCH/,
   );
+  // Same phone alone and same birth year alone do not identify a family.
+  await q("select create_trial_request($1,'other-ip')", [
+    { ...input(11), phone: input(10).phone },
+  ]);
   await rejected(
     "select create_trial_request($1,'other-ip')",
-    [input(11, 4)],
+    [input(12, 4)],
     /Pflichtangaben/,
   );
 });
@@ -489,7 +497,9 @@ it("marks an existing planned child for free, captures missing birth date, and k
 
 it("promotes a matching trial profile atomically on approved active subscription assignment without losing data", async () => {
   const [r] = await apply();
-  await verify();
+  const [family] = await q("select * from trial_families");
+  const future = await event();
+  await manage({ action: "assign", request_id: r.id, event_id: future.id });
   await manage({
     action: "profile",
     request_id: r.id,
@@ -512,7 +522,7 @@ it("promotes a matching trial profile atomically on approved active subscription
     ends_at: new Date(Date.now() + 20 * 86400000).toISOString(),
   };
   await q(
-    "insert into stripe_customer_registry(id,email,name) values('cus_convert','parent10@test.invalid','Familie 10')",
+    "insert into stripe_customer_registry(id,email,name) values('cus_convert','payer@test.invalid','Anderer Zahler')",
   );
   await q("select apply_stripe_package_sync($1)", [
     {
@@ -546,6 +556,7 @@ it("promotes a matching trial profile atomically on approved active subscription
       signature: review.signature,
       player_id: r.player_id,
       previous_item_id: null,
+      manual_trial_reason: "Familienzugehörigkeit telefonisch geprüft",
     },
   ]);
   const [p] = await q("select * from players");
@@ -562,4 +573,253 @@ it("promotes a matching trial profile atomically on approved active subscription
   expect(
     await q("select * from parent_players where player_id=$1", [p.id]),
   ).toHaveLength(1);
+  await q("select plan_trial_notifications()");
+  const [f] = await q("select * from trial_families");
+  await q(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())",
+    [id(72), f.email],
+  );
+  await verify();
+  await q("select trial_link_auth($1)", [f.id]);
+  expect(
+    (
+      await q("select notifications_held from parents where id=$1", [
+        f.parent_id,
+      ])
+    )[0].notifications_held,
+  ).toBe(false);
+  await q("select plan_trial_notifications()");
+  const [customerNotice] = await q(
+    "select * from notification_jobs where kind='trial_customer_planning'",
+  );
+  expect(customerNotice).toBeTruthy();
+  expect(
+    await q(
+      "select * from event_participants where trial_request_id=$1 and period_id is null",
+      [r.id],
+    ),
+  ).toHaveLength(1);
+  await q("select set_config('request.jwt.claim.sub',$1,true)", [id(72)]);
+  expect((await q("select trial_account_state() state"))[0].state).toBe(
+    "subscriber",
+  );
+});
+
+it("locks stars and permits exactly one later written comment on the same parent/child/event feedback", async () => {
+  const r = await attended();
+  await manage({
+    action: "review",
+    request_id: r.id,
+    event_id: r.event_id,
+    rating: 4,
+    feedback: "Gute Teilnahme",
+    ready: true,
+  });
+  const rated = {
+    action: "feedback",
+    request_id: r.id,
+    event_id: r.event_id,
+    rating: 5,
+  };
+  await q("select trial_parent_action($1,$2)", [id(10), rated]);
+  await q("select trial_parent_action($1,$2)", [
+    id(10),
+    { ...rated, rating: 1, feedback: "Nicht überschreiben" },
+  ]);
+  await q("select trial_parent_action($1,$2)", [
+    id(10),
+    {
+      action: "comment",
+      request_id: r.id,
+      event_id: r.event_id,
+      feedback: "Hat Spaß gemacht",
+    },
+  ]);
+  await q("select trial_parent_action($1,$2)", [
+    id(10),
+    {
+      action: "comment",
+      request_id: r.id,
+      event_id: r.event_id,
+      feedback: "Zweite Nachricht",
+    },
+  ]);
+  const [saved] = await q(
+    "select * from trial_feedback where author_type='parent'",
+  );
+  expect(saved.rating).toBe(5);
+  expect(saved.feedback).toBe("Hat Spaß gemacht");
+  expect(saved.comment_submitted_at).toBeTruthy();
+  expect(saved.parent_id).toBe(
+    (await q("select parent_id from trial_families"))[0].parent_id,
+  );
+});
+
+it("bundles three children's offers per family, enforces consent and 48h delivery distance, and leaves no catch-up day7 after day14", async () => {
+  const rows = await apply(10, 3);
+  await verify();
+  const e = await event();
+  for (const r of rows)
+    await manage({ action: "assign", request_id: r.id, event_id: e.id });
+  await q(
+    "update training_events set starts_at=now()-interval '10 days',ends_at=now()-interval '10 days'+interval '1 hour' where id=$1",
+    [e.id],
+  );
+  for (const r of rows) {
+    await manage({
+      action: "attendance",
+      request_id: r.id,
+      status: "attended_manual",
+    });
+    await manage({
+      action: "review",
+      request_id: r.id,
+      event_id: e.id,
+      rating: 4,
+      feedback: "Gutes Training",
+      ready: true,
+    });
+  }
+  await q("update trial_requests set feedback_at=now()-interval '8 days'");
+  await q("select plan_trial_notifications()");
+  await q(
+    "update notification_jobs set status='sent' where kind='trial_feedback'",
+  );
+  await q("select plan_trial_notifications()");
+  expect(
+    await q("select * from notification_jobs where kind='trial_day7'"),
+  ).toHaveLength(0);
+  await db.exec(
+    "alter table notification_jobs disable trigger touch_updated;update notification_jobs set updated_at=now()-interval '49 hours' where kind='trial_feedback';alter table notification_jobs enable trigger touch_updated;",
+  );
+  await q("update trial_families set marketing_consent=false");
+  await q("select plan_trial_notifications()");
+  expect(
+    await q("select * from notification_jobs where kind='trial_day7'"),
+  ).toHaveLength(0);
+  await q("update trial_families set marketing_consent=true");
+  await q("select plan_trial_notifications()");
+  await q("select plan_trial_notifications()");
+  const [offer] = await q(
+    "select * from notification_jobs where kind='trial_day7'",
+  );
+  expect(offer.payload.family_sequence).toBe(true);
+  expect(
+    await q("select * from notification_jobs where kind='trial_day7'"),
+  ).toHaveLength(1);
+  await q("update trial_requests set feedback_at=now()-interval '15 days'");
+  expect(
+    (
+      await q("select trial_delivery_allowed($1,$2,$3) allowed", [
+        offer.recipient,
+        offer.kind,
+        offer.payload,
+      ])
+    )[0].allowed,
+  ).toBe(false);
+  await q("select plan_trial_notifications()");
+  expect(
+    await q("select * from notification_jobs where kind='trial_day14'"),
+  ).toHaveLength(1);
+});
+
+it("uses one-time parent-bound account links and audited staff-only sibling exceptions with a three-child maximum", async () => {
+  const [r] = await apply();
+  const [f] = await q("select * from trial_families");
+  const [access] = await q("select issue_trial_access($1) nonce", [f.id]);
+  await rejected(
+    "select consume_trial_access($1,$2,$3)",
+    [access.nonce, f.id, id(999)],
+    /Link/,
+  );
+  await q("select consume_trial_access($1,$2,$3)", [
+    access.nonce,
+    f.id,
+    f.parent_id,
+  ]);
+  await rejected(
+    "select consume_trial_access($1,$2,$3)",
+    [access.nonce, f.id, f.parent_id],
+    /Link/,
+  );
+  const sibling = {
+    action: "add_child",
+    family_id: f.id,
+    first_name: "Zwilling",
+    last_name: r.last_name,
+    birth_date: r.birth_date,
+    reason: "Identität persönlich geprüft",
+  };
+  await manage(sibling);
+  await manage({ ...sibling, first_name: "Geschwister" });
+  await rejected(
+    "select manage_trial($1)",
+    [{ ...sibling, first_name: "Viertes" }],
+    /drei/,
+  );
+  expect(await q("select * from parents")).toHaveLength(1);
+  expect(await q("select * from trial_players")).toHaveLength(3);
+});
+
+it("erases unsuccessful trial identities, feedback and audit copies after 180 days while retaining a shared regular family", async () => {
+  const r = await attended();
+  await manage({
+    action: "review",
+    request_id: r.id,
+    event_id: r.event_id,
+    rating: 4,
+    feedback: "Zu löschende Rückmeldung",
+    ready: true,
+  });
+  const [f] = await q("select * from trial_families");
+  // This same parent also has an unrelated normal child: never erase the shared account.
+  await q(
+    "insert into players(id,first_name,last_name,birth_year) values($1,'Reguläres','Kind',2015)",
+    [id(70)],
+  );
+  await q("insert into parent_players(parent_id,player_id) values($1,$2)", [
+    f.parent_id,
+    id(70),
+  ]);
+  await q("update trial_families set created_at=now()-interval '181 days'");
+  expect((await q("select cleanup_trial_data() n"))[0].n).toBe(1);
+  expect(await q("select * from trial_players")).toHaveLength(0);
+  expect(await q("select * from trial_feedback")).toHaveLength(0);
+  expect(await q("select * from trial_requests")).toHaveLength(0);
+  expect((await q("select contact_email from parents"))[0].contact_email).toBe(
+    f.email,
+  );
+  expect(await q("select * from players")).toHaveLength(1);
+  expect(
+    await q(
+      "select * from audit_log where table_name in ('trial_requests','trial_players','trial_feedback')",
+    ),
+  ).toHaveLength(0);
+});
+
+it("retires a trial-only authenticated parent after retention without retaining login identities", async () => {
+  await apply();
+  await verify();
+  const [f] = await q("select * from trial_families");
+  await db.exec(
+    "alter table auth.users add column raw_user_meta_data jsonb;alter table auth.users add column banned_until timestamptz;create table auth.sessions(user_id uuid);create table auth.refresh_tokens(user_id text);create table auth.identities(user_id uuid);create table auth.audit_log_entries(payload jsonb);alter table auth.users add column raw_app_meta_data jsonb;alter table auth.users add column encrypted_password text;alter table auth.users add column phone text;alter table auth.users add column phone_change text;alter table auth.users add column phone_change_token text;alter table auth.users add column email_change text;alter table auth.users add column email_change_token_new text;alter table auth.users add column email_change_token_current text;alter table auth.users add column confirmation_token text;alter table auth.users add column recovery_token text;alter table auth.users add column reauthentication_token text;alter table auth.users add column deleted_at timestamptz;",
+  );
+  await q(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())",
+    [id(71), f.email],
+  );
+  await q("select trial_link_auth($1)", [f.id]);
+  await q("insert into auth.sessions values($1)", [id(71)]);
+  await q("insert into auth.refresh_tokens values($1)", [id(71)]);
+  await q("insert into auth.identities values($1)", [id(71)]);
+  await q("update trial_families set created_at=now()-interval '181 days'");
+  expect((await q("select cleanup_trial_data() n"))[0].n).toBe(1);
+  expect(
+    (await q("select email from auth.users where id=$1", [id(71)]))[0].email,
+  ).toContain("@deleted.invalid");
+  expect(await q("select * from auth.sessions")).toHaveLength(0);
+  expect(await q("select * from auth.identities")).toHaveLength(0);
+  expect(
+    (await q("select contact_email from parents"))[0].contact_email,
+  ).toContain("@deleted.invalid");
 });

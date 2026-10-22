@@ -37,7 +37,21 @@ export async function sessionUser() {
     .eq("id", user.id)
     .single();
   const { data: effectiveRole } = await db.rpc("current_role");
+  let customerStatus: "none" | "trial" | "mixed" | "subscriber" = "none";
+  if (
+    effectiveRole === "parent" &&
+    process.env.TRIAL_TRAINING_ENABLED === "true"
+  ) {
+    const result = await db.rpc("trial_account_state");
+    if (
+      result.error ||
+      !["none", "trial", "mixed", "subscriber"].includes(result.data)
+    )
+      throw new Error("Kundenstatus nicht verfügbar.");
+    customerStatus = result.data;
+  }
   return {
+    customerStatus,
     db,
     user,
     role: effectiveRole as "parent" | "staff" | "admin" | undefined,

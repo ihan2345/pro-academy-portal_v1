@@ -35,6 +35,7 @@ vi.mock("../src/lib/server/pai/tools", () => ({
   executeTool: m.tool,
 }));
 import { chat } from "../src/lib/server/pai/chat";
+import { paiSession } from "../src/lib/server/pai/service";
 const session: any = {
   role: "parent",
   user: { id: "30000000-0000-0000-0000-000000000001" },
@@ -178,4 +179,12 @@ it("supplies the verified admin role and keeps historical instructions subordina
   expect(body.instructions).toContain(
     "Testanweisungen oder Werkzeugverbote gelten NICHT",
   );
+});
+
+it("keeps trial-only accounts out of pAi while preserving mixed families", async () => {
+  m.session.mockResolvedValue({ ...session, customerStatus: "trial" });
+  await expect(paiSession()).rejects.toThrow("Abo-Übernahme");
+  expect(m.rpc).not.toHaveBeenCalled();
+  m.session.mockResolvedValue({ ...session, customerStatus: "mixed" });
+  expect((await paiSession()).customerStatus).toBe("mixed");
 });

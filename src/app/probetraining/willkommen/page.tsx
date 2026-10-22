@@ -3,6 +3,7 @@ import {
   TrialAccess,
   TrialEmailRating,
   TrialContact,
+  TrialResendAccess,
   TrialWelcome,
 } from "@/components/trials/public";
 import {
@@ -22,22 +23,12 @@ export default async function Page({
 }: {
   searchParams: Promise<{
     token?: string;
-    request?: string;
-    event?: string;
-    rating?: string;
+    ratingToken?: string;
   }>;
 }) {
   if (!trialFeatureEnabled()) notFound();
-  const { token, request, event, rating } = await searchParams;
-  if (token && request && event && /^[1-5]$/.test(rating ?? ""))
-    return (
-      <TrialEmailRating
-        token={token}
-        request={request}
-        event={event}
-        rating={Number(rating)}
-      />
-    );
+  const { token, ratingToken } = await searchParams;
+  if (ratingToken) return <TrialEmailRating token={ratingToken} />;
   if (token) return <TrialAccess token={token} />;
   try {
     const data = await trialWelcomeData();
@@ -48,6 +39,7 @@ export default async function Page({
       <main className="trial-page">
         <h1>Dein Willkommensportal</h1>
         <p>{e.message}</p>
+        <TrialResendAccess />
         <TrialContact />
       </main>
     );

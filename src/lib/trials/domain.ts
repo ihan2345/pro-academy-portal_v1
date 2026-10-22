@@ -59,6 +59,16 @@ export const trialProfileFields = {
 };
 export const trialTeamSchema = z.discriminatedUnion("action", [
   z.object({
+    action: z.literal("add_child"),
+    family_id: z.uuid(),
+    first_name: name,
+    last_name: name,
+    birth_date: trialProfileFields.birth_date,
+    club: z.string().trim().max(120).default(""),
+    reason: z.string().trim().min(5).max(500),
+  }),
+  z.object({ action: z.literal("resend"), request_id: z.uuid() }),
+  z.object({
     action: z.literal("profile"),
     request_id: z.uuid(),
     ...trialProfileFields,
@@ -109,6 +119,12 @@ export const trialTeamSchema = z.discriminatedUnion("action", [
 export interface TrialRow {
   id: string;
   family_id: string;
+  converted_at?: string | null;
+  comment_submitted_at?: string | null;
+  attendance_due_at?: string | null;
+  feedback_due_at?: string | null;
+  feedback_mail_status?: string | null;
+  feedback_mail_error?: string | null;
   assigned_to?: string | null;
   assigned_name?: string | null;
   feedback_at?: string | null;
@@ -166,4 +182,7 @@ export const TRIAL_MAIL_KINDS = [
   "trial_feedback",
   "trial_day7",
   "trial_day14",
+  "trial_customer_planning",
+  "trial_customer_reminder",
+  "trial_customer_cancelled",
 ];

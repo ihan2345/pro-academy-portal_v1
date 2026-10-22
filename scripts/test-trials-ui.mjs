@@ -178,7 +178,20 @@ try {
                 }
               : r,
           );
-        return route.fulfill({ json: { ok: true, id: "trial-id" } });
+        return route.fulfill({
+          json:
+            body.action === "feedback" || body.action === "comment"
+              ? {
+                  id: "request",
+                  event_id: "event",
+                  first_name: "Emir",
+                  parent_rating: 5,
+                  parent_feedback: body.feedback,
+                  comment_submitted_at:
+                    body.action === "comment" ? new Date().toISOString() : null,
+                }
+              : { ok: true, id: "trial-id" },
+        });
       }
       if (url.pathname === "/api/activities/summary")
         return route.fulfill({
@@ -264,13 +277,15 @@ try {
     await page.goto(base + "?screen=welcome");
     await page.getByText("Du hast aufmerksam mitgemacht. Weiter so!").waitFor();
     assert.equal(await page.getByText("Nur intern").count(), 0);
-    await page
-      .getByLabel("Was möchtet ihr uns mitgeben? (optional)")
-      .fill("Hat Spaß gemacht!");
     await page.getByRole("button", { name: "5 von 5 für Emir" }).click();
+    await page.getByLabel("Gespeicherte Bewertung: 5 von 5").waitFor();
     await page
-      .getByText("Danke! Eure Bewertung 5/5 wurde gespeichert.")
-      .waitFor();
+      .getByLabel("Persönliche Nachricht (freiwillig, einmalig)")
+      .fill("Hat Spaß gemacht!");
+    await page
+      .getByRole("button", { name: "Nachricht einmalig speichern" })
+      .click();
+    await page.getByText("Danke für eure persönliche Rückmeldung.").waitFor();
     assert.equal(posts.at(-1).body.event_id, "event");
     await page.screenshot({
       path: `${output}/welcome-${width}.png`,

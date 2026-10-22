@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { redirect } from "next/navigation";
 import { sessionUser } from "./supabase";
 import { serviceDb } from "./service-db";
 import { HttpError } from "./security";
@@ -45,6 +46,7 @@ function checked<T>(r: { data: T; error: any }): NonNullable<T> {
 export async function profileSession() {
   const s = await sessionUser();
   if (!s?.role) throw new HttpError(401, "Bitte melde dich an.");
+  if (s.customerStatus === "trial") redirect("/probetraining/willkommen");
   return s;
 }
 export function profileShell(s: ProfileSession): PortalData {

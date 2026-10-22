@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { z } from "zod";
+import { readTrialGrant } from "@/lib/trials/tokens";
+import { required } from "@/lib/server/config";
 import { HttpError, requireOrigin } from "@/lib/server/security";
 import { serviceDb } from "@/lib/server/service-db";
 import {
@@ -14,6 +15,8 @@ import {
   trialTeamData,
   trialSummary,
   trialWelcomeData,
+  trialRatingGrant,
+  trialSavedFeedback,
 } from "@/lib/trials/server";
 export const dynamic = "force-dynamic";
 const json = (body: unknown, status = 200) =>
@@ -35,6 +38,11 @@ async function handle(
       if (action === "team") return json(await trialTeamData());
       if (action === "summary") return json(await trialSummary());
       if (action === "welcome") return json(await trialWelcomeData());
+      if (action === "rating") {
+        const token = request.nextUrl.searchParams.get("token") ?? "";
+        const g = await trialRatingGrant(token);
+        return json(await trialSavedFeedback(g.family, g.request!, g.event!));
+      }
       throw new HttpError(404, "Nicht gefunden.");
     }
     requireOrigin(request);
@@ -45,41 +53,69 @@ async function handle(
     const body = JSON.parse(raw);
     if (action === "apply")
       return json(await applyTrial(body, await limitTrial(request)));
-    if (action === "team") return json(await manageTrial(body));
-    if (action === "access") {
-      const { token } = z.object({ token: z.string().max(110) }).parse(body);
-      const family = await trialFamily(token, false);
+    if (action === "resend") {
+      const { email } = z
+        .object({ email: z.email().trim().toLowerCase() })
+        .parse(body);
+      await limitTrial(request);
       trialResult(
-        await serviceDb().rpc("trial_parent_action", {
-          family: family.id,
-          input: { action: "verify" },
-        }),
+        await serviceDb().rpc("queue_trial_access", { email_address: email }),
       );
-      await ensureTrialAuth(family);
-      (await cookies()).set("pa_trial", token, {
-        httpOnly: true,
-        secure: new URL(request.url).protocol === "https:",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 86400 * 30,
-      });
       return json({ ok: true });
     }
-    if (action === "feedback") {
+    if (action === "team") return json(await manageTrial(body));
+    if (action === "access") {
+      const { token } = z.object({ token: z.string().max(1500) }).parse(body);
+      const family = await trialFamily(token, false);
+      const grant = readTrialGrant(
+        token,
+        required("SUPABASE_SERVICE_ROLE_KEY"),
+        "login",
+      )!;
+      const consumed = await serviceDb().rpc("consume_trial_access", {
+        nonce: grant.nonce,
+        family: grant.family,
+        parent: grant.parent,
+      });
+      if (consumed.error)
+        throw new HttpError(
+          401,
+          "Der Link ist abgelaufen oder wurde bereits verwendet. Bitte fordere einen neuen Link an.",
+        );
+      await ensureTrialAuth(family);
+      return json({ ok: true });
+    }
+    if (["feedback", "rating", "comment"].includes(action)) {
+      const token = z.string().max(1500).optional().parse(body.token);
+      const grant = token ? await trialRatingGrant(token) : null;
       const input = z
         .object({
-          action: z.literal("feedback"),
+          action: z.enum(["feedback", "comment"]),
           request_id: z.uuid(),
           event_id: z.uuid(),
-          rating: z.number().int().min(1).max(5),
+          rating: z.number().int().min(1).max(5).optional(),
           feedback: z.string().trim().max(2000).default(""),
         })
-        .parse(body);
-      const f = await trialFamily();
+        .parse(
+          grant
+            ? {
+                action: action === "comment" ? "comment" : "feedback",
+                request_id: grant.request,
+                event_id: grant.event,
+                rating: grant.rating,
+                feedback: body.feedback,
+              }
+            : body,
+        );
+      if (input.action === "feedback" && !input.rating)
+        throw new HttpError(400, "Bitte Bewertung wählen.");
+      const family = grant?.family ?? (await trialFamily()).id;
       trialResult(
-        await serviceDb().rpc("trial_parent_action", { family: f.id, input }),
+        await serviceDb().rpc("trial_parent_action", { family, input }),
       );
-      return json({ ok: true });
+      return json(
+        await trialSavedFeedback(family, input.request_id, input.event_id),
+      );
     }
     if (action === "unsubscribe") {
       const f = await trialFamily();

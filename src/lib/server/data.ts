@@ -14,6 +14,7 @@ import { canOpenPortalSection, portalHome } from "../portal-access";
 export async function loadPortal(section: string): Promise<PortalData> {
   const session = await sessionUser();
   if (!session?.role) redirect("/login");
+  if (session.customerStatus === "trial") redirect("/probetraining/willkommen");
   if (!canOpenPortalSection(session.role, section))
     redirect(portalHome(session.role));
   const campsEnabled =

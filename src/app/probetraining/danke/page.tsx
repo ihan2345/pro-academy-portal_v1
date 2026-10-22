@@ -1,18 +1,52 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { trialFeatureEnabled } from "@/lib/trials/server";
-import { TrialContact } from "@/components/trials/public";
+import {
+  trialFeatureEnabled,
+  trialRatingGrant,
+  trialSavedFeedback,
+} from "@/lib/trials/server";
+import { TrialContact, TrialParentRating } from "@/components/trials/public";
 import "@/components/trials/trials.css";
 export const dynamic = "force-dynamic";
-export default function Page() {
+export const metadata = {
+  robots: { index: false, follow: false },
+  referrer: "no-referrer",
+};
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ ratingToken?: string }>;
+}) {
   if (!trialFeatureEnabled()) notFound();
+  const { ratingToken } = await searchParams;
+  let saved = null;
+  if (ratingToken) {
+    try {
+      const grant = await trialRatingGrant(ratingToken);
+      saved = await trialSavedFeedback(
+        grant.family,
+        grant.request!,
+        grant.event!,
+      );
+    } catch {
+      /* Never claim an invalid link was saved. */
+    }
+  }
   return (
     <main className="trial-page">
       <span className="trial-tag">PROACADEMY · GEMEINSAM WACHSEN</span>
       <h1>Danke für euer Feedback.</h1>
       <p className="trial-intro">
-        Eure Rückmeldung ist gespeichert. Ihr müsst nichts weiter tun.
+        {saved
+          ? "Eure Sterne sind gespeichert. Eine persönliche Nachricht ist freiwillig."
+          : "Euer Blick hilft uns, die Academy weiterzuentwickeln."}
       </p>
+      {saved && (
+        <section className="trial-card">
+          <h2>Rückmeldung für {saved.first_name}</h2>
+          <TrialParentRating row={saved} token={ratingToken} />
+        </section>
+      )}
       <section className="trial-card">
         <h2>Jedes Kind zählt.</h2>
         <p>

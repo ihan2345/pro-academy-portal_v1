@@ -22,6 +22,7 @@ export interface SubscriptionReview {
   quantity: number;
   suggestions: { playerId: string; name: string; previousItemId: string }[];
   candidates: { id: string; name: string; trial?: boolean }[];
+  manualTrialCandidates?: { id: string; name: string }[];
 }
 export interface SubscriptionReviewPage {
   rows: SubscriptionReview[];

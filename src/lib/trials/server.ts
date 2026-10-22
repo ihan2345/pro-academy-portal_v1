@@ -1,13 +1,12 @@
 import "server-only";
-import { cookies } from "next/headers";
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { serviceDb } from "@/lib/server/service-db";
 import { sessionUser, sessionDb } from "@/lib/server/supabase";
 import { assertRole, HttpError } from "@/lib/server/security";
 import { readAll } from "@/lib/server/read-all";
 import { required } from "@/lib/server/config";
-import { trialTokenFamily } from "./tokens";
+import { readTrialGrant } from "./tokens";
 import {
   type TrialCamp,
   type TrialRow,
@@ -53,7 +52,9 @@ export async function limitTrial(request: Request) {
   const ip = request.headers.get("cf-connecting-ip");
   if (!limiter || !ip)
     throw new HttpError(503, "Bitte versuche es später erneut.");
-  const digest = createHash("sha256").update(`trial:${ip}`).digest("hex");
+  const digest = createHmac("sha256", required("SUPABASE_SERVICE_ROLE_KEY"))
+    .update(`trial:${new Date().toISOString().slice(0, 10)}:${ip}`)
+    .digest("hex");
   if (!(await limiter.limit({ key: digest })).success)
     throw new HttpError(429, "Bitte warte eine Minute und versuche es erneut.");
   return digest;
@@ -66,24 +67,28 @@ export async function applyTrial(body: unknown, rateKey: string) {
   return { ok: true };
 }
 export async function trialFamily(token?: string, verified = true) {
-  const value = token ?? (await cookies()).get("pa_trial")?.value ?? "";
-  const id = trialTokenFamily(value, required("SUPABASE_SERVICE_ROLE_KEY"));
-  if (!id)
+  const grant = token
+    ? readTrialGrant(token, required("SUPABASE_SERVICE_ROLE_KEY"), "login")
+    : null;
+  const session = token ? null : await sessionUser();
+  if (token ? !grant : !session?.user || session.role !== "parent")
     throw new HttpError(
       401,
-      "Bitte öffne deinen persönlichen Link aus der E-Mail.",
+      "Bitte melde dich an oder fordere einen neuen Zugangslink an.",
     );
-  const { data, error } = await serviceDb()
+  let query = serviceDb()
     .from("trial_families")
     .select(
-      "id,parent_id,parent_name,email,email_verified_at,marketing_consent,access_expires_at,stopped_at",
-    )
-    .eq("id", id)
-    .single();
+      "id,parent_id,parent_name,email,email_verified_at,marketing_consent,access_expires_at,stopped_at,created_at",
+    );
+  query = grant
+    ? query.eq("id", grant.family).eq("parent_id", grant.parent)
+    : query.eq("auth_user_id", session!.user.id);
+  const { data, error } = await query.single();
   if (
     error ||
     !data ||
-    new Date(data.access_expires_at).getTime() <= Date.now() ||
+    Date.parse(data.created_at) + 180 * 86400000 <= Date.now() ||
     data.stopped_at ||
     (verified && !data.email_verified_at)
   )
@@ -93,28 +98,73 @@ export async function trialFamily(token?: string, verified = true) {
     );
   return data;
 }
+export async function trialRatingGrant(token: string) {
+  const grant = readTrialGrant(
+    token,
+    required("SUPABASE_SERVICE_ROLE_KEY"),
+    "rating",
+  );
+  if (!grant)
+    throw new HttpError(401, "Bewertungslink ist ungültig oder abgelaufen.");
+  const { data, error } = await serviceDb()
+    .from("trial_families")
+    .select("id,parent_id,email_verified_at,stopped_at,created_at")
+    .eq("id", grant.family)
+    .eq("parent_id", grant.parent)
+    .single();
+  if (
+    error ||
+    !data ||
+    !data.email_verified_at ||
+    data.stopped_at ||
+    Date.parse(data.created_at) + 180 * 86400000 <= Date.now()
+  )
+    throw new HttpError(401, "Bewertungszugang ist nicht verfügbar.");
+  return grant;
+}
+export async function trialSavedFeedback(
+  family: string,
+  request: string,
+  event: string,
+) {
+  const { data, error } = await serviceDb()
+    .from("trial_team_overview")
+    .select(
+      "id,event_id,first_name,parent_rating,parent_feedback,comment_submitted_at",
+    )
+    .eq("family_id", family)
+    .eq("id", request)
+    .eq("event_id", event)
+    .single();
+  if (error || !data?.parent_rating)
+    throw new HttpError(404, "Bewertung noch nicht gespeichert.");
+  return data;
+}
 export async function trialSummary() {
   const s = await sessionUser();
   assertRole(s?.role, "team");
   const db = serviceDb();
   const [fresh, review, attendance] = await Promise.all([
     db
-      .from("trial_requests")
+      .from("trial_team_overview")
       .select("id", { count: "exact", head: true })
-      .in("status", ["new", "contacted"]),
+      .in("status", ["new", "contacted"])
+      .is("converted_at", null),
     db
       .from("trial_team_overview")
       .select("id", { count: "exact", head: true })
       .not("confirmed_at", "is", null)
       .eq("academy_ready", false)
-      .neq("status", "closed"),
+      .neq("status", "closed")
+      .is("converted_at", null),
     db
       .from("trial_team_overview")
       .select("id", { count: "exact", head: true })
       .eq("attendance", "planned")
       .eq("event_status", "scheduled")
       .lt("ends_at", new Date().toISOString())
-      .neq("status", "closed"),
+      .neq("status", "closed")
+      .is("converted_at", null),
   ]);
   if (fresh.error || review.error || attendance.error)
     throw new HttpError(
@@ -163,6 +213,20 @@ export async function manageTrial(body: unknown) {
   const s = await sessionUser();
   assertRole(s?.role, "team");
   const input = trialTeamSchema.parse(body);
+  if (input.action === "resend") {
+    const { data, error } = await serviceDb()
+      .from("trial_team_overview")
+      .select("email")
+      .eq("id", input.request_id)
+      .single();
+    if (error || !data) throw new HttpError(404, "Anfrage nicht gefunden.");
+    trialResult(
+      await serviceDb().rpc("queue_trial_access", {
+        email_address: data.email,
+      }),
+    );
+    return { ok: true };
+  }
   const result = await s!.db.rpc("manage_trial", { input });
   if (result.error) throw new HttpError(400, result.error.message);
   // The request is already persisted; the scheduled runner also retries mail planning.
@@ -179,7 +243,7 @@ export async function trialWelcomeData() {
   const result = await serviceDb()
     .from("trial_team_overview")
     .select(
-      "id,player_id,first_name,last_name,status,event_id,confirmed_at,event_title,starts_at,ends_at,event_status,attendance,location_name,address,coach_name,academy_rating,academy_feedback,academy_ready,parent_rating,parent_feedback,subscribed",
+      "id,player_id,first_name,last_name,status,event_id,confirmed_at,event_title,starts_at,ends_at,event_status,attendance,location_name,address,coach_name,academy_rating,academy_feedback,academy_ready,parent_rating,parent_feedback,comment_submitted_at,subscribed,converted_at",
     )
     .eq("family_id", family.id)
     .order("created_at");

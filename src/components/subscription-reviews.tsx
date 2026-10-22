@@ -162,9 +162,11 @@ function ReviewCard({
           ? r.candidates[0].id
           : "",
     ),
+    [manualReason, setManualReason] = useState(""),
     [legacyConfirmed, setLegacyConfirmed] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const manualTrial = !!r.manualTrialCandidates?.some((c) => c.id === player);
   const sameChild =
     r.suggestions.find((s) => s.previousItemId === previous)?.playerId ===
     player;
@@ -186,6 +188,7 @@ function ReviewCard({
               player_id: player,
               previous_item_id: previous || null,
               confirm_legacy_tariff: legacyConfirmed,
+              ...(manualTrial ? { manual_trial_reason: manualReason } : {}),
             }),
           });
           const data = await response.json();
@@ -326,7 +329,9 @@ function ReviewCard({
         <select
           required
           value={player}
-          disabled={busy || !r.candidates.length}
+          disabled={
+            busy || (!r.candidates.length && !r.manualTrialCandidates?.length)
+          }
           onChange={(e) => setPlayer(e.target.value)}
         >
           <option value="">
@@ -343,8 +348,30 @@ function ReviewCard({
                 : ""}
             </option>
           ))}
+          {!!r.manualTrialCandidates?.length && (
+            <optgroup label="Andere Probefamilie · nur nach persönlicher Prüfung">
+              {r.manualTrialCandidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </label>
+      {manualTrial && (
+        <label>
+          Abweichenden Zahlungskontakt geprüft · Begründung
+          <textarea
+            required
+            minLength={10}
+            maxLength={500}
+            value={manualReason}
+            onChange={(e) => setManualReason(e.target.value)}
+            placeholder="Zum Beispiel: Vater bezahlt, Familienzugehörigkeit telefonisch bestätigt."
+          />
+        </label>
+      )}
       <p>
         {sameChild
           ? "Das Kontingent wird sofort angepasst. Einheiten des laufenden Zeitraums bleiben auf der Stempelkarte; überschüssige Einheiten werden markiert."

@@ -190,15 +190,22 @@ export function TrialTeam() {
       </section>
     );
   const needsReview = (r: TrialRow) =>
-    !!r.confirmed_at && !r.academy_ready && r.status !== "closed";
-  const fresh = data.rows.filter((r) =>
+    !r.converted_at &&
+    !!r.confirmed_at &&
+    !r.academy_ready &&
+    r.status !== "closed";
+  const activeRows = data.rows.filter((r) => !r.converted_at);
+  const fresh = activeRows.filter((r) =>
     ["new", "contacted"].includes(r.status),
   );
-  const review = data.rows.filter(needsReview);
-  const planned = data.rows.filter((r) => r.status === "planned");
+  const review = activeRows.filter(needsReview);
+  const planned = activeRows.filter((r) => r.status === "planned");
   const visible = selected
     ? data.rows.filter((r) => r.id === selected)
-    : data.rows.filter((r) =>
+    : (tab === "archive"
+        ? data.rows.filter((r) => !!r.converted_at)
+        : activeRows
+      ).filter((r) =>
         tab === "planned"
           ? r.status === "planned"
           : tab === "review"
@@ -227,6 +234,7 @@ export function TrialTeam() {
           ["planned", `Geplante Teilnehmer (${planned.length})`],
           ["review", `Teilnehmer bewerten (${review.length})`],
           ["all", "Alle Anfragen"],
+          ["archive", "Übernommen · Verlauf"],
         ].map(([value, label]) => (
           <button
             className={
@@ -312,6 +320,15 @@ function TrialTeamCard({
                   ? "Abgeschlossen"
                   : "Kontakt / Anfrage"}
       </span>
+      {r.converted_at && (
+        <p>
+          <Link
+            href={`${typeof window !== "undefined" && window.location.pathname.startsWith("/admin") ? "/admin" : "/team"}/spieler/${r.player_id}`}
+          >
+            Reguläres Spielerprofil öffnen →
+          </Link>
+        </p>
+      )}
       <p className="trial-owner">
         Betreuung: <strong>{r.assigned_name || "Noch nicht übernommen"}</strong>
       </p>
@@ -388,6 +405,35 @@ function TrialTeamCard({
               ))}
             </div>
           )}
+        <p>
+          Durchführender Coach:{" "}
+          <strong>{r.coach_name || "Nach Terminzuordnung"}</strong>
+        </p>
+        {r.feedback_mail_status && (
+          <p>
+            Feedbackmail:{" "}
+            {{
+              pending: "Zum Versand vorgemerkt",
+              processing: "Wird versendet",
+              sent: "Versendet",
+              held: "Zurückgehalten",
+              failed: "Versand fehlgeschlagen",
+              uncertain: "Versandstatus unklar",
+            }[r.feedback_mail_status] || r.feedback_mail_status}
+            {r.feedback_mail_error && r.feedback_mail_status !== "sent"
+              ? ` · ${r.feedback_mail_error}`
+              : ""}
+          </p>
+        )}
+        {!r.converted_at && (
+          <button
+            className="secondary-button"
+            disabled={busy}
+            onClick={() => void action({ action: "resend", request_id: r.id })}
+          >
+            Neuen Eltern-Zugangslink senden
+          </button>
+        )}
         <TrialProfileEditor row={r} busy={busy} save={action} />
         <p>
           Geboren: {formatDate(`${r.birth_date}T12:00:00Z`)}
@@ -425,7 +471,7 @@ function TrialTeamCard({
             Teilnahme: {STATUS_LABELS[r.attendance as Attendance] ?? "Offen"}
           </p>
         )}
-        {!r.confirmed_at && r.status !== "closed" && (
+        {!r.converted_at && !r.confirmed_at && r.status !== "closed" && (
           <form
             className="trial-form"
             onSubmit={(e) => {
@@ -495,7 +541,7 @@ function TrialTeamCard({
                   <option value="contacted">Kontakt aufgenommen</option>
                 </>
               )}
-              <option value="closed">Kein Interesse / abgeschlossen</option>
+              <option value="closed">Kein Interesse · Anfrage beenden</option>
             </select>
           </label>
           <button disabled={busy} className="secondary-button">
@@ -566,6 +612,66 @@ function TrialTeamCard({
               Bewertung speichern
             </button>
           </form>
+        )}
+        {!r.converted_at && (
+          <details>
+            <summary>Geschwister nach manueller Prüfung ergänzen</summary>
+            <form
+              className="trial-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                void action({
+                  action: "add_child",
+                  family_id: r.family_id,
+                  ...Object.fromEntries(f),
+                });
+              }}
+            >
+              <p>
+                Maximal drei Kinder pro Familie. Namens-/Geburtsjahrtreffer,
+                etwa bei Zwillingen, persönlich prüfen.
+              </p>
+              <label>
+                Vorname
+                <input
+                  name="first_name"
+                  required
+                  minLength={2}
+                  maxLength={120}
+                />
+              </label>
+              <label>
+                Nachname
+                <input
+                  name="last_name"
+                  required
+                  minLength={2}
+                  maxLength={120}
+                />
+              </label>
+              <label>
+                Geburtsdatum
+                <input name="birth_date" type="date" required />
+              </label>
+              <label>
+                Verein
+                <input name="club" maxLength={120} />
+              </label>
+              <label>
+                Begründung der geprüften Ergänzung
+                <textarea
+                  name="reason"
+                  required
+                  minLength={5}
+                  maxLength={500}
+                />
+              </label>
+              <button className="secondary-button" disabled={busy}>
+                Kind zur bestehenden Familie hinzufügen
+              </button>
+            </form>
+          </details>
         )}
         {r.parent_rating && (
           <div>
@@ -735,7 +841,7 @@ export function TrialDashboard({ base }: { base: string }) {
     };
   }, []);
   const tasks = rows.flatMap((r) => {
-    if (r.status === "closed") return [];
+    if (r.status === "closed" || r.converted_at) return [];
     const action =
       r.attendance === "planned" &&
       r.ends_at &&
@@ -749,7 +855,14 @@ export function TrialDashboard({ base }: { base: string }) {
             : r.parent_rating && r.parent_rating <= 2
               ? "Elternfeedback persönlich klären"
               : null;
-    return action ? [{ r, action }] : [];
+    const due =
+      action === "Teilnahme bestätigen"
+        ? r.attendance_due_at
+        : action === "Coachfeedback freigeben"
+          ? r.feedback_due_at
+          : null;
+    const overdue = !!due && Date.parse(due) < Date.now();
+    return action ? [{ r, action, overdue }] : [];
   });
   return (
     <details className="panel trial-dashboard">
@@ -759,12 +872,15 @@ export function TrialDashboard({ base }: { base: string }) {
       </summary>
       {error && <p role="alert">{error}</p>}
       {!tasks.length && !error && <p>Aktuell keine offenen Aufgaben.</p>}
-      {tasks.map(({ r, action }) => (
+      {tasks.map(({ r, action, overdue }) => (
         <div key={r.id} className="trial-task">
           <strong>
             {r.first_name} {r.last_name}
           </strong>
-          <Link href={`${base}/probetraining?request=${r.id}`}>{action} →</Link>
+          <Link href={`${base}/probetraining?request=${r.id}`}>
+            {overdue ? "Überfällig · " : ""}
+            {action} →
+          </Link>
           <details>
             <summary aria-label={`Information zu ${r.first_name}`}>
               ⓘ Info
@@ -773,6 +889,8 @@ export function TrialDashboard({ base }: { base: string }) {
               Betreuung: {r.assigned_name || "Noch offen"}
               <br />
               {r.event_title || "Termin offen"}
+              <br />
+              Coach: {r.coach_name || "Noch offen"}
               <br />
               {r.parent_name} · {r.phone}
               <br />

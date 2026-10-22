@@ -24,6 +24,10 @@ begin
  elsif stage in ('day7','day14') then
   if r.feedback_at is null then raise exception 'Zuerst Coachfeedback freigeben'; end if;
   update trial_requests set feedback_at=now()-case stage when 'day7' then interval '8 days' else interval '15 days' end where id=request;
+  -- Move already captured deliveries as well; production still enforces a real 48h minimum.
+  alter table notification_jobs disable trigger touch_updated;
+  update notification_jobs set updated_at=now()-interval '3 days' where payload->>'family_id'=r.family_id::text and status='sent' and kind in ('trial_feedback','trial_day7');
+  alter table notification_jobs enable trigger touch_updated;
  else raise exception 'Unbekannter Testschritt'; end if;
 end $$;
 revoke all on function public.local_trial_clock(uuid,text) from public,anon,authenticated;

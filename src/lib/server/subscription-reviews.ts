@@ -241,6 +241,12 @@ export async function subscriptionReviews(
         quantity: r.item.quantity ?? 1,
         suggestions,
         candidates,
+        manualTrialCandidates: trialProfiles
+          .filter((p) => !trialMatches.some((m) => m.id === p.id))
+          .map((p) => ({
+            id: p.id,
+            name: `${name(p)} · ${p.trial_families.parent_name}`,
+          })),
       };
     }),
   };
@@ -252,6 +258,7 @@ export const subscriptionReviewDecision = z
     player_id: z.uuid(),
     previous_item_id: z.string().min(1).max(200).nullable(),
     confirm_legacy_tariff: z.boolean().optional().default(false),
+    manual_trial_reason: z.string().trim().min(10).max(500).optional(),
   })
   .strict();
 export async function resolveSubscriptionReview(

@@ -13,7 +13,7 @@ const job = {
   attempts: 1,
   recipient: "parent@test.invalid",
   kind: "trial_feedback",
-  payload: { family_id: family, request_id: "request", event_id: "event" },
+  payload: { family_id: family, request_id: family, event_id: family },
 };
 beforeEach(() => {
   vi.resetAllMocks();
@@ -32,6 +32,8 @@ beforeEach(() => {
           table === "trial_families"
             ? {
                 id: family,
+                parent_id: family,
+                created_at: new Date().toISOString(),
                 parent_name: "Mina",
                 email: job.recipient,
                 marketing_consent: true,
@@ -60,8 +62,10 @@ it("sends the actual coach feedback and a secure rating link, without internal n
   expect(mail.text).toContain("Gute Ballkontrolle. Weiter so!");
   expect(mail.text).toContain("Bewertung: 4 von 5");
   expect(mail.html).toContain("Ein Klick speichert eure Bewertung");
-  expect(mail.html.match(/&amp;rating=[1-5]/g)).toHaveLength(5);
-  expect(mail.text).toContain("/probetraining/willkommen?token=");
+  expect(mail.html.match(/ratingToken=/g)).toHaveLength(5);
+  expect(mail.text).toContain("/probetraining/willkommen");
+  expect(mail.text).not.toContain("?token=");
+  expect(mail.html).not.toContain("&amp;rating=");
   expect(mail.text).not.toContain("undefined");
 });
 it("rechecks eligibility immediately before sending and holds a message when an Abo or consent changes", async () => {

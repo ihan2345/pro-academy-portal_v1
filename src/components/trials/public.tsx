@@ -258,6 +258,14 @@ export function TrialApplication({ camps }: { camps: TrialCamp[] }) {
             Academy-Angeboten und Portalmöglichkeiten per E-Mail erhalten. Diese
             Zustimmung kann ich jederzeit im Willkommensportal widerrufen.
           </label>
+          <p className="trial-intro">
+            Zum Schutz vor Mehrfachanfragen prüfen wir Namens- und
+            Geburtsjahrübereinstimmungen. Gegen massenhafte Anfragen verwenden
+            wir kurzlebige, pseudonymisierte IP-Prüfwerte. Nicht übernommene
+            Probetraining-Daten werden spätestens 180 Tage nach der Anfrage
+            bereinigt. Ohne freiwillige Angebotszustimmung versenden wir keine
+            Angebotsmails.
+          </p>
           {error && (
             <p role="alert" className="error-message">
               {error}
@@ -303,6 +311,7 @@ export function TrialAccess({ token }: { token: string }) {
           {busy ? "Wird geöffnet …" : "E-Mail bestätigen & Portal öffnen"}
         </button>
         {error && <p role="alert">{error}</p>}
+        <TrialResendAccess />
         <TrialContact />
       </section>
     </main>
@@ -327,6 +336,9 @@ export interface WelcomeRow {
   academy_rating: number | null;
   parent_rating: number | null;
   subscribed: boolean;
+  parent_feedback?: string | null;
+  comment_submitted_at?: string | null;
+  converted_at?: string | null;
 }
 export function TrialWelcome({
   family,
@@ -356,18 +368,20 @@ export function TrialWelcome({
               {r.first_name} {r.last_name}
             </h2>
             <span className="trial-tag">
-              {r.status === "closed"
-                ? "Anfrage abgeschlossen"
-                : r.confirmed_at
-                  ? "Teilnahme bestätigt"
-                  : r.event_status === "cancelled" ||
-                      ["excused", "cancelled", "absent"].includes(
-                        r.attendance ?? "",
-                      )
-                    ? "Bitte neuen Termin abstimmen"
-                    : r.starts_at
-                      ? "Probetraining geplant"
-                      : "Termin wird abgestimmt"}
+              {r.converted_at
+                ? "Als Abonnent übernommen"
+                : r.status === "closed"
+                  ? "Kein Interesse / Anfrage beendet"
+                  : r.confirmed_at
+                    ? "Teilnahme bestätigt"
+                    : r.event_status === "cancelled" ||
+                        ["excused", "cancelled", "absent"].includes(
+                          r.attendance ?? "",
+                        )
+                      ? "Bitte neuen Termin abstimmen"
+                      : r.starts_at
+                        ? "Probetraining geplant"
+                        : "Termin wird abgestimmt"}
             </span>
             {r.starts_at && (
               <>
@@ -400,12 +414,7 @@ export function TrialWelcome({
                 <p className="trial-feedback">{r.academy_feedback}</p>
               </div>
             )}
-            {r.confirmed_at &&
-              (r.parent_rating ? (
-                <p>Danke für eure Bewertung: {r.parent_rating} von 5.</p>
-              ) : (
-                <TrialParentRating row={r} />
-              ))}
+            {r.confirmed_at && <TrialParentRating row={r} />}
             {!r.subscribed && r.confirmed_at && (
               <a className="primary-button" href="https://proacademy-ak.com">
                 Academy-Angebote entdecken →
@@ -439,27 +448,48 @@ export function TrialWelcome({
     </main>
   );
 }
-function TrialParentRating({ row }: { row: WelcomeRow }) {
-  const router = useRouter();
-  const [score, setScore] = useState(0),
+export function TrialParentRating({
+  row,
+  token,
+}: {
+  row: Pick<
+    WelcomeRow,
+    | "id"
+    | "event_id"
+    | "first_name"
+    | "parent_rating"
+    | "parent_feedback"
+    | "comment_submitted_at"
+  >;
+  token?: string;
+}) {
+  const [saved, setSaved] = useState(row),
     [feedback, setFeedback] = useState(""),
     [busy, setBusy] = useState(false),
-    [done, setDone] = useState(false),
     [error, setError] = useState("");
-  async function send(rating: number) {
+  async function save(rating?: number) {
     setBusy(true);
     setError("");
     try {
-      await trialApi("feedback", {
-        action: "feedback",
-        request_id: row.id,
-        event_id: row.event_id,
-        rating,
-        feedback,
-      });
-      router.push("/probetraining/danke");
-      setScore(rating);
-      setDone(true);
+      const result = await trialApi(
+        token
+          ? rating
+            ? "rating"
+            : "comment"
+          : rating
+            ? "feedback"
+            : "comment",
+        {
+          token,
+          action: rating ? "feedback" : "comment",
+          request_id: row.id,
+          event_id: row.event_id,
+          rating,
+          feedback,
+        },
+      );
+      setSaved({ ...saved, ...result });
+      setFeedback("");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -467,23 +497,22 @@ function TrialParentRating({ row }: { row: WelcomeRow }) {
     }
   }
   return (
-    <div>
-      <h3>Wie hat es euch gefallen?</h3>
-      {done ? (
-        <p>Danke! Eure Bewertung {score}/5 wurde gespeichert.</p>
+    <div className="trial-parent-feedback">
+      <h3>
+        {saved.parent_rating
+          ? "Eure gespeicherte Bewertung"
+          : "Wie hat es euch gefallen?"}
+      </h3>
+      {saved.parent_rating ? (
+        <p aria-label={`Gespeicherte Bewertung: ${saved.parent_rating} von 5`}>
+          {"★".repeat(saved.parent_rating)}
+          {"☆".repeat(5 - saved.parent_rating)} · {saved.parent_rating} von 5
+        </p>
       ) : (
         <>
-          <label>
-            Was möchtet ihr uns mitgeben? (optional)
-            <textarea
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              maxLength={2000}
-            />
-          </label>
           <p>
-            Ein Klick auf die Bewertung speichert euer Feedback. 1 = nicht
-            zufrieden, 5 = sehr zufrieden.
+            Ein Klick speichert eure Sterne einmalig. 1 = nicht zufrieden, 5 =
+            sehr zufrieden. Eine Nachricht könnt ihr anschließend ergänzen.
           </p>
           <div className="trial-rating">
             {[1, 2, 3, 4, 5].map((n) => (
@@ -491,7 +520,7 @@ function TrialParentRating({ row }: { row: WelcomeRow }) {
                 key={n}
                 className="secondary-button"
                 disabled={busy}
-                onClick={() => send(n)}
+                onClick={() => save(n)}
                 aria-label={`${n} von 5 für ${row.first_name}`}
               >
                 {n} ★
@@ -500,49 +529,107 @@ function TrialParentRating({ row }: { row: WelcomeRow }) {
           </div>
         </>
       )}
+      {saved.parent_rating &&
+        (saved.comment_submitted_at ? (
+          <>
+            <p>Danke für eure persönliche Rückmeldung.</p>
+            <p className="trial-feedback">{saved.parent_feedback}</p>
+          </>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save();
+            }}
+            className="trial-form"
+          >
+            <label>
+              Persönliche Nachricht (freiwillig, einmalig)
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                maxLength={2000}
+                required
+              />
+            </label>
+            <button
+              className="secondary-button"
+              disabled={busy || !feedback.trim()}
+            >
+              Nachricht einmalig speichern
+            </button>
+          </form>
+        ))}
       {error && <p role="alert">{error}</p>}
     </div>
   );
 }
+export function TrialResendAccess() {
+  const [email, setEmail] = useState(""),
+    [done, setDone] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  return (
+    <form
+      className="trial-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError("");
+        try {
+          await trialApi("resend", { email });
+          setDone(true);
+        } catch (e) {
+          setError((e as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <h2>Neuen Zugangslink anfordern</h2>
+      <label>
+        E-Mail-Adresse
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </label>
+      <button className="secondary-button" disabled={busy}>
+        Zugangslink anfordern
+      </button>
+      {done && (
+        <p>
+          Falls eine passende Anfrage besteht, senden wir euch einen neuen Link.
+          Bitte prüft auch den Spamordner.
+        </p>
+      )}
+      {error && <p role="alert">{error}</p>}
+    </form>
+  );
+}
 
-export function TrialEmailRating({
-  token,
-  request,
-  event,
-  rating,
-}: {
-  token: string;
-  request: string;
-  event: string;
-  rating: number;
-}) {
-  const router = useRouter();
-  const started = useRef(false);
+export function TrialEmailRating({ token }: { token: string }) {
+  const router = useRouter(),
+    started = useRef(false);
   const [error, setError] = useState("");
   useEffect(() => {
     const save = () => {
       if (started.current || document.visibilityState !== "visible") return;
       started.current = true;
-      void (async () => {
-        try {
-          await trialApi("access", { token });
-          await trialApi("feedback", {
-            action: "feedback",
-            request_id: request,
-            event_id: event,
-            rating,
-            feedback: "",
-          });
-          router.replace("/probetraining/danke");
-        } catch (e) {
-          setError((e as Error).message);
-        }
-      })();
+      void trialApi("rating", { token })
+        .then(() =>
+          router.replace(
+            `/probetraining/danke?ratingToken=${encodeURIComponent(token)}`,
+          ),
+        )
+        .catch((e) => setError((e as Error).message));
     };
     save();
     document.addEventListener("visibilitychange", save);
     return () => document.removeEventListener("visibilitychange", save);
-  }, [token, request, event, rating, router]);
+  }, [token, router]);
   return (
     <main className="trial-page">
       <Brand />
@@ -551,11 +638,7 @@ export function TrialEmailRating({
           ? "Bewertung noch nicht gespeichert"
           : "Deine Bewertung wird gespeichert …"}
       </h1>
-      {error ? (
-        <p role="alert">{error}</p>
-      ) : (
-        <p>Du musst nichts weiter bestätigen.</p>
-      )}
+      {error && <p role="alert">{error}</p>}
       <TrialContact />
     </main>
   );

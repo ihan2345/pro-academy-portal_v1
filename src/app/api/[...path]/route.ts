@@ -195,6 +195,8 @@ async function handler(
     }
     const session = await sessionUser();
     if (!session?.role) throw new HttpError(401, "Bitte melde dich an.");
+    if (session.customerStatus === "trial" && path !== "auth/logout")
+      throw new HttpError(403, "Bitte nutze dein Probetraining-Portal.");
     const { db, user, role } = session;
     if (path === "activities" || path === "activities/summary") {
       if (request.method !== "GET")
