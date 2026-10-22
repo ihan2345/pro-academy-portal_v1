@@ -87,3 +87,17 @@ Datenbankbestand und Funktionsvoraussetzungen vorab prüfen und sichern. Web-App
 Deaktivieren sperrt neue Anfragen, Probetraining-Seiten, entsprechende Teamaktionen und den Probetraining-Mailversand. Gespeicherte Familien, manuell zu bestätigende Teilnahmen, vorhandene Campzugänge und die Identitätsprüfung bei einer bezahlten Abo-Übernahme bleiben erhalten. Die 180-Tage-Bereinigung läuft weiter. Eine bestehende Probefamilie erhält durch das Ausschalten insbesondere keinen pAi-Zugang. Erneutes Aktivieren setzt die fachlichen Prüfungen fort; bereits erledigte Nachrichten werden nicht doppelt angelegt.
 
 Die Familienstatus-Karte im Elternprofil wird erst bei belegter Abo-Historie angezeigt. Probetraining und reine Campbuchungen begründen keinen Bronze-Fortschritt.
+
+## Veröffentlichung am 22.10.2026
+
+Auf ausdrücklichen Nutzerauftrag veröffentlicht und nach erfolgreicher Live-Abnahme aktiviert. Der vorhandene Super-Admin schaltet Probetraining unter `/admin/funktionen` jederzeit aus oder wieder ein. pAi und Maskottchen blieben unverändert aktiviert.
+
+- Portal-Version: `a28e9402-41af-4149-b18a-1109164c099d`, 100 % Traffic unter `https://portal.proacademy-ak.com`.
+- Jobs-Version: `629c62ef-e6ef-4690-994e-db1cebb7a674`, 100 % Traffic. Container: `sha256:a7097252f045a7c523bf3554a949728f068ad9bf0c1aedab7ef26acedf1a09e2`.
+- SQL 017–021 auf `vgxaatawsbzgsmqiaepj` gemeinsam in einer Transaktion angewendet, zunächst ausgeschaltet. Die Transaktion prüfte die zuvor gesicherten Definitionen der betroffenen Bestandsfunktionen auf unveränderten Stand. Historieneinträge: `202610220017` bis `202610220021`.
+- Isolierter Cloudflare-Produktionsbuild mit Next.js 16.3.8, beide Typprüfungen und 872 Tests bestanden. Die lokale Browserprüfung bestätigte Ein-/Ausschalten und die ausgeblendete Navigation. Keine lokalen Teststrecken im Produktionspaket.
+- Live-Abnahme: deaktiviert HTTP 404 für Anfrage, Teamseite und Trial-API; nach Aktivierung Anfrage HTTP 200, Teamseite ohne Sitzung zur Anmeldung und geschützte APIs HTTP 401. Die öffentliche Anfrage wurde zusätzlich im Browser geprüft. Build-ID und Schalter-Bundle stimmen mit dem veröffentlichten Paket überein.
+- Hintergrunddienst `/verify`: Supabase, Stripe, SMTP und PDF erfolgreich. Dieser Prüfschritt verschickt keine Nachricht. Vorhandene Worker-Bindings wurden bis auf die neue Installationsvariable unverändert erhalten.
+- Bestehender Super-Admin-Zugang und Funktionsberechtigung unverändert. Keine Live-Testfamilien oder Testbuchungen angelegt und keine Testmails verschickt. Spieler-/Eltern-/Teilnehmerzahlen und Versandzustände sind über die Veröffentlichung unverändert geblieben.
+
+Private Sicherungen der Funktionsdefinitionen, Vorher-/Nachher-Abgleiche und Versionsnachweise liegen unter `output/trials-release/` und werden nicht eingecheckt. Bei einem Rückzug zuerst den Super-Admin-Schalter deaktivieren; gespeicherte Daten und additive Migrationen erhalten.
