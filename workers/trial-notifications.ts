@@ -1,8 +1,9 @@
 import { serviceDb } from "../src/lib/server/service-db";
 import { TRIAL_CONTACT, TRIAL_MAIL_KINDS } from "../src/lib/trials/domain";
 import { trialToken } from "../src/lib/trials/tokens";
-import { htmlEmail, safeRecipient, type Email } from "../src/lib/mail";
+import { safeRecipient, type Email } from "../src/lib/mail";
 import { formatDate, formatTime } from "../src/lib/domain";
+import { trialEmailDesign } from "../src/lib/trials/mail-design";
 export { TRIAL_MAIL_KINDS };
 export async function planTrialNotifications(): Promise<number> {
   if (process.env.TRIAL_TRAINING_ENABLED !== "true") return 0;
@@ -76,11 +77,11 @@ export async function composeTrialMail(
       text = `Hallo ${family.parent_name},\nschön, dass ${child} bei uns war!\nHier ist das persönliche Feedback vom Coach:\nBewertung: ${r.academy_rating} von 5\n${r.academy_feedback}\n\nWie hat es euch gefallen? Im Willkommensportal könnt ihr mit einem Klick eine Bewertung abgeben und optional eine Nachricht hinterlassen:\n${access}`;
       actions.push({ label: "Probetraining bewerten", url: access });
     } else if (job.kind === "trial_day7") {
-      subject = "Euer nächster Schritt mit der ProAcademy";
-      text = `Hallo ${family.parent_name},\nregelmäßiges Training gibt Raum, Technik, Spielverständnis und Selbstvertrauen weiterzuentwickeln. Unser Portal unterstützt euch dabei mit einer gemeinsamen Terminübersicht, transparenten Einheiten und direktem Feedback.\nWenn ihr nach eurem Probetraining weitertrainieren möchtet, helfen wir euch persönlich bei der Auswahl eines passenden Angebots.`;
+      subject = `Euer nächster Schritt mit der ProAcademy · ${r.first_name}`;
+      text = `Hallo ${family.parent_name},\nnach dem Probetraining von ${child} am ${formatDate(r.starts_at)} möchten wir mit euch den nächsten Schritt planen. Regelmäßiges Training gibt Raum, Technik, Spielverständnis und Selbstvertrauen weiterzuentwickeln. Unser Portal unterstützt euch dabei mit einer gemeinsamen Terminübersicht, transparenten Einheiten und direktem Feedback.\nWenn ihr nach eurem Probetraining weitertrainieren möchtet, helfen wir euch persönlich bei der Auswahl eines passenden Angebots.`;
     } else {
       subject = "Academy und Vereinstraining: gemeinsam weiterentwickeln";
-      text = `Hallo ${family.parent_name},\nunsere Academy ergänzt das Vereinstraining durch zusätzliche Schwerpunkte und persönliche Begleitung. Gemeinsam besprechen wir, welche Trainingszeiten und welches Angebot zu eurem Alltag passen.\nHabt ihr noch Fragen zum Einstieg? Meldet euch gern. Dies ist die letzte Nachricht unserer Probetraining-Angebotsfolge.`;
+      text = `Hallo ${family.parent_name},\nwie geht es ${r.first_name} seit dem Probetraining? Wenn ihr noch überlegt, wie es für ${child} weitergehen kann, beraten wir euch gern. Unsere Academy ergänzt das Vereinstraining durch zusätzliche Schwerpunkte und persönliche Begleitung. Gemeinsam besprechen wir, welche Trainingszeiten und welches Angebot zu eurem Alltag passen.\nHabt ihr noch Fragen zum Einstieg? Meldet euch gern. Dies ist die letzte Nachricht unserer Probetraining-Angebotsfolge.`;
     }
     if (
       !r.subscribed &&
@@ -102,7 +103,19 @@ export async function composeTrialMail(
         : safeRecipient(String(job.recipient)),
     subject,
     text,
-    html: htmlEmail(subject, text, access, actions),
+    html: trialEmailDesign({
+      title: subject,
+      text,
+      access,
+      actions,
+      ratingLinks:
+        job.kind === "trial_feedback"
+          ? [1, 2, 3, 4, 5].map(
+              (rating) =>
+                `${access}&request=${job.payload.request_id}&event=${job.payload.event_id}&rating=${rating}`,
+            )
+          : undefined,
+    }),
     messageId: `<${job.id}@proacademy-portal.local>`,
   };
 }

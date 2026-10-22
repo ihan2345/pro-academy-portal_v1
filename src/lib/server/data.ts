@@ -92,7 +92,19 @@ export async function loadPortal(section: string): Promise<PortalData> {
     billingCustomers,
     backfills,
   ] = results.map((r) => r.data ?? []);
+  const trialPlayers =
+    trialFeatureEnabled() && session.role !== "parent"
+      ? await db
+          .from("trial_players")
+          .select("id,first_name,last_name,birth_date,team")
+      : { data: [], error: null };
+  if (trialPlayers.error)
+    throw new Error("Probetraining-Profile konnten nicht geladen werden");
   return {
+    trial_players: (trialPlayers.data ?? []).map((p) => ({
+      ...p,
+      birth_year: Number(p.birth_date.slice(0, 4)),
+    })),
     trial_enabled: trialFeatureEnabled(),
     camp_enabled: campsEnabled,
     camp_access: campAccess,
@@ -112,10 +124,15 @@ export async function loadPortal(section: string): Promise<PortalData> {
       address: e.locations?.address ?? "",
       trainer_name: e.staff_profiles?.display_name ?? "",
       internal_note: e.event_private_notes?.note ?? "",
-      participants: e.event_participants.filter(
-        (p: Parameters<typeof isRemovedParticipant>[0]) =>
-          !isRemovedParticipant(p),
-      ),
+      participants: e.event_participants
+        .map((p: any) => ({
+          ...p,
+          player_id: p.trial_player_id ?? p.player_id,
+        }))
+        .filter(
+          (p: Parameters<typeof isRemovedParticipant>[0]) =>
+            !isRemovedParticipant(p),
+        ),
     })) as Training[],
     reports: reports.map((r) => ({
       id: r.id,

@@ -59,7 +59,8 @@ it("sends the actual coach feedback and a secure rating link, without internal n
   const mail = await composeTrialMail(job);
   expect(mail.text).toContain("Gute Ballkontrolle. Weiter so!");
   expect(mail.text).toContain("Bewertung: 4 von 5");
-  expect(mail.html).toContain("Probetraining bewerten");
+  expect(mail.html).toContain("Ein Klick speichert eure Bewertung");
+  expect(mail.html.match(/&amp;rating=[1-5]/g)).toHaveLength(5);
   expect(mail.text).toContain("/probetraining/willkommen?token=");
   expect(mail.text).not.toContain("undefined");
 });

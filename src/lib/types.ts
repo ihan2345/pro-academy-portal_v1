@@ -62,6 +62,7 @@ export interface Report {
 }
 export interface PortalData {
   trial_enabled?: boolean;
+  trial_players?: Player[];
   camp_enabled?: boolean;
   camp_access?: "active" | "past" | "only";
   role: Role;

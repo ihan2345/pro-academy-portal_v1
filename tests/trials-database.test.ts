@@ -35,6 +35,10 @@ beforeAll(async () => {
     "009-parent-email-preference.sql",
     "016-calendar-backfills.sql",
     "017-trial-training.sql",
+    "011-subscription-package-changes.sql",
+    "014-completed-subscription-reviews.sql",
+    "015-legacy-tariff-confirmation.sql",
+    "018-trial-profiles-feedback.sql",
   ])
     await db.exec(readFileSync(`supabase/release/${f}`, "utf8"));
 });
@@ -109,6 +113,18 @@ async function attended() {
     [e.id],
   );
   await q("select auto_attendance()");
+  expect(
+    (
+      await q(
+        "select status from event_participants where trial_request_id=$1",
+        [r.id],
+      )
+    )[0].status,
+  ).toBe("planned");
+  await q(
+    "select set_attendance(participant_id,'attended_manual','Teilnahme geprüft',false) from trial_requests where id=$1",
+    [r.id],
+  );
   await q(
     "update trial_requests set confirmed_at=now()-interval '2 days' where id=$1",
     [r.id],
@@ -121,7 +137,8 @@ it("creates one free family request with up to three children and blocks normali
   expect(rows).toHaveLength(3);
   await q("select create_trial_request($1,'test-ip')", [input(10, 3)]);
   expect(await q("select * from parents")).toHaveLength(1);
-  expect(await q("select * from players")).toHaveLength(3);
+  expect(await q("select * from players")).toHaveLength(0);
+  expect(await q("select * from trial_players")).toHaveLength(3);
   expect(await q("select * from notification_jobs")).toHaveLength(1);
   expect(await q("select * from subscriptions")).toHaveLength(0);
   expect(await q("select * from entitlement_periods")).toHaveLength(0);
@@ -151,14 +168,9 @@ it("creates one free family request with up to three children and blocks normali
     /Pflichtangaben/,
   );
 });
-it("requires verified email, assigns exactly one free participation, preserves calendar editing and rescheduling", async () => {
+it("assigns exactly one free participation, preserves calendar editing and rescheduling", async () => {
   const [r] = await apply();
   const e = await event();
-  await rejected(
-    "select manage_trial($1)",
-    [{ action: "assign", request_id: r.id, event_id: e.id }],
-    /E-Mail/,
-  );
   await verify();
   await manage({ action: "assign", request_id: r.id, event_id: e.id });
   await manage({ action: "assign", request_id: r.id, event_id: e.id });
@@ -213,6 +225,7 @@ it("requires verified email, assigns exactly one free participation, preserves c
 });
 it("holds feedback until attendance and coach approval, then stores distinct parent feedback with immutable attribution", async () => {
   const r = await attended();
+  await q("update trial_requests set confirmed_at=now() where id=$1", [r.id]);
   await q("select plan_trial_notifications()");
   expect(
     await q("select * from notification_jobs where kind='trial_feedback'"),
@@ -257,7 +270,7 @@ it("holds feedback until attendance and coach approval, then stores distinct par
     ),
   ).toBe(true);
 });
-it("rechecks subscription and opt-out at delivery, spaces the 7/14 day sequence and cancels after corrected attendance", async () => {
+it("rechecks subscription and opt-out at delivery, uses feedback publication as day zero and cancels after corrected attendance", async () => {
   const r = await attended();
   await manage({
     action: "review",
@@ -268,7 +281,7 @@ it("rechecks subscription and opt-out at delivery, spaces the 7/14 day sequence 
     ready: true,
   });
   await q(
-    "update trial_requests set confirmed_at=now()-interval '20 days' where id=$1",
+    "update trial_requests set confirmed_at=now()-interval '20 days',feedback_at=now()-interval '8 days' where id=$1",
     [r.id],
   );
   await q("select plan_trial_notifications()");
@@ -293,7 +306,7 @@ it("rechecks subscription and opt-out at delivery, spaces the 7/14 day sequence 
   await q("select plan_trial_notifications()");
   expect(
     await q("select * from notification_jobs where kind='trial_day14'"),
-  ).toHaveLength(1);
+  ).toHaveLength(0);
   const allowed = async () =>
     (
       await q("select trial_delivery_allowed($1,$2,$3) allowed", [
@@ -308,12 +321,20 @@ it("rechecks subscription and opt-out at delivery, spaces the 7/14 day sequence 
     [id(90)],
   );
   await q(
-    "insert into subscription_players(subscription_id,stripe_item_id,player_id) values($1,'si_trial',$2)",
-    [id(90), r.player_id],
+    "update subscriptions set parent_id=(select parent_id from trial_families where id=$2) where id=$1",
+    [id(90), id(10)],
   );
   expect(await allowed()).toBe(false);
   await q("update subscriptions set status='canceled' where id=$1", [id(90)]);
   expect(await allowed()).toBe(true);
+  await q(
+    "update trial_requests set feedback_at=now()-interval '15 days' where id=$1",
+    [r.id],
+  );
+  await q("select plan_trial_notifications()");
+  expect(
+    await q("select * from notification_jobs where kind='trial_day14'"),
+  ).toHaveLength(1);
   await q("select trial_parent_action($1,$2)", [
     id(10),
     { action: "unsubscribe" },
@@ -464,4 +485,81 @@ it("marks an existing planned child for free, captures missing birth date, and k
   expect(
     await q("select * from notification_jobs where kind='trial_feedback'"),
   ).toHaveLength(0);
+});
+
+it("promotes a matching trial profile atomically on approved active subscription assignment without losing data", async () => {
+  const [r] = await apply();
+  await verify();
+  await manage({
+    action: "profile",
+    request_id: r.id,
+    first_name: "Übernommen",
+    last_name: "Familie",
+    birth_date: "2015-01-01",
+    team: "U12",
+    gender: "",
+    club: "FC Test",
+    position: "Sturm",
+    strong_foot: "rechts",
+    height_cm: 140,
+    development_goals: "Ballkontrolle",
+  });
+  const item = {
+    id: "si_trial_convert",
+    price_id: "price_1RlBeSRoswKHkM76gM8jmUB5",
+    quantity: 1,
+    starts_at: new Date(Date.now() - 86400000).toISOString(),
+    ends_at: new Date(Date.now() + 20 * 86400000).toISOString(),
+  };
+  await q(
+    "insert into stripe_customer_registry(id,email,name) values('cus_convert','parent10@test.invalid','Familie 10')",
+  );
+  await q("select apply_stripe_package_sync($1)", [
+    {
+      stripe_subscription_id: "sub_convert",
+      stripe_customer_id: "cus_convert",
+      status: "active",
+      subscription_created_at: "2025-01-01T00:00:00Z",
+      retrieved_at: new Date().toISOString(),
+      billing_cycle_anchor: item.starts_at,
+      items: [item],
+    },
+  ]);
+  const [review] = await q("select * from subscription_assignment_reviews");
+  expect(review).toBeTruthy();
+  await rejected(
+    "select resolve_subscription_assignment($1)",
+    [
+      {
+        review_id: review.id,
+        signature: "0".repeat(32),
+        player_id: r.player_id,
+        previous_item_id: null,
+      },
+    ],
+    /geändert/,
+  );
+  expect(await q("select * from players")).toHaveLength(0);
+  await q("select resolve_subscription_assignment($1)", [
+    {
+      review_id: review.id,
+      signature: review.signature,
+      player_id: r.player_id,
+      previous_item_id: null,
+    },
+  ]);
+  const [p] = await q("select * from players");
+  expect(p.id).toBe(r.player_id);
+  expect(p.club).toBe("FC Test");
+  expect(p.development_goals).toBe("Ballkontrolle");
+  expect(
+    (await q("select converted_player_id from trial_players"))[0]
+      .converted_player_id,
+  ).toBe(p.id);
+  expect(
+    await q("select * from entitlement_periods where player_id=$1", [p.id]),
+  ).toHaveLength(1);
+  expect(
+    await q("select * from parent_players where player_id=$1", [p.id]),
+  ).toHaveLength(1);
 });

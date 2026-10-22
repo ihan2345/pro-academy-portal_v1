@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import {
   TrialAccess,
+  TrialEmailRating,
   TrialContact,
   TrialWelcome,
 } from "@/components/trials/public";
@@ -19,10 +20,24 @@ export const metadata = {
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{
+    token?: string;
+    request?: string;
+    event?: string;
+    rating?: string;
+  }>;
 }) {
   if (!trialFeatureEnabled()) notFound();
-  const { token } = await searchParams;
+  const { token, request, event, rating } = await searchParams;
+  if (token && request && event && /^[1-5]$/.test(rating ?? ""))
+    return (
+      <TrialEmailRating
+        token={token}
+        request={request}
+        event={event}
+        rating={Number(rating)}
+      />
+    );
   if (token) return <TrialAccess token={token} />;
   try {
     const data = await trialWelcomeData();

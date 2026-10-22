@@ -6,11 +6,20 @@ const mocks = vi.hoisted(() => ({
   cookieGet: vi.fn(),
   cookieSet: vi.fn(),
   limit: vi.fn(),
+  generateLink: vi.fn(),
+  verifyOtp: vi.fn(),
 }));
 vi.mock("../src/lib/server/service-db", () => ({
-  serviceDb: () => ({ from: mocks.from, rpc: mocks.rpc }),
+  serviceDb: () => ({
+    from: mocks.from,
+    rpc: mocks.rpc,
+    auth: { admin: { generateLink: mocks.generateLink } },
+  }),
 }));
-vi.mock("../src/lib/server/supabase", () => ({ sessionUser: mocks.session }));
+vi.mock("../src/lib/server/supabase", () => ({
+  sessionUser: mocks.session,
+  sessionDb: async () => ({ auth: { verifyOtp: mocks.verifyOtp } }),
+}));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: mocks.cookieGet, set: mocks.cookieSet }),
 }));
@@ -42,6 +51,11 @@ beforeEach(() => {
   vi.stubEnv("TRIAL_TRAINING_ENABLED", "true");
   vi.stubEnv("APP_URL", origin);
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", secret);
+  mocks.generateLink.mockResolvedValue({
+    data: { properties: { hashed_token: "local-hash" } },
+    error: null,
+  });
+  mocks.verifyOtp.mockResolvedValue({ error: null });
   mocks.limit.mockResolvedValue({ success: true });
   mocks.rpc.mockResolvedValue({ data: family, error: null });
 });

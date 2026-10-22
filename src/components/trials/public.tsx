@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Brand } from "@/components/portal";
 import { formatDate, formatTime } from "@/lib/domain";
@@ -114,13 +114,17 @@ export function TrialApplication({ camps }: { camps: TrialCamp[] }) {
           }}
         >
           <h2>Probetraining anfragen</h2>
+          <p className="trial-required">
+            Mit * markierte Felder sind Pflichtfelder. Zusätzliche Angebotsmails
+            sind freiwillig.
+          </p>
           <p>
             Eine Anfrage pro Elternteil, für ein bis drei Kinder. Bereits bei
             uns bekannt? Bitte melde dich direkt beim Team.
           </p>
           <div className="form-grid">
             <label>
-              Dein Vor- und Nachname
+              Dein Vor- und Nachname *
               <input
                 name="parent_name"
                 required
@@ -130,7 +134,7 @@ export function TrialApplication({ camps }: { camps: TrialCamp[] }) {
               />
             </label>
             <label>
-              E-Mail
+              E-Mail *
               <input
                 name="email"
                 type="email"
@@ -140,7 +144,7 @@ export function TrialApplication({ camps }: { camps: TrialCamp[] }) {
               />
             </label>
             <label>
-              Telefonnummer
+              Telefonnummer *
               <input
                 name="phone"
                 type="tel"
@@ -156,7 +160,7 @@ export function TrialApplication({ camps }: { camps: TrialCamp[] }) {
               <legend>Kind {i + 1}</legend>
               <div className="form-grid">
                 <label>
-                  Vorname
+                  Vorname *
                   <input
                     name={`first-${id}`}
                     required
@@ -165,7 +169,7 @@ export function TrialApplication({ camps }: { camps: TrialCamp[] }) {
                   />
                 </label>
                 <label>
-                  Nachname
+                  Nachname *
                   <input
                     name={`last-${id}`}
                     required
@@ -174,7 +178,7 @@ export function TrialApplication({ camps }: { camps: TrialCamp[] }) {
                   />
                 </label>
                 <label>
-                  Geburtsdatum
+                  Geburtsdatum *
                   <input
                     name={`birth-${id}`}
                     type="date"
@@ -436,6 +440,7 @@ export function TrialWelcome({
   );
 }
 function TrialParentRating({ row }: { row: WelcomeRow }) {
+  const router = useRouter();
   const [score, setScore] = useState(0),
     [feedback, setFeedback] = useState(""),
     [busy, setBusy] = useState(false),
@@ -452,6 +457,7 @@ function TrialParentRating({ row }: { row: WelcomeRow }) {
         rating,
         feedback,
       });
+      router.push("/probetraining/danke");
       setScore(rating);
       setDone(true);
     } catch (e) {
@@ -496,5 +502,61 @@ function TrialParentRating({ row }: { row: WelcomeRow }) {
       )}
       {error && <p role="alert">{error}</p>}
     </div>
+  );
+}
+
+export function TrialEmailRating({
+  token,
+  request,
+  event,
+  rating,
+}: {
+  token: string;
+  request: string;
+  event: string;
+  rating: number;
+}) {
+  const router = useRouter();
+  const started = useRef(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const save = () => {
+      if (started.current || document.visibilityState !== "visible") return;
+      started.current = true;
+      void (async () => {
+        try {
+          await trialApi("access", { token });
+          await trialApi("feedback", {
+            action: "feedback",
+            request_id: request,
+            event_id: event,
+            rating,
+            feedback: "",
+          });
+          router.replace("/probetraining/danke");
+        } catch (e) {
+          setError((e as Error).message);
+        }
+      })();
+    };
+    save();
+    document.addEventListener("visibilitychange", save);
+    return () => document.removeEventListener("visibilitychange", save);
+  }, [token, request, event, rating, router]);
+  return (
+    <main className="trial-page">
+      <Brand />
+      <h1>
+        {error
+          ? "Bewertung noch nicht gespeichert"
+          : "Deine Bewertung wird gespeichert …"}
+      </h1>
+      {error ? (
+        <p role="alert">{error}</p>
+      ) : (
+        <p>Du musst nichts weiter bestätigen.</p>
+      )}
+      <TrialContact />
+    </main>
   );
 }

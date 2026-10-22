@@ -5,6 +5,7 @@ import { HttpError, requireOrigin } from "@/lib/server/security";
 import { serviceDb } from "@/lib/server/service-db";
 import {
   applyTrial,
+  ensureTrialAuth,
   limitTrial,
   manageTrial,
   requireTrials,
@@ -54,6 +55,7 @@ async function handle(
           input: { action: "verify" },
         }),
       );
+      await ensureTrialAuth(family);
       (await cookies()).set("pa_trial", token, {
         httpOnly: true,
         secure: new URL(request.url).protocol === "https:",

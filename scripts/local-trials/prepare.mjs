@@ -59,6 +59,7 @@ const files = [
     "015-legacy-tariff-confirmation.sql",
     "016-calendar-backfills.sql",
     "017-trial-training.sql",
+    "018-trial-profiles-feedback.sql",
   ].map((f) => "supabase/release/" + f),
 ];
 // Older previews applied some files before migration tracking was introduced.
@@ -131,3 +132,12 @@ writeFileSync(app + "/src/app/layout.tsx", layout);
 console.log(
   "Trial preview prepared at http://127.0.0.1:3107/lokaler-test/probetraining",
 );
+
+// Permit only local database actions needed by the full portal preview. Keep Stripe,
+// SMTP, imports and background runners blocked by the existing preview guard.
+let portalApi = readFileSync(app + "/src/app/api/[...path]/route.ts", "utf8");
+portalApi = portalApi.replace(
+  'path !== "auth/logout"',
+  'path !== "auth/logout" && !(process.env.LOCAL_FAMILY_TEST === "true" && process.env.NEXT_PUBLIC_SUPABASE_URL === "http://127.0.0.1:55321" && ["team/events","team/attendance","team/cancel","team/confirm-all-attendance","team/validate-training-staff","admin/subscription-reviews"].includes(path))',
+);
+writeFileSync(app + "/src/app/api/[...path]/route.ts", portalApi);

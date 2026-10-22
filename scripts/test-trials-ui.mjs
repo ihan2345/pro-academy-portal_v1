@@ -195,7 +195,7 @@ try {
     await page.goto(base);
     await page.getByLabel("Dein Vor- und Nachname").fill("Mina Beispiel");
     await page
-      .getByLabel("E-Mail", { exact: true })
+      .getByLabel("E-Mail *", { exact: true })
       .fill("parent@test.invalid");
     await page.getByLabel("Telefonnummer").fill("+4915112345678");
     await page
@@ -213,9 +213,9 @@ try {
     for (let i = 0; i < 3; i++) {
       const group = page.getByRole("group", { name: `Kind ${i + 1}` });
       await group
-        .getByLabel("Vorname", { exact: true })
+        .getByLabel("Vorname *", { exact: true })
         .fill(["Emir", "Mira", "Ada"][i]);
-      await group.getByLabel("Nachname", { exact: true }).fill("Beispiel");
+      await group.getByLabel("Nachname *", { exact: true }).fill("Beispiel");
       await group.getByLabel("Geburtsdatum").fill("2015-01-01");
     }
     await page
@@ -244,6 +244,9 @@ try {
     await page.goto(base + "?screen=team");
     await page.getByRole("button", { name: "Teilnehmer bewerten (1)" }).click();
     await page.getByRole("heading", { name: "Mira Beispiel" }).waitFor();
+    await page
+      .getByText("Profil, Termin und Aktionen öffnen", { exact: true })
+      .click();
     await page.getByLabel("Eindruck vom Probetraining").selectOption("4");
     await page
       .getByLabel("Persönliche Beobachtung und nächster Schritt")

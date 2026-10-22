@@ -103,6 +103,19 @@ export function StripeActivityPreview() {
                 </strong>
                 {!!row.children.length && ` · ${row.children.join(" · ")}`}
               </p>
+              {!!row.trialCandidates?.length && (
+                <p
+                  style={{
+                    background: "#97E9E5",
+                    padding: 10,
+                    borderRadius: 8,
+                  }}
+                >
+                  Mögliche Übernahme aus Probetraining:{" "}
+                  {row.trialCandidates.join(" · ")}. Vorhandene Angaben können
+                  bei der Abo-Zuordnung übernommen werden.
+                </p>
+              )}
               <small>
                 <time dateTime={row.at}>
                   {formatDate(row.at)} · {formatTime(row.at)}

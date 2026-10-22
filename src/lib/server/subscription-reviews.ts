@@ -1,4 +1,5 @@
 import "server-only";
+import { trialFeatureEnabled } from "../trials/server";
 import { z } from "zod";
 import type { ProfileSession } from "./parent-profile";
 import { profileStripeClient } from "./profile-stripe";
@@ -136,6 +137,16 @@ export async function subscriptionReviews(
         db.from("parents").select("id,full_name").in("id", parentIds),
       )
     : [];
+  const trialProfiles = trialFeatureEnabled()
+    ? await collect(() =>
+        db
+          .from("trial_players")
+          .select(
+            "id,first_name,last_name,family_id,trial_families!inner(parent_id,email,parent_name)",
+          )
+          .is("converted_player_id", null),
+      )
+    : [];
   const name = (p: any) => `${p.first_name} ${p.last_name}`;
   return {
     total: response.count ?? 0,
@@ -161,12 +172,27 @@ export async function subscriptionReviews(
           )
           .map((l) => l.parent_id),
       ]);
+      const trialMatches = trialProfiles.filter(
+        (p) =>
+          familyIds.has(p.trial_families.parent_id) ||
+          (customerDetails.get(r.subscriptions.stripe_customer_id)?.email &&
+            p.trial_families.email.toLowerCase().trim() ===
+              customerDetails
+                .get(r.subscriptions.stripe_customer_id)
+                .email.toLowerCase()
+                .trim()),
+      );
       const candidates = [
         ...new Map(
           [
             ...suggestions
               .filter((s) => !s.archived)
               .map((s) => ({ id: s.playerId, name: s.name })),
+            ...trialMatches.map((p) => ({
+              id: p.id,
+              name: name(p) + " · Übernahme aus Probetraining",
+              trial: true,
+            })),
             ...familyLinks
               .filter((l) => familyIds.has(l.parent_id))
               .map((l) => ({ id: l.player_id, name: name(l.players) })),
@@ -234,6 +260,50 @@ export async function resolveSubscriptionReview(
 ) {
   assertRole(session.role, "admin");
   const decision = subscriptionReviewDecision.parse(input);
+  if (trialFeatureEnabled()) {
+    const db = serviceDb();
+    const trial = await db
+      .from("trial_players")
+      .select("id")
+      .eq("id", decision.player_id)
+      .maybeSingle();
+    if (trial.error)
+      throw new HttpError(
+        503,
+        "Probetraining-Zuordnung konnte nicht geprüft werden.",
+      );
+    if (trial.data) {
+      const review = await db
+        .from("subscription_assignment_reviews")
+        .select("subscriptions!inner(stripe_customer_id)")
+        .eq("id", decision.review_id)
+        .single();
+      const customer = (review.data?.subscriptions as any)?.stripe_customer_id;
+      if (customer) {
+        const registry = await db
+          .from("stripe_customer_registry")
+          .select("email")
+          .eq("id", customer)
+          .maybeSingle();
+        if (!registry.data?.email) {
+          const actual = await profileStripeClient().customers.retrieve(
+            customer,
+            { timeout: 6000, maxNetworkRetries: 0 },
+          );
+          if (!actual.deleted) {
+            const saved = await db
+              .from("stripe_customer_registry")
+              .upsert({ id: customer, name: actual.name, email: actual.email });
+            if (saved.error)
+              throw new HttpError(
+                503,
+                "Stripe-Kontaktdaten konnten nicht geprüft werden.",
+              );
+          }
+        }
+      }
+    }
+  }
   const result = await session.db.rpc("resolve_subscription_assignment", {
     input: decision,
   });

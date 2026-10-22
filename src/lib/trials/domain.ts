@@ -41,7 +41,38 @@ export const trialApplicationSchema = z.object({
   marketing_consent: z.boolean().default(false),
   website: z.string().max(0).default(""),
 });
+export const trialProfileFields = {
+  first_name: name,
+  last_name: name,
+  birth_date: z.iso
+    .date()
+    .refine(
+      (v) => v >= "2000-01-01" && v <= new Date().toISOString().slice(0, 10),
+    ),
+  team: z.string().trim().max(100),
+  gender: z.enum(["", "männlich", "weiblich", "divers"]),
+  club: z.string().trim().max(120),
+  position: z.string().trim().max(80),
+  strong_foot: z.enum(["", "rechts", "links", "beidfüßig"]),
+  height_cm: z.number().int().min(50).max(250).nullable(),
+  development_goals: z.string().trim().max(2000),
+};
 export const trialTeamSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("profile"),
+    request_id: z.uuid(),
+    ...trialProfileFields,
+  }),
+  z.object({
+    action: z.literal("owner"),
+    request_id: z.uuid(),
+    assigned_to: z.uuid(),
+  }),
+  z.object({
+    action: z.literal("attendance"),
+    request_id: z.uuid(),
+    status: z.enum(["attended_manual", "absent", "excused"]),
+  }),
   z.object({
     action: z.literal("assign"),
     request_id: z.uuid(),
@@ -78,6 +109,18 @@ export const trialTeamSchema = z.discriminatedUnion("action", [
 export interface TrialRow {
   id: string;
   family_id: string;
+  assigned_to?: string | null;
+  assigned_name?: string | null;
+  feedback_at?: string | null;
+  converted_player_id?: string | null;
+  team?: string;
+  gender?: string | null;
+  position?: string | null;
+  strong_foot?: string | null;
+  height_cm?: number | null;
+  development_goals?: string | null;
+  original_data?: Record<string, unknown>;
+
   player_id: string;
   first_name: string;
   last_name: string;

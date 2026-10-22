@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { TrialMenuBadge } from "./trials/team";
+import { TrialMenuBadge, TrialDashboard } from "./trials/team";
 import { PaiLauncher } from "./pai/chat";
 import { usePaiAvailability } from "./pai/availability";
 import { AdminNavigation } from "./admin-navigation";
@@ -465,6 +465,10 @@ export function Portal({
                 <ArrowRight size={20} />
               </Link>
             )}
+          {(section === "admin" || section === "team") &&
+            data.trial_enabled && (
+              <TrialDashboard base={admin ? "/admin" : "/team"} />
+            )}
           {children ? (
             children
           ) : (admin || team) &&
@@ -490,7 +494,19 @@ export function Portal({
               </section>
             </>
           ) : team || section === "admin/trainingsplanung" ? (
-            <TeamView data={data} update={update} notify={setToast} />
+            <TeamView
+              data={{
+                ...data,
+                players: [
+                  ...data.players,
+                  ...(data.trial_players ?? []).filter(
+                    (p) => !data.players.some((r) => r.id === p.id),
+                  ),
+                ],
+              }}
+              update={(next) => update({ ...next, players: data.players })}
+              notify={setToast}
+            />
           ) : admin ? (
             <AdminView data={data} section={section} notify={setToast} />
           ) : (

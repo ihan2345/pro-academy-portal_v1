@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createHash } from "node:crypto";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { serviceDb } from "@/lib/server/service-db";
-import { sessionUser } from "@/lib/server/supabase";
+import { sessionUser, sessionDb } from "@/lib/server/supabase";
 import { assertRole, HttpError } from "@/lib/server/security";
 import { readAll } from "@/lib/server/read-all";
 import { required } from "@/lib/server/config";
@@ -97,30 +97,40 @@ export async function trialSummary() {
   const s = await sessionUser();
   assertRole(s?.role, "team");
   const db = serviceDb();
-  const [fresh, review] = await Promise.all([
+  const [fresh, review, attendance] = await Promise.all([
     db
       .from("trial_requests")
       .select("id", { count: "exact", head: true })
-      .eq("status", "new"),
+      .in("status", ["new", "contacted"]),
     db
       .from("trial_team_overview")
       .select("id", { count: "exact", head: true })
       .not("confirmed_at", "is", null)
       .eq("academy_ready", false)
       .neq("status", "closed"),
+    db
+      .from("trial_team_overview")
+      .select("id", { count: "exact", head: true })
+      .eq("attendance", "planned")
+      .eq("event_status", "scheduled")
+      .lt("ends_at", new Date().toISOString())
+      .neq("status", "closed"),
   ]);
-  if (fresh.error || review.error)
+  if (fresh.error || review.error || attendance.error)
     throw new HttpError(
       503,
       "Probetraining-Aufgaben konnten nicht geladen werden.",
     );
-  return { new: fresh.count ?? 0, review: review.count ?? 0 };
+  return {
+    new: fresh.count ?? 0,
+    review: (review.count ?? 0) + (attendance.count ?? 0),
+  };
 }
 export async function trialTeamData() {
   const s = await sessionUser();
   assertRole(s?.role, "team");
   const db = serviceDb();
-  const [rows, events] = await Promise.all([
+  const [rows, events, staff, admins] = await Promise.all([
     readAll(db, "trial_team_overview", "*"),
     db
       .from("training_events")
@@ -129,11 +139,19 @@ export async function trialTeamData() {
       .gt("ends_at", new Date().toISOString())
       .order("starts_at")
       .limit(200),
+    db.from("staff_profiles").select("id,display_name").eq("active", true),
+    db.from("profiles").select("id,full_name").eq("role", "admin"),
   ]);
-  if (events.error)
+  if (events.error || staff.error || admins.error)
     throw new HttpError(503, "Termine konnten nicht geladen werden.");
   return {
     rows: rows as unknown as TrialRow[],
+    staff: [
+      ...(staff.data ?? []),
+      ...(admins.data ?? [])
+        .filter((a) => !(staff.data ?? []).some((s) => s.id === a.id))
+        .map((a) => ({ id: a.id, display_name: a.full_name || "Verwaltung" })),
+    ],
     events: events.data.map((e) => ({
       id: e.id,
       title: e.title,
@@ -210,4 +228,56 @@ export async function trialCamps(): Promise<TrialCamp[]> {
     })
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
     .slice(0, 3);
+}
+
+export async function ensureTrialAuth(family: {
+  id: string;
+  email: string;
+  parent_name: string;
+}) {
+  const db = serviceDb();
+  let linked = await db.rpc("trial_link_auth", { family: family.id });
+  if (linked.error)
+    throw new HttpError(503, "Elternzugang konnte nicht verknüpft werden.");
+  if (!linked.data) {
+    const created = await db.auth.admin.createUser({
+      email: family.email,
+      email_confirm: true,
+      user_metadata: {
+        full_name: family.parent_name,
+        trial_family_id: family.id,
+      },
+    });
+    if (
+      created.error &&
+      !["email_exists", "user_already_exists"].includes(
+        created.error.code ?? "",
+      )
+    )
+      throw new HttpError(
+        503,
+        "Elternzugang konnte nicht erstellt werden. Bitte erneut versuchen.",
+      );
+    linked = await db.rpc("trial_link_auth", { family: family.id });
+    if (linked.error || !linked.data)
+      throw new HttpError(503, "Elternzugang konnte nicht verknüpft werden.");
+  }
+  const link = await db.auth.admin.generateLink({
+    type: "magiclink",
+    email: family.email,
+  });
+  if (link.error || !link.data.properties.hashed_token)
+    throw new HttpError(503, "Elternanmeldung ist gerade nicht verfügbar.");
+  const signed = await (
+    await sessionDb()
+  ).auth.verifyOtp({
+    token_hash: link.data.properties.hashed_token,
+    type: "magiclink",
+  });
+  if (signed.error)
+    throw new HttpError(
+      503,
+      "Elternanmeldung konnte nicht abgeschlossen werden.",
+    );
+  return linked.data as string;
 }

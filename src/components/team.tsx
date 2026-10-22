@@ -398,7 +398,10 @@ export function TeamView({
                       ) : (
                         <p className="auto-label">
                           <Clock size={14} />
-                          {confirmationHint(e)}
+                          {e.participants.length > 0 &&
+                          e.participants.every((p) => p.trial_request_id)
+                            ? "Probetraining · Teilnahme nur manuell bestätigen"
+                            : confirmationHint(e)}
                         </p>
                       )}
                     </div>
@@ -459,7 +462,9 @@ export function TeamView({
           <p>
             Reguläre Teilnahmen werden nach zwölf aktiven Pufferstunden
             automatisch bestätigt. Zwischen 00:00 und 06:00 Uhr pausiert die
-            Zeit. Trage hier nur Ausnahmen ein.
+            Zeit. Trage hier nur Ausnahmen ein.{" "}
+            {data.trial_enabled &&
+              "Probetraining-Teilnahmen müssen immer manuell bestätigt werden."}
           </p>
         </div>
       )}

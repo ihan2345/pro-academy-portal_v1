@@ -122,3 +122,86 @@
     padding: 18px;
   }
 }
+
+.trial-player-card {
+  border: 1px solid #97e9e5;
+  overflow: hidden;
+  padding: 0;
+  background: #fff;
+  align-self: start;
+  box-shadow: 0 8px 24px #1023310b;
+}
+.trial-player-cover {
+  background: #97e9e5;
+  padding: 22px 24px 0;
+  color: #173b3a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+.trial-avatar {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid #97e9e5;
+  display: grid;
+  place-items: center;
+  font-size: 25px;
+  transform: translateY(20px);
+  letter-spacing: 0;
+}
+.trial-player-card > h2 {
+  margin: 32px 24px 14px;
+}
+.trial-player-card > .trial-tag,
+.trial-player-card > .trial-owner {
+  margin: 0 24px 16px;
+}
+.trial-card-details {
+  padding: 18px 24px;
+  border-top: 1px solid #d9eeec;
+}
+.trial-card-details > summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+.trial-card-details[open] > summary {
+  margin-bottom: 22px;
+}
+.trial-card-details .trial-form {
+  margin: 20px 0;
+}
+.trial-owner {
+  font-size: 14px;
+}
+.trial-task {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid #d9eeec;
+}
+.trial-dashboard {
+  margin-bottom: 24px;
+  border-left: 5px solid #97e9e5;
+}
+.trial-dashboard > summary {
+  cursor: pointer;
+}
+.trial-attendance-task {
+  padding: 18px;
+  background: #e8f9f7;
+  border-radius: 12px;
+}
+.trial-attendance-task button {
+  margin: 6px;
+}
+.trial-task details {
+  max-width: 280px;
+}
+@media (max-width: 600px) {
+  .trial-task {
+    grid-template-columns: 1fr;
+  }
+}
