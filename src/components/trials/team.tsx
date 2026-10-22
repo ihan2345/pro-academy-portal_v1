@@ -270,7 +270,9 @@ function TrialTeamCard({
   refresh: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [noteStatus, setNoteStatus] = useState(r.status);
+  useEffect(() => setNoteStatus(r.status), [r.status]);
   async function action(input: unknown) {
     setBusy(true);
     setError("");
@@ -464,7 +466,9 @@ function TrialTeamCard({
               action: "note",
               request_id: r.id,
               note: f.get("note"),
-              status: f.get("status"),
+              status: ["planned", "attended"].includes(noteStatus)
+                ? "contacted"
+                : noteStatus,
             });
           }}
         >
@@ -476,16 +480,21 @@ function TrialTeamCard({
             Bearbeitungsstand
             <select
               name="status"
-              defaultValue={
-                r.status === "closed"
-                  ? "closed"
-                  : r.status === "new"
-                    ? "new"
-                    : "contacted"
-              }
+              value={noteStatus}
+              onChange={(e) => setNoteStatus(e.target.value)}
             >
-              <option value="new">Neu</option>
-              <option value="contacted">Kontakt aufgenommen</option>
+              {["planned", "attended"].includes(r.status) ? (
+                <option value={r.status} disabled>
+                  {r.status === "attended"
+                    ? "Teilgenommen"
+                    : "Training geplant"}
+                </option>
+              ) : (
+                <>
+                  <option value="new">Neu</option>
+                  <option value="contacted">Kontakt aufgenommen</option>
+                </>
+              )}
               <option value="closed">Kein Interesse / abgeschlossen</option>
             </select>
           </label>

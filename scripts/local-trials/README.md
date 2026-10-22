@@ -2,7 +2,7 @@
 
 Einstieg: **http://127.0.0.1:3107/lokaler-test/probetraining**
 
-Die bisherige Testumgebung `pabyak-family-local` wird weiterverwendet. Der Kontowechsel unter `/lokaler-test` meldet echte lokale Konten an. Die Anwendungskopie und Testdaten liegen ausschließlich unter dem ignorierten Verzeichnis `output/eltern-kind-lokal/`. Produktive Dateien erhalten keine Testanmeldung und keine Zeitsimulation.
+Die bisherige Testumgebung `pabyak-family-local` wird weiterverwendet. Der Kontowechsel unter `/lokaler-test` meldet echte lokale Konten an. Neue Probetraining-Eltern werden dort direkt aus der lokalen Datenbank geladen. Nach bestätigter E-Mail öffnet der Kontowechsel das Elternportal; bei offener Bestätigung führt er zuerst zum persönlichen Willkommenszugang. Nach einer Abo-Übernahme wird das reguläre Elternprofil geöffnet. Die Anwendungskopie und Testdaten liegen ausschließlich unter dem ignorierten Verzeichnis `output/eltern-kind-lokal/`. Produktive Dateien erhalten keine Testanmeldung und keine Zeitsimulation.
 
 ## Ablauf
 
