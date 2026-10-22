@@ -16,7 +16,7 @@ Die bisherige Testumgebung `pabyak-family-local` wird weiterverwendet. Der Konto
 
 8. Optional **Abo-Abschluss simulieren** wählen. In der Verwaltung erscheinen ein ausdrücklich lokaler Stripe-Vorgang und eine offene Abo-Zuordnung mit Probetraining-Vorschlag. Die Bestätigung übernimmt das vorhandene Kinderprofil. Es wird kein Stripe-Aufruf und keine Zahlung ausgeführt.
 
-Nach Änderungen in anderen Tabs die jeweilige Ansicht neu laden. Die lokale Mailvorschau zeigt ausschließlich aufgezeichnete Mails; nichts wird an die angegebenen Adressen verschickt. Der Camp-Eintrag ist ein ausdrücklich gekennzeichnetes Anzeigebeispiel ohne Zahlungsangebot. Für zusätzliche Trainings kann die normale lokale Trainingsplanung genutzt werden.
+Nach Änderungen in anderen Tabs die jeweilige Ansicht neu laden. Die lokale Mailvorschau zeigt ausschließlich aufgezeichnete Mails; nichts wird an die angegebenen Adressen verschickt. Links in der eingebetteten Mailvorschau öffnen das Portal im Hauptfenster. Dadurch laufen Bestätigung und Bewertung außerhalb der isolierten Maildarstellung. Der Camp-Eintrag ist ein ausdrücklich gekennzeichnetes Anzeigebeispiel ohne Zahlungsangebot. Für zusätzliche Trainings kann die normale lokale Trainingsplanung genutzt werden.
 
 ## Wieder starten
 
