@@ -7,6 +7,8 @@ import { assertRole, HttpError } from "@/lib/server/security";
 import { readAll } from "@/lib/server/read-all";
 import { required } from "@/lib/server/config";
 import { readTrialGrant } from "./tokens";
+import { trialFeatureEnabled } from "./feature";
+export { trialFeatureEnabled, trialFeatureInstalled } from "./feature";
 import {
   type TrialCamp,
   type TrialRow,
@@ -14,11 +16,8 @@ import {
   trialApplicationSchema,
   trialTeamSchema,
 } from "./domain";
-export function trialFeatureEnabled() {
-  return process.env.TRIAL_TRAINING_ENABLED === "true";
-}
-export function requireTrials() {
-  if (!trialFeatureEnabled())
+export async function requireTrials() {
+  if (!(await trialFeatureEnabled()))
     throw new HttpError(404, "Probetraining ist noch nicht freigeschaltet.");
 }
 export function trialResult<T>(r: {

@@ -17,7 +17,7 @@ export default async function Page({
 }: {
   searchParams: Promise<{ ratingToken?: string }>;
 }) {
-  if (!trialFeatureEnabled()) notFound();
+  if (!(await trialFeatureEnabled())) notFound();
   const { ratingToken } = await searchParams;
   let saved = null;
   if (ratingToken) {

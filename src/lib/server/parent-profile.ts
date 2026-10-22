@@ -50,9 +50,8 @@ export async function profileSession() {
 export function profileShell(s: ProfileSession): PortalData {
   return {
     trial_access:
-      process.env.TRIAL_TRAINING_ENABLED === "true" &&
-      ["trial", "mixed"].includes(s.customerStatus),
-    trial_enabled: process.env.TRIAL_TRAINING_ENABLED === "true",
+      s.trialEnabled && ["trial", "mixed"].includes(s.customerStatus),
+    trial_enabled: s.trialEnabled,
     role: s.role!,
     user_name: s.name.split(" ")[0] || "Willkommen",
     email: s.user.email ?? "",
@@ -429,7 +428,8 @@ export async function loadParentProfile(
     role: s.role!,
     children: children.filter((c) => visibleIds.has(c.id)),
     ...familyMembership(activePeriods, now),
-    has_subscription_history: activeMembership(activePeriods, now).since !== null,
+    has_subscription_history:
+      activeMembership(activePeriods, now).since !== null,
     history_note:
       "Abgeschlossene aktive Abo-Monate werden je Kind einmal gezählt und als Familie addiert. Jeder volle Monat ohne aktives Kinderabo zieht einen Statusmonat ab, höchstens bis null. Der Abzug bleibt nach einem Wiedereinstieg bestehen. Zugeordnete archivierte Kinder behalten ihre belegte Historie.",
     calendar: profileCalendar(visibleUnits, month, now),

@@ -1,5 +1,5 @@
 -- Local Docker fixture only. Never part of a release migration.
-update system_settings set value='{"enabled":true}' where key='trial_training_release';
+update platform_features set enabled=true where key='trial_training';
 create or replace function public.local_trial_clock(request uuid,stage text) returns void language plpgsql security definer set search_path=public as $$
 declare r trial_requests; coach uuid; f trial_families; cid text; sid text; price text; item jsonb;
 begin

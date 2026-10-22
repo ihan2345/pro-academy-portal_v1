@@ -1,6 +1,6 @@
 # Probetraining – lokale Umsetzung
 
-Branch: `Probetraining`. Keine Produktionsmigration, kein Versand und kein Deployment durch diese Umsetzung. Der vorherige Arbeitsstand wurde separat in `19ed876` gesichert.
+Branch: `Probetraining`. Nach der isolierten lokalen Erprobung am 22.10.2026 auf ausdrücklichen Nutzerauftrag zur Veröffentlichung freigegeben. Der vorherige Arbeitsstand wurde separat in `19ed876` gesichert. Der Produktionsstand wird unten dokumentiert.
 
 ## Einstieg und Abläufe
 
@@ -52,18 +52,18 @@ Die bisherige isolierte Testumgebung wurde aktualisiert. Einstieg: `http://127.0
 Nur mit einer isolierten lokalen Datenbank und lokalen Zugangsdaten arbeiten, nicht mit einer produktiven `.env.local`:
 
 1. Bestehendes Basisschema einschließlich Camp-/Elternprofildaten und Release `016-calendar-backfills.sql` bereitstellen.
-2. `supabase/release/017-trial-training.sql` und anschließend `018-trial-profiles-feedback.sql`, `019-trial-release-rules.sql` und `020-trial-camp-access.sql` einmalig anwenden. Für 020 werden die Camp-Migrationen bis einschließlich 013 vorausgesetzt. Für die Abo-Übernahme werden zusätzlich die bestehenden Paketwechsel-Releases 011, 014 und 015 vorausgesetzt. Die Migration legt den Schalter zunächst ausgeschaltet an.
+2. `supabase/release/017-trial-training.sql` und anschließend `018-trial-profiles-feedback.sql`, `019-trial-release-rules.sql`, `020-trial-camp-access.sql` und `021-trial-platform-switch.sql` einmalig anwenden. Für 020 werden die Camp-Migrationen bis einschließlich 013 vorausgesetzt. Für die Abo-Übernahme werden zusätzlich die bestehenden Paketwechsel-Releases 011, 014 und 015 vorausgesetzt. Die Migration legt den Schalter zunächst ausgeschaltet an.
 3. In dieser lokalen Datenbank aktivieren:
 
    ```sql
-   update public.system_settings
-   set value = '{"enabled":true}'
-   where key = 'trial_training_release';
+   update public.platform_features
+   set enabled = true
+   where key = 'trial_training';
    ```
 
 4. Für lokale Web-App und lokalen Jobrunner `TRIAL_TRAINING_ENABLED=true`, `MAIL_PROVIDER=capture` und eine lokale `APP_URL` setzen. App mit `npm run dev` und Jobrunner mit `npm run jobs` starten.
 
-Ohne beide Freischaltungen bleibt der Ablauf deaktiviert. Bei einer späteren Veröffentlichung benötigen Web-App und Jobrunner denselben Schalter und dieselbe Datenbankmigration. Diese Veröffentlichung ist nicht Bestandteil der lokalen Umsetzung.
+Ohne Installationsvariable und aktivierten Datenbankschalter bleibt der Ablauf deaktiviert. Web-App und Jobrunner benötigen denselben Schalter und dieselbe Datenbankmigration.
 
 ## Gezielte Prüfung
 
@@ -74,6 +74,16 @@ Ohne beide Freischaltungen bleibt der Ablauf deaktiviert. Bei einer späteren Ve
 
 Die Datenbanktests verwenden ausschließlich PGlite im Speicher. Browserprüfungen blockieren externe Netzwerkaufrufe. Kein Test verschickt echte Mails oder verändert produktive Datensätze.
 
-## Spätere Veröffentlichung
+## Veröffentlichungsverfahren
 
-Produktiv noch nicht angewendet. Datenbankbestand und Funktionsvoraussetzungen vorab prüfen und sichern. Web-App und Jobrunner mit derselben Unterstützung bereitstellen, während die Freigabe noch aus bleibt; 017, 018, 019, 020 in Reihenfolge anwenden und danach beide Schalter kontrolliert aktivieren. Ausschließlich isoliert ohne produktive `.env.local` bauen. Lokale Kontowechsel, Zeitreise und Mail-Capture gehören nicht in die produktive Anwendung. Ein Feature-Rückzug darf bestehende Trial-Teilnahmen nicht unlesbar machen; keine Datenbankmigration rückwärts löschen. Datenschutztexte, Sicherungsfristen, echte Mailzustellung und ein kontrollierter Produktionsdurchlauf sind vor breiter Freigabe separat zu prüfen.
+Datenbankbestand und Funktionsvoraussetzungen vorab prüfen und sichern. Web-App und Jobrunner mit derselben Unterstützung bereitstellen, während die Freigabe noch aus bleibt; 017, 018, 019, 020, 021 in Reihenfolge anwenden und danach den zentralen Schalter kontrolliert aktivieren. Ausschließlich isoliert ohne produktive `.env.local` bauen. Lokale Kontowechsel, Zeitreise und Mail-Capture gehören nicht in die produktive Anwendung. Ein Feature-Rückzug darf bestehende Trial-Teilnahmen nicht unlesbar machen; keine Datenbankmigration rückwärts löschen. Datenschutztexte, Sicherungsfristen, echte Mailzustellung und ein kontrollierter Produktionsdurchlauf sind vor breiter Freigabe separat zu prüfen.
+
+## Zentraler Super-Admin-Schalter
+
+`/admin/funktionen` zeigt **Probetraining** neben pAi und dem Maskottchen. Nur der bereits berechtigte Admin mit `manage_features` kann den Schalter bedienen; Rollen, zusätzliche Rechte, pAi-Zustand und Camp-Konfiguration ändern sich nicht. Änderungen verwenden dieselbe Datenbankroutine, Paralleländerungsprüfung und Protokollierung wie pAi.
+
+`platform_features.key = 'trial_training'` ist die verbindliche Freigabe. Die frühere lokale Einstellung `system_settings.trial_training_release` wird nicht mehr gelesen. Die Installationsvariable `TRIAL_TRAINING_ENABLED=true` bleibt in Web-App und Runner bestehen; sie ersetzt keinen aktivierten Datenbankschalter. Der Server liest die Freigabe ohne dauerhaften Cache und sperrt bei Datenbankfehlern.
+
+Deaktivieren sperrt neue Anfragen, Probetraining-Seiten, entsprechende Teamaktionen und den Probetraining-Mailversand. Gespeicherte Familien, manuell zu bestätigende Teilnahmen, vorhandene Campzugänge und die Identitätsprüfung bei einer bezahlten Abo-Übernahme bleiben erhalten. Die 180-Tage-Bereinigung läuft weiter. Eine bestehende Probefamilie erhält durch das Ausschalten insbesondere keinen pAi-Zugang. Erneutes Aktivieren setzt die fachlichen Prüfungen fort; bereits erledigte Nachrichten werden nicht doppelt angelegt.
+
+Die Familienstatus-Karte im Elternprofil wird erst bei belegter Abo-Historie angezeigt. Probetraining und reine Campbuchungen begründen keinen Bronze-Fortschritt.

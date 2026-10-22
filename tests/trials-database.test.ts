@@ -47,6 +47,7 @@ beforeAll(async () => {
     "018-trial-profiles-feedback.sql",
     "019-trial-release-rules.sql",
     "020-trial-camp-access.sql",
+    "021-trial-platform-switch.sql",
   ])
     await db
       .exec(readFileSync(`supabase/release/${f}`, "utf8"))
@@ -71,7 +72,7 @@ beforeEach(async () => {
   ]);
   await q("select set_config('request.jwt.claim.sub',$1,true)", [id(1)]);
   await db.exec(
-    "update system_settings set value='{\"enabled\":true}' where key='trial_training_release'",
+    "update platform_features set enabled=true where key='trial_training'",
   );
 });
 afterEach(async () => db.exec("rollback"));
@@ -1011,4 +1012,70 @@ it("does not keep an unsuccessful trial account alive solely because of an aband
   expect(
     (await q("select contact_email from parents"))[0].contact_email,
   ).toContain("@deleted.invalid");
+});
+
+it("uses only the audited Super-Admin switch, pauses requests and queued delivery without losing existing families", async () => {
+  const [r] = await apply();
+  await q("select plan_trial_notifications()");
+  const [job] = await q(
+    "select * from notification_jobs where kind='trial_welcome'",
+  );
+  await db.exec("set local role authenticated");
+  await db.exec("savepoint unauthorized");
+  await expect(
+    q("select set_platform_feature('trial_training',false,true)"),
+  ).rejects.toThrow("Forbidden");
+  await db.exec("rollback to savepoint unauthorized");
+  await db.exec("reset role");
+  await q(
+    "insert into platform_permissions(user_id,permission) values($1,'manage_features')",
+    [id(1)],
+  );
+  await db.exec("set local role authenticated");
+  await q("select set_platform_feature('trial_training',false,true)");
+  await db.exec("savepoint stale");
+  await expect(
+    q("select set_platform_feature('trial_training',true,true)"),
+  ).rejects.toThrow("FEATURE_CHANGED");
+  await db.exec("rollback to savepoint stale");
+  await db.exec("reset role");
+  await q(
+    "insert into system_settings(key,value) values('trial_training_release','{\"enabled\":true}')",
+  );
+  expect((await q("select trial_enabled() enabled"))[0].enabled).toBe(false);
+  await db.exec("savepoint blocked");
+  await expect(apply(20)).rejects.toThrow("freigeschaltet");
+  await db.exec("rollback to savepoint blocked");
+  expect((await q("select plan_trial_notifications() n"))[0].n).toBe(0);
+  expect(
+    (
+      await q("select trial_delivery_allowed($1,$2,$3) allowed", [
+        job.recipient,
+        job.kind,
+        job.payload,
+      ])
+    )[0].allowed,
+  ).toBe(false);
+  expect(
+    await q("select id from trial_players where id=$1", [r.player_id]),
+  ).toHaveLength(1);
+  await db.exec("set local role authenticated");
+  await q("select set_platform_feature('trial_training',true,false)");
+  await db.exec("reset role");
+  expect(
+    (
+      await q("select trial_delivery_allowed($1,$2,$3) allowed", [
+        job.recipient,
+        job.kind,
+        job.payload,
+      ])
+    )[0].allowed,
+  ).toBe(true);
+  expect(
+    (
+      await q(
+        "select count(*)::int n from audit_log where table_name='platform_features'",
+      )
+    )[0].n,
+  ).toBeGreaterThanOrEqual(2);
 });

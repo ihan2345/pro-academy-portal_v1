@@ -2,6 +2,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { required } from "./config";
+import { trialFeatureEnabled } from "../trials/feature";
 export { serviceDb } from "./service-db";
 export async function sessionDb() {
   const store = await cookies();
@@ -51,6 +52,7 @@ export async function sessionUser() {
     customerStatus = result.data;
   }
   return {
+    trialEnabled: await trialFeatureEnabled(),
     customerStatus,
     db,
     user,

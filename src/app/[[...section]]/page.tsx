@@ -45,7 +45,7 @@ export default async function Page({
 }) {
   const section = (await params).section?.join("/") ?? "";
   if (/^(admin|team)\/probetraining$/.test(section)) {
-    if (!trialFeatureEnabled()) notFound();
+    if (!(await trialFeatureEnabled())) notFound();
     return (
       <Portal initial={await loadPortal(section)} section={section}>
         <TrialTeam />

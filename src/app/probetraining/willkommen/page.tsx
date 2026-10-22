@@ -29,7 +29,7 @@ export default async function Page({
     ratingToken?: string;
   }>;
 }) {
-  if (!trialFeatureEnabled()) notFound();
+  if (!(await trialFeatureEnabled())) notFound();
   const { token, ratingToken } = await searchParams;
   if (ratingToken) return <TrialEmailRating token={ratingToken} />;
   if (token) return <TrialAccess token={token} />;

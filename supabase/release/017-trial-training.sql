@@ -1,4 +1,4 @@
--- LOCAL ONLY. Apply explicitly after 016 and the existing Camp / parent-detail schema.
+-- Apply explicitly after 016 and the existing Camp / parent-detail schema.
 begin;
 insert into public.system_settings(key,value) values('trial_training_release','{"enabled":false}') on conflict do nothing;
 create function public.trial_enabled() returns boolean language sql stable security definer set search_path=public as $$

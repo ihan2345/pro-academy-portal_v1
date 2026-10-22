@@ -1,5 +1,4 @@
 import "server-only";
-import { trialFeatureEnabled } from "../trials/server";
 import { optionalBackfills } from "./v2-availability";
 import { readAll } from "./read-all";
 import { backfillColumns } from "../backfills";
@@ -93,7 +92,7 @@ export async function loadPortal(section: string): Promise<PortalData> {
     backfills,
   ] = results.map((r) => r.data ?? []);
   const trialPlayers =
-    trialFeatureEnabled() && session.role !== "parent"
+    session.trialEnabled && session.role !== "parent"
       ? await db
           .from("trial_players")
           .select("id,first_name,last_name,birth_date,team")
@@ -106,9 +105,9 @@ export async function loadPortal(section: string): Promise<PortalData> {
       birth_year: Number(p.birth_date.slice(0, 4)),
     })),
     trial_access:
-      trialFeatureEnabled() &&
+      session.trialEnabled &&
       ["trial", "mixed"].includes(session.customerStatus),
-    trial_enabled: trialFeatureEnabled(),
+    trial_enabled: session.trialEnabled,
     camp_enabled: campsEnabled,
     camp_access: campAccess,
     role: session.role,

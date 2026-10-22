@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 type Feature = { key: string; enabled: boolean; updated_at: string };
 export function PlatformFeatures({
   linkOnly = false,
@@ -9,6 +10,7 @@ export function PlatformFeatures({
   linkOnly?: boolean;
   optional?: boolean;
 }) {
+  const router = useRouter();
   const [features, setFeatures] = useState<Feature[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -64,9 +66,18 @@ export function PlatformFeatures({
                 ? "pAi"
                 : feature.key === "pai_mascot"
                   ? "pAi-Maskottchen"
-                  : feature.key}
+                  : feature.key === "trial_training"
+                    ? "Probetraining"
+                    : feature.key}
             </strong>
             <p>{feature.enabled ? "Aktiviert" : "Deaktiviert"}</p>
+            {feature.key === "trial_training" && (
+              <p className="muted">
+                Steuert Anfragen, Probetraining-Bereiche und zugehörige Mails.
+                Beim Deaktivieren bleiben Daten und bestehende Campzugänge
+                erhalten.
+              </p>
+            )}
             {feature.key === "pai_mascot" && (
               <p className="muted">
                 {paiActive
@@ -103,6 +114,7 @@ export function PlatformFeatures({
                 const data = await r.json();
                 if (!r.ok) throw Error(data.error);
                 setFeatures(data.features);
+                router.refresh();
                 window.dispatchEvent(new Event("platform-features-changed"));
                 try {
                   localStorage.setItem(

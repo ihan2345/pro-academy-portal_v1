@@ -57,7 +57,10 @@ beforeEach(() => {
   });
   mocks.verifyOtp.mockResolvedValue({ error: null });
   mocks.limit.mockResolvedValue({ success: true });
-  mocks.rpc.mockResolvedValue({ data: family, error: null });
+  mocks.rpc.mockImplementation(async (name: string) => ({
+    data: name === "trial_enabled" ? true : family,
+    error: null,
+  }));
 });
 afterEach(() => vi.unstubAllEnvs());
 async function post(action: string, body: unknown, from = origin) {
@@ -114,16 +117,33 @@ it("gates the feature and keeps team requests inaccessible to parents", async ()
   expect(mocks.from).not.toHaveBeenCalled();
 });
 it("reports generic identity matches with verified Academy contacts", async () => {
-  mocks.rpc.mockResolvedValue({
-    data: null,
-    error: { message: "TRIAL_MATCH" },
-  });
+  mocks.rpc.mockImplementation(async (name: string) =>
+    name === "trial_enabled"
+      ? { data: true, error: null }
+      : { data: null, error: { message: "TRIAL_MATCH" } },
+  );
   const r = await post("apply", app);
   expect(r.status).toBe(400);
   const text = (await r.json()).error;
   expect(text).toContain("contact@proacademy-ak.com");
   expect(text).toContain("+49 151 433 423 92");
   expect(text).not.toContain("TRIAL_MATCH");
+});
+it("honors the live Super-Admin switch and fails closed when its database check fails", async () => {
+  for (const result of [
+    { data: false, error: null },
+    { data: true, error: { message: "offline" } },
+    { data: "true", error: null },
+  ]) {
+    mocks.rpc.mockResolvedValue(result);
+    expect((await post("apply", app)).status).toBe(404);
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
+      "create_trial_request",
+      expect.anything(),
+    );
+  }
+  mocks.rpc.mockRejectedValue(Error("offline"));
+  expect((await post("apply", app)).status).toBe(404);
 });
 it("uses single-use parent-bound login grants, keeps rating grants out of full login and attributes session feedback server-side", async () => {
   const grant = {
@@ -224,7 +244,7 @@ it("uses single-use parent-bound login grants, keeps rating grants out of full l
   mocks.rpc.mockImplementation(async (name: string) =>
     name === "consume_trial_access"
       ? { error: { message: "used" }, data: null }
-      : { error: null, data: family },
+      : { error: null, data: name === "trial_enabled" ? true : family },
   );
   expect((await post("access", { token })).status).toBe(401);
 });

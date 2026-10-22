@@ -1,4 +1,4 @@
--- Local preparation: separate trial identities and manual attendance. Apply after 017.
+-- Separate trial identities and manual attendance. Apply after 017.
 begin;
 create table public.trial_players (
  id uuid primary key default gen_random_uuid(), family_id uuid not null references trial_families(id),

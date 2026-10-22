@@ -1,5 +1,5 @@
 import "server-only";
-import { trialFeatureEnabled } from "../trials/server";
+import { trialFeatureInstalled } from "../trials/server";
 import { z } from "zod";
 import { serviceDb } from "./service-db";
 import { assertRole, HttpError } from "./security";
@@ -142,7 +142,7 @@ export async function stripeActivities(
         ),
       ])
     : [[], []];
-  const trialProfiles = trialFeatureEnabled()
+  const trialProfiles = trialFeatureInstalled()
     ? (checked(
         await db
           .from("trial_players")

@@ -32,7 +32,7 @@ async function handle(
   context: { params: Promise<{ action: string }> },
 ) {
   try {
-    requireTrials();
+    await requireTrials();
     const { action } = await context.params;
     if (request.method === "GET") {
       if (action === "team") return json(await trialTeamData());

@@ -1,5 +1,5 @@
 import "server-only";
-import { trialFeatureEnabled } from "../trials/server";
+import { trialFeatureInstalled } from "../trials/server";
 import { z } from "zod";
 import type { ProfileSession } from "./parent-profile";
 import { profileStripeClient } from "./profile-stripe";
@@ -137,7 +137,7 @@ export async function subscriptionReviews(
         db.from("parents").select("id,full_name").in("id", parentIds),
       )
     : [];
-  const trialProfiles = trialFeatureEnabled()
+  const trialProfiles = trialFeatureInstalled()
     ? await collect(() =>
         db
           .from("trial_players")
@@ -267,7 +267,7 @@ export async function resolveSubscriptionReview(
 ) {
   assertRole(session.role, "admin");
   const decision = subscriptionReviewDecision.parse(input);
-  if (trialFeatureEnabled()) {
+  if (trialFeatureInstalled()) {
     const db = serviceDb();
     const trial = await db
       .from("trial_players")
