@@ -429,6 +429,7 @@ export async function loadParentProfile(
     role: s.role!,
     children: children.filter((c) => visibleIds.has(c.id)),
     ...familyMembership(activePeriods, now),
+    has_subscription_history: activeMembership(activePeriods, now).since !== null,
     history_note:
       "Abgeschlossene aktive Abo-Monate werden je Kind einmal gezählt und als Familie addiert. Jeder volle Monat ohne aktives Kinderabo zieht einen Statusmonat ab, höchstens bis null. Der Abzug bleibt nach einem Wiedereinstieg bestehen. Zugeordnete archivierte Kinder behalten ihre belegte Historie.",
     calendar: profileCalendar(visibleUnits, month, now),
