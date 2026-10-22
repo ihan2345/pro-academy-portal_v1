@@ -23,6 +23,10 @@ Vor dem Versand werden Teilnahme, Freigabe, Empfänger, Einwilligung und Abo ern
 
 Das Formular verlangt die Zustimmung zu organisatorischen Termin-/Feedbackmails und die Kenntnisnahme der Datenschutzhinweise. Zusätzliche Angebotsmails sind separat optional und im Willkommensportal abbestellbar. Einwilligungsversion und Zeitpunkt werden gespeichert.
 
+## Bereits eingerichtete Testumgebung
+
+Die bisherige isolierte Testumgebung wurde aktualisiert. Einstieg: `http://127.0.0.1:3107/lokaler-test/probetraining`. Dort stehen Kontowechsel, lokaler Mailausgang und Zeitsimulation bereit. Startanleitung und Testschritte: [lokale Probetraining-Vorschau](../scripts/local-trials/README.md).
+
 ## Lokale Freischaltung
 
 Nur mit einer isolierten lokalen Datenbank und lokalen Zugangsdaten arbeiten, nicht mit einer produktiven `.env.local`:
