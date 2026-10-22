@@ -61,6 +61,7 @@ export interface Report {
   athletics_units?: number;
 }
 export interface PortalData {
+  trial_access?: boolean;
   trial_enabled?: boolean;
   trial_players?: Player[];
   camp_enabled?: boolean;

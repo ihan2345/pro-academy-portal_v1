@@ -14,7 +14,6 @@ import { canOpenPortalSection, portalHome } from "../portal-access";
 export async function loadPortal(section: string): Promise<PortalData> {
   const session = await sessionUser();
   if (!session?.role) redirect("/login");
-  if (session.customerStatus === "trial") redirect("/probetraining/willkommen");
   if (!canOpenPortalSection(session.role, section))
     redirect(portalHome(session.role));
   const campsEnabled =
@@ -106,6 +105,9 @@ export async function loadPortal(section: string): Promise<PortalData> {
       ...p,
       birth_year: Number(p.birth_date.slice(0, 4)),
     })),
+    trial_access:
+      trialFeatureEnabled() &&
+      ["trial", "mixed"].includes(session.customerStatus),
     trial_enabled: trialFeatureEnabled(),
     camp_enabled: campsEnabled,
     camp_access: campAccess,

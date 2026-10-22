@@ -156,7 +156,7 @@ export async function prepareCampImport(
         contact_email: session.customer_details?.email ?? "",
       };
   if (!processingToken && !data.new_parent) {
-    const family = data.new_child
+    const family: { data: any; error: any } = data.new_child
       ? await db
           .from("parents")
           .select("id,full_name,contact_email,archived_at")
@@ -170,6 +170,29 @@ export async function prepareCampImport(
           .eq("parent_id", data.parent_id)
           .eq("player_id", data.player_id)
           .single();
+    if (
+      (family.error || !family.data) &&
+      !data.new_child &&
+      process.env.TRIAL_TRAINING_ENABLED === "true"
+    ) {
+      const trial = await db
+        .from("trial_camp_children")
+        .select("id,parent_id")
+        .eq("id", data.player_id)
+        .eq("parent_id", data.parent_id)
+        .maybeSingle();
+      if (trial.error)
+        throw new Error("Probetraining-Zuordnung konnte nicht geprüft werden.");
+      if (trial.data) {
+        const parent = await db
+          .from("parents")
+          .select("id,full_name,contact_email,archived_at")
+          .eq("id", data.parent_id)
+          .single();
+        family.data = parent.data;
+        family.error = parent.error;
+      }
+    }
     if (family.error || !family.data)
       throw new Error("Eltern-Kind-Zuordnung fehlt.");
     const row = family.data as unknown as {

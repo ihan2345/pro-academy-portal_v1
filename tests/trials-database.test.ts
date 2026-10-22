@@ -24,6 +24,12 @@ beforeAll(async () => {
     .sort())
     await db.exec(readFileSync(`supabase/camp/${f}`, "utf8"));
   await db.exec(readFileSync("supabase/camp/010-team-import.sql", "utf8"));
+  for (const f of [
+    "011-age-import.sql",
+    "012-free-booking-approval.sql",
+    "013-discount-booking-approval.sql",
+  ])
+    await db.exec(readFileSync(`supabase/camp/${f}`, "utf8"));
   for (const f of files.filter((f) => f >= "202609230010"))
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   for (const f of [
@@ -40,6 +46,7 @@ beforeAll(async () => {
     "015-legacy-tariff-confirmation.sql",
     "018-trial-profiles-feedback.sql",
     "019-trial-release-rules.sql",
+    "020-trial-camp-access.sql",
   ])
     await db
       .exec(readFileSync(`supabase/release/${f}`, "utf8"))
@@ -514,6 +521,8 @@ it("promotes a matching trial profile atomically on approved active subscription
     height_cm: 140,
     development_goals: "Ballkontrolle",
   });
+  await campFixture();
+  await trialCampDraft(r, family.parent_id);
   const item = {
     id: "si_trial_convert",
     price_id: "price_1RlBeSRoswKHkM76gM8jmUB5",
@@ -549,7 +558,10 @@ it("promotes a matching trial profile atomically on approved active subscription
     ],
     /geändert/,
   );
-  expect(await q("select * from players")).toHaveLength(0);
+  expect(await q("select * from players")).toHaveLength(1);
+  expect(
+    (await q("select converted_at from trial_players"))[0].converted_at,
+  ).toBeNull();
   await q("select resolve_subscription_assignment($1)", [
     {
       review_id: review.id,
@@ -819,6 +831,183 @@ it("retires a trial-only authenticated parent after retention without retaining 
   ).toContain("@deleted.invalid");
   expect(await q("select * from auth.sessions")).toHaveLength(0);
   expect(await q("select * from auth.identities")).toHaveLength(0);
+  expect(
+    (await q("select contact_email from parents"))[0].contact_email,
+  ).toContain("@deleted.invalid");
+});
+
+async function campFixture() {
+  await q(
+    "insert into camps(id,title,location,capacity,buffer_percent,min_age,max_age,days,status,payment_mode) values($1,'Trial-Camp','Platz',20,0,6,16,jsonb_build_array(jsonb_build_object('starts_at',now()+interval '30 days','ends_at',now()+interval '30 days 6 hours')),'open','test')",
+    [id(80)],
+  );
+  await q(
+    "insert into plans(id,name,included_units,generation,is_camp,camp_id,active) values($1,'Camp',0,'special',true,$2,false)",
+    [id(81), id(80)],
+  );
+  await q(
+    "insert into camp_offers(id,camp_id,plan_id,kind,stripe_price_id,stripe_product_id,stripe_payment_link_id,payment_url,amount,currency) values($1,$2,$3,'main','price_trialcamp','prod_trialcamp','plink_trialcamp','https://example.invalid/camp',10000,'eur')",
+    [id(82), id(80), id(81)],
+  );
+}
+async function trialCampDraft(r: any, parent: string) {
+  await q(
+    "insert into camp_bookings(id,camp_id,offer_id,parent_id,player_id,browser_token_hash,parent_data,child_data,customer_group,expected_amount,currency,stripe_price_id,stripe_payment_link_id) values($1,$2,$3,$4,$5,'local',jsonb_build_object('name','Familie 10','email','parent10@test.invalid'),$6,'new',10000,'eur','price_trialcamp','plink_trialcamp')",
+    [
+      id(83),
+      id(80),
+      id(82),
+      parent,
+      r.player_id,
+      {
+        first_name: r.first_name,
+        last_name: r.last_name,
+        birth_date: r.birth_date,
+        gender: "keine Angabe",
+        clothing_size: "140",
+      },
+    ],
+  );
+}
+it("shares the same child identity with camps without Abo conversion, keeps camp history after trial retention and prevents foreign-family use", async () => {
+  const [r] = await apply();
+  await verify();
+  await campFixture();
+  const [f] = await q("select * from trial_families");
+  await q(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())",
+    [id(75), f.email],
+  );
+  await q("select trial_link_auth($1)", [f.id]);
+  await rejected(
+    "select prepare_trial_camp_player($1,$2)",
+    [id(999), r.player_id],
+    /Familie/,
+  );
+  await trialCampDraft(r, f.parent_id);
+  expect(await q("select * from players")).toHaveLength(1);
+  expect((await q("select id from players"))[0].id).toBe(r.player_id);
+  expect(
+    (await q("select camp_player_id,converted_at from trial_players"))[0],
+  ).toEqual({ camp_player_id: r.player_id, converted_at: null });
+  await q("select set_config('request.jwt.claim.sub',$1,true)", [id(75)]);
+  expect((await q("select trial_account_state() state"))[0].state).toBe(
+    "trial",
+  );
+  await q("select camp_confirm_payment($1)", [
+    {
+      booking_id: id(83),
+      session_id: "cs_test_trialcamp",
+      payment_id: "pi_trialcamp",
+      customer_id: "cus_trialcamp",
+      livemode: false,
+      payment_status: "paid",
+      price_id: "price_trialcamp",
+      payment_link_id: "plink_trialcamp",
+      currency: "eur",
+      quantity: 1,
+      subtotal: 10000,
+      total: 10000,
+    },
+  ]);
+  expect((await q("select status from camp_bookings"))[0].status).toBe("paid");
+  expect(await q("select * from players")).toHaveLength(1);
+  await q("update trial_families set created_at=now()-interval '181 days'");
+  expect((await q("select cleanup_trial_data() n"))[0].n).toBe(1);
+  expect(await q("select * from trial_players")).toHaveLength(0);
+  expect((await q("select status,player_id from camp_bookings"))[0]).toEqual({
+    status: "paid",
+    player_id: r.player_id,
+  });
+  expect((await q("select contact_email from parents"))[0].contact_email).toBe(
+    f.email,
+  );
+  expect(await q("select * from players")).toHaveLength(1);
+  expect((await q("select trial_account_state() state"))[0].state).toBe("none");
+});
+
+it("reuses a trial child during a manually reviewed paid Camp import and rolls back identity creation when payment proof fails", async () => {
+  const [r] = await apply();
+  await verify();
+  await campFixture();
+  const [f] = await q("select * from trial_families");
+  await q("update camps set payment_mode='live' where id=$1", [id(80)]);
+  const body = {
+    camp_id: id(80),
+    actor_id: id(1),
+    parent_id: f.parent_id,
+    player_id: null,
+    new_child: true,
+    child: {
+      first_name: r.first_name,
+      last_name: r.last_name,
+      birth_date: r.birth_date,
+      gender: "keine Angabe",
+      clothing_size: "140",
+    },
+    parent: { name: f.parent_name, email: f.email, phone: f.phone },
+    session_id: "cs_live_trialimport",
+    payment_id: "pi_trialimport",
+    customer_id: "cus_trialimport",
+    payment_link_id: "plink_trialcamp",
+    price_id: "price_trialcamp",
+    product_id: "prod_trialcamp",
+    livemode: true,
+    payment_status: "paid",
+    refunded: false,
+    disputed: false,
+    quantity: 1,
+    currency: "eur",
+    amount: 10000,
+    subtotal: 10000,
+    paid_at: new Date().toISOString(),
+    evidence: { discount: 0 },
+    customer_group: "new",
+    benefit_percent: 0,
+  };
+  await rejected(
+    "select camp_import_review_booking($1)",
+    [{ ...body, price_id: "wrong" }],
+    /source|payment/i,
+  );
+  expect(await q("select * from players")).toHaveLength(0);
+  await q("select camp_import_review_booking($1)", [body]);
+  expect((await q("select player_id from camp_bookings"))[0].player_id).toBe(
+    r.player_id,
+  );
+  expect(await q("select * from players")).toHaveLength(1);
+  expect(
+    (await q("select converted_at from trial_players"))[0].converted_at,
+  ).toBeNull();
+  await q("update players set first_name='Campname' where id=$1", [
+    r.player_id,
+  ]);
+  expect(
+    (await q("select first_name,original_data from trial_players"))[0]
+      .first_name,
+  ).toBe("Campname");
+  expect(
+    (await q("select original_data from trial_players"))[0].original_data
+      .first_name,
+  ).toBe(r.first_name);
+  await q("update trial_players set first_name='Trialname' where id=$1", [
+    r.player_id,
+  ]);
+  expect((await q("select first_name from players"))[0].first_name).toBe(
+    "Trialname",
+  );
+});
+
+it("does not keep an unsuccessful trial account alive solely because of an abandoned camp checkout", async () => {
+  const [r] = await apply();
+  await verify();
+  await campFixture();
+  const [f] = await q("select * from trial_families");
+  await trialCampDraft(r, f.parent_id);
+  await q("update trial_families set created_at=now()-interval '181 days'");
+  expect((await q("select cleanup_trial_data() n"))[0].n).toBe(1);
+  expect(await q("select * from players")).toHaveLength(0);
+  expect(await q("select * from camp_bookings")).toHaveLength(0);
   expect(
     (await q("select contact_email from parents"))[0].contact_email,
   ).toContain("@deleted.invalid");

@@ -273,6 +273,12 @@ export function Portal({
               (data.camp_access === "past" && n.href === "/termine"),
           )
         : nav;
+  if (!admin && !team && data.trial_access)
+    activeNav.push({
+      href: "/probetraining/willkommen",
+      title: "Probetraining",
+      icon: UserRound,
+    });
   if (paiVisible)
     activeNav.push({ href: "/pai", title: "pAi", icon: MessageCircle });
   if (data.camp_enabled)

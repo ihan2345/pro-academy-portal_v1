@@ -61,6 +61,7 @@ const files = [
     "017-trial-training.sql",
     "018-trial-profiles-feedback.sql",
     "019-trial-release-rules.sql",
+    "020-trial-camp-access.sql",
   ].map((f) => "supabase/release/" + f),
 ];
 // Older previews applied some files before migration tracking was introduced.

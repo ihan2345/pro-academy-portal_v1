@@ -1,4 +1,7 @@
-import { notFound } from "next/navigation";
+import Link from "next/link";
+import { Portal } from "@/components/portal";
+import { loadPortal } from "@/lib/server/data";
+import { notFound, redirect } from "next/navigation";
 import {
   TrialAccess,
   TrialEmailRating,
@@ -32,13 +35,25 @@ export default async function Page({
   if (token) return <TrialAccess token={token} />;
   try {
     const data = await trialWelcomeData();
-    return <TrialWelcome {...data} camps={await trialCamps()} />;
+    if (!data.rows.length) redirect("/profil");
+    return (
+      <Portal
+        initial={await loadPortal("konto")}
+        section="probetraining/willkommen"
+      >
+        <TrialWelcome {...data} camps={await trialCamps()} />
+      </Portal>
+    );
   } catch (e) {
     if (!(e instanceof HttpError)) throw e;
     return (
       <main className="trial-page">
         <h1>Dein Willkommensportal</h1>
         <p>{e.message}</p>
+        <p>
+          <Link href="/camps">Zu Camps und bisherigen Buchungen</Link> ·{" "}
+          <Link href="/profil">Zum Elternprofil</Link>
+        </p>
         <TrialResendAccess />
         <TrialContact />
       </main>

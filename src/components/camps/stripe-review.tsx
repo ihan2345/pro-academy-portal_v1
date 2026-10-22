@@ -25,6 +25,7 @@ export type Family = {
   parent_players: {
     players: {
       id: string;
+      trial?: boolean;
       first_name: string;
       last_name: string;
       camp_birth_date: string | null;
@@ -357,6 +358,7 @@ export function ReviewEditor({
                   .map(({ players: p }) => (
                     <option key={`${f.id}|${p.id}`} value={`${f.id}|${p.id}`}>
                       {p.first_name} {p.last_name} · {f.full_name}
+                      {p.trial ? " · Probetraining" : ""}
                     </option>
                   )),
               )}

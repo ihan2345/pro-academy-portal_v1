@@ -1,6 +1,5 @@
 import "server-only";
 import { z } from "zod";
-import { redirect } from "next/navigation";
 import { sessionUser } from "./supabase";
 import { serviceDb } from "./service-db";
 import { HttpError } from "./security";
@@ -46,11 +45,13 @@ function checked<T>(r: { data: T; error: any }): NonNullable<T> {
 export async function profileSession() {
   const s = await sessionUser();
   if (!s?.role) throw new HttpError(401, "Bitte melde dich an.");
-  if (s.customerStatus === "trial") redirect("/probetraining/willkommen");
   return s;
 }
 export function profileShell(s: ProfileSession): PortalData {
   return {
+    trial_access:
+      process.env.TRIAL_TRAINING_ENABLED === "true" &&
+      ["trial", "mixed"].includes(s.customerStatus),
     trial_enabled: process.env.TRIAL_TRAINING_ENABLED === "true",
     role: s.role!,
     user_name: s.name.split(" ")[0] || "Willkommen",
@@ -63,6 +64,7 @@ export function profileShell(s: ProfileSession): PortalData {
     trainers: [],
     whatsapp: process.env.WHATSAPP_NUMBER ?? "",
     camp_enabled: campEnabled(),
+    camp_access: s.customerStatus === "trial" ? "only" : undefined,
   };
 }
 export async function authorizeProfile(s: ProfileSession, target?: string) {

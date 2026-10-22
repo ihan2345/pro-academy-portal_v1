@@ -11,6 +11,8 @@ export async function GET() {
   try {
     const s = await sessionUser();
     if (!s?.role) return json({ pai: false, mascot: false }, 401);
+    if (s.customerStatus === "trial")
+      return json({ pai: false, mascot: false });
     return json(await paiVisibility());
   } catch {
     return json({ pai: false, mascot: false }, 503);

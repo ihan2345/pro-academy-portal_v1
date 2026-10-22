@@ -246,6 +246,7 @@ export async function trialWelcomeData() {
       "id,player_id,first_name,last_name,status,event_id,confirmed_at,event_title,starts_at,ends_at,event_status,attendance,location_name,address,coach_name,academy_rating,academy_feedback,academy_ready,parent_rating,parent_feedback,comment_submitted_at,subscribed,converted_at",
     )
     .eq("family_id", family.id)
+    .is("converted_at", null)
     .order("created_at");
   if (result.error)
     throw new HttpError(503, "Deine Anfrage konnte nicht geladen werden.");

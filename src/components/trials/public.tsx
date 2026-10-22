@@ -353,7 +353,7 @@ export function TrialWelcome({
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   return (
-    <main className="trial-page">
+    <section className="trial-page">
       <Brand />
       <h1>Willkommen, {family.name}.</h1>
       <p className="trial-intro">
@@ -445,7 +445,7 @@ export function TrialWelcome({
         </button>
       )}
       {error && <p role="alert">{error}</p>}
-    </main>
+    </section>
   );
 }
 export function TrialParentRating({
