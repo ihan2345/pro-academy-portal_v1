@@ -57,6 +57,16 @@ export interface ProfileChild {
     all: { count: number; minutes: number };
   };
 }
+export interface ProfileTrialChild {
+  id: string;
+  request_id: string;
+  name: string;
+  first_name: string;
+  last_name: string;
+  age: string;
+  status: string;
+  confirmed: boolean;
+}
 export interface ParentProfile {
   id: string;
   name: string;
@@ -66,6 +76,7 @@ export interface ParentProfile {
   next_edit_at: string | null;
   role: "parent" | "staff" | "admin";
   children: ProfileChild[];
+  trial_children?: ProfileTrialChild[];
   months: number;
   history_note: string;
   has_subscription_history?: boolean;

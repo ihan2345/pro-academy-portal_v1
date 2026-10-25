@@ -304,6 +304,12 @@ export function ProfileView({
     [unitsError, setUnitsError] = useState("");
   const cards = useRef<HTMLDivElement>(null),
     status = familyStatus(data.months);
+  const trialChildren = data.trial_children ?? [];
+  const trialIds = new Set(trialChildren.map((c) => c.id));
+  const regularChildren = data.children.filter((c) => !trialIds.has(c.id));
+  const childCount =
+    regularChildren.filter((c) => !c.archived).length + trialIds.size;
+  const cardCount = regularChildren.length + trialChildren.length;
   useEffect(() => {
     if (data.role !== "admin" || full) return;
     const abort = new AbortController();
@@ -513,7 +519,7 @@ export function ProfileView({
                 </span>
                 <span>
                   <Users size={15} />
-                  {data.children.filter((c) => !c.archived).length} Kinder
+                  {childCount} {childCount === 1 ? "Kind" : "Kinder"}
                 </span>
               </div>
             </div>
@@ -602,7 +608,7 @@ export function ProfileView({
                 </button>
               ))}
             </div>
-            {data.children.length > 1 && (
+            {cardCount > 1 && (
               <div className="profile-arrows">
                 <button
                   className="icon-button"
@@ -649,7 +655,7 @@ export function ProfileView({
             tabIndex={0}
             aria-label="Kinderkarten"
           >
-            {data.children.map((c) => (
+            {regularChildren.map((c) => (
               <article
                 className={`panel profile-child premium-child ${childCardTheme(c.products)}`}
                 key={c.id}
@@ -725,7 +731,51 @@ export function ProfileView({
                 )}
               </article>
             ))}
-            {!data.children.length && <p>Noch keine Kinder zugeordnet.</p>}
+            {trialChildren.map((c) => (
+              <article
+                className="panel profile-child premium-child trial"
+                key={c.id}
+              >
+                <div className="profile-child-head">
+                  <span className="child-avatar">
+                    {childInitials(c.first_name, c.last_name)}
+                  </span>
+                  <div>
+                    <h3>{c.name}</h3>
+                    <small>{c.age}</small>
+                  </div>
+                </div>
+                <p className="profile-product">Probetraining</p>
+                <Badge>
+                  {c.confirmed
+                    ? "Teilnahme bestätigt"
+                    : ({
+                        new: "Anfrage eingegangen",
+                        contacted: "Kontakt aufgenommen",
+                        planned: "Termin geplant",
+                        attended: "Teilgenommen",
+                        closed: "Abgeschlossen",
+                      }[c.status] ?? "Anfrage eingegangen")}
+                </Badge>
+                <p className="profile-muted">
+                  Termine und persönliches Feedback findest du im
+                  Probetraining-Bereich.
+                </p>
+                <div className="profile-child-actions">
+                  <Link
+                    className="child-edit-button"
+                    href={
+                      data.role === "parent"
+                        ? "/probetraining/willkommen"
+                        : `/${data.role === "admin" ? "admin" : "team"}/probetraining?request=${c.request_id}`
+                    }
+                  >
+                    Probetraining öffnen →
+                  </Link>
+                </div>
+              </article>
+            ))}
+            {!cardCount && <p>Noch keine Kinder zugeordnet.</p>}
           </div>
           {!data.camps_available && (
             <p className="profile-muted">

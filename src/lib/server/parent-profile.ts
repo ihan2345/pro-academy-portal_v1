@@ -285,6 +285,26 @@ export async function loadParentProfile(
 ): Promise<ParentProfile> {
   const parent = await authorizeProfile(s, target),
     db = serviceDb();
+  const now = new Date().toISOString(),
+    month = monthStart(calendarDate(now));
+  // Read-only projection: regular player links, entitlements and metrics stay separate.
+  const trialChildren = s.trialEnabled
+    ? await collect(() =>
+        db
+          .from("trial_players")
+          .select(
+            "id,first_name,last_name,birth_date,trial_families!inner(parent_id,created_at,stopped_at),trial_requests(id,status,confirmed_at)",
+          )
+          .eq("trial_families.parent_id", parent.id)
+          .is("trial_families.stopped_at", null)
+          .gt(
+            "trial_families.created_at",
+            new Date(Date.parse(now) - 180 * 86400000).toISOString(),
+          )
+          .is("converted_at", null)
+          .is("converted_player_id", null),
+      )
+    : [];
   const camps = campEnabled();
   const links = await collect(() =>
     db
@@ -296,8 +316,6 @@ export async function loadParentProfile(
   );
   const kids = links.map((l) => l.players),
     ids = kids.map((k) => k.id);
-  const now = new Date().toISOString(),
-    month = monthStart(calendarDate(now));
   const periods = await periodsFor(ids);
   const subscriptions = await subscriptionsFor(ids);
   const activePeriods = await profileActivePeriods(subscriptions, periods, now);
@@ -427,6 +445,26 @@ export async function loadParentProfile(
       : null,
     role: s.role!,
     children: children.filter((c) => visibleIds.has(c.id)),
+    trial_children: trialChildren.map((c) => {
+      const request = Array.isArray(c.trial_requests)
+        ? c.trial_requests[0]
+        : c.trial_requests;
+      if (!request)
+        throw new HttpError(
+          503,
+          "Probetraining-Zuordnung derzeit nicht verfügbar.",
+        );
+      return {
+        id: c.id,
+        request_id: request.id,
+        name: `${c.first_name} ${c.last_name}`,
+        first_name: c.first_name,
+        last_name: c.last_name,
+        age: childAge({ camp_birth_date: c.birth_date }, calendarDate(now)),
+        status: request.status,
+        confirmed: !!request.confirmed_at,
+      };
+    }),
     ...familyMembership(activePeriods, now),
     has_subscription_history:
       activeMembership(activePeriods, now).since !== null,

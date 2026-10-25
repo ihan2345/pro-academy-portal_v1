@@ -101,3 +101,9 @@ Auf ausdrücklichen Nutzerauftrag veröffentlicht und nach erfolgreicher Live-Ab
 - Bestehender Super-Admin-Zugang und Funktionsberechtigung unverändert. Keine Live-Testfamilien oder Testbuchungen angelegt und keine Testmails verschickt. Spieler-/Eltern-/Teilnehmerzahlen und Versandzustände sind über die Veröffentlichung unverändert geblieben.
 
 Private Sicherungen der Funktionsdefinitionen, Vorher-/Nachher-Abgleiche und Versionsnachweise liegen unter `output/trials-release/` und werden nicht eingecheckt. Bei einem Rückzug zuerst den Super-Admin-Schalter deaktivieren; gespeicherte Daten und additive Migrationen erhalten.
+
+## Probetraining-Kinder im Elternprofil (25.10.2026)
+
+„Mein Profil“ ergänzt eine türkisfarbene Karte (`#97E9E5`) und zählt die bereits verknüpften Probetraining-Kinder mit. Die Karte zeigt den Bearbeitungs-/Teilnahmestatus und führt zum bestehenden Probetraining-Bereich. Auch bei einer zusätzlichen Campbuchung erscheint dieselbe Kinder-ID nur einmal. Nach bestätigter Abo-Übernahme entfällt die Trial-Karte und das reguläre Profil bleibt bestehen.
+
+Die Ergänzung liest ausschließlich zur autorisierten Familie gehörende, nicht übernommene und nicht beendete Probetraining-Kinder innerhalb der 180-Tage-Frist. Der zentrale Funktionsschalter gilt auch für diese Anzeige. Reguläre Spielerlisten, `parent_players`, Abonnements, Kontingente und Trainingsstatistiken bleiben unverändert; es werden keine Zuordnungen angelegt und keine Datenbankmigration benötigt.
