@@ -869,6 +869,22 @@
   min-height: 100vh;
   background: #f8f9fb;
 }
+.product-store.in-portal {
+  min-height: 0;
+  background: transparent;
+}
+.product-store.in-portal > .product-store-content {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+.product-store-portal-heading {
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.product-store-portal-heading > .secondary-button {
+  flex-shrink: 0;
+}
 .product-store-nav {
   padding: 22px max(5vw, 24px);
   display: flex;
@@ -1396,7 +1412,7 @@
     gap: 15px;
     font-size: 10px;
   }
-  .product-store-nav nav > a:first-child {
+  .product-store-nav nav > a.product-store-profile {
     display: none;
   }
   .product-store > main {

@@ -5,8 +5,9 @@ export function portalHome(role: PortalRole) {
 }
 
 export function canOpenPortalSection(role: PortalRole, section: string) {
-  // Account and logout belong to the signed-in user, independently of their role.
-  if (section === "konto" || section === "pai") return true;
+  // Shared portal areas keep the signed-in user in their own role.
+  if (section === "konto" || section === "pai" || section === "produkte")
+    return true;
   if (section === "admin" || section.startsWith("admin/"))
     return role === "admin";
   if (section === "team" || section.startsWith("team/"))

@@ -280,16 +280,17 @@ export function Portal({
       title: "Probetraining",
       icon: UserRound,
     });
-  if (data.products_enabled && !admin && !team)
+  if (data.products_enabled)
     activeNav.push({
-      href: "/produkte?channel=parents",
-      title: "Produkte",
+      href: admin || team ? "/produkte" : "/produkte?channel=parents",
+      title: admin || team ? "Shop" : "Produkte",
       icon: ShoppingBag,
     });
   if (paiVisible)
     activeNav.push({ href: "/pai", title: "pAi", icon: MessageCircle });
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
+  const isActiveNav = (href: string) => href.split("?")[0] === "/" + section;
   async function openBilling(customerId?: string) {
     try {
       const response = await fetch("/api/stripe/portal", {
@@ -368,11 +369,11 @@ export function Portal({
               />
             ) : (
               <Link
-                className={`nav-link ${"/" + section === item.href ? "active" : ""}`}
+                className={`nav-link ${isActiveNav(item.href) ? "active" : ""}`}
                 key={item.href}
                 href={item.href}
                 aria-label={item.title}
-                aria-current={"/" + section === item.href ? "page" : undefined}
+                aria-current={isActiveNav(item.href) ? "page" : undefined}
                 title={sidebarCollapsed ? item.title : undefined}
                 onClick={() => setMobile(false)}
               >
@@ -434,7 +435,7 @@ export function Portal({
             </span>
             <ChevronRight size={14} />
             <b>
-              {activeNav.find((n) => n.href === "/" + section)?.title ??
+              {activeNav.find((n) => isActiveNav(n.href))?.title ??
                 (section === "admin/pai"
                   ? "pAi verwalten"
                   : section.includes("/aktivitaeten")

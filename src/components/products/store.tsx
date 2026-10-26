@@ -2,6 +2,7 @@
 import { ProductOperations } from "./operations";
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import { portalHome, type PortalRole } from "@/lib/portal-access";
 import {
   ArrowRight,
   Check,
@@ -17,7 +18,13 @@ const money = (n: number, currency: string) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(
     n / 100,
   );
-export function ProductStore() {
+export function ProductStore({
+  embedded = false,
+  portalRole = null,
+}: {
+  embedded?: boolean;
+  portalRole?: PortalRole | null;
+}) {
   const [rows, setRows] = useState<
       (ProductDisplay & { id: string; decision: any })[]
     >([]),
@@ -199,38 +206,67 @@ export function ProductStore() {
       }
     });
   }
+  const Content = embedded ? "div" : "main";
+  const role = portalRole ?? ctx?.role ?? null;
+  const overviewHref = role ? portalHome(role) : "/";
   return (
-    <div className="product-store">
-      <header className="product-store-nav">
-        <Link href="/produkte" className="product-store-brand">
-          PRO<span>ACADEMY</span>
-          <small>BY AYHAN & KARAMAN</small>
-        </Link>
-        <nav>
-          {ctx?.auth_id && (
-            <Link href="/profil">
-              <UserRound size={17} /> Mein Profil
-            </Link>
-          )}
-          <Link href="/login">
-            {ctx?.auth_id ? "Zum Portal" : "Anmelden"}
-            <ArrowRight size={16} />
+    <div className={`product-store${embedded ? " in-portal" : ""}`}>
+      {!embedded && (
+        <header className="product-store-nav">
+          <Link href="/produkte" className="product-store-brand">
+            PRO<span>ACADEMY</span>
+            <small>BY AYHAN & KARAMAN</small>
           </Link>
-        </nav>
-      </header>
-      <main>
-        <section className="product-store-hero">
-          <span className="product-kicker">DEIN NÄCHSTER SCHRITT</span>
-          <h1>
-            Mehr Spiel.
-            <br />
-            <span>Mehr Möglichkeiten.</span>
-          </h1>
-          <p>
-            Finde das passende Training, entdecke unsere Camps und entwickle
-            dein Spiel weiter.
-          </p>
-        </section>
+          <nav>
+            {role === "parent" && (
+              <Link href="/profil" className="product-store-profile">
+                <UserRound size={17} /> Mein Profil
+              </Link>
+            )}
+            {role ? (
+              <Link href={overviewHref}>
+                Überblick <ArrowRight size={16} />
+              </Link>
+            ) : ctx?.auth_id ? (
+              <a href="#familienkonto">
+                Konto ergänzen <ArrowRight size={16} />
+              </a>
+            ) : (
+              <Link href="/login">
+                Anmelden <ArrowRight size={16} />
+              </Link>
+            )}
+          </nav>
+        </header>
+      )}
+      <Content className="product-store-content">
+        {embedded ? (
+          <section className="page-heading product-store-portal-heading">
+            <div>
+              <div className="eyebrow">TRAINING & CAMPS</div>
+              <h1>
+                Produkte<span className="greeting-dot">.</span>
+              </h1>
+              <p>Entdecke passende Trainingsangebote und Camps.</p>
+            </div>
+            <Link className="secondary-button" href={overviewHref}>
+              Überblick <ArrowRight size={16} />
+            </Link>
+          </section>
+        ) : (
+          <section className="product-store-hero">
+            <span className="product-kicker">DEIN NÄCHSTER SCHRITT</span>
+            <h1>
+              Mehr Spiel.
+              <br />
+              <span>Mehr Möglichkeiten.</span>
+            </h1>
+            <p>
+              Finde das passende Training, entdecke unsere Camps und entwickle
+              dein Spiel weiter.
+            </p>
+          </section>
+        )}
         {error && (
           <p className="error-message" role="alert">
             {error}
@@ -289,7 +325,10 @@ export function ProductStore() {
           !ctx.parent_id &&
           ctx.role !== "admin" &&
           ctx.role !== "staff" && (
-            <section className="panel product-register-panel">
+            <section
+              id="familienkonto"
+              className="panel product-register-panel"
+            >
               <h2>Dein Familienkonto vorbereiten</h2>
               <p>
                 Deine Anmeldung ist bestätigt. Ergänze deinen vollständigen
@@ -399,14 +438,16 @@ export function ProductStore() {
             Zur ersten Seite
           </button>
         )}
-        <footer className="product-store-footer">
-          <strong>Gemeinsam besser werden.</strong>
-          <p>Persönliches Training. Klare nächste Schritte. ProAcademy.</p>
-          <Link href="/produkte?channel=trials">
-            Angebote für Probetraining-Familien
-          </Link>
-        </footer>
-      </main>
+        {!embedded && (
+          <footer className="product-store-footer">
+            <strong>Gemeinsam besser werden.</strong>
+            <p>Persönliches Training. Klare nächste Schritte. ProAcademy.</p>
+            <Link href="/produkte?channel=trials">
+              Angebote für Probetraining-Familien
+            </Link>
+          </footer>
+        )}
+      </Content>
       {chosen && (
         <Modal
           title={preview ? "Tarifwechsel prüfen" : chosen.name}
