@@ -50,7 +50,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260908.1",
     "@electric-sql/pglite": "^0.3.10",
-    "@opennextjs/cloudflare": "^1.6.0",
+    "@opennextjs/cloudflare": "1.20.13",
     "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.18.0",
