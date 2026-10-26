@@ -396,6 +396,26 @@ export async function runJobs() {
     errors: string[] = [];
   const phases: Record<string, () => Promise<number>> = {
     stripe: processStripeInbox,
+    products: async () => {
+      if (
+        process.env.PRODUCT_MANAGEMENT_ENABLED !== "true" ||
+        process.env.PRODUCT_PAYMENTS_ENABLED !== "true"
+      )
+        return 0;
+      const { pollProductEvents, productWorkerHeartbeat } =
+        await import("../src/lib/server/products/poll");
+      const { processProductEvents } =
+        await import("../src/lib/server/products/events");
+      try {
+        await pollProductEvents();
+        const result = await processProductEvents();
+        await productWorkerHeartbeat(false);
+        return result.processed;
+      } catch (e) {
+        await productWorkerHeartbeat(true);
+        throw e;
+      }
+    },
     camps: async () => {
       if (!campProcessingEnabled()) return 0;
       const result = await runCampProcessing();
@@ -427,7 +447,14 @@ export async function runJobs() {
     },
   };
   for (const [name, task] of Object.entries(phases)) {
-    if (mode === "stripe-only" && name !== "stripe") continue;
+    if (
+      name === "products" &&
+      (process.env.PRODUCT_MANAGEMENT_ENABLED !== "true" ||
+        process.env.PRODUCT_PAYMENTS_ENABLED !== "true")
+    )
+      continue;
+    if (mode === "stripe-only" && !["stripe", "products"].includes(name))
+      continue;
     try {
       result[name] = await task();
     } catch (e) {

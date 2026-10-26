@@ -32,6 +32,15 @@ export async function verifyStripe(body: string, signature: string) {
 export async function persistStripeEvent(event: Stripe.Event) {
   if (process.env.APP_MODE !== "production" && event.livemode)
     throw new Error("Live-Ereignisse im Testbetrieb gesperrt");
+  // The existing signed webhook also feeds the durable product inbox. This is
+  // independent of storefront visibility so paid orders finish while the shop is paused.
+  if (
+    process.env.PRODUCT_MANAGEMENT_ENABLED === "true" &&
+    process.env.PRODUCT_PAYMENTS_ENABLED === "true"
+  ) {
+    const { enqueueProductEvent } = await import("./products/events");
+    await enqueueProductEvent(event);
+  }
   if (!supportedEvents.has(event.type)) return { ignored: true };
   const { error } = await serviceDb().from("stripe_webhook_events").upsert(
     {
@@ -45,9 +54,9 @@ export async function persistStripeEvent(event: Stripe.Event) {
   if (error) throw error;
   return { received: true };
 }
-export async function syncSubscription(id: string) {
+export async function syncSubscription(id: string, client?: Stripe) {
   const retrieved = new Date().toISOString(),
-    stripe = stripeClient(),
+    stripe = client ?? stripeClient(),
     subscription = await stripe.subscriptions.retrieve(id);
   const customer =
     typeof subscription.customer === "string"
@@ -76,6 +85,12 @@ export async function syncSubscription(id: string) {
       stripe_subscription_id: subscription.id,
       stripe_customer_id: customer,
       status: subscription.status,
+      cancel_at_period_end: subscription.cancel_at_period_end,
+      cancel_at: subscription.cancel_at,
+      schedule_id:
+        typeof subscription.schedule === "string"
+          ? subscription.schedule
+          : (subscription.schedule?.id ?? null),
       ended_at: subscription.ended_at
         ? new Date(subscription.ended_at * 1000).toISOString()
         : null,
@@ -167,6 +182,7 @@ export async function processStripeInbox() {
 export async function syncInvoicePeriods(
   invoiceId: string,
   subscriptionId: string,
+  client?: Stripe,
 ) {
   const db = serviceDb(),
     { data: sub, error } = await db
@@ -180,9 +196,12 @@ export async function syncInvoicePeriods(
     .select("*")
     .eq("subscription_id", sub.id);
   if (me) throw me;
-  for await (const line of stripeClient().invoices.listLineItems(invoiceId, {
-    limit: 100,
-  })) {
+  for await (const line of (client ?? stripeClient()).invoices.listLineItems(
+    invoiceId,
+    {
+      limit: 100,
+    },
+  )) {
     const itemId = line.parent?.subscription_item_details?.subscription_item;
     const mapping = mappings?.find((m) => m.stripe_item_id === itemId);
     const priceId = line.pricing?.price_details?.price;

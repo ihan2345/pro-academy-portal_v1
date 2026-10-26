@@ -1,3 +1,7 @@
+import { ProductPlans } from "@/components/products/plans";
+import { AdminProducts } from "@/components/products/admin";
+import { productsEnabled } from "@/lib/server/products/runtime";
+import "@/components/products/products.css";
 import { TrialTeam } from "@/components/trials/team";
 import { trialFeatureEnabled } from "@/lib/trials/server";
 import "@/components/trials/trials.css";
@@ -44,6 +48,28 @@ export default async function Page({
   params: Promise<{ section?: string[] }>;
 }) {
   const section = (await params).section?.join("/") ?? "";
+  if (section.toLowerCase() === "produkte") redirect("/produkte");
+  if (section === "admin/produkte/tarife" && productsEnabled()) {
+    const initial = await loadPortal("admin/produkte");
+    return (
+      <Portal initial={initial} section="admin/produkte">
+        <div>
+          <a href="/admin/produkte">← Zum Verkaufskatalog</a>
+          <ProductPlans initial={initial} />
+        </div>
+      </Portal>
+    );
+  }
+  if (section === "admin/produkte" && productsEnabled()) {
+    const session = await profileSession().catch(() => null);
+    if (!session?.role) redirect("/login");
+    if (session.role !== "admin") redirect(portalHome(session.role));
+    return (
+      <Portal initial={profileShell(session)} section={section}>
+        <AdminProducts />
+      </Portal>
+    );
+  }
   if (/^(admin|team)\/probetraining$/.test(section)) {
     if (!(await trialFeatureEnabled())) notFound();
     return (

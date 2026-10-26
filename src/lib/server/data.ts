@@ -1,3 +1,4 @@
+import { productsEnabled } from "./products/runtime";
 import "server-only";
 import { optionalBackfills } from "./v2-availability";
 import { readAll } from "./read-all";
@@ -100,6 +101,7 @@ export async function loadPortal(section: string): Promise<PortalData> {
   if (trialPlayers.error)
     throw new Error("Probetraining-Profile konnten nicht geladen werden");
   return {
+    products_enabled: productsEnabled(),
     trial_players: (trialPlayers.data ?? []).map((p) => ({
       ...p,
       birth_year: Number(p.birth_date.slice(0, 4)),

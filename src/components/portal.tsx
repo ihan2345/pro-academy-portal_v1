@@ -10,6 +10,7 @@ import { EmailPreference, flushEmailPreference } from "./email-preference";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
+  ShoppingBag,
   ArrowUpRight,
   ArrowRight,
   ChevronDown,
@@ -278,6 +279,12 @@ export function Portal({
       href: "/probetraining/willkommen",
       title: "Probetraining",
       icon: UserRound,
+    });
+  if (data.products_enabled && !admin && !team)
+    activeNav.push({
+      href: "/produkte?channel=parents",
+      title: "Produkte",
+      icon: ShoppingBag,
     });
   if (paiVisible)
     activeNav.push({ href: "/pai", title: "pAi", icon: MessageCircle });

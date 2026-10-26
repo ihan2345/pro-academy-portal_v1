@@ -777,7 +777,10 @@ export function AdminView({
         </form>
       )}
       {slug === "einstellungen" && data.role === "admin" && (
-        <PlayerApiShare notify={notify} />
+        <>
+          <PlayerApiShare notify={notify} />
+          <PlatformFeatures optional only="product_shop" />
+        </>
       )}
       {edit && config && (
         <Modal

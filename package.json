@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -21,7 +21,15 @@
     "camp:dev": "node --env-file=.env.local scripts/camp/dev.mjs",
     "camp:reset": "node --env-file=.env.local scripts/camp/reset.mjs reset=v0",
     "reset=v0": "node --env-file=.env.local scripts/camp/reset.mjs reset=v0",
-    "pai": "node scripts/pai.mjs"
+    "pai": "node scripts/pai.mjs",
+    "products:setup": "node scripts/products-local/setup.mjs --start",
+    "products:seed": "node scripts/products-local/seed.mjs",
+    "products:dev": "node scripts/products-local/dev.mjs",
+    "products:worker": "node scripts/products-local/dev.mjs --worker --watch",
+    "products:test:ui": "node scripts/test-products-ui.mjs",
+    "products:test:api": "node scripts/test-products-api.mjs",
+    "products:test:stripe": "node scripts/test-products-stripe.mjs",
+    "products:test:recovery": "node scripts/test-products-checkout-recovery.mjs"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",
@@ -29,12 +37,13 @@
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.0",
     "lucide-react": "^0.468.0",
-    "next": "16.3.8",
+    "next": "16.4.3",
     "nodemailer": "^10.0.1",
     "pdf-lib": "^1.17.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "server-only": "^0.0.1",
+    "sharp": "^0.35.4",
     "stripe": "^18.5.0",
     "zod": "^4.1.0"
   },

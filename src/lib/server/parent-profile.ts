@@ -1,3 +1,4 @@
+import { productsEnabled } from "./products/runtime";
 import "server-only";
 import { z } from "zod";
 import { sessionUser } from "./supabase";
@@ -49,6 +50,7 @@ export async function profileSession() {
 }
 export function profileShell(s: ProfileSession): PortalData {
   return {
+    products_enabled: productsEnabled(),
     trial_access:
       s.trialEnabled && ["trial", "mixed"].includes(s.customerStatus),
     trial_enabled: s.trialEnabled,

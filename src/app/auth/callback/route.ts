@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { productsEnabled } from "@/lib/server/products/runtime";
 import { sessionDb } from "@/lib/server/supabase";
 import { required } from "@/lib/server/config";
 export async function GET(request: NextRequest) {
@@ -25,11 +26,15 @@ export async function GET(request: NextRequest) {
       }
       const player = store.get("pa_player_redirect")?.value;
       if (player) store.delete("pa_player_redirect");
-      const target =
-        player &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-          player,
-        )
+      const productReturn =
+        productsEnabled() && store.get("pa_product_return")?.value === "1";
+      if (productReturn) store.delete("pa_product_return");
+      const target = productReturn
+        ? "/produkte"
+        : player &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+              player,
+            )
           ? `/admin/spieler/${player}`
           : "/";
       return NextResponse.redirect(new URL(target, portalUrl));

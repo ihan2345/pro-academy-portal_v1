@@ -19,6 +19,7 @@
   "env": {
     "production": {
       "name": "proacademy-portal",
+      "images": { "binding": "PRODUCT_IMAGES" },
       "account_id": "7300475f02c8b8793bb7e6250d0d4690",
       "workers_dev": false,
       "preview_urls": false,
@@ -29,6 +30,8 @@
       "vars": {
         "APP_MODE": "production",
         "TRIAL_TRAINING_ENABLED": "true",
+        "PRODUCT_MANAGEMENT_ENABLED": "true",
+        "PRODUCT_PAYMENTS_ENABLED": "false",
         "LOCAL_PROFILE_STRIPE_READ": "false",
         "PAI_PRODUCTION_CONFIRMED": "true",
         "APP_URL": "https://portal.proacademy-ak.com",

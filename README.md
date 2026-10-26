@@ -6,6 +6,8 @@
 
 **Externe Plattformen:** [Handbuchsammlung für Supabase, Stripe, Cloudflare, Proton, GitHub und Docker](docs/plattform-handbuecher/README.md) · [Übersicht als PDF](docs/plattform-handbuecher/00-Start-hier.pdf). Separate PDFs und Textfassungen; bei der Erstellung automatisch in den gewünschten Desktop-Ordner `Portal/Plattform-Handbuecher` kopiert.
 
+**Produkte – lokale Erweiterung:** [Umsetzung, Start und Prüfbericht](docs/PRODUCT-MANAGEMENT-LOCAL.md). Separate Supabase-Testinstanz mit erfundenen Familien; Einstieg `http://127.0.0.1:3110/lokaler-test`. Stundenangaben, Tarifpflege, automatischer Stripe-Testabgleich und echte Testabläufe vorhanden. Weitere Zahlungs-Sonderfälle und Cloudflare-Paketierung stehen noch aus; kein Deployment.
+
 **Zukünftige Funktionen:** [V2.0 – dauerhafte Checkliste für die nächste Version](V2.0.md). Dort sammeln wir vorgemerkte Optimierungen getrennt von der aktuellen Veröffentlichung.
 
 **Deployment-Sperre (aktuelle Nutzeranweisung): Änderungen nur lokal umsetzen und prüfen. Kein Deployment ohne einen neuen ausdrücklichen Deploy-Befehl des Nutzers.**
@@ -181,7 +183,6 @@ Die Datenbanktests führen alle Migrationen in PGlite (echter Postgres in WASM) 
 
 Serientermine und Ferienplanung; detaillierte Trainerbewertungen; komfortabler Import mit Mengen-/Tarifwechsel-Assistent; transparente Berichtskorrektur-Benachrichtigungen; Kapazitätswarnungen; Berichtssuche und vollständige Paginierung; optional streng serverseitig freigeschaltete Elternabsagen mit neuen Regeln und Tests; lokalisierte Oberfläche; optionales MFA für Admins; Monitoring/Alarmierung und Datenschutz-Lösch-/Aufbewahrungsprozesse nach abgestimmter Organisationsrichtlinie.
 
-
 ## Hintergrunddienst in Cloudflare Containers
 
 Der vorbereitete Dienst besteht aus einem Worker-Gateway und einem einzigen Node-Container (`basic`, höchstens eine Instanz). Workers Paid ist im ProAcademy-Konto aktiviert. Der Container wird nur nach erfolgreicher Authentifizierung gestartet. Automatische Läufe sind mit `JOBS_ENABLED=false` gesperrt; die reine Verbindungsprüfung ist bereits verfügbar. Nach einem Lauf stoppt der Container, ein 30-Sekunden-Inaktivitätstimer dient als Rückfallebene und verlängert laufende Arbeit höchstens bis zur Gesamtgrenze. Der Node-Prozess beendet einen hängenden Auftrag nach vier Minuten; Datenbank-Leases und die Quarantäne unklarer SMTP-Zustellungen bleiben maßgeblich für Wiederaufnahme.
@@ -206,3 +207,5 @@ Erst nach Bereitstellung und erfolgreicher Container-Verbindungsprüfung: den ge
 Admin und Coach haben eigene Stempelkartenansichten unter `/admin/stempelkarten` beziehungsweise `/team/stempelkarten`. Dort lassen sich Kinder suchen, Leistungszeiträume auswählen und aktuelle Karten als PDF exportieren. Der PDF-Export erstellt keinen Monatsbericht und verändert keine vorhandenen Berichtsversionen.
 
 Der gezielte Mailversand erlaubt ausschließlich zugeordnete, nicht archivierte Elternkontakte. Er legt einen Auftrag vom Typ `stamp_card` mit dem Datenstand zum Anforderungszeitpunkt und dem auslösenden Mitarbeiter an. Wiederholungen derselben Anfrage werden dedupliziert; der Hintergrunddienst prüft die Empfängerzuordnung vor der Verarbeitung erneut und verwendet die bestehende Testempfängerbegrenzung. Bei deaktiviertem Hintergrunddienst bleibt der Auftrag ausstehend. Für diese Funktion müssen bei einer ausdrücklich freigegebenen Veröffentlichung sowohl Portal als auch Jobrunner aktualisiert werden.
+
+Produktverwaltung: [Veröffentlichung, Shop-Schalter und Stripe-Einrichtung](docs/PRODUCT-MANAGEMENT-RELEASE.md). Der Shop startet deaktiviert; neue Produktzahlungen bleiben bis zur Einrichtung eines entsprechend berechtigten Live-Schlüssels gesperrt.
