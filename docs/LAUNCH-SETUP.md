@@ -342,7 +342,6 @@ Die zwölf aktiven Pufferstunden und vorhandene automatische Bestätigung bleibe
 
 Die Veröffentlichung erfolgte in der Reihenfolge Jobs-Runner, gezielte Anwendung von `supabase/release/005-training-notifications.sql` nach den vorhandenen Onboarding-/Camp-/V2-Releases, anschließend Portal. Die SQL-Erweiterung wurde atomar angewendet und setzt den Startpunkt für zukünftige Erinnerungsfälligkeiten. Kein pauschales `db push`, keine Änderung an Empfängerfreigaben oder SMTP-Konfiguration.
 
-
 ### Veröffentlichung geprüft: Trainingsmails und Versanddialog
 
 Am 05.10.2026 auf ausdrücklichen Nutzerauftrag veröffentlicht:
@@ -391,6 +390,7 @@ Private technische Nachweise liegen unter `output/staff-training-release/`.
 Status: NUR abgestimmt, nicht veröffentlicht oder aktiviert. Erst der ausdrückliche Nutzerbefehl **„5 Eltern aktivieren“** autorisiert die Freigabe dieser Welle. Keine Empfängerlisten, Familiensperren, Einladungen oder Versandaufträge vor diesem Befehl ändern. Der Befehl autorisiert die Vorbereitung/Freigabe; die Einladungen löst der Nutzer selbst über den bestehenden manuellen Button in Eltern verwalten aus. Keine automatische Einladung und kein Versand durch den Agenten aus dieser Planung ableiten.
 
 Zielgruppe: fünf Elternkonten für sechs Kinder mit neuem Leistungszeitraum am 14./15.10.2026:
+
 - Daniela Ehren-Herkt / Joe Ehren: Eltern-ID 273a49b0-78d1-475e-ba16-c7156c18c838.
 - Funda Oguz / Ayaz und Deniz Oguz: Eltern-ID 9b590a99-44ce-4b98-906f-ac074e432a54.
 - Gülistan Aksüzek / Boran Aksüzek: Eltern-ID b289155e-cea6-42f6-892f-36d3121b1edd.
@@ -398,6 +398,7 @@ Zielgruppe: fünf Elternkonten für sechs Kinder mit neuem Leistungszeitraum am 
 - Köse / Ediz Köse: Eltern-ID 9ecd786c-e07b-460d-908e-b5acd82c7acf.
 
 Gewünschter Ablauf und verbindliche Grenzen:
+
 1. Vor Freigabe aktuelle Kontaktadressen, Zuordnungen, Kontoaktivierung und Laufzeit-/Datenbankfreigaben erneut lesend prüfen. Nur diese Eltern in reguläre Empfänger- und Einladungsfreigabe aufnehmen; bestehende interne Freigabe erhalten. MANUAL_INVITATIONS_ENABLED und Einladungsadresse prüfen. Keine Abo-/Leistungszeitraumdaten verschieben.
 2. Nutzer sendet frische Einladung über bestehenden manuellen Button. automatic_invitations bleibt aus. Das bloße Freigeben aktiviert kein Elternkonto; notifications_held nicht vorzeitig auf false setzen.
 3. Erst erfolgreiche bestätigte Anmeldung und accept_invitation gelten als Annahme: Elternkonto verknüpfen, consumed_at dokumentieren und Familiensperre aufheben.
@@ -516,3 +517,17 @@ Migration `supabase/release/011-subscription-package-changes.sql` wurde gezielt 
 Portal-Version: `40fbff19-9092-4800-b9a7-b929c8afc19a`. Jobs-Version: `626acc4f-ccf1-4f91-af94-0deda9429828`, bestehender Fünf-Minuten-Cron unverändert. Alle Laufzeitvariablen wurden mit dem Zustand vor Veröffentlichung verglichen und sind unverändert.
 
 Validierung: 690 Tests vor Veröffentlichung erfolgreich; sauberer Produktionsbuild einschließlich vollständiger TypeScript-Prüfung erfolgreich nach Korrektur einer möglichen Undefined-Referenz im neuen Test. Alle neun Paketwechsel-Datenbanktests danach nochmals erfolgreich. Jobs-Build und Jobs-Typecheck erfolgreich. Online ausgelieferte Spielerprofil-, Prüfungs- und Überkontingent-Assets stimmen bytegleich mit dem Build überein. Anonyme Profilseiten leiten zum Login; APIs und fremde Schreib-Origins bleiben gesperrt. Authentifizierter, rein technischer Runner-Check: Supabase, Stripe, SMTP und PDF erfolgreich, ohne manuellen Joblauf oder Testmail. Bestehende Altfälle wurden im Rahmen dieser Veröffentlichung nicht separat neu synchronisiert. Private Nachweise unter `output/package-change-release/`.
+
+## 26.10.2026 – Zentrale Produktverwaltung und Shop-Schalter veröffentlicht
+
+Auf ausdrückliche Integrations- und Veröffentlichungsfreigabe wurden die Produktverwaltung, zusätzliche Trainingsstunden-Angaben, Zielgruppen-/Kauflogik, Produktbilder, Checkout-/Tarifwechselabläufe und der Super-Admin-Shop-Schalter integriert. Funktionsstände `83ac2d5`, `4d6d4dd` und `f3a5210` sind auf `main` und `Produkte` gepusht. Bestehende Tarife bleiben unter `/admin/produkte/tarife` erreichbar; Einheitenkontingente bleiben unverändert.
+
+Migrationen 022–029 wurden gemeinsam transaktional angewendet und unter `202610260022` bis `202610260029` in der Supabase-Historie protokolliert. Anschließend wurden unveränderte Elternzuordnungen und Versandschalter sowie unveränderte Anzahlen von 126 Abos, 243 Leistungszeiträumen und 28 Camp-Buchungen bestätigt. Keine Testfamilien oder Beispielprodukte wurden übertragen. Der neue Verkaufskatalog startet leer; vorhandene Tarife bleiben erhalten.
+
+Nach der vom Nutzer vorgenommenen Anpassung wurden die benötigten Stripe-Lese- und Schreibberechtigungen geprüft. Der Live-Schlüssel liegt als zusätzliches Server-Secret `PRODUCT_STRIPE_SECRET_KEY` in Portal und Runner. Produktzahlungen sind serverseitig eingerichtet. Der bestehende Portal-Webhook empfängt jetzt auch Checkout-, Customer-, Pending-Update-, Erstattungs- und Dispute-Ereignisse. Der periodische Abruf ergänzt die signierte Zustellung. Es wurde keine kostenpflichtige Live-Testbuchung ausgelöst.
+
+Portal-Version `94217cef-f6a4-4e99-bbf3-75d2198b2469`, Runner-Version `a6fae552-ffc9-4845-a63f-88ea40190523`. Eine zuvor erkannte Next.js-/OpenNext-Inkompatibilität wurde nach sofortigem Portal-Rollback durch die offizielle Adapter-Version 1.20.13 behoben. Next.js bleibt auf dem Sicherheitsstand 16.4.3. Der korrigierte Build wurde vor der erneuten Veröffentlichung auch unter der lokalen Cloudflare-Laufzeit geprüft.
+
+Abnahme: 965 Tests in 88 Dateien, TypeScript, Jobs-Prüfungen und Cloudflare-Produktionsbuild erfolgreich. Browserprüfung des Super-Admin-Schalters einschließlich gewöhnlichem Admin ohne Freigabe, Seiten-/API-Sperre, Wiederöffnung und Mobilansicht erfolgreich. Online: Login 200; geschlossener Shop und `/Produkte` 404; anonyme Admin-/Schalter-API 401; unsignierter Produktwebhook 400. Technischer Runner-Check bestätigt Supabase, Stripe, SMTP und PDF ohne Jobauslösung oder Testmail. Der reguläre Produktabgleich hat erfolgreiche Heartbeats geschrieben. Die Produktionsabhängigkeiten enthalten laut `npm audit --omit=dev` keine gemeldeten Schwachstellen.
+
+Der neue Shop-Schalter startet **deaktiviert**. Er erscheint ausschließlich für den Super-Admin unter **Admin → Einstellungen**, direkt nach der Spieler-API. Eine Sperre verhindert neue Shop-Zugriffe, hält jedoch Abo-Abgleich und die Verarbeitung bereits bezahlter Buchungen nicht an. Einzelheiten: [Produktverwaltung – Veröffentlichung](PRODUCT-MANAGEMENT-RELEASE.md). Private Nachweise unter `output/products-release/`.
