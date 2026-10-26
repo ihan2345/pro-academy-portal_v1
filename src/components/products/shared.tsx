@@ -1,5 +1,6 @@
 "use client";
-import { useState, useId } from "react";
+import { useState, useId, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Info, Check, ImageIcon, ArrowUpRight } from "lucide-react";
 import {
   priceLabel,
@@ -27,18 +28,92 @@ export async function productRequest<T = any>(
 }
 export function Hint({ children }: { children: React.ReactNode }) {
   const id = useId();
+  const anchor = useRef<HTMLButtonElement>(null);
+  const tooltip = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      if (!anchor.current || !tooltip.current) return;
+      const rect = anchor.current.getBoundingClientRect();
+      const hint = tooltip.current.getBoundingClientRect();
+      const gap = 8,
+        edge = 12;
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setPosition(null);
+        return;
+      }
+      const left = Math.max(
+        edge,
+        Math.min(
+          rect.left + rect.width / 2 - hint.width / 2,
+          window.innerWidth - hint.width - edge,
+        ),
+      );
+      const above = rect.top - hint.height - gap;
+      const top = Math.max(
+        edge,
+        Math.min(
+          above >= edge ? above : rect.bottom + gap,
+          window.innerHeight - hint.height - edge,
+        ),
+      );
+      setPosition({ left, top });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+  function close() {
+    setOpen(false);
+    setPosition(null);
+  }
   return (
-    <span className="product-hint">
+    <span
+      className="product-hint"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => {
+        if (!anchor.current?.matches(":focus-visible")) close();
+      }}
+    >
       <button
+        ref={anchor}
         type="button"
         aria-label="Information anzeigen"
-        aria-describedby={id}
+        aria-describedby={open ? id : undefined}
+        onFocus={() => setOpen(true)}
+        onBlur={close}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") close();
+        }}
       >
         <Info size={15} />
       </button>
-      <span id={id} role="tooltip">
-        {children}
-      </span>
+      {open &&
+        createPortal(
+          <span
+            ref={tooltip}
+            id={id}
+            role="tooltip"
+            className="product-tooltip"
+            style={{
+              left: position?.left ?? 0,
+              top: position?.top ?? 0,
+              visibility: position ? "visible" : "hidden",
+            }}
+          >
+            {children}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }
@@ -146,7 +221,7 @@ export function ProductCard({
             alt={product.name}
             loading="lazy"
             width={640}
-            height={400}
+            height={640}
           />
         ) : (
           <div className={`product-visual-placeholder ${product.kind}`}>
