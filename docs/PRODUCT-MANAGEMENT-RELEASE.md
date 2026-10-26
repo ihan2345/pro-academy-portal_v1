@@ -29,15 +29,17 @@ Die produktive Migration setzt `product_runtime.livemode=true`. Diese Tabelle ka
 
 Produktbilder werden in Produktion über die Cloudflare-Bindung `PRODUCT_IMAGES` geprüft, verkleinert und als WebP in privatem Supabase Storage gespeichert. Lokal bleibt der eigene Bildprozessor auf Port 3111 zuständig. Es wird kein öffentlicher Bild-Link zur Verarbeitung benötigt.
 
-## Noch benötigte Stripe-Berechtigungen
+## Stripe-Einrichtung
 
 Der bisher hinterlegte eingeschränkte Live-Schlüssel wurde geprüft: Preis-/Ereignisabruf, Rechnungszahlungen, Kunden und Abos sind lesbar. Stripe verweigert jedoch das Schreiben von Checkout Sessions, Customers, Subscriptions und Subscription Schedules sowie das Lesen von Disputes mit HTTP 403. Schreibprüfungen verwenden absichtlich ungültige Parameter oder nicht vorhandene IDs und erzeugen keine Zahlungsobjekte.
 
-Deshalb bleibt `PRODUCT_PAYMENTS_ENABLED=false` im Portal und im Runner. Die neue Produktverwaltung ist verwendbar; neue Live-Käufe und Tarifwechsel über den Shop sind erst nach Konfiguration freigegeben. Bestehende Abos und Camp-Zahlungen verwenden weiterhin ihre bisherigen Einstellungen.
+Nach Anpassung durch den Nutzer wurden sämtliche benötigten Lesezugriffe erneut mit HTTP 200 bestätigt. Absichtlich ungültige Schreibanfragen werden nun wegen ihrer Parameter bzw. fehlenden Testreferenzen abgewiesen (HTTP 400/404), nicht mehr wegen fehlender Berechtigung. Auch die Rechnungsvorschau ist erlaubt. Der geprüfte Live-Schlüssel wird als `PRODUCT_STRIPE_SECRET_KEY` im Portal und Runner hinterlegt; `PRODUCT_PAYMENTS_ENABLED=true` aktiviert die Zahlungsfunktionen. Der Super-Admin-Shop-Schalter bleibt zunächst geschlossen. Bestehende Abos und Camp-Zahlungen verwenden weiterhin ihre bisherigen Einstellungen.
 
 Ein zusätzlicher eingeschränkter Live-Schlüssel kann als `PRODUCT_STRIPE_SECRET_KEY` eingerichtet werden. Er benötigt Schreiben für Checkout Sessions, Customers, Subscriptions und Subscription Schedules sowie Lesen für Prices, Products, Invoices, Invoice Payments, Charges, Promotion Codes, Events und Disputes. Die Berechtigung für Rechnungsvorschauen ist ebenfalls zu prüfen. Der bisherige Synchronisierungsschlüssel muss dafür nicht erweitert werden.
 
 Nach Hinterlegung: Schlüssel ausschließlich als Cloudflare-Secret in **Portal und Runner** setzen, Berechtigungen prüfen, `PRODUCT_PAYMENTS_ENABLED=true` in beiden Konfigurationen veröffentlichen, Runner-Verarbeitung prüfen und erst danach den Shop über den Super-Admin-Schalter öffnen. Eine komplette bezahlte Live-Bestellung wurde nicht als Veröffentlichungstest ausgelöst.
+
+Eine echte kostenpflichtige Live-Bestellung wurde zur Veröffentlichung nicht ausgelöst.
 
 ## Prüfungen
 

@@ -31,7 +31,7 @@
         "APP_MODE": "production",
         "TRIAL_TRAINING_ENABLED": "true",
         "PRODUCT_MANAGEMENT_ENABLED": "true",
-        "PRODUCT_PAYMENTS_ENABLED": "false",
+        "PRODUCT_PAYMENTS_ENABLED": "true",
         "LOCAL_PROFILE_STRIPE_READ": "false",
         "PAI_PRODUCTION_CONFIRMED": "true",
         "APP_URL": "https://portal.proacademy-ak.com",
