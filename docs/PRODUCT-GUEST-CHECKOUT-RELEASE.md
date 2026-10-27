@@ -1,6 +1,6 @@
 # Gastkäufe und Rabattcodes – Veröffentlichung vorbereitet
 
-Stand: 27.10.2026. Branch `codex/shop-gastkauf`, auf dem aktuellen Hauptstand inklusive `bc6507f` aufgebaut. Die Änderungen aus dem anderen Chat an Stripe-Konflikten und ausstehenden Zahlungen sind enthalten. Die Veröffentlichung, die Anwendung von Migration 030 und die Aktivierung des neuen Mailversands warten auf ausdrückliche Freigabe.
+Stand: 27.10.2026. Branch `codex/shop-gastkauf`, mit `origin/main` bis `c297575` zusammengeführt. Enthalten sind damit auch die zuletzt veröffentlichten Stripe-Meldungsfilter und Admin-Entscheidungen (`543206a`) sowie die vorherigen Stripe-Konflikt-/Zahlungskorrekturen. Es gab keine Textkonflikte; die bestehende SQL-Nummer 030 war jedoch bereits produktiv belegt. Die Gastkauf-Migration wurde deshalb ohne Änderung ihres SQL-Inhalts auf 031 verschoben. Der Release-Abgleich prüft auch den unveränderten Quelltext der vorhandenen Migration 030. Die Veröffentlichung, die Anwendung von Migration 031 und die Aktivierung des neuen Mailversands warten auf ausdrückliche Freigabe.
 
 ## Verhalten
 
@@ -31,20 +31,23 @@ Bekannt abgelaufene unbezahlte Bestellungen und alte Reservierungen ohne Stripe 
 
 ## Prüfungen und Grenzen
 
-- Gesamte Vitest-Suite: 1.022 Tests in 94 Dateien bestanden, dazu TypeScript für Portal und Runner; Datenbanktests installieren die vollständige SQL-Kette in PGlite, einschließlich Gast-Abos, Campbuchung, Nullbetrag, Zugriff, Identitätskonflikten und Wiederholungen.
+- Gesamte Vitest-Suite: 1.036 Tests in 95 Dateien bestanden, dazu TypeScript für Portal und Runner; Datenbanktests installieren die vollständige SQL-Kette in PGlite, einschließlich Gast-Abos, Campbuchung, Nullbetrag, Zugriff, Identitätskonflikten und Wiederholungen.
 - Isolierte Browserprüfungen auf Desktop und Mobilgeräten mit Formularvalidierung, Codeübermittlung, Bestellstatus, erneutem Zugangslink und sicherem Abbruch; keine externen Aufrufe.
 - Echte Stripe-TEST-API: Prozent, Festbetrag, kostenlose Einzel- und Abo-Checkouts sowie Übernahme bestehender Rabatte in einen Downgrade-Zeitplan. Kein Geld wird abgebucht. Die Test-Checkouts werden beendet, Test-Abos gekündigt und Testangebote deaktiviert.
 - Produktionsbuild für Cloudflare und Runner erfolgreich; das vollständig gebündelte Runner-CJS lädt auch isoliert ohne `node_modules`; lokaler Workerd-Smoke mit ausschließlich GET-Anfragen für Shop, öffentlichen Katalog und Login.
 - Live-Stripe-Schlüssel ausschließlich lesend auf Promotion Codes einschließlich Coupondetails geprüft; keine neuen Schlüssel nötig.
-- Migration 030 gegen den aktuellen Produktionsstand in einer Transaktion getestet und zurückgerollt; 022–029 stimmen exakt mit der vorhandenen Migrationshistorie überein.
-- Die lokale Docker-/Supabase-Instanz war nicht erreichbar. Ein vollständiger Kauf samt tatsächlicher lokaler Auth-E-Mail konnte dort nicht erneut durchlaufen werden. Auth-Verifikation und Linkversand wurden deshalb gezielt mit isolierten Tests geprüft. Es gab keine Live-Testkäufe oder echten Bestätigungsmails. Der Docker-Container-Image-Build des Runners ist noch offen: Der Docker-Daemon reagiert nicht; auch `docker desktop restart --timeout 45` scheiterte am regulären Stoppen der Desktop-Prozesse. Es wurden keine Containerdaten gelöscht und kein erzwungenes Zurücksetzen ausgeführt. Vor der eigentlichen Veröffentlichungsfreigabe muss Docker wieder erreichbar sein und der Image-Build nachgeholt werden.
+- Migration 031 gegen den aktuellen Produktionsstand in einer Transaktion getestet und zurückgerollt; 022–030 stimmen exakt mit der vorhandenen Migrationshistorie überein.
+- Docker ist nach dem Neustart erreichbar. Das tatsächliche Runner-Image wurde mit `workers/Dockerfile` erfolgreich gebaut; ein netzwerkisolierter Container liefert HTTP 200 auf `/health`, ohne Jobs auszuführen.
+- Vollständiger lokaler Ablauf mit der vorhandenen Supabase-/Auth-Instanz und echtem gehostetem Stripe-TEST-Checkout: Gastreservierung ohne vorzeitige Eltern-/Kind-/Auth-Anlage, verweigerter Zugriff aus einem fremden Browser, 100-%-Rabatt, abgeschlossener Nullbetrag, anschließende Familienanlage, private Mail-Capture und reale Auth-Bestätigung aus einem zweiten Browser. Die bestätigte Identität erhält dieselbe Eltern-Kind-Zuordnung genau einmal. Kein SMTP-Versand, keine Abbuchung, keine produktiven Käufe oder Auth-Konten.
+- Dabei wurde eine reale Stripe-Eigenheit korrigiert: Ein kostenlos abgeschlossener Checkout kann `payment_status=paid` und trotzdem keinen PaymentIntent besitzen. Der gültige Nachweis ist die abgeschlossene Session mit verifiziertem Rabatt und Nullbetrag. Beide zulässigen Statusvarianten sind zusätzlich geprüft; Camp-SQL-Tests verwenden weiterhin die vorhandene Kapazitäts-/No-Cost-Logik. Stripe-Referenz: https://docs.stripe.com/payments/checkout/no-cost-orders.
+- Die produktive Migration wurde ausschließlich im Probelauf mit Rollback geprüft. Portal, Runner und Produktionsdatenbank wurden noch nicht veröffentlicht bzw. migriert.
 
 Belege liegen ignoriert unter `output/product-guest-ui`, `output/product-guest-stripe` und `output/guest-release`. Temporäre Build- oder Testdaten und Schlüssel gehören nicht in Git.
 
 ## Veröffentlichung nach Freigabe
 
-1. Docker-Erreichbarkeit wiederherstellen und den Runner-Image-Build gemäß `workers/Dockerfile` prüfen. Danach Hauptbranch erneut abgleichen; die geprüften Änderungen integrieren, ohne zwischenzeitliche Arbeiten zu überschreiben.
-2. `PRODUCT_RELEASE_PROJECT_REF=vgxaatawsbzgsmqiaepj node scripts/products-release.mjs` erneut als Dry-Run ausführen. Erst nach Freigabe mit `--apply` Migration `202610270030` installieren. Bestehende Migrationen sind unverändert; der Shop-Schalter und Versand-Sperren bleiben erhalten.
+1. Nach Freigabe Hauptbranch erneut abrufen und prüfen, ob seit `c297575` weitere Änderungen vorliegen. Den vollständig geprüften Feature-Stand ohne Überschreiben anderer Arbeiten integrieren. Docker-Image und lokaler Gastkauf sind bereits geprüft; bei weiteren Änderungen betroffene Prüfungen wiederholen.
+2. `PRODUCT_RELEASE_PROJECT_REF=vgxaatawsbzgsmqiaepj node scripts/products-release.mjs` erneut als Dry-Run ausführen. Erst nach Freigabe mit `--apply` Migration `202610270031` installieren. Bestehende Migrationen sind unverändert; der Shop-Schalter und Versand-Sperren bleiben erhalten.
 3. Den Jobs-Runner mit dem neuen Bundle und `PRODUCT_GUEST_MAIL_ENABLED=true` veröffentlichen. Die vorbereitete Cloudflare-Konfiguration leitet diesen Wert in den Container weiter. Die vorhandenen Supabase-, SMTP- und Stripe-Schlüssel bleiben verwendbar; es sind keine zusätzlichen Schlüssel vorgesehen.
 4. Das Portal aus einem sauberen Arbeitsverzeichnis mit eigenen Dependencies bauen (`npm ci`, `npm run build:cloudflare -- --env production`) und nach Freigabe mit `npx wrangler deploy --env production` veröffentlichen. Niemals `npm ci` in ein verlinktes `node_modules` ausführen.
 5. Öffentlichen Shop, angemeldete Navigation, Katalog, Runner-Gesundheit und Versandwarteschlange prüfen. Ein echter Kauf wird nicht automatisch als Veröffentlichungstest ausgelöst.
@@ -53,13 +56,14 @@ Die Migration ist additiv und mit bestehenden authentifizierten Käufen kompatib
 
 ## Lokale Wiederaufnahme
 
-Sobald Docker/Supabase wieder erreichbar sind, aktualisiert `npm run products:setup` die isolierte Instanz um 030. Der lokale Produktworker schreibt Buchungs-/Zugangs-Mails ausschließlich als private Capture-Dateien nach `output/product-management-local/guest-mail`; kein SMTP-Versand. Für die isolierte lokale Auth-Datenbank wird die eingegebene synthetische E-Mail für den Bestätigungslink beibehalten. Die bestehenden lokalen Produkt-, API- und Stripe-Tests bleiben verfügbar.
+`npm run products:setup` aktualisiert die isolierte Instanz um die bereits veröffentlichte 030 und die neue 031. Beide Migrationen wurden lokal angewendet; bestehende Testdaten und Docker-Volumes blieben erhalten. Der lokale Produktworker schreibt Buchungs-/Zugangs-Mails ausschließlich als private Capture-Dateien nach `output/product-management-local/guest-mail`; kein SMTP-Versand. Für die isolierte lokale Auth-Datenbank wird die eingegebene synthetische E-Mail für den Bestätigungslink beibehalten. Die bestehenden lokalen Produkt-, API- und Stripe-Tests bleiben verfügbar.
 
 Zusätzliche Prüfkommandos:
 
 ```sh
 node scripts/test-products-guest-ui.mjs
+PRODUCT_GUEST_LOCAL_CONFIRM=synthetic-stripe-test-only node scripts/test-products-guest-local.mjs
 PRODUCT_DISCOUNT_TEST_CONFIRM=synthetic-stripe-test-only PRODUCT_TEST_ENV_FILE=/absoluter/pfad/zur/isolierten/test/.env.local node scripts/test-products-discount-contract.mjs
 ```
 
-Der Stripe-Vertragstest akzeptiert ausschließlich `sk_test_`/`rk_test_` und lädt niemals automatisch die Produktionskonfiguration.
+Der lokale Gesamttest erfordert die laufende isolierte Test-App samt Capture-Worker; er deaktiviert seine synthetischen Stripe-Angebote, Rabattcodes und Kunden anschließend und bewahrt lokale Prüfbelege. Der Stripe-Vertragstest akzeptiert ausschließlich `sk_test_`/`rk_test_` und lädt niemals automatisch die Produktionskonfiguration.

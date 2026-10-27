@@ -262,6 +262,47 @@ it("fulfills once with the exact stored child, current policy snapshot and verif
   expect(calls[0].args.input.proof.payment_id).toBe("pi_test");
   expect(calls[0].args.input.proof.total).toBe(9900);
 });
+it.each(["paid", "no_payment_required"])(
+  "fulfills a completed zero-cost discounted Checkout with %s and no PaymentIntent",
+  async (payment_status) => {
+    state.tables.product_purchase_intents[0].expected_amount = 0;
+    state.tables.product_purchase_intents[0].discount = {
+      promotion_id: "promo_free",
+      amount: 0,
+    };
+    const session = await state.stripe.checkout.sessions.retrieve();
+    state.stripe.checkout.sessions.retrieve.mockResolvedValue({
+      ...session,
+      amount_total: 0,
+      payment_status,
+      payment_intent: null,
+      discounts: [{ promotion_code: "promo_free" }],
+    });
+    expect((await fulfillCheckout("intent-test")).status).toBe("fulfilled");
+    expect(state.stripe.paymentIntents.retrieve).not.toHaveBeenCalled();
+    const fulfillment = state.calls.find(
+      (c) => c.name === "fulfill_product_purchase",
+    );
+    expect(fulfillment.args.input.proof).toMatchObject({
+      total: 0,
+      payment_id: "cs_test_paid",
+      payment_status,
+    });
+  },
+);
+it("rejects zero-total Checkout without a stored verified discount and payment proof", async () => {
+  state.tables.product_purchase_intents[0].expected_amount = 0;
+  const session = await state.stripe.checkout.sessions.retrieve();
+  state.stripe.checkout.sessions.retrieve.mockResolvedValue({
+    ...session,
+    amount_total: 0,
+    payment_intent: null,
+  });
+  await expect(fulfillCheckout("intent-test")).rejects.toThrow(
+    /Zahlungsnachweis/,
+  );
+  expect(state.calls).toEqual([]);
+});
 it("holds an already paid order for review when the product is disabled during checkout", async () => {
   state.product.published.status = "archived";
   expect((await fulfillCheckout("intent-test")).status).toBe("review");

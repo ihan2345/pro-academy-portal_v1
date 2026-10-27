@@ -660,7 +660,7 @@ export async function fulfillCheckout(id: string) {
     paymentId = invoice.id!;
   } else if (
     i.expected_amount === 0 &&
-    session.payment_status === "no_payment_required" &&
+    ["paid", "no_payment_required"].includes(session.payment_status) &&
     !session.payment_intent &&
     i.discount
   ) {

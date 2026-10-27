@@ -1157,75 +1157,92 @@ it("creates normal subscription units for a paid guest before the account is cla
     ).rows[0].parent_id,
   ).toBe(i.parent_id);
 });
-it("uses the same camp identity and capacity with a verified free guest order", async () => {
-  const p = (
-    await db.query<any>(
-      "select * from catalog_products where published->>'kind'='camp' limit 1",
-    )
-  ).rows[0];
-  const request = {
-    id: id(1160),
-    product_id: p.id,
-    revision: p.published_revision,
-    player_id: id(1161),
-    player_data: {
-      first_name: "Camp",
-      last_name: "Gastkind",
-      birth_date: "2016-04-15",
-    },
-    guest_data: { full_name: "Campfamilie", email: "camp1160@example.invalid" },
-    guest_token_hash: "c".repeat(64),
-    amount: 0,
-    customer_id: "cus_guest_camp",
-    channel: "catalog",
-    discount: { amount: 0, promotion_id: "promo_camp_free", source: "code" },
-    camp_details: {
-      birth_date: "2016-04-15",
-      gender: "keine Angabe",
-      clothing_size: "M",
-    },
-  };
-  await db.query("select reserve_product_purchase($1)", [request]);
-  await db.query(
-    "update product_purchase_intents set status='checkout',session_id='cs_test_guest_camp' where id=$1",
-    [request.id],
-  );
-  const proof = {
-    session_id: "cs_test_guest_camp",
-    livemode: false,
-    payment_status: "no_payment_required",
-    price_id: p.published.price.id,
-    product_id: p.published.price.product_id,
-    currency: "eur",
-    subtotal: p.published.price.amount,
-    total: 0,
-    quantity: 1,
-    customer_id: request.customer_id,
-    payment_id: "cs_test_guest_camp",
-  };
-  await db.query("select fulfill_product_purchase($1)", [
-    { id: request.id, proof },
-  ]);
-  const i = (
-    await db.query<any>("select * from product_purchase_intents where id=$1", [
-      request.id,
-    ])
-  ).rows[0];
-  expect(i.status).toBe("fulfilled");
-  expect(
-    (
-      await db.query<any>(
-        "select parent_id,player_id,status,paid_amount from camp_bookings where id=$1",
-        [i.camp_booking_id],
-      )
-    ).rows[0],
-  ).toEqual({
-    parent_id: i.parent_id,
-    player_id: request.player_id,
-    status: "paid",
-    paid_amount: 0,
-  });
-});
+it.each(["paid", "no_payment_required"])(
+  "uses the same camp identity and capacity with a verified free guest order (%s)",
+  async (paymentStatus) => {
+    await db.exec("begin");
+    try {
+      const base = paymentStatus === "paid" ? 1180 : 1160;
+      const p = (
+        await db.query<any>(
+          "select * from catalog_products where published->>'kind'='camp' limit 1",
+        )
+      ).rows[0];
+      const request = {
+        id: id(base),
+        product_id: p.id,
+        revision: p.published_revision,
+        player_id: id(base + 1),
+        player_data: {
+          first_name: "Camp",
+          last_name: "Gastkind",
+          birth_date: "2016-04-15",
+        },
+        guest_data: {
+          full_name: "Campfamilie",
+          email: `camp${base}@example.invalid`,
+        },
+        guest_token_hash: "c".repeat(64),
+        amount: 0,
+        customer_id: `cus_guest_camp_${base}`,
+        channel: "catalog",
+        discount: {
+          amount: 0,
+          promotion_id: "promo_camp_free",
+          source: "code",
+        },
+        camp_details: {
+          birth_date: "2016-04-15",
+          gender: "keine Angabe",
+          clothing_size: "M",
+        },
+      };
+      await db.query("select reserve_product_purchase($1)", [request]);
+      await db.query(
+        "update product_purchase_intents set status='checkout',session_id='cs_test_guest_camp_'||$2::text where id=$1",
+        [request.id, String(base)],
+      );
+      const proof = {
+        session_id: `cs_test_guest_camp_${base}`,
+        livemode: false,
+        payment_status: paymentStatus,
+        price_id: p.published.price.id,
+        product_id: p.published.price.product_id,
+        currency: "eur",
+        subtotal: p.published.price.amount,
+        total: 0,
+        quantity: 1,
+        customer_id: request.customer_id,
+        payment_id: `cs_test_guest_camp_${base}`,
+      };
+      await db.query("select fulfill_product_purchase($1)", [
+        { id: request.id, proof },
+      ]);
+      const i = (
+        await db.query<any>(
+          "select * from product_purchase_intents where id=$1",
+          [request.id],
+        )
+      ).rows[0];
+      expect(i.status).toBe("fulfilled");
+      expect(
+        (
+          await db.query<any>(
+            "select parent_id,player_id,status,paid_amount from camp_bookings where id=$1",
+            [i.camp_booking_id],
+          )
+        ).rows[0],
+      ).toEqual({
+        parent_id: i.parent_id,
+        player_id: request.player_id,
+        status: "paid",
+        paid_amount: 0,
+      });
+    } finally {
+      await db.exec("rollback");
+    }
+  },
+);
 it("fails closed on a missing no-cost payment status without creating a family", async () => {
   const { proof } = await guestOrder(1170, "guard1170@example.invalid", 0);
   const { payment_status: _, ...missingStatus } = proof;

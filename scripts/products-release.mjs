@@ -43,10 +43,11 @@ const files = [
   "027-product-workflows",
   "028-product-payment-review",
   "029-product-production-shop",
-  "030-product-guest-checkout",
+  "030-stripe-notice-decisions",
+  "031-product-guest-checkout",
 ];
 const history = await sql(
-  "select version,statements from supabase_migrations.schema_migrations where version between '202610260022' and '202610270030' order by version",
+  "select version,statements from supabase_migrations.schema_migrations where version between '202610260022' and '202610270031' order by version",
 );
 const migrations = files.map((file) => {
   const source = readFileSync(`supabase/release/${file}.sql`, "utf8");

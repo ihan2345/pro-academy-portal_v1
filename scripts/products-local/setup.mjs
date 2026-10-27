@@ -181,8 +181,10 @@ if (
   sql(readFileSync("supabase/release/028-product-payment-review.sql", "utf8"));
 if (!sql("select to_regclass('public.product_runtime')").trim())
   sql(readFileSync("supabase/release/029-product-production-shop.sql", "utf8"));
+if (!sql("select to_regclass('public.stripe_notice_decisions')").trim())
+  sql(readFileSync("supabase/release/030-stripe-notice-decisions.sql", "utf8"));
 if (!sql("select to_regclass('public.product_guest_messages')").trim())
-  sql(readFileSync("supabase/release/030-product-guest-checkout.sql", "utf8"));
+  sql(readFileSync("supabase/release/031-product-guest-checkout.sql", "utf8"));
 mkdirSync(app, { recursive: true });
 for (const path of [
   "src",
