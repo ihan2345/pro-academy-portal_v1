@@ -3549,6 +3549,31 @@ label {
 
 .subscription-review-preview { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:18px; padding:24px; margin-bottom:24px; }
 .subscription-review-preview p { margin-top:8px; }
+.dashboard-disclosure { padding:0; margin-bottom:20px; overflow:hidden; border-radius:18px; border:1px solid #e3e5eb; box-shadow:0 2px 8px #20203005; }
+.dashboard-disclosure > h2 { margin:0; font-size:17px; }
+.dashboard-disclosure-toggle { width:100%; min-height:72px; display:flex; align-items:center; gap:12px; padding:20px 24px; text-align:left; color:var(--ink); background:linear-gradient(180deg,#fff,#fafbfe); border:0; font:inherit; font-weight:650; cursor:pointer; }
+.dashboard-disclosure-toggle > svg { color:#8a8e9c; flex-shrink:0; transition:transform .18s ease; }
+.dashboard-disclosure-toggle > svg.expanded { transform:rotate(90deg); }
+.dashboard-disclosure-toggle:focus-visible { outline:2px solid var(--purple); outline-offset:-4px; border-radius:18px; }
+.dashboard-action-count { display:inline-grid; place-items:center; min-width:27px; height:25px; padding:0 8px; border-radius:9px; font-size:12px; font-variant-numeric:tabular-nums; border:1px solid #e5e7ef; background:#eef0f5; color:#697183; }
+.dashboard-action-count.pending { background:#fff1e8; color:#ae5018; border-color:#f3d7c2; }
+.dashboard-action-count.error { background:#fff0f0; color:#b32937; border-color:#efccd0; }
+.dashboard-disclosure-hint { margin-left:auto; font-size:12px; color:var(--muted); font-weight:500; }
+.dashboard-disclosure-body { padding:0 24px 24px; border-top:1px solid #eef0f5; }
+.dashboard-disclosure-body > .profile-muted { margin:18px 0; font-size:13px; line-height:1.6; }
+.stripe-conflict-toolbar,.stripe-billing-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.stripe-conflict-toolbar { margin-bottom:14px; }
+.stripe-billing-conflicts { display:grid; gap:14px; margin-top:24px; padding-top:20px; border-top:1px solid #eceef3; }
+.stripe-billing-conflict { display:grid; gap:10px; padding:18px; border:1px solid #efdfd2; border-radius:14px; background:linear-gradient(145deg,#fffaf6,#fff); min-width:0; overflow-wrap:anywhere; }
+.stripe-billing-conflict p { margin:0; font-size:13px; }
+.stripe-billing-head h4 { font-size:16px; }
+.stripe-billing-head > span { color:#92552c; background:#fff1e5; padding:4px 8px; border-radius:6px; font-size:11px; }
+.stripe-billing-reason { font-weight:600; color:#9e4f26; }
+.stripe-billing-invoice { display:flex; flex-wrap:wrap; gap:8px 20px; justify-content:space-between; font-size:13px; padding:10px 0; border-top:1px solid #f0e7e0; }
+.stripe-billing-conflict a:not(.secondary-button) { color:#66509c; text-decoration:underline; text-underline-offset:3px; }
+.stripe-billing-conflict > .secondary-button { justify-self:start; }
+@media(max-width:600px) { .dashboard-disclosure-toggle { padding:18px 16px; gap:9px; font-size:15px; } .dashboard-disclosure-body { padding:0 16px 18px; } .dashboard-disclosure-hint { display:none; } .stripe-billing-conflict { padding:14px; } }
+@media(prefers-reduced-motion:reduce) { .dashboard-disclosure-toggle > svg { transition:none; } }
 .subscription-review-body { display:grid; gap:20px; padding:24px; }
 .subscription-review-card { display:grid; gap:14px; border:1px solid var(--line); border-radius:12px; padding:20px; min-width:0; }
 .subscription-review-card label { display:grid; gap:6px; }

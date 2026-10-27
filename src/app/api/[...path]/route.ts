@@ -1,4 +1,5 @@
 import { stripeActivities } from "@/lib/server/stripe-activities";
+import { stripeBillingConflicts } from "@/lib/server/stripe-conflicts";
 import { stripeParentInputs } from "@/lib/server/stripe-parent-inputs";
 import { activityList, activitySummary } from "@/lib/server/activities";
 import {
@@ -212,6 +213,14 @@ async function handler(
           cursor: request.nextUrl.searchParams.get("cursor") ?? undefined,
         }),
       );
+    }
+    if (path === "admin/stripe-conflicts") {
+      if (request.method !== "GET")
+        throw new HttpError(
+          405,
+          "Stripe-Konflikte sind hier ausschließlich lesbar.",
+        );
+      return json(await stripeBillingConflicts(session));
     }
     if (path === "admin/stripe-activities") {
       if (request.method !== "GET")

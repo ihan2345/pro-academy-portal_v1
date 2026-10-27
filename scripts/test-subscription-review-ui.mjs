@@ -118,6 +118,10 @@ try {
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.route("**/api/**", async (route) => {
+      if (route.request().url().includes("stripe-conflicts"))
+        return route.fulfill({
+          json: { rows: [], checkedAt: new Date().toISOString() },
+        });
       if (route.request().url().includes("stripe-parent-inputs"))
         return route.fulfill({
           json: {
@@ -162,6 +166,7 @@ try {
       return route.fulfill({ json: { ok: true } });
     });
     await page.goto(base);
+    await page.getByRole("button", { name: /Stripe\/Abo-Konflikte/ }).click();
     await expect(
       page.getByRole("button", { name: "Kinder und Vorschläge prüfen →" }),
     ).toBeVisible();
@@ -240,10 +245,11 @@ try {
                 ],
                 total: 1,
               }
-            : { ok: true },
+            : { rows: [], checkedAt: new Date().toISOString(), ok: true },
       }),
     );
     await page.reload();
+    await page.getByRole("button", { name: /Stripe\/Abo-Konflikte/ }).click();
     await page
       .getByRole("button", { name: "Kinder und Vorschläge prüfen →" })
       .click();

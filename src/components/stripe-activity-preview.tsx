@@ -7,6 +7,8 @@ import type {
 import Link from "next/link";
 import { TriangleAlert, CheckCircle2, Circle } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/domain";
+import { DashboardDisclosure } from "./dashboard-disclosure";
+import { stripeActivityActions } from "@/lib/stripe-conflicts";
 
 export function StripeActivityPreview() {
   const [week, setWeek] = useState(false);
@@ -58,12 +60,13 @@ export function StripeActivityPreview() {
     setAsOf(new Date().toISOString());
   }
   return (
-    <section
-      className="panel"
-      aria-label="Stripe-Aktivitäten"
-      style={{ padding: 24, marginBottom: 24 }}
+    <DashboardDisclosure
+      title="Stripe-Aktivitäten"
+      count={stripeActivityActions(rows)}
+      loading={loading}
+      error={!!error}
+      description="Aktivitätsverlauf von Stripe. Die Anzahl zeigt offene Aktionen in den angezeigten Einträgen; wiederholte Hinweise zur selben Zuordnung zählen einmal."
     >
-      <h2>Stripe-Aktivitäten</h2>
       <p className="profile-muted">
         {week ? "Letzte 7 Tage" : "Die letzten 3 Aktivitäten"} ·
         Originalereignisse von Stripe. Zuordnungsstatus: aktueller Stand im
@@ -188,6 +191,6 @@ export function StripeActivityPreview() {
           Aktualisieren
         </button>
       </div>
-    </section>
+    </DashboardDisclosure>
   );
 }

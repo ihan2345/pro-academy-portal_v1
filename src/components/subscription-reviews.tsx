@@ -6,6 +6,8 @@ import { reviewExplanation } from "@/lib/subscription-reviews";
 import { StripeParentInputs } from "./stripe-parent-inputs";
 import { Modal } from "./portal";
 import { formatDate } from "@/lib/domain";
+import { DashboardDisclosure } from "./dashboard-disclosure";
+import type { StripeBillingConflictPage } from "@/lib/stripe-conflicts";
 import type {
   SubscriptionReview,
   SubscriptionReviewPage,
@@ -19,6 +21,32 @@ export function SubscriptionReviews() {
     [offset, setOffset] = useState(0),
     [revision, setRevision] = useState(0),
     [loading, setLoading] = useState(true);
+  const [payments, setPayments] = useState<StripeBillingConflictPage | null>(
+    null,
+  );
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(true);
+  useEffect(() => {
+    const abort = new AbortController();
+    setPaymentLoading(true);
+    setPaymentError("");
+    fetch("/api/admin/stripe-conflicts", {
+      signal: abort.signal,
+      cache: "no-store",
+    })
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw Error(d.error ?? "Zahlungsstatus nicht verfügbar.");
+        if (!abort.signal.aborted) setPayments(d);
+      })
+      .catch((e) => {
+        if (!abort.signal.aborted) setPaymentError(e.message);
+      })
+      .finally(() => {
+        if (!abort.signal.aborted) setPaymentLoading(false);
+      });
+    return () => abort.abort();
+  }, [revision]);
   useEffect(() => {
     const abort = new AbortController();
     setLoading(true);
@@ -32,7 +60,9 @@ export function SubscriptionReviews() {
         if (!r.ok) throw Error(d.error ?? "Prüfungen nicht verfügbar.");
         return d;
       })
-      .then(setData)
+      .then((d) => {
+        if (!abort.signal.aborted) setData(d);
+      })
       .catch((e) => {
         if (!abort.signal.aborted) setError(e.message);
       })
@@ -43,16 +73,34 @@ export function SubscriptionReviews() {
   }, [offset, revision]);
   const refresh = () => setRevision((n) => n + 1);
   return (
-    <section className="panel subscription-review-preview">
+    <DashboardDisclosure
+      title="Stripe/Abo-Konflikte"
+      count={(data?.total ?? 0) + (payments?.rows.length ?? 0)}
+      loading={loading || paymentLoading}
+      error={!!error || !!paymentError}
+      description="Offene Kinderzuordnungen und aktuelle Zahlungs- oder Abo-Probleme. Mehrere fehlgeschlagene Zahlungen desselben Abos werden zu einem Zahlungsfall zusammengefasst."
+    >
+      <div className="stripe-conflict-toolbar">
+        <h3>Abo-Zuordnungen</h3>
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={loading || paymentLoading}
+          onClick={refresh}
+        >
+          Aktualisieren
+        </button>
+      </div>
       <div>
-        <h2>Abo-Zuordnungen prüfen</h2>
         <p>
           {loading
             ? "Prüfungen werden geladen …"
             : error
               ? "Prüfung derzeit nicht verfügbar"
               : data?.total
-                ? `${data.total} Abo-Positionen benötigen eine eindeutige Kinderzuordnung.`
+                ? data.total === 1
+                  ? "Eine Abo-Position benötigt eine eindeutige Kinderzuordnung."
+                  : `${data.total} Abo-Positionen benötigen eine eindeutige Kinderzuordnung.`
                 : "Keine offenen Zuordnungen."}
         </p>
         {!!data?.total && (
@@ -84,6 +132,89 @@ export function SubscriptionReviews() {
           </button>
         )
       )}
+      <div className="stripe-billing-conflicts">
+        <h3>Zahlungen und gesperrte Abos</h3>
+        {paymentLoading && (
+          <p role="status">Aktueller Stripe-Status wird geprüft …</p>
+        )}
+        {paymentError && <p role="alert">{paymentError}</p>}
+        {!paymentLoading && !paymentError && !payments?.rows.length && (
+          <p>Keine offenen Zahlungs- oder Sperrfälle.</p>
+        )}
+        {!paymentLoading &&
+          !paymentError &&
+          payments?.rows.map((r) => (
+            <article className="stripe-billing-conflict" key={r.id}>
+              <div className="stripe-billing-head">
+                <h4>{r.customer}</h4>
+                <span>
+                  {{
+                    active: "Aktiv",
+                    trialing: "Testphase",
+                    canceled: "Beendet",
+                    past_due: "Überfällig",
+                    unpaid: "Gesperrt",
+                    paused: "Pausiert",
+                    incomplete: "Zahlung offen",
+                  }[r.status] ?? "Status prüfen"}
+                </span>
+              </div>
+              <p className="stripe-billing-reason">{r.reason}</p>
+              {!!r.children.length && (
+                <p>
+                  {r.children.map((c, i) => (
+                    <span key={c.id}>
+                      {i > 0 && " · "}
+                      <Link href={`/admin/spieler/${c.id}`}>{c.name}</Link>
+                    </span>
+                  ))}
+                </p>
+              )}
+              {r.blocked && (
+                <p>
+                  Abo derzeit eingeschränkt. Zahlungs- und Abo-Status müssen
+                  geklärt werden.
+                </p>
+              )}
+              {r.invoices.map((invoice) => (
+                <div className="stripe-billing-invoice" key={invoice.id}>
+                  <span>
+                    Offen:{" "}
+                    <strong>
+                      {new Intl.NumberFormat("de-DE", {
+                        style: "currency",
+                        currency: invoice.currency,
+                      }).format(invoice.remaining / 100)}
+                    </strong>
+                    {invoice.number && ` · ${invoice.number}`}
+                  </span>
+                  <a href={invoice.href} target="_blank" rel="noreferrer">
+                    Rechnung in Stripe prüfen ↗
+                  </a>
+                </div>
+              ))}
+              <a
+                className="secondary-button"
+                href={r.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abo in Stripe prüfen ↗
+              </a>
+            </article>
+          ))}
+        {payments && !paymentError && (
+          <small className="profile-muted">
+            Bei Stripe geprüft:{" "}
+            {formatDate(payments.checkedAt, {
+              day: "2-digit",
+              month: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </small>
+        )}
+      </div>
       {open && (
         <Modal title="Abo-Zuordnungen prüfen" close={() => setOpen(false)}>
           <div className="subscription-review-body">
@@ -143,7 +274,7 @@ export function SubscriptionReviews() {
           </div>
         </Modal>
       )}
-    </section>
+    </DashboardDisclosure>
   );
 }
 function ReviewCard({
