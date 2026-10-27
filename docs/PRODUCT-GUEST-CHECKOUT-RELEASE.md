@@ -1,6 +1,8 @@
-# Gastkäufe und Rabattcodes – Veröffentlichung vorbereitet
+# Gastkäufe und Rabattcodes – veröffentlicht
 
-Stand: 27.10.2026. Branch `codex/shop-gastkauf`, mit `origin/main` bis `c297575` zusammengeführt. Enthalten sind damit auch die zuletzt veröffentlichten Stripe-Meldungsfilter und Admin-Entscheidungen (`543206a`) sowie die vorherigen Stripe-Konflikt-/Zahlungskorrekturen. Es gab keine Textkonflikte; die bestehende SQL-Nummer 030 war jedoch bereits produktiv belegt. Die Gastkauf-Migration wurde deshalb ohne Änderung ihres SQL-Inhalts auf 031 verschoben. Der Release-Abgleich prüft auch den unveränderten Quelltext der vorhandenen Migration 030. Die Veröffentlichung, die Anwendung von Migration 031 und die Aktivierung des neuen Mailversands warten auf ausdrückliche Freigabe.
+Am 27.10.2026 nach ausdrücklicher Freigabe unter https://portal.proacademy-ak.com veröffentlicht. Funktionsstand `6b247c3`, per Fast-forward nach `main` übernommen. Portal-Version `91bba1f7-138e-4829-9f18-b04fc81ccfd9` ist seit 15:45 Uhr (Europe/Istanbul) mit 100 % Traffic aktiv. Jobs-Runner-Version `8a632a38-8398-44ad-93e3-59f11d1ebd90` wurde vorher veröffentlicht; Migration `202610270031` ist transaktional installiert.
+
+Der Stand enthält `origin/main` bis `c297575`, einschließlich der zuletzt veröffentlichten Stripe-Meldungsfilter und Admin-Entscheidungen (`543206a`). Die bereits produktiv belegte SQL-Nummer 030 bleibt unverändert; der Gastkauf verwendet deshalb 031. Der Release-Abgleich bestätigte den unveränderten SQL-Quelltext aller vorhandenen Migrationen 022–030.
 
 ## Verhalten
 
@@ -40,17 +42,17 @@ Bekannt abgelaufene unbezahlte Bestellungen und alte Reservierungen ohne Stripe 
 - Docker ist nach dem Neustart erreichbar. Das tatsächliche Runner-Image wurde mit `workers/Dockerfile` erfolgreich gebaut; ein netzwerkisolierter Container liefert HTTP 200 auf `/health`, ohne Jobs auszuführen.
 - Vollständiger lokaler Ablauf mit der vorhandenen Supabase-/Auth-Instanz und echtem gehostetem Stripe-TEST-Checkout: Gastreservierung ohne vorzeitige Eltern-/Kind-/Auth-Anlage, verweigerter Zugriff aus einem fremden Browser, 100-%-Rabatt, abgeschlossener Nullbetrag, anschließende Familienanlage, private Mail-Capture und reale Auth-Bestätigung aus einem zweiten Browser. Die bestätigte Identität erhält dieselbe Eltern-Kind-Zuordnung genau einmal. Kein SMTP-Versand, keine Abbuchung, keine produktiven Käufe oder Auth-Konten.
 - Dabei wurde eine reale Stripe-Eigenheit korrigiert: Ein kostenlos abgeschlossener Checkout kann `payment_status=paid` und trotzdem keinen PaymentIntent besitzen. Der gültige Nachweis ist die abgeschlossene Session mit verifiziertem Rabatt und Nullbetrag. Beide zulässigen Statusvarianten sind zusätzlich geprüft; Camp-SQL-Tests verwenden weiterhin die vorhandene Kapazitäts-/No-Cost-Logik. Stripe-Referenz: https://docs.stripe.com/payments/checkout/no-cost-orders.
-- Die produktive Migration wurde ausschließlich im Probelauf mit Rollback geprüft. Portal, Runner und Produktionsdatenbank wurden noch nicht veröffentlicht bzw. migriert.
+- Nach Freigabe wurde ausschließlich die neue Migration 031 installiert. Der unmittelbare Vorher-/Nachher-Abgleich bestätigte unveränderte Versandfreigaben, Elternzuordnungen/-Sperren, Bestands-Abo-Funktionen sowie Anzahlen von Abos, Kontingenten und Campbuchungen. Gasttabellen-RLS und eingeschränkte Funktions-/Tabellenrechte wurden produktiv geprüft.
 
-Belege liegen ignoriert unter `output/product-guest-ui`, `output/product-guest-stripe` und `output/guest-release`. Temporäre Build- oder Testdaten und Schlüssel gehören nicht in Git.
+Belege liegen ignoriert unter `output/product-guest-ui`, `output/product-guest-stripe`, `output/product-guest-local` und `output/guest-release`. Temporäre Build- oder Testdaten und Schlüssel gehören nicht in Git.
 
-## Veröffentlichung nach Freigabe
+## Produktive Abnahme
 
-1. Nach Freigabe Hauptbranch erneut abrufen und prüfen, ob seit `c297575` weitere Änderungen vorliegen. Den vollständig geprüften Feature-Stand ohne Überschreiben anderer Arbeiten integrieren. Docker-Image und lokaler Gastkauf sind bereits geprüft; bei weiteren Änderungen betroffene Prüfungen wiederholen.
-2. `PRODUCT_RELEASE_PROJECT_REF=vgxaatawsbzgsmqiaepj node scripts/products-release.mjs` erneut als Dry-Run ausführen. Erst nach Freigabe mit `--apply` Migration `202610270031` installieren. Bestehende Migrationen sind unverändert; der Shop-Schalter und Versand-Sperren bleiben erhalten.
-3. Den Jobs-Runner mit dem neuen Bundle und `PRODUCT_GUEST_MAIL_ENABLED=true` veröffentlichen. Die vorbereitete Cloudflare-Konfiguration leitet diesen Wert in den Container weiter. Die vorhandenen Supabase-, SMTP- und Stripe-Schlüssel bleiben verwendbar; es sind keine zusätzlichen Schlüssel vorgesehen.
-4. Das Portal aus einem sauberen Arbeitsverzeichnis mit eigenen Dependencies bauen (`npm ci`, `npm run build:cloudflare -- --env production`) und nach Freigabe mit `npx wrangler deploy --env production` veröffentlichen. Niemals `npm ci` in ein verlinktes `node_modules` ausführen.
-5. Öffentlichen Shop, angemeldete Navigation, Katalog, Runner-Gesundheit und Versandwarteschlange prüfen. Ein echter Kauf wird nicht automatisch als Veröffentlichungstest ausgelöst.
+- Der Runner verwendet das neue Container-Image `sha256:cc54b3d76f4d80a9d00526c567088670d652a06ae1171ac7daeca8cc6bdde224`. `PRODUCT_GUEST_MAIL_ENABLED=true` ist in der veröffentlichten Version bestätigt. Sein geschützter `/verify`-Aufruf meldete Datenbank, Stripe, SMTP und PDF als erfolgreich, ohne Jobs oder E-Mails auszulösen. Der reguläre Hintergrundlauf meldete danach einen aktuellen gesunden Produkt-Heartbeat; es gab keine offenen Gast-Mailaufträge.
+- Das Portal wurde aus der bereits geprüften isolierten Arbeitskopie mit eigenen Dependencies veröffentlicht. Sämtliche Portal-Bindings stimmen mit der vorherigen Version überein. Bestehende Versand- und Shopfreigaben wurden beibehalten. Es waren keine neuen Schlüssel nötig.
+- Die öffentliche Shopseite, der Gastkatalog, Login und alle zwölf von der Shopseite referenzierten JS-/CSS-Dateien liefern HTTP 200. Drei veröffentlichte Angebote waren zum Prüfzeitpunkt für Gäste sichtbar. Nicht angemeldete Adminaufrufe und ungültige Bestätigungstokens werden weiter zur Anmeldung umgeleitet.
+- Im tatsächlichen öffentlichen Portal wurden Desktop (1440 Pixel) und Mobilgerät (390 Pixel) geprüft: Eltern-/Kindfelder und Rabattcode-Eingabe vorhanden, keine horizontale Überbreite und keine Browserfehler. Der vorhandene Cloudflare-Cookiehinweis wurde mit „Necessary only“ geschlossen. Die Prüfung hat keine schreibenden App-API-Anfragen, echten Käufe oder Kundenmails ausgelöst.
+- Die detaillierten Versions-, SQL-, Verbindungs-, Browser- und Deploymentbelege liegen unter `output/guest-release/evidence` und `output/guest-release`. Private Konfigurationen und Datenbankschnappschüsse werden nicht eingecheckt.
 
 Die Migration ist additiv und mit bestehenden authentifizierten Käufen kompatibel. Bei einem Rückbau des Portals muss der neue Runner bezahlte oder noch offene Gastkäufe weiter abarbeiten können. Die Gasttabellen nach ersten Käufen nicht entfernen; bei Problemen den bestehenden Super-Admin-Shop-Schalter verwenden und Fälle mit Zahlungsnachweis prüfen.
 
