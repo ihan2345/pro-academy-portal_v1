@@ -34,16 +34,16 @@ Bekannt abgelaufene unbezahlte Bestellungen und alte Reservierungen ohne Stripe 
 - Gesamte Vitest-Suite: 1.022 Tests in 94 Dateien bestanden, dazu TypeScript für Portal und Runner; Datenbanktests installieren die vollständige SQL-Kette in PGlite, einschließlich Gast-Abos, Campbuchung, Nullbetrag, Zugriff, Identitätskonflikten und Wiederholungen.
 - Isolierte Browserprüfungen auf Desktop und Mobilgeräten mit Formularvalidierung, Codeübermittlung, Bestellstatus, erneutem Zugangslink und sicherem Abbruch; keine externen Aufrufe.
 - Echte Stripe-TEST-API: Prozent, Festbetrag, kostenlose Einzel- und Abo-Checkouts sowie Übernahme bestehender Rabatte in einen Downgrade-Zeitplan. Kein Geld wird abgebucht. Die Test-Checkouts werden beendet, Test-Abos gekündigt und Testangebote deaktiviert.
-- Produktionsbuild für Cloudflare und Runner erfolgreich; lokaler Workerd-Smoke mit ausschließlich GET-Anfragen für Shop, öffentlichen Katalog und Login.
+- Produktionsbuild für Cloudflare und Runner erfolgreich; das vollständig gebündelte Runner-CJS lädt auch isoliert ohne `node_modules`; lokaler Workerd-Smoke mit ausschließlich GET-Anfragen für Shop, öffentlichen Katalog und Login.
 - Live-Stripe-Schlüssel ausschließlich lesend auf Promotion Codes einschließlich Coupondetails geprüft; keine neuen Schlüssel nötig.
 - Migration 030 gegen den aktuellen Produktionsstand in einer Transaktion getestet und zurückgerollt; 022–029 stimmen exakt mit der vorhandenen Migrationshistorie überein.
-- Die lokale Docker-/Supabase-Instanz war nicht erreichbar. Ein vollständiger Kauf samt tatsächlicher lokaler Auth-E-Mail konnte dort nicht erneut durchlaufen werden. Auth-Verifikation und Linkversand wurden deshalb gezielt mit isolierten Tests geprüft. Es gab keine Live-Testkäufe oder echten Bestätigungsmails.
+- Die lokale Docker-/Supabase-Instanz war nicht erreichbar. Ein vollständiger Kauf samt tatsächlicher lokaler Auth-E-Mail konnte dort nicht erneut durchlaufen werden. Auth-Verifikation und Linkversand wurden deshalb gezielt mit isolierten Tests geprüft. Es gab keine Live-Testkäufe oder echten Bestätigungsmails. Der Docker-Container-Image-Build des Runners ist noch offen: Der Docker-Daemon reagiert nicht; auch `docker desktop restart --timeout 45` scheiterte am regulären Stoppen der Desktop-Prozesse. Es wurden keine Containerdaten gelöscht und kein erzwungenes Zurücksetzen ausgeführt. Vor der eigentlichen Veröffentlichungsfreigabe muss Docker wieder erreichbar sein und der Image-Build nachgeholt werden.
 
 Belege liegen ignoriert unter `output/product-guest-ui`, `output/product-guest-stripe` und `output/guest-release`. Temporäre Build- oder Testdaten und Schlüssel gehören nicht in Git.
 
 ## Veröffentlichung nach Freigabe
 
-1. Hauptbranch erneut abgleichen; die geprüften Änderungen integrieren, ohne zwischenzeitliche Arbeiten zu überschreiben.
+1. Docker-Erreichbarkeit wiederherstellen und den Runner-Image-Build gemäß `workers/Dockerfile` prüfen. Danach Hauptbranch erneut abgleichen; die geprüften Änderungen integrieren, ohne zwischenzeitliche Arbeiten zu überschreiben.
 2. `PRODUCT_RELEASE_PROJECT_REF=vgxaatawsbzgsmqiaepj node scripts/products-release.mjs` erneut als Dry-Run ausführen. Erst nach Freigabe mit `--apply` Migration `202610270030` installieren. Bestehende Migrationen sind unverändert; der Shop-Schalter und Versand-Sperren bleiben erhalten.
 3. Den Jobs-Runner mit dem neuen Bundle und `PRODUCT_GUEST_MAIL_ENABLED=true` veröffentlichen. Die vorbereitete Cloudflare-Konfiguration leitet diesen Wert in den Container weiter. Die vorhandenen Supabase-, SMTP- und Stripe-Schlüssel bleiben verwendbar; es sind keine zusätzlichen Schlüssel vorgesehen.
 4. Das Portal aus einem sauberen Arbeitsverzeichnis mit eigenen Dependencies bauen (`npm ci`, `npm run build:cloudflare -- --env production`) und nach Freigabe mit `npx wrangler deploy --env production` veröffentlichen. Niemals `npm ci` in ein verlinktes `node_modules` ausführen.
