@@ -1,5 +1,6 @@
 export interface StripeBillingConflict {
   id: string;
+  at: string;
   customer: string;
   customerId: string;
   subscriptionId: string;

@@ -36,17 +36,20 @@ async function collect(make: () => any): Promise<any[]> {
 export async function subscriptionReviews(
   session: ProfileSession,
   offset = 0,
+  reviewId?: string,
 ): Promise<SubscriptionReviewPage> {
   assertRole(session.role, "admin");
   offset = z.number().int().min(0).max(100000).parse(offset);
   const db = serviceDb();
-  const response = await db
+  let query = db
     .from("subscription_assignment_reviews")
     .select(
       "id,signature,created_at,item,subscription_id,previous_item_ids,suggested_player_ids,subscriptions!inner(parent_id,stripe_customer_id,stripe_subscription_id,status,synced_at,stripe_data)",
       { count: "exact" },
     )
-    .eq("status", "pending")
+    .eq("status", "pending");
+  if (reviewId) query = query.eq("id", z.uuid().parse(reviewId));
+  const response = await query
     .order("created_at")
     .order("id")
     .range(offset, offset + 24);

@@ -21,7 +21,13 @@ vi.mock("../src/lib/server/service-db", () => ({
         order: () => q,
         limit: () => q,
         in: (k: string, values: any[]) => {
-          rows = rows.filter((r) => values.includes(r[k]));
+          rows = rows.filter((r) =>
+            values.includes(
+              k === "payload->data->object->>id"
+                ? r.payload?.data?.object?.id
+                : r[k],
+            ),
+          );
           return q;
         },
         eq: (k: string, value: unknown) => {
@@ -195,6 +201,54 @@ it("includes restricted Abos without an open invoice and reads every Stripe page
   expect(m.subscriptions).toHaveBeenCalledTimes(2);
   expect(result.rows).toHaveLength(1);
   expect(result.rows[0].status).toBe("unpaid");
+});
+it("dates conflicts from actual payment failures or status changes rather than unrelated metadata updates", async () => {
+  const transition = Date.parse("2026-10-20T12:00:00Z") / 1000;
+  m.subscriptions.mockResolvedValue({
+    data: [{ ...sub, status: "unpaid", created: 1 }],
+    has_more: false,
+  });
+  m.invoices.mockResolvedValue({ data: [], has_more: false });
+  m.tables.stripe_webhook_events = [
+    {
+      id: "change",
+      type: "customer.subscription.updated",
+      stripe_created: transition,
+      payload: {
+        data: {
+          object: { id: sub.id, status: "unpaid" },
+          previous_attributes: { status: "past_due" },
+        },
+      },
+    },
+    {
+      id: "metadata",
+      type: "customer.subscription.updated",
+      stripe_created: transition + 86400,
+      payload: {
+        data: {
+          object: { id: sub.id, status: "unpaid" },
+          previous_attributes: { metadata: {} },
+        },
+      },
+    },
+  ];
+  expect((await stripeBillingConflicts(admin)).rows[0].at).toBe(
+    "2026-10-20T12:00:00.000Z",
+  );
+  m.invoices.mockResolvedValue({
+    data: [{ ...invoice, created: 1 }],
+    has_more: false,
+  });
+  m.tables.stripe_webhook_events.push({
+    id: "failure",
+    type: "invoice.payment_failed",
+    stripe_created: transition + 2 * 86400,
+    payload: { data: { object: { id: invoice.id } } },
+  });
+  expect((await stripeBillingConflicts(admin)).rows[0].at).toBe(
+    "2026-10-22T12:00:00.000Z",
+  );
 });
 it("fails instead of returning a false zero or a partial result when Stripe fails or pagination stalls", async () => {
   m.invoices.mockRejectedValue(Error("offline"));
