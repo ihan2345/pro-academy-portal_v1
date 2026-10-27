@@ -51,7 +51,7 @@ export async function listOrders(
   let q = serviceDb()
     .from("product_purchase_intents")
     .select(
-      "id,product,player_data,player_id,parent_id,status,reason,created_at,expires_at,parents(full_name),product_purchases(id,service_status,service_note)",
+      "id,product,player_data,player_id,parent_id,auth_id,guest_data,status,reason,created_at,expires_at,parents(full_name),product_guest_messages(status,last_error,sent_at,attempts),product_purchases(id,service_status,service_note)",
     )
     .order("id", { ascending: false })
     .limit(31);
@@ -79,7 +79,15 @@ export async function listOrders(
       name: i.product.name,
       kind: i.product.kind,
       player_id: i.player_id,
-      family: i.parents?.full_name,
+      family: i.parents?.full_name ?? i.guest_data?.full_name,
+      guest: !!i.guest_data,
+      account_pending: !!i.guest_data && !i.auth_id,
+      ...(admin
+        ? {
+            guest_email: i.guest_data?.email,
+            access_message: i.product_guest_messages ?? null,
+          }
+        : {}),
       child: i.player_data
         ? `${i.player_data.first_name} ${i.player_data.last_name}`
         : (() => {

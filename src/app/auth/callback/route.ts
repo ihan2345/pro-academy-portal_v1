@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { claimGuestPurchases } from "@/lib/server/products/guest-checkout";
 import { productsEnabled } from "@/lib/server/products/runtime";
 import { sessionDb } from "@/lib/server/supabase";
 import { required } from "@/lib/server/config";
@@ -23,6 +24,13 @@ export async function GET(request: NextRequest) {
             new URL("/login?error=invitation", portalUrl),
           );
         store.delete("pa_invitation");
+      }
+      if (productsEnabled()) {
+        try {
+          await claimGuestPurchases(db);
+        } catch {
+          /* Login remains available if a paid guest order needs review. */
+        }
       }
       const player = store.get("pa_player_redirect")?.value;
       if (player) store.delete("pa_player_redirect");

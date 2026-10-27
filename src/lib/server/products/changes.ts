@@ -24,12 +24,14 @@ const fingerprint = (s: Stripe.Subscription) =>
         cancel: s.cancel_at_period_end,
         pending: s.pending_update,
         schedule: s.schedule,
+        discounts: s.discounts,
         items: s.items.data.map((i) => [
           i.id,
           i.price.id,
           i.quantity,
           i.current_period_start,
           i.current_period_end,
+          i.discounts,
         ]),
         invoice:
           typeof s.latest_invoice === "string"
@@ -134,6 +136,11 @@ export async function previewProductChange(
     newFootball <= oldFootball &&
     plan.athletics_units <= member.athletics &&
     target.amount < (item.price.unit_amount ?? 0);
+  if (less && item.discounts?.length)
+    throw new HttpError(
+      409,
+      "Individuelle Rabatte auf einer Abo-Position benötigen vor dem Tarifwechsel eine persönliche Prüfung.",
+    );
   if (!more && !less)
     throw new HttpError(
       400,
@@ -349,6 +356,11 @@ export async function confirmProductChange(
         .eq("id", id)
         .select("id"),
     );
+    // Reuse the original discount objects; redeeming the coupon again would
+    // restart its duration. Stripe retains each existing discount's expiry.
+    const retainedDiscounts = (sub.discounts ?? []).map((d) => ({
+      discount: typeof d === "string" ? d : d.id,
+    }));
     await stripe.subscriptionSchedules.update(
       schedule.id,
       {
@@ -356,12 +368,18 @@ export async function confirmProductChange(
         proration_behavior: "none",
         phases: [
           {
+            ...(retainedDiscounts.length
+              ? { discounts: retainedDiscounts }
+              : {}),
             start_date: schedule.current_phase.start_date,
             end_date: r.preview.period_end,
             items: [{ price: r.preview.current_price, quantity: 1 }],
             proration_behavior: "none",
           },
           {
+            ...(retainedDiscounts.length
+              ? { discounts: retainedDiscounts }
+              : {}),
             start_date: r.preview.period_end,
             duration: { interval: r.preview.interval, interval_count: 1 },
             items: [{ price: r.preview.target_price, quantity: 1 }],

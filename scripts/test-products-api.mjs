@@ -95,8 +95,8 @@ try {
     "/api/products/00000000-0000-4000-8000-000000000001/checkout",
     { headers: { origin: "http://127.0.0.1:3110" }, data: {} },
   );
-  if (blocked.status() !== 401)
-    throw Error("Unauthenticated checkout not denied");
+  if (![400, 503].includes(blocked.status()))
+    throw Error("Malformed guest checkout was not rejected");
   const parent = await request.newContext({ baseURL: "http://127.0.0.1:3110" });
   await parent.post("/lokaler-test/session", {
     headers: { origin: "http://127.0.0.1:3110" },
@@ -167,7 +167,7 @@ try {
       checks: [
         "server search and complete keyset pagination",
         "private images",
-        "unauthenticated checkout",
+        "malformed guest checkout rejected",
         "admin channel denied",
       ],
     }),

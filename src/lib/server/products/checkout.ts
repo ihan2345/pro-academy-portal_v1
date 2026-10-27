@@ -2,6 +2,8 @@ import { productLiveMode } from "./runtime";
 import { recordInvoicePayments } from "./payments";
 import { productIdSchema } from "@/lib/products/domain";
 import "server-only";
+import { guestParentSchema, guestProductContext } from "@/lib/products/guest";
+import { resolveDiscount, type CheckoutDiscount } from "./discounts";
 import { createHmac } from "node:crypto";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -31,6 +33,8 @@ const childInput = z
 const checkoutSchema = z
   .object({
     request_id: productIdSchema,
+    guest_parent: guestParentSchema.optional(),
+    discount_code: z.string().trim().max(80).optional(),
     player_id: productIdSchema.optional(),
     new_child: childInput.optional(),
     camp_details: z
@@ -71,17 +75,36 @@ function reservedChildId(parent: string, value: z.infer<typeof childInput>) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 export async function checkoutProduct(
-  session: ProfileSession,
+  session: ProfileSession | null,
   id: string,
   raw: unknown,
+  guestTokenHash?: string,
 ): Promise<{ id: string; status: string; url?: string }> {
   requireProductPayments();
-  if (session.role !== "parent" || !session.user.email_confirmed_at)
+  if (
+    session?.user &&
+    (session.role !== "parent" || !session.user.email_confirmed_at)
+  )
     throw new HttpError(
       403,
       "Bitte zuerst mit deinem bestätigten Elternkonto anmelden.",
     );
   const input = checkoutSchema.parse(raw);
+  const guest = !session?.user;
+  if (
+    guest &&
+    (!input.guest_parent ||
+      !input.new_child ||
+      !guestTokenHash ||
+      input.player_id ||
+      input.customer_id)
+  )
+    throw new HttpError(
+      400,
+      "Bitte Eltern- und Kinderdaten für die Gastbestellung ergänzen.",
+    );
+  if (!guest && input.guest_parent)
+    throw new HttpError(400, "Bitte dein vorhandenes Elternkonto verwenden.");
   if (!!input.player_id === !!input.new_child)
     throw new HttpError(
       400,
@@ -90,8 +113,10 @@ export async function checkoutProduct(
   const db = serviceDb(),
     stripe = productStripe(),
     p = await productById(id),
-    ctx = await loadProductContext(session);
-  if (!p.published || !ctx.parent_id)
+    ctx = guest
+      ? guestProductContext(input.request_id, input.new_child!)
+      : await loadProductContext(session);
+  if (!p.published || (!guest && !ctx.parent_id))
     throw new HttpError(
       400,
       "Elternkonto oder veröffentlichtes Produkt fehlt.",
@@ -105,7 +130,14 @@ export async function checkoutProduct(
   );
   if (previous) {
     if (
-      previous.auth_id !== session.user.id ||
+      (guest
+        ? previous.guest_token_hash !== guestTokenHash ||
+          ["full_name", "email", "phone"].some(
+            (k) =>
+              (previous.guest_data?.[k] ?? "") !==
+              ((input.guest_parent as any)?.[k] ?? ""),
+          )
+        : previous.auth_id !== session!.user.id) ||
       previous.product_id !== id ||
       (input.player_id && previous.player_id !== input.player_id)
     )
@@ -116,7 +148,11 @@ export async function checkoutProduct(
       throw new HttpError(409, "Dieser Kauf muss zuerst geprüft werden.");
     if (
       input.new_child &&
-      JSON.stringify(previous.player_data) !== JSON.stringify(input.new_child)
+      ["first_name", "last_name", "birth_date", "gender", "clothing_size"].some(
+        (k) =>
+          (previous.player_data?.[k] ?? "") !==
+          ((input.new_child as any)?.[k] ?? ""),
+      )
     )
       throw new HttpError(
         409,
@@ -124,7 +160,9 @@ export async function checkoutProduct(
       );
     if (previous.checkout_url) {
       const { resumeOrder } = await import("./operations");
-      return resumeOrder(session, previous.id);
+      if (!guest) return resumeOrder(session!, previous.id);
+      const { resumeGuestOrder } = await import("./guest-checkout");
+      return resumeGuestOrder(previous.id);
     }
   }
   let playerId = input.player_id;
@@ -135,6 +173,7 @@ export async function checkoutProduct(
     )
       throw new HttpError(400, "Geburtsdatum prüfen.");
     if (
+      !guest &&
       ctx.children.some(
         (c) =>
           c.first_name.toLowerCase() ===
@@ -148,7 +187,11 @@ export async function checkoutProduct(
         409,
         "Dieses Kind ist bereits vorhanden. Bitte auswählen.",
       );
-    playerId = reservedChildId(ctx.parent_id, input.new_child);
+    playerId = reservedChildId(
+      guest ? `guest:${input.guest_parent!.email}` : ctx.parent_id!,
+      input.new_child,
+    );
+    if (guest) ctx.children = [];
     ctx.children.push({
       id: playerId,
       name: `${input.new_child.first_name} ${input.new_child.last_name}`,
@@ -163,14 +206,16 @@ export async function checkoutProduct(
       reserved: true,
     });
   }
-  const openOrders = await collect(() =>
-    db
+  const openOrders = await collect(() => {
+    const query = db
       .from("product_purchase_intents")
-      .select("id,product_id,product")
-      .eq("auth_id", session.user.id)
+      .select("id,product_id,product,guest_data,discount")
       .eq("player_id", playerId!)
-      .in("status", ["reserved", "checkout", "failed", "review"]),
-  );
+      .in("status", ["reserved", "checkout", "failed", "review"]);
+    return guest
+      ? query.eq("guest_token_hash", guestTokenHash!)
+      : query.eq("auth_id", session!.user.id);
+  });
   for (const old of openOrders.filter(
     (o) =>
       (o.id !== input.request_id || !previous || !!previous.session_id) &&
@@ -179,7 +224,20 @@ export async function checkoutProduct(
           o.product.kind === "subscription")),
   )) {
     const { resumeOrder } = await import("./operations");
-    const resumed = await resumeOrder(session, old.id);
+    const changedGuestForm =
+      guest &&
+      (String(old.discount?.code ?? "").toLowerCase() !==
+        (input.discount_code ?? "").toLowerCase() ||
+        ["full_name", "email", "phone"].some(
+          (k) =>
+            (old.guest_data?.[k] ?? "") !==
+            ((input.guest_parent as any)?.[k] ?? ""),
+        ));
+    const resumed = guest
+      ? await (
+          await import("./guest-checkout")
+        ).resumeGuestOrder(old.id, changedGuestForm)
+      : await resumeOrder(session!, old.id);
     if (resumed.status !== "expired") {
       if (old.product_id !== id)
         throw new HttpError(
@@ -198,19 +256,23 @@ export async function checkoutProduct(
         : decision.reasons.join(" ") || "Nicht kaufbar.",
     );
   const price = await verifyStoredPrice(p.published),
-    parent = checked(
-      await db
-        .from("parents")
-        .select("id,full_name,contact_email,phone")
-        .eq("id", ctx.parent_id)
-        .single(),
-    );
-  const accounts = await collect(() =>
-    db
-      .from("parent_stripe_customers")
-      .select("id,stripe_customer_id")
-      .eq("parent_id", ctx.parent_id),
-  );
+    parent = guest
+      ? { ...input.guest_parent!, contact_email: input.guest_parent!.email }
+      : checked(
+          await db
+            .from("parents")
+            .select("id,full_name,contact_email,phone")
+            .eq("id", ctx.parent_id)
+            .single(),
+        );
+  const accounts = guest
+    ? []
+    : await collect(() =>
+        db
+          .from("parent_stripe_customers")
+          .select("id,stripe_customer_id")
+          .eq("parent_id", ctx.parent_id),
+      );
   const customers = [...new Set(accounts.map((a) => a.stripe_customer_id))];
   if (
     (input.customer_id && !customers.includes(input.customer_id)) ||
@@ -239,6 +301,7 @@ export async function checkoutProduct(
   let campDetails: any = null;
   let benefit = 0;
   let promotion: string | undefined;
+  let discount: CheckoutDiscount | null = null;
   if (p.published.kind === "camp") {
     const offer = checked(
         await db
@@ -291,35 +354,62 @@ export async function checkoutProduct(
     if (benefit) {
       const code = offer.codes[String(benefit)];
       if (!code) throw new HttpError(400, "Passender Camp-Rabattcode fehlt.");
-      const promos = await stripe.promotionCodes.list({
+      const automatic = await resolveDiscount(
+        stripe,
         code,
-        active: true,
-        limit: 100,
-      });
-      const promo = promos.data.find(
-        (x) => x.code.toLowerCase() === code.toLowerCase(),
+        price,
+        customerId,
+        false,
+        "membership",
       );
       if (
-        !promo ||
-        promo.livemode !== productLiveMode() ||
-        !promo.coupon.valid ||
-        promo.coupon.percent_off !== benefit ||
-        promo.coupon.amount_off ||
-        (promo.coupon.applies_to?.products &&
-          !promo.coupon.applies_to.products.includes(price.product_id))
+        automatic.amount !==
+        price.amount - Math.round((price.amount * benefit) / 100)
       )
         throw new HttpError(400, "Camp-Rabatt ist nicht gültig.");
-      promotion = promo.id;
+      discount = automatic;
     }
   }
-  const amount = price.amount - Math.round((price.amount * benefit) / 100);
+
+  if (input.discount_code) {
+    const offers = await collect(() =>
+      db.from("camp_offers").select("id,codes"),
+    );
+    if (
+      offers.some((o) =>
+        Object.values(o.codes ?? {}).some(
+          (c) => String(c).toLowerCase() === input.discount_code!.toLowerCase(),
+        ),
+      )
+    )
+      throw new HttpError(
+        400,
+        "Mitgliederrabatte werden für berechtigte Kinder automatisch angewendet. Bitte keinen persönlichen Camp-Code eingeben.",
+      );
+    const entered = await resolveDiscount(
+      stripe,
+      input.discount_code,
+      price,
+      customerId,
+      guest,
+    );
+    if (!discount || entered.amount < discount.amount) {
+      discount = entered;
+      benefit = 0;
+    }
+  }
+  promotion = discount?.promotion_id;
+  const amount = discount?.amount ?? price.amount;
   const reserved = await db.rpc("reserve_product_purchase", {
     input: {
       id: input.request_id,
       product_id: id,
       revision: p.published_revision,
       parent_id: ctx.parent_id,
-      auth_id: session.user.id,
+      auth_id: session?.user.id,
+      guest_data: guest ? input.guest_parent : undefined,
+      guest_token_hash: guest ? guestTokenHash : undefined,
+      discount,
       player_id: playerId,
       player_data: input.new_child,
       customer_id: customerId,
@@ -340,9 +430,15 @@ export async function checkoutProduct(
       {
         name: parent.full_name,
         email: parent.contact_email,
-        metadata: { product_parent_id: ctx.parent_id },
+        metadata: guest
+          ? { product_guest_intent_id: intent.id }
+          : { product_parent_id: ctx.parent_id! },
       },
-      { idempotencyKey: `product-parent:${ctx.parent_id}` },
+      {
+        idempotencyKey: guest
+          ? `product-guest:${intent.id}`
+          : `product-parent:${ctx.parent_id}`,
+      },
     );
     if (c.livemode !== productLiveMode())
       throw new HttpError(
@@ -368,28 +464,56 @@ export async function checkoutProduct(
   )
     throw new HttpError(409, "Angebot wurde während der Prüfung geändert.");
   const origin = new URL(process.env.APP_URL!).origin;
-  const checkout = await stripe.checkout.sessions.create(
-    {
-      mode: p.published.kind === "subscription" ? "subscription" : "payment",
-      customer: customerId,
-      client_reference_id: intent.id,
-      metadata: { product_intent_id: intent.id },
-      line_items: [{ price: price.id, quantity: 1 }],
-      ...(promotion ? { discounts: [{ promotion_code: promotion }] } : {}),
-      payment_method_types: ["card"],
-      success_url: `${origin}/produkte?purchase=${intent.id}`,
-      cancel_url: `${origin}/produkte?purchase=${intent.id}`,
-      expires_at: Math.floor(Date.parse(intent.expires_at) / 1000),
-      locale: "de",
-    },
-    { idempotencyKey: `product-checkout:${intent.id}` },
-  );
+  let checkout: Stripe.Checkout.Session;
+  try {
+    checkout = await stripe.checkout.sessions.create(
+      {
+        mode: p.published.kind === "subscription" ? "subscription" : "payment",
+        customer: customerId,
+        client_reference_id: intent.id,
+        metadata: { product_intent_id: intent.id },
+        line_items: [{ price: price.id, quantity: 1 }],
+        ...(promotion ? { discounts: [{ promotion_code: promotion }] } : {}),
+        payment_method_types: ["card"],
+        success_url: `${origin}/produkte?purchase=${intent.id}`,
+        cancel_url: `${origin}/produkte?purchase=${intent.id}`,
+        expires_at: Math.floor(Date.parse(intent.expires_at) / 1000),
+        locale: "de",
+      },
+      { idempotencyKey: `product-checkout:${intent.id}` },
+    );
+  } catch (error) {
+    // A definitive request rejection creates no Checkout. Transport/5xx/unknown
+    // errors retain the reservation for remote recovery instead of risking a second charge.
+    if (
+      error instanceof Stripe.errors.StripeInvalidRequestError &&
+      error.code !== "idempotency_key_in_use"
+    ) {
+      checked(
+        await db
+          .from("product_purchase_intents")
+          .update({
+            status: "expired",
+            reason: "Stripe hat den Bestellstart abgelehnt",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", intent.id)
+          .is("session_id", null)
+          .select("id"),
+      );
+      throw new HttpError(
+        400,
+        "Stripe konnte diesen Bestellstart nicht akzeptieren. Bitte prüfe den Rabattcode und deine Angaben und versuche es erneut.",
+      );
+    }
+    throw error;
+  }
   if (
     checkout.livemode !== productLiveMode() ||
     !checkout.url ||
     new URL(checkout.url).hostname !== "checkout.stripe.com"
   )
-    throw new HttpError(502, "Ungültige Stripe-Testcheckout-Antwort.");
+    throw new HttpError(502, "Ungültige Stripe-Checkout-Antwort.");
   checked(
     await db
       .from("product_purchase_intents")
@@ -428,6 +552,9 @@ export async function fulfillCheckout(id: string) {
       );
     return { id, status: i.status };
   }
+  // A review is resolved explicitly. Replayed Stripe events must not overwrite the
+  // identity-review reason required for a later verified guest claim.
+  if (i.status === "review") return { id, status: "review" };
   if (!i.session_id) throw new HttpError(409, "Checkout-Referenz fehlt.");
   const session = await stripe.checkout.sessions.retrieve(i.session_id);
   if (
@@ -437,7 +564,7 @@ export async function fulfillCheckout(id: string) {
     session.mode !==
       (i.product.kind === "subscription" ? "subscription" : "payment")
   )
-    throw new HttpError(400, "Checkout gehört nicht zu diesem Testkauf.");
+    throw new HttpError(400, "Checkout gehört nicht zu diesem Kauf.");
   if (session.status === "expired") {
     checked(
       await db
@@ -449,7 +576,14 @@ export async function fulfillCheckout(id: string) {
     );
     return { id, status: "expired" };
   }
-  if (session.payment_status !== "paid" || session.status !== "complete")
+  if (
+    !(
+      session.payment_status === "paid" ||
+      (i.expected_amount === 0 &&
+        session.payment_status === "no_payment_required")
+    ) ||
+    session.status !== "complete"
+  )
     return { id, status: "pending_payment" };
   const lines = await stripe.checkout.sessions.listLineItems(session.id, {
     limit: 2,
@@ -473,7 +607,13 @@ export async function fulfillCheckout(id: string) {
     session.currency !== i.currency ||
     customer !== i.customer_id ||
     session.total_details?.amount_shipping ||
-    session.total_details?.amount_tax
+    session.total_details?.amount_tax ||
+    (i.discount &&
+      (session.discounts?.length !== 1 ||
+        (typeof session.discounts[0].promotion_code === "string"
+          ? session.discounts[0].promotion_code
+          : session.discounts[0].promotion_code?.id) !==
+          i.discount.promotion_id))
   )
     throw new HttpError(
       400,
@@ -518,6 +658,13 @@ export async function fulfillCheckout(id: string) {
     )
       throw new HttpError(400, "Erstzahlung ist nicht bestätigt.");
     paymentId = invoice.id!;
+  } else if (
+    i.expected_amount === 0 &&
+    session.payment_status === "no_payment_required" &&
+    !session.payment_intent &&
+    i.discount
+  ) {
+    paymentId = session.id; // Free Checkout has no PaymentIntent; retain its verified session as the proof.
   } else {
     const piId =
       typeof session.payment_intent === "string"
@@ -545,21 +692,43 @@ export async function fulfillCheckout(id: string) {
       throw new HttpError(400, "Zahlung ist nicht vollständig bestätigt.");
     paymentId = piId;
   }
+  const proof = {
+    session_id: session.id,
+    livemode: session.livemode,
+    payment_status: session.payment_status,
+    price_id: line.price!.id,
+    product_id: i.product.price.product_id,
+    currency: session.currency,
+    subtotal: session.amount_subtotal,
+    total: session.amount_total,
+    quantity: 1,
+    customer_id: customer,
+    payment_id: paymentId,
+    created_at: new Date(session.created * 1000).toISOString(),
+  };
   if (subscription) await syncSubscription(subscription.id, stripe);
-  const contextVersion = checked<string>(
-    await db.rpc("product_family_version", { family: i.parent_id }),
-  );
-  // Re-evaluate real permission, not a client assertion or historical preview.
-  const authResponse = await db.auth.admin.getUserById(i.auth_id);
-  if (authResponse.error || !authResponse.data.user)
-    throw new HttpError(409, "Elternanmeldung nicht mehr gültig.");
-  const auth = authResponse.data;
-  const role = checked(
-    await db.from("profiles").select("role").eq("id", i.auth_id).single(),
-  );
-  const fakeSession = { user: auth.user, role: role.role } as ProfileSession;
-  const ctx = await loadProductContext(fakeSession);
-  if (i.player_data)
+  const contextVersion = i.parent_id
+    ? checked<string>(
+        await db.rpc("product_family_version", { family: i.parent_id }),
+      )
+    : null;
+  // An unclaimed paid family remains a guest until its email is verified.
+  let ctx;
+  if (i.guest_data && !i.auth_id)
+    ctx = guestProductContext(i.player_id, i.player_data);
+  else {
+    const authResponse = await db.auth.admin.getUserById(i.auth_id);
+    if (authResponse.error || !authResponse.data.user?.email_confirmed_at)
+      throw new HttpError(409, "Elternanmeldung nicht mehr gültig.");
+    const role = checked(
+      await db.from("profiles").select("role").eq("id", i.auth_id).single(),
+    );
+    ctx = await loadProductContext({
+      user: authResponse.data.user,
+      role: role.role,
+    } as ProfileSession);
+  }
+  if (i.player_data && !ctx.children.some((c) => c.id === i.player_id))
     ctx.children.push({
       id: i.player_id,
       name: `${i.player_data.first_name} ${i.player_data.last_name}`,
@@ -582,27 +751,26 @@ export async function fulfillCheckout(id: string) {
         .update({
           status: "review",
           reason: "Berechtigung während Checkout geändert",
+          proof,
+          payment_id: paymentId,
+          subscription_id: subscription?.id,
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)
         .select("id"),
     );
+    if (i.guest_data)
+      checked(
+        await db
+          .from("product_guest_messages")
+          .upsert(
+            { intent_id: id },
+            { onConflict: "intent_id", ignoreDuplicates: true },
+          ),
+      );
     return { id, status: "review" };
   }
-  const proof = {
-    session_id: session.id,
-    livemode: session.livemode,
-    payment_status: "paid",
-    price_id: line.price!.id,
-    product_id: i.product.price.product_id,
-    currency: session.currency,
-    subtotal: session.amount_subtotal,
-    total: session.amount_total,
-    quantity: 1,
-    customer_id: customer,
-    payment_id: paymentId,
-    created_at: new Date(session.created * 1000).toISOString(),
-  };
+
   const r = await db.rpc("fulfill_product_purchase", {
     input: {
       id,
@@ -619,6 +787,8 @@ export async function fulfillCheckout(id: string) {
         .update({
           status: "review",
           proof,
+          payment_id: paymentId,
+          subscription_id: subscription?.id,
           reason: "Zahlung bestätigt; fachliche Zuordnung benötigt Prüfung",
           updated_at: new Date().toISOString(),
         })
@@ -626,6 +796,15 @@ export async function fulfillCheckout(id: string) {
         .neq("status", "fulfilled")
         .select("id"),
     );
+    if (i.guest_data)
+      checked(
+        await db
+          .from("product_guest_messages")
+          .upsert(
+            { intent_id: id },
+            { onConflict: "intent_id", ignoreDuplicates: true },
+          ),
+      );
     return { id, status: "review" };
   }
   if (

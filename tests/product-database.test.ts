@@ -829,3 +829,416 @@ it("database payment verification is bound to deployment mode and retained order
   ).toBe(true);
   await db.exec("update product_runtime set livemode=false");
 });
+
+async function guestOrder(n: number, email: string, amount = 9900) {
+  const p = await testProduct("other", `price_guest_${n}`);
+  const request = {
+    id: id(n),
+    product_id: p.id,
+    revision: 1,
+    player_id: id(n + 1),
+    player_data: {
+      first_name: "Gastkind",
+      last_name: `Familie${n}`,
+      birth_date: "2016-04-15",
+    },
+    guest_data: { full_name: `Gastfamilie ${n}`, email, phone: "01234" },
+    guest_token_hash: "a".repeat(64),
+    amount,
+    customer_id: `cus_guest_${n}`,
+    channel: "catalog",
+    ...(amount !== 9900
+      ? { discount: { promotion_id: "promo_free", amount, source: "code" } }
+      : {}),
+  };
+  await db.query("select reserve_product_purchase($1)", [request]);
+  await db.query(
+    "update product_purchase_intents set status='checkout',session_id=$2 where id=$1",
+    [id(n), `cs_test_guest_${n}`],
+  );
+  const proof = {
+    session_id: `cs_test_guest_${n}`,
+    livemode: false,
+    payment_status: amount === 0 ? "no_payment_required" : "paid",
+    price_id: p.data.price.id,
+    product_id: p.data.price.product_id,
+    currency: "eur",
+    subtotal: 9900,
+    total: amount,
+    quantity: 1,
+    customer_id: request.customer_id,
+    payment_id: amount === 0 ? `cs_test_guest_${n}` : `pi_guest_${n}`,
+  };
+  return { request, proof };
+}
+it("creates no family before payment, rejects false proof and atomically materialises a guest family once", async () => {
+  const { proof } = await guestOrder(1100, "guest1100@example.invalid");
+  expect(
+    (
+      await db.query(
+        "select * from parents where contact_email='guest1100@example.invalid'",
+      )
+    ).rows,
+  ).toHaveLength(0);
+  await expect(
+    db.query("select fulfill_product_purchase($1)", [
+      { id: id(1100), proof: { ...proof, total: 1 } },
+    ]),
+  ).rejects.toThrow(/Zahlungsnachweis/);
+  expect(
+    (await db.query("select * from players where id=$1", [id(1101)])).rows,
+  ).toHaveLength(0);
+  await db.query("select fulfill_product_purchase($1)", [
+    { id: id(1100), proof },
+  ]);
+  await db.query("select fulfill_product_purchase($1)", [
+    { id: id(1100), proof },
+  ]);
+  const i = (
+    await db.query<any>("select * from product_purchase_intents where id=$1", [
+      id(1100),
+    ])
+  ).rows[0];
+  expect(i).toMatchObject({ status: "fulfilled", auth_id: null });
+  expect(i.parent_id).toBeTruthy();
+  expect(
+    (
+      await db.query<any>(
+        "select auth_user_id,notifications_held from parents where id=$1",
+        [i.parent_id],
+      )
+    ).rows[0],
+  ).toEqual({ auth_user_id: null, notifications_held: true });
+  expect(
+    (
+      await db.query(
+        "select * from parent_players where parent_id=$1 and player_id=$2",
+        [i.parent_id, id(1101)],
+      )
+    ).rows,
+  ).toHaveLength(1);
+  expect(
+    (
+      await db.query(
+        "select * from product_guest_messages where intent_id=$1",
+        [id(1100)],
+      )
+    ).rows,
+  ).toHaveLength(1);
+});
+it("only verified ownership of the guest email unlocks the newly created family and orders", async () => {
+  await db.query(
+    "insert into auth.users values($1,'guest1100@example.invalid',null),($2,'wrong@example.invalid',now())",
+    [id(1110), id(1111)],
+  );
+  await expect(
+    asUser(id(1110), "select claim_product_guest_orders()"),
+  ).rejects.toThrow(/Bestätigte/);
+  expect(
+    (await asUser(id(1111), "select claim_product_guest_orders() ids"))[0].ids,
+  ).toEqual([]);
+  await db.query("update auth.users set email_confirmed_at=now() where id=$1", [
+    id(1110),
+  ]);
+  expect(
+    (await asUser(id(1110), "select claim_product_guest_orders() ids"))[0].ids,
+  ).toEqual([id(1100)]);
+  const i = (
+    await db.query<any>("select * from product_purchase_intents where id=$1", [
+      id(1100),
+    ])
+  ).rows[0];
+  expect(i.auth_id).toBe(id(1110));
+  expect(
+    (
+      await db.query<any>("select auth_user_id from parents where id=$1", [
+        i.parent_id,
+      ])
+    ).rows[0].auth_user_id,
+  ).toBe(id(1110));
+  expect(
+    (await asUser(id(1110), "select claim_product_guest_orders() ids"))[0].ids,
+  ).toEqual([]);
+});
+it("keeps matching existing families separate until confirmed login and reuses an exact child identity", async () => {
+  await db.query(
+    "update players set camp_birth_date='2016-04-15' where id=$1",
+    [id(21)],
+  );
+  const { request, proof } = await guestOrder(
+    1120,
+    "parent@example.invalid",
+    5000,
+  );
+  await db.query(
+    "update product_purchase_intents set player_data=$2 where id=$1",
+    [
+      request.id,
+      { first_name: "Kind", last_name: "Test", birth_date: "2016-04-15" },
+    ],
+  );
+  const r = (
+    await db.query<any>("select fulfill_product_purchase($1) v", [
+      { id: request.id, proof },
+    ])
+  ).rows[0].v;
+  expect(r.status).toBe("review");
+  expect(
+    (
+      await db.query<any>(
+        "select parent_id,auth_id from product_purchase_intents where id=$1",
+        [request.id],
+      )
+    ).rows[0],
+  ).toEqual({ parent_id: null, auth_id: null });
+  await asUser(id(2), "select claim_product_guest_orders()");
+  const i = (
+    await db.query<any>("select * from product_purchase_intents where id=$1", [
+      request.id,
+    ])
+  ).rows[0];
+  expect(i).toMatchObject({
+    parent_id: id(20),
+    auth_id: id(2),
+    player_id: id(21),
+    player_data: null,
+    status: "checkout",
+  });
+  const version = (
+    await db.query<any>("select product_family_version($1) v", [id(20)])
+  ).rows[0].v;
+  await db.query("select fulfill_product_purchase($1)", [
+    { id: request.id, proof, context_version: version },
+  ]);
+  expect(
+    (
+      await db.query<any>(
+        "select status from product_purchase_intents where id=$1",
+        [request.id],
+      )
+    ).rows[0].status,
+  ).toBe("fulfilled");
+  expect(
+    (await db.query("select * from players where id=$1", [id(1121)])).rows,
+  ).toHaveLength(0);
+});
+it("fulfills a verified 100 percent coupon without fabricating a PaymentIntent", async () => {
+  const { proof } = await guestOrder(1130, "free1130@example.invalid", 0);
+  await db.query("select fulfill_product_purchase($1)", [
+    { id: id(1130), proof },
+  ]);
+  const i = (
+    await db.query<any>(
+      "select status,payment_id,expected_amount from product_purchase_intents where id=$1",
+      [id(1130)],
+    )
+  ).rows[0];
+  expect(i).toEqual({
+    status: "fulfilled",
+    payment_id: proof.session_id,
+    expected_amount: 0,
+  });
+});
+it("does not grant public or authenticated access to private guest records or fulfillment cores", async () => {
+  for (const table of [
+    "product_guest_families",
+    "product_guest_messages",
+    "product_purchase_intents",
+  ])
+    await expect(asUser(id(2), `select * from ${table}`)).rejects.toThrow(
+      /permission denied/,
+    );
+  await expect(
+    asUser(id(2), "select fulfill_product_purchase_before_guest('{}')"),
+  ).rejects.toThrow(/permission denied/);
+  await expect(
+    db.exec(
+      "set role service_role;select fulfill_product_purchase_before_guest('{}')",
+    ),
+  ).rejects.toThrow(/permission denied/);
+  await db.exec("reset role");
+});
+it("creates normal subscription units for a paid guest before the account is claimed", async () => {
+  const plan = (
+    await db.query<any>(
+      "select id,stripe_price_id from plans where name='FirstTouch' and generation='current' limit 1",
+    )
+  ).rows[0];
+  const saved = (
+    await db.query<any>(
+      "select * from catalog_products where published->'price'->>'id'=$1",
+      [plan.stripe_price_id],
+    )
+  ).rows[0];
+  const p = { id: saved.id, data: saved.published };
+  const request = {
+    id: id(1150),
+    product_id: p.id,
+    revision: 1,
+    player_id: id(1151),
+    player_data: {
+      first_name: "Neues",
+      last_name: "Abokind",
+      birth_date: "2016-04-15",
+    },
+    guest_data: {
+      full_name: "Neue Abofamilie",
+      email: "abo1150@example.invalid",
+    },
+    guest_token_hash: "b".repeat(64),
+    amount: 9900,
+    customer_id: "cus_guest_abo",
+    channel: "catalog",
+  };
+  await db.query("select reserve_product_purchase($1)", [request]);
+  await db.query(
+    "update product_purchase_intents set status='checkout',session_id='cs_test_guest_abo' where id=$1",
+    [request.id],
+  );
+  await db.query("select apply_stripe_package_sync($1)", [
+    {
+      stripe_subscription_id: "sub_guest_abo",
+      stripe_customer_id: request.customer_id,
+      status: "active",
+      subscription_created_at: new Date().toISOString(),
+      billing_cycle_anchor: new Date().toISOString(),
+      retrieved_at: new Date().toISOString(),
+      items: [
+        {
+          id: "si_guest_abo",
+          price_id: plan.stripe_price_id,
+          quantity: 1,
+          starts_at: new Date(Date.now() - 86400000).toISOString(),
+          ends_at: new Date(Date.now() + 29 * 86400000).toISOString(),
+        },
+      ],
+    },
+  ]);
+  const proof = {
+    session_id: "cs_test_guest_abo",
+    livemode: false,
+    payment_status: "paid",
+    price_id: plan.stripe_price_id,
+    product_id: p.data.price.product_id,
+    currency: "eur",
+    subtotal: 9900,
+    total: 9900,
+    quantity: 1,
+    customer_id: request.customer_id,
+    payment_id: "in_guest_abo",
+  };
+  await db.query("select fulfill_product_purchase($1)", [
+    {
+      id: request.id,
+      proof,
+      subscription_id: "sub_guest_abo",
+      item_id: "si_guest_abo",
+    },
+  ]);
+  const i = (
+    await db.query<any>("select * from product_purchase_intents where id=$1", [
+      request.id,
+    ])
+  ).rows[0];
+  expect(i).toMatchObject({ status: "fulfilled", auth_id: null });
+  expect(
+    (
+      await db.query<any>(
+        "select included_units from entitlement_periods where player_id=$1",
+        [request.player_id],
+      )
+    ).rows[0].included_units,
+  ).toBe(4);
+  expect(
+    (
+      await db.query<any>(
+        "select parent_id from subscriptions where stripe_subscription_id='sub_guest_abo'",
+      )
+    ).rows[0].parent_id,
+  ).toBe(i.parent_id);
+});
+it("uses the same camp identity and capacity with a verified free guest order", async () => {
+  const p = (
+    await db.query<any>(
+      "select * from catalog_products where published->>'kind'='camp' limit 1",
+    )
+  ).rows[0];
+  const request = {
+    id: id(1160),
+    product_id: p.id,
+    revision: p.published_revision,
+    player_id: id(1161),
+    player_data: {
+      first_name: "Camp",
+      last_name: "Gastkind",
+      birth_date: "2016-04-15",
+    },
+    guest_data: { full_name: "Campfamilie", email: "camp1160@example.invalid" },
+    guest_token_hash: "c".repeat(64),
+    amount: 0,
+    customer_id: "cus_guest_camp",
+    channel: "catalog",
+    discount: { amount: 0, promotion_id: "promo_camp_free", source: "code" },
+    camp_details: {
+      birth_date: "2016-04-15",
+      gender: "keine Angabe",
+      clothing_size: "M",
+    },
+  };
+  await db.query("select reserve_product_purchase($1)", [request]);
+  await db.query(
+    "update product_purchase_intents set status='checkout',session_id='cs_test_guest_camp' where id=$1",
+    [request.id],
+  );
+  const proof = {
+    session_id: "cs_test_guest_camp",
+    livemode: false,
+    payment_status: "no_payment_required",
+    price_id: p.published.price.id,
+    product_id: p.published.price.product_id,
+    currency: "eur",
+    subtotal: p.published.price.amount,
+    total: 0,
+    quantity: 1,
+    customer_id: request.customer_id,
+    payment_id: "cs_test_guest_camp",
+  };
+  await db.query("select fulfill_product_purchase($1)", [
+    { id: request.id, proof },
+  ]);
+  const i = (
+    await db.query<any>("select * from product_purchase_intents where id=$1", [
+      request.id,
+    ])
+  ).rows[0];
+  expect(i.status).toBe("fulfilled");
+  expect(
+    (
+      await db.query<any>(
+        "select parent_id,player_id,status,paid_amount from camp_bookings where id=$1",
+        [i.camp_booking_id],
+      )
+    ).rows[0],
+  ).toEqual({
+    parent_id: i.parent_id,
+    player_id: request.player_id,
+    status: "paid",
+    paid_amount: 0,
+  });
+});
+it("fails closed on a missing no-cost payment status without creating a family", async () => {
+  const { proof } = await guestOrder(1170, "guard1170@example.invalid", 0);
+  const { payment_status: _, ...missingStatus } = proof;
+  await expect(
+    db.query("select fulfill_product_purchase($1)", [
+      { id: id(1170), proof: missingStatus },
+    ]),
+  ).rejects.toThrow(/Zahlungsnachweis/);
+  expect(
+    (
+      await db.query(
+        "select * from parents where contact_email='guard1170@example.invalid'",
+      )
+    ).rows,
+  ).toHaveLength(0);
+});

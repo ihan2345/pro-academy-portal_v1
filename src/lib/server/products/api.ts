@@ -39,6 +39,13 @@ import { decideProduct } from "@/lib/products/policy";
 import { scenarios, simulateProductContext } from "@/lib/products/simulation";
 import { validateProductPrice } from "./stripe";
 import { checkoutProduct, ownIntent, fulfillCheckout } from "./checkout";
+import {
+  guestBrowserHash,
+  ownGuestIntent,
+  requestGuestAccess,
+  limitGuestRequest,
+  resumeGuestOrder,
+} from "./guest-checkout";
 import { receiveProductEvent, processProductEvents } from "./events";
 import { previewProductChange, confirmProductChange } from "./changes";
 const json = (v: unknown, status = 200) =>
@@ -289,6 +296,56 @@ export async function productApi(
             "Bestehende Familienzuordnung bitte prüfen lassen oder Elternnamen ergänzen.",
           );
         return json({ ok: true });
+      }
+      if (
+        action.length === 2 &&
+        action[1] === "checkout" &&
+        method === "POST" &&
+        !session?.user
+      ) {
+        const value = await body(request);
+        const hash = await guestBrowserHash(true);
+        await limitGuestRequest(`guest-checkout:${hash}`);
+        // Cloudflare supplies this header; do not trust a public forwarding chain.
+        if (process.env.APP_MODE === "production")
+          await limitGuestRequest(
+            `guest-ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`,
+          );
+        return json(
+          await checkoutProduct(
+            null,
+            productIdSchema.parse(action[0]),
+            value,
+            hash!,
+          ),
+        );
+      }
+      if (
+        action[0] === "purchases" &&
+        action.length >= 2 &&
+        (!session?.user || !session.role)
+      ) {
+        const i = await ownGuestIntent(action[1]);
+        if (action[2] === "access" && method === "POST")
+          return json(await requestGuestAccess(i.id));
+        if (["resume", "cancel"].includes(action[2]) && method === "POST") {
+          await limitGuestRequest(`guest-resume:${i.id}`);
+          return json(await resumeGuestOrder(i.id, action[2] === "cancel"));
+        }
+        if (action[2] === "reconcile" && method === "POST") {
+          await limitGuestRequest(`guest-status:${i.id}`);
+          return json(await fulfillCheckout(i.id));
+        }
+        if (action.length === 2 && method === "GET")
+          return json({
+            id: i.id,
+            status: i.status,
+            name: i.product.name,
+            guest: true,
+            account_pending: !i.auth_id,
+            payment_confirmed: !!i.proof,
+            expires_at: i.expires_at,
+          });
       }
       if (!session?.user) throw new HttpError(401, "Bitte zuerst anmelden.");
       if (path === "orders" && method === "GET")

@@ -331,3 +331,32 @@ it("releases a downgrade externally removed from Stripe", async () => {
   await reconcileProductChanges("sub_current");
   expect(state.tables.product_change_requests[0].status).toBe("failed");
 });
+it("retains the original discount identity across both downgrade phases without redeeming a coupon again", async () => {
+  const member = state.ctx.children[0].memberships[0];
+  member.units = 8;
+  member.plan = "GameChanger";
+  state.sub.items.data[0].price.unit_amount = 15900;
+  state.product.published.price.amount = 9900;
+  state.tables.plans[0].included_units = 4;
+  state.sub.discounts = ["di_original_duration"];
+  const v = await previewProductChange(session, productId, {
+    player_id: state.ctx.children[0].id,
+  });
+  await confirmProductChange(session, v.id);
+  const phases =
+    state.stripe.subscriptionSchedules.update.mock.calls[0][1].phases;
+  expect(phases.map((p: any) => p.discounts)).toEqual([
+    [{ discount: "di_original_duration" }],
+    [{ discount: "di_original_duration" }],
+  ]);
+});
+it("invalidates a price preview when an external Stripe discount changes", async () => {
+  const v = await previewProductChange(session, productId, {
+    player_id: state.ctx.children[0].id,
+  });
+  state.sub.discounts = ["di_external"];
+  await expect(confirmProductChange(session, v.id)).rejects.toThrow(
+    /hat sich geändert/,
+  );
+  expect(state.stripe.subscriptions.update).not.toHaveBeenCalled();
+});

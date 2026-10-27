@@ -201,7 +201,34 @@ export function decideProduct(
     reason.push("Dieses Angebot ist für diesen Kontext nicht sichtbar.");
     return result("unavailable", "Nicht verfügbar");
   }
-  if (!ctx.auth_id) return result("register", "Jetzt anmelden & kaufen");
+  if (!ctx.auth_id) {
+    if (!product.price) return result("unavailable", "Preis nicht verfügbar");
+    // Public guest orders are evaluated as new children, never as members or grantees.
+    const guestChild = child ?? {
+      id: "guest",
+      first_name: "",
+      last_name: "",
+      name: "",
+      birth_date: null,
+      trial: false,
+      former_trial: false,
+      memberships: [],
+      camp_ids: [],
+      purchases: [],
+      reserved: true,
+    };
+    if (!matchesRule(product.rules.purchase, ctx, guestChild, id, "purchase")) {
+      reason.push(
+        "Für dieses Angebot bitte mit deinem berechtigten Elternkonto anmelden.",
+      );
+      return result("unavailable", "Anmeldung erforderlich");
+    }
+    return result(
+      "register",
+      product.kind === "camp" ? "Camp buchen" : "Jetzt kaufen",
+      true,
+    );
+  }
   if (ctx.role !== "parent") {
     reason.push("Käufe benötigen ein zugeordnetes Elternkonto.");
     return result("unavailable", "Nicht verfügbar");

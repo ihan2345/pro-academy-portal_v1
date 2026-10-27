@@ -1548,3 +1548,34 @@
   font-size: 13px;
   color: #56616f;
 }
+
+.product-purchase-form {
+  display: grid;
+  gap: 20px;
+}
+.product-purchase-form label small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+.product-checkout-body {
+  padding: 24px;
+}
+.product-purchase-form > p,
+.product-purchase-form label {
+  margin: 0;
+}
+.product-purchase-form .product-new-child {
+  gap: 16px;
+}
+.product-purchase-form .product-checkout-note {
+  font-size: 12px !important;
+  line-height: 1.6;
+}
+@media (max-width: 600px) {
+  .product-checkout-body {
+    padding: 18px;
+  }
+}

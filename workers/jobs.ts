@@ -409,6 +409,17 @@ export async function runJobs() {
       try {
         await pollProductEvents();
         const result = await processProductEvents();
+        // Explicitly authorised transactional guest messages have their own switch;
+        // existing mail delivery/holds remain unchanged, including Stripe-only mode.
+        const { processGuestMessages } =
+          await import("../src/lib/server/products/guest-messages");
+        await processGuestMessages(
+          process.env.MAIL_PROVIDER === "proton"
+            ? new ProtonProvider()
+            : captureProvider,
+        );
+        const cleanup = await db.rpc("cleanup_product_guest_orders");
+        if (cleanup.error) throw cleanup.error;
         await productWorkerHeartbeat(false);
         return result.processed;
       } catch (e) {

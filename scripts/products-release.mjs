@@ -43,13 +43,16 @@ const files = [
   "027-product-workflows",
   "028-product-payment-review",
   "029-product-production-shop",
+  "030-product-guest-checkout",
 ];
 const history = await sql(
-  "select version,statements from supabase_migrations.schema_migrations where version between '202610260022' and '202610260029' order by version",
+  "select version,statements from supabase_migrations.schema_migrations where version between '202610260022' and '202610270030' order by version",
 );
 const migrations = files.map((file) => {
   const source = readFileSync(`supabase/release/${file}.sql`, "utf8");
-  const version = "20261026" + file.slice(0, 3).padStart(4, "0");
+  const version =
+    (Number(file.slice(0, 3)) >= 30 ? "20261027" : "20261026") +
+    file.slice(0, 3).padStart(4, "0");
   const existing = history.find((row) => row.version === version);
   if (existing && existing.statements?.[0] !== source)
     throw Error(`Migration ${version} has changed since application.`);

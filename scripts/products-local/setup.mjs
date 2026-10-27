@@ -181,6 +181,8 @@ if (
   sql(readFileSync("supabase/release/028-product-payment-review.sql", "utf8"));
 if (!sql("select to_regclass('public.product_runtime')").trim())
   sql(readFileSync("supabase/release/029-product-production-shop.sql", "utf8"));
+if (!sql("select to_regclass('public.product_guest_messages')").trim())
+  sql(readFileSync("supabase/release/030-product-guest-checkout.sql", "utf8"));
 mkdirSync(app, { recursive: true });
 for (const path of [
   "src",
@@ -208,6 +210,7 @@ const env = [
   `SUPABASE_SERVICE_ROLE_KEY=${status.SERVICE_ROLE_KEY}`,
   "PRODUCT_MANAGEMENT_ENABLED=true",
   "PRODUCT_PAYMENTS_ENABLED=false",
+  "PRODUCT_GUEST_MAIL_ENABLED=true",
   "TRIAL_TRAINING_ENABLED=true",
   "JOBS_ENABLED=false",
   "STRIPE_SYNC_ONLY=false",

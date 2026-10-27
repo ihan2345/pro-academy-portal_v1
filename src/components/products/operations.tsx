@@ -107,6 +107,22 @@ export function ProductOperations({ admin = false }: { admin?: boolean }) {
             {o.family}
             {o.child ? ` · ${o.child}` : ""} · {labels[o.status] ?? o.status}
           </p>
+          {o.guest && (
+            <p>
+              Gastkauf ·{" "}
+              {o.account_pending
+                ? "Portalzugang noch nicht bestätigt"
+                : "Portalzugang zugeordnet"}
+              {admin && o.guest_email ? ` · ${o.guest_email}` : ""}
+            </p>
+          )}
+          {admin && o.access_message?.status === "failed" && (
+            <p role="alert">
+              Zugangsbestätigung konnte nicht versendet werden (
+              {o.access_message.attempts} Versuche).{" "}
+              {o.access_message.last_error}
+            </p>
+          )}
           {o.reason && <p>{o.reason}</p>}
           {!admin && ["reserved", "checkout", "failed"].includes(o.status) && (
             <>

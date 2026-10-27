@@ -145,6 +145,7 @@ beforeEach(() => {
         currency: "eur",
         customer_id: "cus_test",
         auth_id: "auth-test",
+        parent_id: "parent-test",
         player_id: state.ctx.children[0].id,
         channel: "catalog",
       },
@@ -268,4 +269,18 @@ it("holds an already paid order for review when the product is disabled during c
   expect(state.calls.some((c) => c.name === "fulfill_product_purchase")).toBe(
     false,
   );
+});
+it("preserves an existing identity review across replayed Stripe events until explicit resolution", async () => {
+  const order = state.tables.product_purchase_intents[0];
+  order.status = "review";
+  order.reason = "Gastkauf: E-Mail bestätigen oder Familienzuordnung prüfen";
+  expect(await fulfillCheckout(order.id)).toEqual({
+    id: order.id,
+    status: "review",
+  });
+  expect(order.reason).toBe(
+    "Gastkauf: E-Mail bestätigen oder Familienzuordnung prüfen",
+  );
+  expect(state.stripe.checkout.sessions.retrieve).not.toHaveBeenCalled();
+  expect(state.calls).toEqual([]);
 });

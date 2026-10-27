@@ -1,4 +1,7 @@
-// Local product and external test-subscription events only. No mail/training jobs.
+// Local product/test-subscription events and private guest-mail capture only. No SMTP or training jobs.
+import { CaptureProvider } from "../../src/lib/mail";
+import { mkdir, writeFile } from "node:fs/promises";
+import { processGuestMessages } from "../../src/lib/server/products/guest-messages";
 import { processProductEvents } from "../../src/lib/server/products/events";
 import {
   pollProductEvents,
@@ -6,6 +9,17 @@ import {
 } from "../../src/lib/server/products/poll";
 import { requireProductPayments } from "../../src/lib/server/products/runtime";
 requireProductPayments();
+const guestCapture = new CaptureProvider(async (mail) => {
+  await mkdir("output/product-management-local/guest-mail", {
+    recursive: true,
+  });
+  const name = mail.messageId.replace(/[^a-zA-Z0-9-]/g, "_");
+  await writeFile(
+    `output/product-management-local/guest-mail/${name}.private.json`,
+    JSON.stringify(mail, null, 2),
+    { mode: 0o600 },
+  );
+});
 async function tick() {
   let error = false;
   try {
@@ -16,6 +30,7 @@ async function tick() {
   }
   try {
     const r = await processProductEvents();
+    await processGuestMessages(guestCapture);
     if (r.processed)
       console.log("Lokale Stripe-Testereignisse verarbeitet:", r.processed);
   } catch {

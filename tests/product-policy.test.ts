@@ -35,7 +35,7 @@ function decide(
   return decideProduct(p, id, ctx, "catalog", ctx.children[0]?.id);
 }
 it.each([
-  ["visitor", "Jetzt anmelden & kaufen"],
+  ["visitor", "Jetzt kaufen"],
   ["new", "Jetzt anmelden & kaufen"],
   ["trial", "Mitglied werden"],
   ["firsttouch", "Tarif wechseln"],
