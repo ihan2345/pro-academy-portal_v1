@@ -1,0 +1,13 @@
+# Stripe/Abo-Konflikte – veröffentlicht am 27.10.2026
+
+Auf ausdrücklichen Nutzerauftrag unter `https://portal.proacademy-ak.com` veröffentlicht. Funktionsstand `fe42bea`, Portal-Version `b881a6a0-f80b-4149-ae06-695adc5a93ab`, 100 % Traffic. Der Feature-Branch `codex/stripe-abo-conflicts` wurde per Fast-forward nach `main` übernommen.
+
+Die Admin-Übersicht zeigt unter **Stripe/Abo-Konflikte** weiterhin offene Abo-Zuordnungen und zusätzlich aktuelle Zahlungsprobleme sowie durch den Zahlungsstatus eingeschränkte Abos. Mehrere offene Rechnungen und Zahlungsversuche desselben Abos ergeben einen Fall. Normale Kündigungen und noch laufende asynchrone Einzüge werden nicht pauschal als Zahlungsfehler eingeordnet. Der Abgleich liest Stripe und bestehende Portalzuordnungen; er verändert weder Zahlungen noch Leistungszeiträume.
+
+**Stripe-Aktivitäten** bleibt darunter erhalten. Beide Bereiche starten geschlossen und zeigen Aktionsbadges. Der Konfliktbadge zählt offene Zuordnungen und aktuelle Zahlungsfälle. Der Aktivitätenbadge zählt eindeutige offene Aktionen innerhalb der angezeigten Historieneinträge. Ein fehlgeschlagener Abruf zeigt `!` statt einer falschen Null. Die bisherigen Zuordnungsaktionen bleiben erhalten; der neue Konfliktabruf ist ausschließlich für Admins verfügbar.
+
+49 gezielte Tests, TypeScript sowie Desktop- und Mobilprüfung bestanden. Nach der abschließenden Präzisierung für laufende Bankeinzüge wurden die neun betroffenen Tests erneut erfolgreich geprüft. Ein nur lesender Live-Abgleich erkannte den zuvor besprochenen, wegen fehlgeschlagener Zahlung beendeten Abo-Fall.
+
+Der Produktionsbuild wurde isoliert aus den eingecheckten Dateien mit dem vorhandenen Lockfile erstellt. `.env.local` und private Schlüssel wurden nicht als Buildvorgaben übernommen. Die tatsächliche lokale Cloudflare-Laufzeit bestand SSR-, Asset- und Zugriffsschutzprüfungen vor dem Deployment. Online liefern Login und alle 14 referenzierten Assets HTTP 200; die neue Formatierung stimmt mit dem Release-Build überein. Die Admin-Seite leitet unangemeldete Besucher zur Anmeldung, alle drei betroffenen Admin-APIs antworten unangemeldet mit HTTP 401. Eine angemeldete Admin-Sitzung stand für die Online-Abnahme nicht zur Verfügung; die vollständige Oberfläche wurde vorab lokal geprüft.
+
+Keine Datenbankmigration erforderlich. Alle bestehenden Live-Bindings und Variablen sowie die Jobs-Worker-Version wurden nach Veröffentlichung unverändert bestätigt. Portal-workers.dev und Preview-URLs bleiben deaktiviert. Private Build- und Prüfnachweise liegen unter `output/stripe-conflicts/` und werden nicht eingecheckt.
