@@ -76,15 +76,19 @@ export async function stripeBillingConflicts(
     );
   }
   const subs = new Map(subscriptions.map((s) => [s.id, s]));
+  // An attempted asynchronous debit can still be processing on an active Abo.
+  // Only a restriction, overdue date or unresolved invoice of an ended Abo is actionable.
   const openInvoices = invoices.filter((i) => {
     const sub = invoiceSubscription(i);
     return (
       sub &&
       i.status === "open" &&
       i.amount_remaining > 0 &&
-      (i.attempted ||
-        i.attempt_count > 0 ||
-        (i.due_date && i.due_date * 1000 < started) ||
+      ((i.due_date && i.due_date * 1000 < started) ||
+        (["canceled", "incomplete_expired"].includes(
+          subs.get(sub)?.status ?? "",
+        ) &&
+          (i.attempted || i.attempt_count > 0)) ||
         restricted.has(subs.get(sub)?.status ?? ""))
     );
   });
@@ -228,10 +232,8 @@ export async function stripeBillingConflicts(
                     ? "Abo bei Stripe pausiert"
                     : s.status === "incomplete"
                       ? "Erste Abo-Zahlung ausstehend"
-                      : ownInvoices.some(
-                            (i) => i.attempt_count > 0 || i.attempted,
-                          )
-                        ? "Abo-Zahlung fehlgeschlagen"
+                      : ["canceled", "incomplete_expired"].includes(s.status)
+                        ? "Offene Rechnung bei beendetem Abo"
                         : "Abo-Rechnung überfällig",
           blocked: suspended || restricted.has(s.status),
           children: [...new Map(children.map((c) => [c.id, c])).values()],

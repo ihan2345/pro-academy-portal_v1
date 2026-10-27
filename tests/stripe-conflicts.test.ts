@@ -149,6 +149,7 @@ it("does not keep old failures open after payment and ignores regular cancellati
   m.invoices.mockResolvedValue({
     data: [
       { ...invoice, status: "paid", amount_remaining: 0 },
+      { ...invoice, id: "in_processing", due_date: null },
       { ...invoice, id: "in_draft", status: "draft" },
       {
         ...invoice,
