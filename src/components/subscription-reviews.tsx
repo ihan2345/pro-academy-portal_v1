@@ -6,8 +6,7 @@ import { reviewExplanation } from "@/lib/subscription-reviews";
 import { StripeParentInputs } from "./stripe-parent-inputs";
 import { Modal } from "./portal";
 import { formatDate } from "@/lib/domain";
-import { DashboardDisclosure } from "./dashboard-disclosure";
-import type { StripeBillingConflictPage } from "@/lib/stripe-conflicts";
+import { StripeNoticeOverview } from "./stripe-notice-overview";
 import type {
   SubscriptionReview,
   SubscriptionReviewPage,
@@ -15,53 +14,25 @@ import type {
 
 export function SubscriptionReviews() {
   const router = useRouter();
-  const [data, setData] = useState<SubscriptionReviewPage | null>(null),
+  const [reviewId, setReviewId] = useState<string | null>(null),
+    [data, setData] = useState<SubscriptionReviewPage | null>(null),
+    [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
-    [open, setOpen] = useState(false),
-    [offset, setOffset] = useState(0),
-    [revision, setRevision] = useState(0),
-    [loading, setLoading] = useState(true);
-  const [payments, setPayments] = useState<StripeBillingConflictPage | null>(
-    null,
-  );
-  const [paymentError, setPaymentError] = useState("");
-  const [paymentLoading, setPaymentLoading] = useState(true);
+    [revision, setRevision] = useState(0);
   useEffect(() => {
-    const abort = new AbortController();
-    setPaymentLoading(true);
-    setPaymentError("");
-    fetch("/api/admin/stripe-conflicts", {
-      signal: abort.signal,
-      cache: "no-store",
-    })
-      .then(async (r) => {
-        const d = await r.json();
-        if (!r.ok) throw Error(d.error ?? "Zahlungsstatus nicht verfügbar.");
-        if (!abort.signal.aborted) setPayments(d);
-      })
-      .catch((e) => {
-        if (!abort.signal.aborted) setPaymentError(e.message);
-      })
-      .finally(() => {
-        if (!abort.signal.aborted) setPaymentLoading(false);
-      });
-    return () => abort.abort();
-  }, [revision]);
-  useEffect(() => {
+    if (!reviewId) return;
     const abort = new AbortController();
     setLoading(true);
     setError("");
-    fetch(`/api/admin/subscription-reviews?offset=${offset}`, {
-      signal: abort.signal,
-      cache: "no-store",
-    })
+    setData(null);
+    fetch(
+      `/api/admin/subscription-reviews?id=${encodeURIComponent(reviewId)}`,
+      { signal: abort.signal, cache: "no-store" },
+    )
       .then(async (r) => {
-        const d = await r.json();
-        if (!r.ok) throw Error(d.error ?? "Prüfungen nicht verfügbar.");
-        return d;
-      })
-      .then((d) => {
-        if (!abort.signal.aborted) setData(d);
+        const result = await r.json();
+        if (!r.ok) throw Error(result.error ?? "Prüfung nicht verfügbar.");
+        if (!abort.signal.aborted) setData(result);
       })
       .catch((e) => {
         if (!abort.signal.aborted) setError(e.message);
@@ -70,164 +41,26 @@ export function SubscriptionReviews() {
         if (!abort.signal.aborted) setLoading(false);
       });
     return () => abort.abort();
-  }, [offset, revision]);
-  const refresh = () => setRevision((n) => n + 1);
+  }, [reviewId, revision]);
   return (
-    <DashboardDisclosure
-      title="Stripe/Abo-Konflikte"
-      count={(data?.total ?? 0) + (payments?.rows.length ?? 0)}
-      loading={loading || paymentLoading}
-      error={!!error || !!paymentError}
-      description="Offene Kinderzuordnungen und aktuelle Zahlungs- oder Abo-Probleme. Mehrere fehlgeschlagene Zahlungen desselben Abos werden zu einem Zahlungsfall zusammengefasst."
-    >
-      <div className="stripe-conflict-toolbar">
-        <h3>Abo-Zuordnungen</h3>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={loading || paymentLoading}
-          onClick={refresh}
-        >
-          Aktualisieren
-        </button>
-      </div>
-      <div>
-        <p>
-          {loading
-            ? "Prüfungen werden geladen …"
-            : error
-              ? "Prüfung derzeit nicht verfügbar"
-              : data?.total
-                ? data.total === 1
-                  ? "Eine Abo-Position benötigt eine eindeutige Kinderzuordnung."
-                  : `${data.total} Abo-Positionen benötigen eine eindeutige Kinderzuordnung.`
-                : "Keine offenen Zuordnungen."}
-        </p>
-        {!!data?.total && (
-          <p className="profile-muted">
-            {[
-              ...new Set(
-                data.rows.flatMap((r) => [
-                  r.context.customerName ?? r.context.customerId,
-                  ...r.suggestions.map((s) => s.name),
-                ]),
-              ),
-            ]
-              .slice(0, 4)
-              .join(" · ") || "Neue Abo-Positionen ohne eindeutige Zuordnung"}
-          </p>
-        )}
-      </div>
-      {error ? (
-        <div role="alert">
-          <p>{error}</p>
-          <button className="secondary-button" onClick={refresh}>
-            Erneut prüfen
-          </button>
-        </div>
-      ) : (
-        !!data?.total && (
-          <button className="primary-button" onClick={() => setOpen(true)}>
-            Kinder und Vorschläge prüfen →
-          </button>
-        )
-      )}
-      <div className="stripe-billing-conflicts">
-        <h3>Zahlungen und gesperrte Abos</h3>
-        {paymentLoading && (
-          <p role="status">Aktueller Stripe-Status wird geprüft …</p>
-        )}
-        {paymentError && <p role="alert">{paymentError}</p>}
-        {!paymentLoading && !paymentError && !payments?.rows.length && (
-          <p>Keine offenen Zahlungs- oder Sperrfälle.</p>
-        )}
-        {!paymentLoading &&
-          !paymentError &&
-          payments?.rows.map((r) => (
-            <article className="stripe-billing-conflict" key={r.id}>
-              <div className="stripe-billing-head">
-                <h4>{r.customer}</h4>
-                <span>
-                  {{
-                    active: "Aktiv",
-                    trialing: "Testphase",
-                    canceled: "Beendet",
-                    past_due: "Überfällig",
-                    unpaid: "Gesperrt",
-                    paused: "Pausiert",
-                    incomplete: "Zahlung offen",
-                  }[r.status] ?? "Status prüfen"}
-                </span>
-              </div>
-              <p className="stripe-billing-reason">{r.reason}</p>
-              {!!r.children.length && (
-                <p>
-                  {r.children.map((c, i) => (
-                    <span key={c.id}>
-                      {i > 0 && " · "}
-                      <Link href={`/admin/spieler/${c.id}`}>{c.name}</Link>
-                    </span>
-                  ))}
-                </p>
-              )}
-              {r.blocked && (
-                <p>
-                  Abo derzeit eingeschränkt. Zahlungs- und Abo-Status müssen
-                  geklärt werden.
-                </p>
-              )}
-              {r.invoices.map((invoice) => (
-                <div className="stripe-billing-invoice" key={invoice.id}>
-                  <span>
-                    Offen:{" "}
-                    <strong>
-                      {new Intl.NumberFormat("de-DE", {
-                        style: "currency",
-                        currency: invoice.currency,
-                      }).format(invoice.remaining / 100)}
-                    </strong>
-                    {invoice.number && ` · ${invoice.number}`}
-                  </span>
-                  <a href={invoice.href} target="_blank" rel="noreferrer">
-                    Rechnung in Stripe prüfen ↗
-                  </a>
-                </div>
-              ))}
-              <a
-                className="secondary-button"
-                href={r.href}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abo in Stripe prüfen ↗
-              </a>
-            </article>
-          ))}
-        {payments && !paymentError && (
-          <small className="profile-muted">
-            Bei Stripe geprüft:{" "}
-            {formatDate(payments.checkedAt, {
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </small>
-        )}
-      </div>
-      {open && (
-        <Modal title="Abo-Zuordnungen prüfen" close={() => setOpen(false)}>
+    <>
+      <StripeNoticeOverview
+        section="conflicts"
+        revision={revision}
+        onReview={setReviewId}
+      />
+      {reviewId && (
+        <Modal title="Abo-Zuordnungen prüfen" close={() => setReviewId(null)}>
           <div className="subscription-review-body">
             <p>
-              Hier erscheinen neue Abos und unklare Paketwechsel. Prüfe zuerst
-              den Kunden und die Familie, dann die passende Kinderzuordnung.
-              Vorschläge werden niemals automatisch bestätigt.
+              Prüfe zuerst den Kunden und die Familie, dann die passende
+              Kinderzuordnung. Vorschläge werden niemals automatisch bestätigt.
             </p>
             <button
               type="button"
               className="secondary-button"
               disabled={loading}
-              onClick={refresh}
+              onClick={() => setRevision((n) => n + 1)}
             >
               Zuordnungen neu laden
             </button>
@@ -240,41 +73,20 @@ export function SubscriptionReviews() {
                   key={`${r.id}:${r.signature}`}
                   review={r}
                   saved={() => {
-                    if (data.rows.length === 1 && offset > 0)
-                      setOffset(Math.max(0, offset - 25));
-                    refresh();
+                    setReviewId(null);
+                    setRevision((n) => n + 1);
                     router.refresh();
                   }}
                 />
               ))
             )}
-            {!loading && !data?.total && <p>Alle Zuordnungen sind geprüft.</p>}
-            {!!data && data.total > 25 && (
-              <div className="form-actions">
-                <button
-                  className="secondary-button"
-                  disabled={loading || offset === 0}
-                  onClick={() => setOffset((n) => Math.max(0, n - 25))}
-                >
-                  Zurück
-                </button>
-                <span>
-                  {offset + 1}–{Math.min(offset + 25, data.total)} von{" "}
-                  {data.total}
-                </span>
-                <button
-                  className="secondary-button"
-                  disabled={loading || offset + 25 >= data.total}
-                  onClick={() => setOffset((n) => n + 25)}
-                >
-                  Weiter
-                </button>
-              </div>
+            {!loading && !error && data && !data.rows.length && (
+              <p>Diese Zuordnung ist bereits geprüft oder nicht mehr offen.</p>
             )}
           </div>
         </Modal>
       )}
-    </DashboardDisclosure>
+    </>
   );
 }
 function ReviewCard({

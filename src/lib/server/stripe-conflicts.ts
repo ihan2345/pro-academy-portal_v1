@@ -141,6 +141,21 @@ export async function stripeBillingConflicts(
     ),
     matching("stripe_customer_registry", "id,name", "id", customerIds),
   ]);
+  // A restriction or failed collection may be newer than the subscription/invoice.
+  // Ordinary metadata updates must not make an old conflict look recent.
+  const sourceEvents = await matching(
+    "stripe_webhook_events",
+    "id,type,stripe_created,payload",
+    "payload->data->object->>id",
+    [...candidates.map((s) => s.id), ...openInvoices.map((i) => i.id!)],
+    (q) =>
+      q.in("type", [
+        "invoice.payment_failed",
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+      ]),
+  );
   const localIds = localSubs.map((s) => s.id);
   const [mappings, periods] = await Promise.all([
     matching(
@@ -210,9 +225,41 @@ export async function stripeBillingConflicts(
         ? "https://dashboard.stripe.com/"
         : "https://dashboard.stripe.com/test/";
       const customerId = id(s.customer)!;
+      const sourceDates = sourceEvents
+        .filter((event) => {
+          const object = event.payload?.data?.object;
+          if (event.type === "invoice.payment_failed")
+            return ownInvoices.some((i) => i.id === object?.id);
+          return (
+            object?.id === s.id &&
+            object.status === s.status &&
+            (event.type !== "customer.subscription.updated" ||
+              (event.payload?.data?.previous_attributes?.status &&
+                event.payload.data.previous_attributes.status !==
+                  object.status))
+          );
+        })
+        .map((event) => event.stripe_created);
       return [
         {
           id: s.id,
+          at: new Date(
+            Math.max(
+              ...ownInvoices.map((i) =>
+                Math.max(
+                  i.created ?? 0,
+                  i.due_date && i.due_date * 1000 <= started ? i.due_date : 0,
+                ),
+              ),
+              ...sourceDates,
+              s.status === "canceled"
+                ? (s.canceled_at ?? s.ended_at ?? 0)
+                : s.status === "paused"
+                  ? (s.trial_end ?? 0)
+                  : 0,
+              s.created ?? 0,
+            ) * 1000,
+          ).toISOString(),
           subscriptionId: s.id,
           customerId,
           customer:

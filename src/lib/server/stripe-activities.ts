@@ -77,6 +77,25 @@ export async function stripeActivities(
   const fetched = checked(await q),
     rows = fetched.slice(0, params.limit);
   if (!rows.length) return { rows: [], next: null };
+  const result = await stripeActivityRows(rows);
+  const last = rows.at(-1);
+  return {
+    rows: result,
+    next:
+      fetched.length > params.limit
+        ? Buffer.from(
+            JSON.stringify({ at: last.stripe_created, id: last.id }),
+          ).toString("base64url")
+        : null,
+  };
+}
+
+/** Hydrate a bounded batch using current assignment state. */
+export async function stripeActivityRows(
+  rows: any[],
+): Promise<StripeActivity[]> {
+  if (!rows.length) return [];
+  const db = serviceDb();
   const events = rows.map((r) => {
     const object = r.payload?.data?.object ?? {};
     return {
@@ -238,14 +257,5 @@ export async function stripeActivities(
       };
     },
   );
-  const last = rows.at(-1);
-  return {
-    rows: result,
-    next:
-      fetched.length > params.limit
-        ? Buffer.from(
-            JSON.stringify({ at: last.stripe_created, id: last.id }),
-          ).toString("base64url")
-        : null,
-  };
+  return result;
 }

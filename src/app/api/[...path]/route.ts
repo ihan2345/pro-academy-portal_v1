@@ -1,4 +1,6 @@
 import { stripeActivities } from "@/lib/server/stripe-activities";
+import { stripeOverview } from "@/lib/server/stripe-overview";
+import { decideStripeNotice } from "@/lib/server/stripe-notice-decisions";
 import { stripeBillingConflicts } from "@/lib/server/stripe-conflicts";
 import { stripeParentInputs } from "@/lib/server/stripe-parent-inputs";
 import { activityList, activitySummary } from "@/lib/server/activities";
@@ -214,6 +216,22 @@ async function handler(
         }),
       );
     }
+    if (path === "admin/stripe-overview") {
+      if (request.method !== "GET")
+        throw new HttpError(405, "Methode nicht erlaubt.");
+      return json(
+        await stripeOverview(session, {
+          section: request.nextUrl.searchParams.get("section"),
+          window: request.nextUrl.searchParams.get("window") ?? "month",
+          page: request.nextUrl.searchParams.get("page") ?? 1,
+        }),
+      );
+    }
+    if (path === "admin/stripe-notices") {
+      if (request.method !== "POST")
+        throw new HttpError(405, "Methode nicht erlaubt.");
+      return json(await decideStripeNotice(session, await request.json()));
+    }
     if (path === "admin/stripe-conflicts") {
       if (request.method !== "GET")
         throw new HttpError(
@@ -266,6 +284,7 @@ async function handler(
               .min(0)
               .max(100000)
               .parse(request.nextUrl.searchParams.get("offset") ?? 0),
+            request.nextUrl.searchParams.get("id") ?? undefined,
           ),
         );
       if (request.method === "POST")

@@ -3574,6 +3574,26 @@ label {
 .stripe-billing-conflict > .secondary-button { justify-self:start; }
 @media(max-width:600px) { .dashboard-disclosure-toggle { padding:18px 16px; gap:9px; font-size:15px; } .dashboard-disclosure-body { padding:0 16px 18px; } .dashboard-disclosure-hint { display:none; } .stripe-billing-conflict { padding:14px; } }
 @media(prefers-reduced-motion:reduce) { .dashboard-disclosure-toggle > svg { transition:none; } }
+.stripe-notice-filter { display:flex; padding:4px; border:1px solid #e6e8ee; background:#f1f2f6; border-radius:10px; gap:3px; }
+.stripe-notice-filter button { border:0; background:transparent; border-radius:7px; padding:8px 12px; font:inherit; font-size:13px; color:var(--muted); cursor:pointer; }
+.stripe-notice-filter button[aria-pressed=true] { color:var(--ink); background:white; box-shadow:0 1px 5px #20203016; }
+.stripe-notice-explanation { font-size:12px; line-height:1.6; margin:12px 0 18px; }
+.stripe-notice-list { display:grid; gap:14px; margin:16px 0; }
+.stripe-notice-card h3 { font-size:16px; margin:0; }
+.stripe-notice-card.acknowledged { background:linear-gradient(145deg,#f8fafb,#fff); border-color:#e3e7eb; }
+.stripe-billing-head .stripe-notice-state.done { color:#2b704b; background:#e9f5ec; }
+.stripe-billing-head .stripe-notice-state.ignored { color:#667085; background:#eef0f4; }
+.stripe-notice-title { display:flex; gap:8px; align-items:center; font-size:13px; color:#92552c; }
+.acknowledged .stripe-notice-title { color:#667085; }
+.stripe-notice-title svg { flex-shrink:0; }
+.stripe-notice-actions { display:flex; flex-wrap:wrap; gap:8px; border-top:1px solid #eceef3; padding-top:12px; margin-top:4px; }
+.stripe-notice-actions .secondary-button { min-height:34px; padding:7px 12px; font-size:12px; }
+.stripe-notice-actions [role=status] { color:var(--muted); font-size:12px; align-self:center; }
+.stripe-notice-trial { background:#97E9E5; padding:10px; border-radius:8px; }
+.stripe-notice-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:18px 0; font-size:12px; color:var(--muted); }
+.stripe-notice-pagination > div { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.stripe-notice-pagination .secondary-button { min-width:32px; min-height:34px; padding:7px 9px; font-size:12px; }
+.stripe-notice-pagination [aria-current=page] { color:#fff; background:var(--purple); border-color:var(--purple); }
 .subscription-review-body { display:grid; gap:20px; padding:24px; }
 .subscription-review-card { display:grid; gap:14px; border:1px solid var(--line); border-radius:12px; padding:20px; min-width:0; }
 .subscription-review-card label { display:grid; gap:6px; }

@@ -107,6 +107,26 @@ const review = {
     { id: secondChild, name: "Alex Beispiel" },
   ],
 };
+const overview = (saved = false) => ({
+  rows: saved
+    ? []
+    : [
+        {
+          id: review.id,
+          kind: "review",
+          at: new Date().toISOString(),
+          customer: context.customerName,
+          title: "Abo-Zuordnung prüfen",
+          actionRequired: true,
+          state: "open",
+          token: "local-ui-only",
+          reviewId: review.id,
+        },
+      ],
+  total: saved ? 0 : 1,
+  openCount: saved ? 0 : 1,
+  checkedAt: new Date().toISOString(),
+});
 try {
   for (const [name, viewport] of [
     ["desktop", { width: 1440, height: 1000 }],
@@ -118,9 +138,9 @@ try {
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.route("**/api/**", async (route) => {
-      if (route.request().url().includes("stripe-conflicts"))
+      if (route.request().url().includes("stripe-overview"))
         return route.fulfill({
-          json: { rows: [], checkedAt: new Date().toISOString() },
+          json: overview(saved),
         });
       if (route.request().url().includes("stripe-parent-inputs"))
         return route.fulfill({
@@ -210,7 +230,7 @@ try {
     );
     await page.getByRole("button", { name: "Zuordnung bestätigen" }).click();
     await expect(
-      page.getByText("Alle Zuordnungen sind geprüft."),
+      page.getByText("Keine Konflikte in den letzten 30 Tagen vorhanden."),
     ).toBeVisible();
     await page.unroute("**/api/**");
     await page.route("**/api/**", (route) =>
@@ -245,7 +265,9 @@ try {
                 ],
                 total: 1,
               }
-            : { rows: [], checkedAt: new Date().toISOString(), ok: true },
+            : route.request().url().includes("stripe-overview")
+              ? overview()
+              : { ok: true },
       }),
     );
     await page.reload();
