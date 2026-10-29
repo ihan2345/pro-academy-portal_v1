@@ -436,12 +436,14 @@ export function ProductCard({
         </div>
         <div className="product-stage-art">
           {product.asset_ids[0] ? (
-            <img
-              src={`/api/products/image/${product.asset_ids[0]}`}
-              alt={product.name}
-              width={640}
-              height={640}
-            />
+            <div className="product-art-card">
+              <img
+                src={`/api/products/image/${product.asset_ids[0]}`}
+                alt={product.name}
+                width={640}
+                height={640}
+              />
+            </div>
           ) : (
             <div className="product-stage-emblem">
               <span>PROACADEMY</span>
@@ -486,13 +488,17 @@ export function ProductCard({
     >
       <div className="product-card-visual">
         {product.asset_ids[0] ? (
-          <img
-            src={`/api/products/image/${product.asset_ids[0]}`}
-            alt={product.name}
-            loading="lazy"
-            width={640}
-            height={640}
-          />
+          <div className="product-card-image-stage">
+            <div className="product-art-card">
+              <img
+                src={`/api/products/image/${product.asset_ids[0]}`}
+                alt={product.name}
+                loading="lazy"
+                width={640}
+                height={640}
+              />
+            </div>
+          </div>
         ) : (
           <div className={`product-visual-placeholder ${product.kind}`}>
             <span>PROACADEMY</span>
