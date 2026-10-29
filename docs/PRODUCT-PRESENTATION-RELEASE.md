@@ -1,6 +1,6 @@
 # Produktbühne, Darstellung und Hintergrundaktualisierung
 
-Auf ausdrücklichen Nutzerauftrag vom 29.10.2026 zur Veröffentlichung unter der bestehenden Portaladresse `https://portal.proacademy-ak.com` vorbereitet.
+Nach ausdrücklichem Nutzerauftrag am 29.10.2026 unter `https://portal.proacademy-ak.com` veröffentlicht. Funktionsstand `0fa12b3`, per Fast-forward nach `main` übernommen und auf GitHub gepusht. Portal-Version `b5c608c9-c6ef-4813-9daf-8e2b5548d0f2` erhält 100 % Traffic; Online-Abnahme am 29.10.2026 um 23:31 Uhr (Europe/Istanbul).
 
 ## Verhalten
 
@@ -25,4 +25,14 @@ Bestehende Vertrags-, Kontingent-, Zahlungs-, Rabatt-, Zugriffs- und Versandlogi
 - Browserprüfung: Farbe und Kundenarten speichern und erneut laden; Flugwechsel in beide Richtungen und über Miniaturen; proportionale Bildgröße; mobile Darstellung.
 - Hintergrundaktualisierung mit absichtlich verzögerter Antwort geprüft: dieselbe Produktbühne und gewählte Karte bleiben erhalten. Ein Suchwechsel lädt weiterhin die neue Ansicht.
 
-Produktionsbuild, Migration und Online-Abnahme werden im Veröffentlichungsnachweis ergänzt. Private Nachweise liegen unter `output/shop-design-review/` und `output/shop-presentation-release/` und gehören nicht in Git.
+## Produktive Abnahme
+
+- Isolierter Cloudflare-Produktionsbuild mit frischen Dependencies aus dem eingecheckten Lockfile erfolgreich; keine lokale Vorschaukonfiguration, privaten Server-Schlüssel oder Prüfseiten im Build. Wrangler-Probelauf erfolgreich.
+- Migration `202610290032` nach erfolgreichem transaktionalem Probelauf installiert. Alle vorhandenen Migrationen 022–031 stimmen exakt mit der gespeicherten Migrationshistorie überein. Beide berechneten Prioritätsspalten sind vorhanden.
+- Der Vorher-/Nachher-Abgleich bestätigte unveränderte Familienzuordnungen und Eltern-Sperren, bestehende Vertrags-/Kontingentfunktionen, Anzahlen von Abos, Kontingenten und Campbuchungen sowie Versandfreigaben.
+- Shop und Login liefern HTTP 200. Anonyme Adminseiten werden weiter zur Anmeldung umgeleitet, die Admin-Produkt-API verweigert anonymen Zugriff mit HTTP 401. Alle zwölf von der Shopseite referenzierten JavaScript-/CSS-Dateien stimmen anhand ihrer SHA-256-Werte mit dem geprüften Build überein.
+- Der öffentliche Katalog enthält weiterhin dieselben drei echten Angebote. Alle bestehenden Hauptbilder laden erfolgreich; das produktive FirstTouch-Motiv entspricht bereits dem bereitgestellten Beispiel. Preise und veröffentlichte Produktinhalte wurden nicht geändert. Neue Präsentationsfelder verwenden bis zur Bearbeitung ihre rückwärtskompatiblen Standardwerte.
+- Im öffentlichen Browser wurden Produktbühne, proportional begrenzte Motivgröße und Kartenwechsel mit den produktiven Bildern geprüft. Es wurden keine Käufe oder Zahlungsanfragen ausgelöst.
+- Portal-Bindings und sämtliche vorhandenen Klartext-Konfigurationswerte entsprechen der vorherigen Version. Jobs-Runner und Stripe-Konfiguration wurden nicht veröffentlicht oder geändert.
+
+Private Nachweise liegen unter `output/shop-design-review/` und `output/shop-presentation-release/` und gehören nicht in Git.
