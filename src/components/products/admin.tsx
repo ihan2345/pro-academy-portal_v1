@@ -303,6 +303,9 @@ export function AdminProducts() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [impact, setImpact] = useState<any>(null);
+  const [operation, setOperation] = useState<
+    "save" | "impact" | "publish" | null
+  >(null);
   const [priceId, setPriceId] = useState(""),
     [productId, setProductId] = useState(""),
     [scenario, setScenario] = useState<keyof typeof scenarios>("trial"),
@@ -425,8 +428,9 @@ export function AdminProducts() {
     setDirty(true);
     setImpact(null);
   }
-  async function run(fn: () => Promise<void>) {
+  async function run(fn: () => Promise<void>, action: typeof operation = null) {
     setBusy(true);
+    setOperation(action);
     setError("");
     setNotice("");
     try {
@@ -435,6 +439,7 @@ export function AdminProducts() {
       setError((e as Error).message);
     } finally {
       setBusy(false);
+      setOperation(null);
     }
   }
   async function open(id?: string) {
@@ -1538,9 +1543,15 @@ export function AdminProducts() {
       <div className="product-save-bar">
         <div>
           <strong>
-            {dirty
-              ? "Änderungen noch nicht gespeichert"
-              : "Entwurf gespeichert"}
+            {operation === "save"
+              ? "Entwurf wird gespeichert …"
+              : operation === "impact"
+                ? "Auswirkungen werden geprüft …"
+                : operation === "publish"
+                  ? "Produktfassung wird übernommen …"
+                  : dirty
+                    ? "Änderungen noch nicht gespeichert"
+                    : "Entwurf gespeichert"}
           </strong>
           <small>
             {editing?.published
@@ -1555,25 +1566,36 @@ export function AdminProducts() {
             void run(async () => {
               await persist();
               setNotice("Entwurf gespeichert.");
-            })
+            }, "save")
           }
         >
-          {busy ? <LoaderCircle className="product-spin" size={16} /> : null}{" "}
-          Entwurf speichern
+          {operation === "save" ? (
+            <LoaderCircle className="product-spin" size={16} />
+          ) : null}{" "}
+          {operation === "save" ? "Speichert …" : "Entwurf speichern"}
         </button>
         <button
           className="primary-button"
           disabled={busy}
           onClick={() =>
             void run(async () => {
+              if (dirty || !editing) setOperation("save");
               const p = dirty || !editing ? await persist() : editing;
+              setOperation("impact");
               setImpact(
                 await productRequest(`${base}/${p.id}/impact`, "POST", {}),
               );
-            })
+            }, "impact")
           }
         >
-          <Eye size={17} /> Änderungen prüfen
+          {operation === "impact" ? (
+            <LoaderCircle className="product-spin" size={17} />
+          ) : (
+            <Eye size={17} />
+          )}{" "}
+          {operation === "impact"
+            ? "Prüft Auswirkungen …"
+            : "Änderungen prüfen"}
         </button>
       </div>
       {grantImpact && (
@@ -1641,8 +1663,8 @@ export function AdminProducts() {
           close={() => setImpact(null)}
         >
           <p>
-            Diese Auswertung stammt aus der lokalen Datenbank und vergleicht den
-            veröffentlichten Stand mit deinem gespeicherten Entwurf.
+            Diese Auswertung vergleicht den veröffentlichten Stand mit deinem
+            gespeicherten Entwurf.
           </p>
           <div className="product-impact-grid">
             <div>
@@ -1705,15 +1727,21 @@ export function AdminProducts() {
                       ? "Verkauf gesperrt. Bestehende Verträge bleiben erhalten."
                       : "Produktfassung übernommen.",
                   );
-                })
+                }, "publish")
               }
             >
-              <Check size={17} />{" "}
-              {data.status === "archived"
-                ? "Archivierung übernehmen"
-                : data.status === "draft"
-                  ? "Verkauf deaktivieren"
-                  : "Fassung veröffentlichen"}
+              {operation === "publish" ? (
+                <LoaderCircle className="product-spin" size={17} />
+              ) : (
+                <Check size={17} />
+              )}{" "}
+              {operation === "publish"
+                ? "Wird übernommen …"
+                : data.status === "archived"
+                  ? "Archivierung übernehmen"
+                  : data.status === "draft"
+                    ? "Verkauf deaktivieren"
+                    : "Fassung veröffentlichen"}
             </button>
           </div>
         </Modal>

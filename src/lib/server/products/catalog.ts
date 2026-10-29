@@ -15,7 +15,12 @@ import { decideProduct } from "@/lib/products/policy";
 import type { ProfileSession } from "../parent-profile";
 import { serviceDb } from "../service-db";
 import { assertRole, HttpError } from "../security";
-import { checked, collect, loadProductContext } from "./context";
+import {
+  checked,
+  collect,
+  loadProductContext,
+  loadProductContexts,
+} from "./context";
 import { requireProducts } from "./runtime";
 import { verifyStoredPrice } from "./stripe";
 const hash = (v: unknown) =>
@@ -307,14 +312,14 @@ export async function impactProduct(session: ProfileSession, id: string) {
   for (;;) {
     let query = db
       .from("parents")
-      .select("id")
+      .select("id,auth_user_id")
       .is("archived_at", null)
       .order("id")
       .limit(100);
     if (after) query = query.gt("id", after);
     const batch = checked<any[]>(await query);
-    for (const parent of batch) {
-      const ctx = await loadProductContext(session, parent.id);
+    const contexts = await loadProductContexts(session, batch, db, now);
+    for (const ctx of contexts) {
       let b = false,
         a = false,
         changed = false,
