@@ -27,3 +27,13 @@ Ein zusätzlicher nur lesender Backend-Abgleich gegen Produktionsdaten bestätig
 ## GitHub-Bereinigung
 
 Zwölf vollständig nach `main` integrierte Branches wurden unter `archive/2026-10-27/<bisheriger Branchname>` als annotierte Tags gesichert. Die archivierten Commit-IDs wurden auf GitHub geprüft, bevor die Branch-Verweise entfernt wurden. Die Löschung erfolgte atomar mit Prüfung auf zwischenzeitliche Branch-Änderungen; keine Commit-Historie wurde umgeschrieben. Es gab keine offenen Pull Requests für diese Branches. Aktiv bleiben `main` und der noch laufende Branch `codex/shop-gastkauf` in seiner separaten Arbeitskopie. Dessen unveröffentlichte Änderungen wurden nicht in diesen Release aufgenommen.
+
+## Ergänzung 29.10.2026: Filter „Offen“ vorbereitet
+
+In beiden Ausklappboxen ergänzt **Offen** die Filter **Letzte 30 Tage** und **Gesamt**. Er zeigt Meldungen mit `actionRequired=true` und Bearbeitungsstand `open` aus dem gesamten Zeitraum, einschließlich älterer Einträge. Erledigte, ignorierte und reine Informationsmeldungen sind ausgeblendet. Der Badge zählt weiterhin ausschließlich offene Aktionen der letzten 30 Tage; die Standardansicht bleibt unverändert.
+
+Konflikte werden weiterhin aus den einmal geladenen Zusammenfassungen gefiltert. Bei Aktivitäten wird der neue Statusparameter vor der Seiteneinteilung ausgewertet, einschließlich aktueller Zuordnungen und gespeicherter Admin-Entscheidungen. Datenbankseiten werden vollständig gelesen und Aktivitäten in begrenzten Gruppen aufgelöst. Der vorhandene Schutz gegen übergroße Auswertungen bleibt bestehen; es wird kein unvollständiges Ergebnis als Gesamtliste ausgegeben.
+
+Nach erfolgreichem Erledigen oder Ignorieren verschwindet die Meldung aus der offenen Ansicht. Aktivitäten laden die nächste passende Meldung nach; leere letzte Seiten springen zurück. Fehlgeschlagenes Speichern lässt Meldung und Zähler bestehen. **Gesamt** zeigt weiterhin bearbeitete Meldungen mit der Möglichkeit, sie wieder zu öffnen.
+
+32 gezielte Tests in drei Dateien, TypeScript und Produktionsbuild erfolgreich. Isolierte Browserprüfungen für beide Boxen auf Desktop und Mobilgerät decken ältere offene Meldungen, Seiteneinteilung, Speicherfehler, erfolgreiches Ausblenden, Seitensprünge, leere Ergebnisse und unveränderte Badge-Regeln ab. Der bestehende Abo-Zuordnungsdialog wurde zusätzlich auf beiden Bildschirmgrößen geprüft. Belege liegen unter `output/stripe-notice-filter` und `output/subscription-review`. Keine produktiven Daten oder Stripe-Einstellungen wurden verändert; keine Migration erforderlich. Die Ergänzung ist noch nicht veröffentlicht.

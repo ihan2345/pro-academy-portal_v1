@@ -30,7 +30,9 @@ export function recentStripeNotice(at: string, now: number) {
 }
 export function stripeNoticeCount(rows: StripeNotice[], now: number) {
   return rows.filter(
-    (r) =>
-      r.actionRequired && r.state === "open" && recentStripeNotice(r.at, now),
+    (r) => openStripeNotice(r) && recentStripeNotice(r.at, now),
   ).length;
+}
+export function openStripeNotice(row: StripeNotice) {
+  return row.actionRequired && row.state === "open";
 }

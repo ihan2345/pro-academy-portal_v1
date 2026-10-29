@@ -223,6 +223,7 @@ async function handler(
         await stripeOverview(session, {
           section: request.nextUrl.searchParams.get("section"),
           window: request.nextUrl.searchParams.get("window") ?? "month",
+          state: request.nextUrl.searchParams.get("state") ?? "all",
           page: request.nextUrl.searchParams.get("page") ?? 1,
         }),
       );

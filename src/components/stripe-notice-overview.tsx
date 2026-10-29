@@ -6,6 +6,7 @@ import { formatDate, formatTime } from "@/lib/domain";
 import { DashboardDisclosure } from "./dashboard-disclosure";
 import {
   recentStripeNotice,
+  openStripeNotice,
   STRIPE_NOTICE_PAGE_SIZE,
   type StripeNotice,
   type StripeNoticePage,
@@ -22,7 +23,7 @@ export function StripeNoticeOverview({
   revision?: number;
 }) {
   const conflicts = section === "conflicts";
-  const [window, setWindow] = useState<"month" | "all">("month"),
+  const [window, setWindow] = useState<"month" | "all" | "open">("month"),
     [page, setPage] = useState(1),
     [data, setData] = useState<StripeNoticePage | null>(null),
     [loading, setLoading] = useState(true),
@@ -30,7 +31,8 @@ export function StripeNoticeOverview({
     [retry, setRetry] = useState(0),
     [saving, setSaving] = useState(""),
     [saveError, setSaveError] = useState("");
-  const requestWindow = conflicts ? "all" : window,
+  const requestWindow = conflicts || window === "open" ? "all" : window,
+    requestState = !conflicts && window === "open" ? "open" : "all",
     requestPage = conflicts ? 1 : page;
   useEffect(() => {
     const abort = new AbortController();
@@ -39,6 +41,7 @@ export function StripeNoticeOverview({
     const query = new URLSearchParams({
       section,
       window: requestWindow,
+      state: requestState,
       page: String(requestPage),
     });
     fetch(`/api/admin/stripe-overview?${query}`, {
@@ -60,7 +63,7 @@ export function StripeNoticeOverview({
         if (!abort.signal.aborted) setLoading(false);
       });
     return () => abort.abort();
-  }, [section, requestWindow, requestPage, retry, revision]);
+  }, [section, requestWindow, requestState, requestPage, retry, revision]);
   useEffect(() => {
     const refresh = () => {
       if (!saving) setRetry((n) => n + 1);
@@ -69,11 +72,11 @@ export function StripeNoticeOverview({
     return () => globalThis.removeEventListener("focus", refresh);
   }, [saving]);
   const now = data ? Date.parse(data.checkedAt) : Date.now();
-  const filtered = conflicts
-    ? (data?.rows ?? []).filter(
-        (r) => window === "all" || recentStripeNotice(r.at, now),
-      )
-    : (data?.rows ?? []);
+  const filtered = (data?.rows ?? []).filter((r) =>
+    window === "open"
+      ? openStripeNotice(r)
+      : !conflicts || window === "all" || recentStripeNotice(r.at, now),
+  );
   const total = conflicts ? filtered.length : (data?.total ?? 0);
   const pages = Math.max(1, Math.ceil(total / STRIPE_NOTICE_PAGE_SIZE));
   useEffect(() => {
@@ -115,11 +118,20 @@ export function StripeNoticeOverview({
         return {
           ...old,
           openCount: Math.max(0, old.openCount + delta),
+          total:
+            !conflicts &&
+            window === "open" &&
+            openStripeNotice(previous) &&
+            state !== "open"
+              ? Math.max(0, old.total - 1)
+              : old.total,
           rows: old.rows.map((r) =>
             r.id === row.id && r.kind === row.kind ? { ...r, state } : r,
           ),
         };
       });
+      // Refill the server-paged open list after a successful acknowledgement.
+      if (!conflicts && window === "open") setRetry((n) => n + 1);
     } catch (e) {
       setSaveError(
         e instanceof Error ? e.message : "Speichern fehlgeschlagen.",
@@ -142,11 +154,16 @@ export function StripeNoticeOverview({
           role="group"
           aria-label={conflicts ? "Konflikte filtern" : "Aktivitäten filtern"}
         >
-          {(["month", "all"] as const).map((value) => (
+          {(["month", "all", "open"] as const).map((value) => (
             <button
               type="button"
               key={value}
               aria-pressed={window === value}
+              title={
+                value === "open"
+                  ? "Alle Meldungen mit offenen Aktionen, einschließlich älterer Einträge"
+                  : undefined
+              }
               disabled={!!saving}
               onClick={() => {
                 setWindow(value);
@@ -154,7 +171,11 @@ export function StripeNoticeOverview({
                 setSaveError("");
               }}
             >
-              {value === "month" ? "Letzte 30 Tage" : "Gesamt"}
+              {value === "month"
+                ? "Letzte 30 Tage"
+                : value === "all"
+                  ? "Gesamt"
+                  : "Offen"}
             </button>
           ))}
         </div>
@@ -167,6 +188,11 @@ export function StripeNoticeOverview({
           Aktualisieren
         </button>
       </div>
+      {window === "open" && (
+        <p className="profile-muted stripe-notice-explanation">
+          Alle Meldungen mit offenen Aktionen, einschließlich älterer Einträge.
+        </p>
+      )}
       {conflicts && (
         <p className="profile-muted stripe-notice-explanation">
           Die Markierung dokumentiert die Bearbeitung für alle Admins.
@@ -198,8 +224,10 @@ export function StripeNoticeOverview({
         <>
           {!visible.length && (
             <p>
-              {conflicts ? "Keine Konflikte" : "Keine Stripe-Aktivitäten"}
-              {window === "month" ? " in den letzten 30 Tagen" : ""} vorhanden.
+              {window === "open"
+                ? "Keine Meldungen mit offenen Aktionen"
+                : `${conflicts ? "Keine Konflikte" : "Keine Stripe-Aktivitäten"}${window === "month" ? " in den letzten 30 Tagen" : ""}`}{" "}
+              vorhanden.
             </p>
           )}
           <div className="stripe-notice-list">

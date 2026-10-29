@@ -246,6 +246,101 @@ it("leaves assignment reviews available and the badge uncertain when the live bi
   expect(result.warning).toBeTruthy();
   expect(result.rows[0].reviewId).toBe("review");
 });
+it("filters actionable activities across the whole history before pagination and excludes acknowledged or informational rows", async () => {
+  m.tables.stripe_webhook_events = Array.from({ length: 36 }, (_, n) => ({
+    id: String(n).padStart(4, "0"),
+    stripe_event_id: `evt_${n}`,
+    stripe_created: Math.floor(now / 1000) - (n === 35 ? 40 : n + 0.5) * 86400,
+    status: n >= 23 ? "failed" : "processed",
+  }));
+  const load = (page = 1) =>
+    stripeOverview(admin, {
+      section: "activities",
+      window: "all",
+      state: "open",
+      page,
+    });
+  const first = await load();
+  expect(first.total).toBe(13);
+  expect(first.rows).toHaveLength(10);
+  expect(first.rows[0].id).toBe("evt_23");
+  expect(first.rows.every((r) => r.actionRequired && r.state === "open")).toBe(
+    true,
+  );
+  expect(first.openCount).toBe(7);
+  const second = await load(2);
+  expect(second.rows.map((r) => r.id)).toEqual(["evt_33", "evt_34", "evt_35"]);
+  expect(second.openCount).toBe(first.openCount);
+  await decideStripeNotice(admin, {
+    token: first.rows[0].token,
+    state: "done",
+  });
+  await decideStripeNotice(admin, {
+    token: first.rows[1].token,
+    state: "ignored",
+  });
+  const updated = await load();
+  expect(updated.total).toBe(11);
+  expect(updated.rows[0].id).toBe("evt_25");
+  expect(updated.openCount).toBe(5);
+  expect((await load(2)).rows.map((r) => r.id)).toEqual(["evt_35"]);
+  expect(
+    (await stripeOverview(admin, { section: "activities", window: "all" }))
+      .total,
+  ).toBe(36);
+  expect(
+    (
+      await stripeOverview(admin, {
+        section: "activities",
+        window: "month",
+        state: "open",
+      })
+    ).total,
+  ).toBe(5);
+});
+it("includes older open conflicts while keeping their badge count separate from the selected state", async () => {
+  const initial = await stripeOverview(admin, { section: "conflicts" });
+  await decideStripeNotice(admin, {
+    token: initial.rows[0].token,
+    state: "done",
+  });
+  const open = await stripeOverview(admin, {
+    section: "conflicts",
+    window: "all",
+    state: "open",
+  });
+  expect(open.rows.map((r) => r.id)).toEqual(["sub_2"]);
+  expect(open.total).toBe(1);
+  expect(open.openCount).toBe(0);
+  await decideStripeNotice(admin, {
+    token: initial.rows[1].token,
+    state: "ignored",
+  });
+  expect(
+    (await stripeOverview(admin, { section: "conflicts", state: "open" }))
+      .total,
+  ).toBe(0);
+  expect((await stripeOverview(admin, { section: "conflicts" })).total).toBe(2);
+});
+it("finds open actions beyond multiple database pages and bounds hydration batches", async () => {
+  m.tables.stripe_webhook_events = Array.from({ length: 501 }, (_, n) => ({
+    id: String(n).padStart(4, "0"),
+    stripe_event_id: `evt_${n}`,
+    stripe_created: Math.floor(now / 1000) - 86400,
+    status: n === 500 ? "failed" : "processed",
+  }));
+  const result = await stripeOverview(admin, {
+    section: "activities",
+    window: "all",
+    state: "open",
+  });
+  expect(result.total).toBe(1);
+  expect(result.rows.map((r) => r.id)).toEqual(["evt_500"]);
+  expect(result.openCount).toBe(1);
+  expect(m.hydrate.mock.calls.map(([rows]) => rows.length)).toEqual([
+    250, 250, 1,
+  ]);
+});
 it.each(["parent", "staff", undefined])(
   "rejects %s before DB access and rejects forged/expired acknowledgements",
   async (role) => {

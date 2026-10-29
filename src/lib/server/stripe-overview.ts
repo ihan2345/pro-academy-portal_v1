@@ -12,6 +12,7 @@ import {
 } from "./stripe-notice-decisions";
 import {
   stripeNoticeCount,
+  openStripeNotice,
   STRIPE_NOTICE_MONTH,
   STRIPE_NOTICE_PAGE_SIZE,
   type StripeNotice,
@@ -22,6 +23,7 @@ const paramsSchema = z
   .object({
     section: z.enum(["conflicts", "activities"]),
     window: z.enum(["month", "all"]).default("month"),
+    state: z.enum(["all", "open"]).default("all"),
     page: z.coerce.number().int().min(1).max(10000).default(1),
   })
   .strict();
@@ -122,9 +124,11 @@ export async function stripeOverview(
     );
     // All conflict summaries are returned once; filtering/paging stays inside the disclosure
     // without another full Stripe scan for every page click.
+    const selected =
+      params.state === "open" ? rows.filter(openStripeNotice) : rows;
     return {
-      rows,
-      total: rows.length,
+      rows: selected,
+      total: selected.length,
       openCount: stripeNoticeCount(rows, now),
       checkedAt,
       ...(warning ? { warning } : {}),
@@ -141,23 +145,47 @@ export async function stripeOverview(
     .order("id", { ascending: false });
   if (params.window === "month") query = query.gte("stripe_created", cutoff);
   const [selected, recent] = await Promise.all([
-    query.range(
-      (params.page - 1) * STRIPE_NOTICE_PAGE_SIZE,
-      params.page * STRIPE_NOTICE_PAGE_SIZE - 1,
-    ),
-    collectRows(() =>
-      db
-        .from("stripe_webhook_events")
-        .select(columns)
-        .gte("stripe_created", cutoff)
-        .lte("stripe_created", asOf),
-    ),
+    params.state === "open"
+      ? collectRows(() => {
+          let candidates = db
+            .from("stripe_webhook_events")
+            .select(columns)
+            .lte("stripe_created", asOf);
+          if (params.window === "month")
+            candidates = candidates.gte("stripe_created", cutoff);
+          return candidates;
+        }).then((data) => ({
+          data: data.sort(
+            (a, b) =>
+              b.stripe_created - a.stripe_created || b.id.localeCompare(a.id),
+          ),
+          count: data.length,
+        }))
+      : query.range(
+          (params.page - 1) * STRIPE_NOTICE_PAGE_SIZE,
+          params.page * STRIPE_NOTICE_PAGE_SIZE - 1,
+        ),
+    params.state === "open"
+      ? Promise.resolve([])
+      : collectRows(() =>
+          db
+            .from("stripe_webhook_events")
+            .select(columns)
+            .gte("stripe_created", cutoff)
+            .lte("stripe_created", asOf),
+        ),
   ]);
   const pageRows = checked(selected);
   const combined = [
     ...new Map([...recent, ...pageRows].map((r) => [r.id, r])).values(),
   ];
-  const hydrated = await stripeActivityRows(combined);
+  // Open status depends on current assignments and saved decisions, so evaluate
+  // every candidate before paging. Batch hydration to keep DB filter URLs bounded.
+  const hydrated: Awaited<ReturnType<typeof stripeActivityRows>> = [];
+  for (let offset = 0; offset < combined.length; offset += 250)
+    hydrated.push(
+      ...(await stripeActivityRows(combined.slice(offset, offset + 250))),
+    );
   const decorated = await decorate(
     hydrated.map((r) => ({
       id: r.id,
@@ -171,11 +199,19 @@ export async function stripeOverview(
     })),
     now,
   );
+  const notices = pageRows.map((r: any) =>
+    decorated.find((row) => row.id === r.stripe_event_id)!,
+  );
+  const open = params.state === "open" ? notices.filter(openStripeNotice) : [];
   return {
-    rows: pageRows.map((r: any) =>
-      decorated.find((row) => row.id === r.stripe_event_id)!,
-    ),
-    total: selected.count ?? 0,
+    rows:
+      params.state === "open"
+        ? open.slice(
+            (params.page - 1) * STRIPE_NOTICE_PAGE_SIZE,
+            params.page * STRIPE_NOTICE_PAGE_SIZE,
+          )
+        : notices,
+    total: params.state === "open" ? open.length : (selected.count ?? 0),
     openCount: stripeNoticeCount(decorated, now),
     checkedAt,
   };
