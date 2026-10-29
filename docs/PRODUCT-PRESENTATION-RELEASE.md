@@ -36,3 +36,13 @@ Bestehende Vertrags-, Kontingent-, Zahlungs-, Rabatt-, Zugriffs- und Versandlogi
 - Portal-Bindings und sämtliche vorhandenen Klartext-Konfigurationswerte entsprechen der vorherigen Version. Jobs-Runner und Stripe-Konfiguration wurden nicht veröffentlicht oder geändert.
 
 Private Nachweise liegen unter `output/shop-design-review/` und `output/shop-presentation-release/` und gehören nicht in Git.
+
+## Ergänzung: Glaskarten am 29.10.2026 veröffentlicht
+
+Auf ausdrücklichen Nutzerauftrag mit Funktionsstand `e8c6b72` veröffentlicht und auf `main` gepusht. Portal-Version `154d19cf-5803-4e8e-9a3b-dcc84c07819f` erhält 100 % Traffic; Online-Abnahme um 23:48 Uhr (Europe/Istanbul).
+
+Produktmotive liegen in der Bühne und Angebotsübersicht in abgerundeten Glaskarten. Transparenter Rahmen, Lichtkanten, Hintergrundunschärfe, leichte Neigung und Schatten geben den Karten Tiefe. Auf geeigneten Zeigegeräten richtet sich die Bühnenkarte bei Hover leicht auf; reduzierte Bewegung wird berücksichtigt. Originalseitenverhältnis, gemeinsame maximale Motivhöhe und vorhandene Fluganimation bleiben erhalten.
+
+Die Änderung betrifft ausschließlich Darstellung und Bild-Wrapper. Keine Datenbankmigration, Änderung produktiver Produktdaten, Preis-/Kauflogik oder Runner-Veröffentlichung. Die lokal geprüfte Darstellung einschließlich Mobilansicht wurde mit einem isolierten Cloudflare-Produktionsbuild samt TypeScript-Prüfung veröffentlicht. Shop, Login, bestehende Bilder und Zugriffsschutz sind online geprüft; alle zwölf referenzierten JavaScript-/CSS-Dateien stimmen exakt mit dem Build überein. Portal-Bindings und Konfigurationswerte bleiben unverändert. Glaskarten und Produktwechsel wurden im öffentlichen Shop mit den vorhandenen Motiven geprüft, ohne Käufe auszulösen.
+
+Private Build-, Deployment- und Abnahmebelege liegen unter `output/shop-glass-release/`; lokale Bilder unter `output/shop-design-review/`.
