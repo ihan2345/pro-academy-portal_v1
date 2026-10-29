@@ -185,6 +185,12 @@ if (!sql("select to_regclass('public.stripe_notice_decisions')").trim())
   sql(readFileSync("supabase/release/030-stripe-notice-decisions.sql", "utf8"));
 if (!sql("select to_regclass('public.product_guest_messages')").trim())
   sql(readFileSync("supabase/release/031-product-guest-checkout.sql", "utf8"));
+if (
+  sql(
+    "select count(*) from information_schema.columns where table_schema='public' and table_name='catalog_products' and column_name='priority'",
+  ).trim() === "0"
+)
+  sql(readFileSync("supabase/release/032-product-presentation.sql", "utf8"));
 mkdirSync(app, { recursive: true });
 for (const path of [
   "src",

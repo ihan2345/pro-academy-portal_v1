@@ -351,11 +351,11 @@ it("performs the existing atomic Trial conversion for a paid order using the SAM
       .rows,
   ).toHaveLength(1);
 });
-it("keeps private draft text and sort changes out of the public catalogue", async () => {
+it("persists presentation settings and keeps draft priority changes out of the public catalogue", async () => {
   const p = await testProduct("other", "price_isolated");
   const before = (
     await db.query<any>(
-      "select published_search_document::text search,published_sort_order from catalog_products where id=$1",
+      "select published_search_document::text search,published_sort_order,published_priority from catalog_products where id=$1",
       [p.id],
     )
   ).rows[0];
@@ -363,16 +363,36 @@ it("keeps private draft text and sort changes out of the public catalogue", asyn
     {
       id: p.id,
       revision: 1,
-      data: { ...p.data, name: "Geheimer Entwurf", sort_order: 100 },
+      data: {
+        ...p.data,
+        name: "Geheimer Entwurf",
+        sort_order: 100,
+        priority: 10,
+        effect_color: "#F57C00",
+        sale_enabled: true,
+        sale_audiences: ["subscriber", "camp"],
+      },
     },
   ]);
   const after = (
     await db.query<any>(
-      "select published_search_document::text search,published_sort_order from catalog_products where id=$1",
+      "select published_search_document::text search,published_sort_order,published_priority from catalog_products where id=$1",
       [p.id],
     )
   ).rows[0];
   expect(after).toEqual(before);
+  const saved = (
+    await db.query<any>(
+      "select priority,draft from catalog_products where id=$1",
+      [p.id],
+    )
+  ).rows[0];
+  expect(saved.priority).toBe(10);
+  expect(saved.draft).toMatchObject({
+    effect_color: "#F57C00",
+    sale_enabled: true,
+    sale_audiences: ["subscriber", "camp"],
+  });
 });
 it("confirms an API Camp checkout through the existing payment/capacity routine without a fabricated link", async () => {
   const camp = id(50),

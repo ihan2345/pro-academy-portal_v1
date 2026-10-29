@@ -44,6 +44,7 @@ export function parseCursor(value?: string | null) {
     return z
       .object({
         sort: z.number().int(),
+        created: z.iso.datetime({ offset: true }),
         id: productIdSchema,
         filter: z.string(),
       })
@@ -93,6 +94,7 @@ export async function listProducts(
       category,
       channel,
       admin,
+      order: "priority-newest",
       player: params.get("player"),
       new_child: params.get("new_child") === "true",
     }),
@@ -131,12 +133,13 @@ export async function listProducts(
   const rows: any[] = [];
   const size = 24;
   do {
-    const sortColumn = admin ? "sort_order" : "published_sort_order";
+    const sortColumn = admin ? "priority" : "published_priority";
     let query = serviceDb()
       .from("catalog_products")
       .select("*")
-      .order(sortColumn)
-      .order("id")
+      .order(sortColumn, { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(size + 1);
     if (q)
       query = query.textSearch(
@@ -156,12 +159,17 @@ export async function listProducts(
     if (!admin) query = query.not("published", "is", null);
     if (after)
       query = query.or(
-        `${sortColumn}.gt.${after.sort},and(${sortColumn}.eq.${after.sort},id.gt.${after.id})`,
+        `${sortColumn}.lt.${after.sort},and(${sortColumn}.eq.${after.sort},created_at.lt.${after.created}),and(${sortColumn}.eq.${after.sort},created_at.eq.${after.created},id.lt.${after.id})`,
       );
     const batch = checked<any[]>(await query);
     exhausted = batch.length <= size;
     for (const p of batch.slice(0, size)) {
-      after = { sort: p[sortColumn], id: p.id, filter: fingerprint };
+      after = {
+        sort: p[sortColumn],
+        created: p.created_at,
+        id: p.id,
+        filter: fingerprint,
+      };
       if (admin) rows.push(p);
       else if (p.published) {
         const decision = decideProduct(
@@ -205,6 +213,9 @@ export function publicProduct(
     category: v.category,
     price: v.price,
     featured: v.featured,
+    effect_color: v.effect_color ?? "#8B53FE",
+    sale_enabled: v.sale_enabled ?? false,
+    sale_audiences: v.sale_audiences ?? [],
     asset_ids: v.asset_ids,
     training_content: v.training_content,
     decision,

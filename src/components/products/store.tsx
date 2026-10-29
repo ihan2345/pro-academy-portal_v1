@@ -12,7 +12,12 @@ import {
   UserRound,
 } from "lucide-react";
 import type { ProductContext } from "@/lib/products/domain";
-import { ProductCard, productRequest, type ProductDisplay } from "./shared";
+import {
+  ProductCard,
+  ProductShowcase,
+  productRequest,
+  type ProductDisplay,
+} from "./shared";
 import { Modal } from "../portal";
 const money = (n: number, currency: string) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(
@@ -67,6 +72,7 @@ export function ProductStore({
     [customer, setCustomer] = useState(""),
     [purchase, setPurchase] = useState<any>(null);
   const reconciledPurchase = useRef<string | null>(null);
+  const loadedCatalogQuery = useRef<string | null>(null);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const c = q.get("channel");
@@ -94,14 +100,17 @@ export function ProductStore({
   useEffect(() => {
     let cancel = false;
     const t = setTimeout(() => {
-      setLoading(true);
       const q = new URLSearchParams({ q: search, channel });
       if (player) q.set("player", player);
       if (newChild) q.set("new_child", "true");
       if (cursor) q.set("cursor", cursor);
-      void productRequest(`/api/products?${q}`)
+      const query = q.toString();
+      // Keep the catalogue mounted during polling/focus refreshes of the same view.
+      if (loadedCatalogQuery.current !== query) setLoading(true);
+      void productRequest(`/api/products?${query}`)
         .then((r) => {
           if (!cancel) {
+            loadedCatalogQuery.current = query;
             setRows(r.rows);
             setCtx(r.context);
             setNext(r.next);
@@ -503,20 +512,27 @@ export function ProductStore({
             <LoaderCircle className="product-spin" /> Angebote werden geladen …
           </div>
         ) : rows.length ? (
-          <div className="product-store-grid">
-            {rows.map((p) => (
-              <ProductCard
-                key={p.id}
-                product={p}
-                decision={
-                  p.decision.mode === "select_child"
-                    ? { ...p.decision, purchasable: true }
-                    : p.decision
-                }
-                onAction={() => void act(p)}
-              />
-            ))}
-          </div>
+          <>
+            <ProductShowcase products={rows} onAction={(p) => void act(p)} />
+            <div className="product-catalog-heading">
+              <h2>Alle Angebote</h2>
+              <span>{rows.length} Angebote auf dieser Seite</span>
+            </div>
+            <div className="product-store-grid">
+              {rows.map((p) => (
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  decision={
+                    p.decision.mode === "select_child"
+                      ? { ...p.decision, purchasable: true }
+                      : p.decision
+                  }
+                  onAction={() => void act(p)}
+                />
+              ))}
+            </div>
+          </>
         ) : (
           <div className="product-empty">
             <ShoppingBag size={38} />

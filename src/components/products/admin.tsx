@@ -1,5 +1,6 @@
 "use client";
 import { ProductOperations } from "./operations";
+import { EffectColorWheel } from "./color-wheel";
 import Link from "next/link";
 import { localToUtc } from "@/lib/domain";
 import { useEffect, useRef, useState } from "react";
@@ -439,7 +440,7 @@ export function AdminProducts() {
   async function open(id?: string) {
     await run(async () => {
       const p = id ? await productRequest<Details>(`${base}/${id}`) : null;
-      const draft = p?.draft ?? emptyProduct();
+      const draft = { ...emptyProduct(), ...p?.draft };
       setEditing(p);
       setData(draft);
       setPriceId(draft.price?.id ?? "");
@@ -807,19 +808,87 @@ export function AdminProducts() {
                 />
               </label>
               <label>
-                Sortierung{" "}
+                Priorität (0–10){" "}
                 <Hint>
-                  Kleinere Zahlen erscheinen zuerst. Es gibt keine Begrenzung
-                  der Produktanzahl.
+                  Höhere Zahlen erscheinen zuerst. Bei gleicher Priorität steht
+                  das zuletzt erstellte Produkt vorne.
                 </Hint>
                 <input
                   type="number"
-                  value={data.sort_order}
+                  min={0}
+                  max={10}
+                  step={1}
+                  value={data.priority}
                   onChange={(e) =>
-                    update({ sort_order: Number(e.target.value) })
+                    update({
+                      priority: Math.max(
+                        0,
+                        Math.min(10, Math.round(Number(e.target.value))),
+                      ),
+                    })
                   }
                 />
               </label>
+            </div>
+            <EffectColorWheel
+              value={data.effect_color}
+              onChange={(effect_color) => update({ effect_color })}
+            />
+            <div className="product-sale-settings">
+              <Toggle
+                checked={data.sale_enabled}
+                label="Aktionspreis"
+                hint={
+                  data.sale_enabled
+                    ? "Ja · Für die ausgewählten Kundenarten"
+                    : "Nein · Regulärer Preis"
+                }
+                onChange={(sale_enabled) => update({ sale_enabled })}
+              />
+              {data.sale_enabled && (
+                <fieldset className="product-sale-audiences">
+                  <legend>Für welche Kundenarten gilt der Aktionspreis?</legend>
+                  <details className="product-multiselect">
+                    <summary>
+                      {data.sale_audiences.length
+                        ? data.sale_audiences
+                            .map((key) => audiences[key])
+                            .join(", ")
+                        : "Kundenarten auswählen"}
+                      <ChevronRight size={16} />
+                    </summary>
+                    <div className="product-multiselect-options">
+                      {(Object.entries(audiences) as [Audience, string][]).map(
+                        ([key, label]) => (
+                          <label key={key}>
+                            <input
+                              type="checkbox"
+                              checked={data.sale_audiences.includes(key)}
+                              onChange={(e) =>
+                                update({
+                                  sale_audiences: e.target.checked
+                                    ? [...data.sale_audiences, key]
+                                    : data.sale_audiences.filter(
+                                        (a) => a !== key,
+                                      ),
+                                })
+                              }
+                            />
+                            <span>{label}</span>
+                            {data.sale_audiences.includes(key) && (
+                              <Check size={15} />
+                            )}
+                          </label>
+                        ),
+                      )}
+                    </div>
+                  </details>
+                  <small>
+                    Mehrfachauswahl möglich. Kennzeichnet den hinterlegten Preis
+                    als Aktionspreis für diese Kundenarten.
+                  </small>
+                </fieldset>
+              )}
             </div>
             <Toggle
               checked={data.featured}
@@ -1417,6 +1486,15 @@ export function AdminProducts() {
             )}
           </div>
           <ProductCard product={data} decision={preview?.decision} preview />
+          <details className="product-stage-preview">
+            <summary>Produktbühne ansehen</summary>
+            <ProductCard
+              product={data}
+              decision={preview?.decision}
+              preview
+              stage
+            />
+          </details>
           <div className="product-preview-result" aria-live="polite">
             {preview?.error ? (
               <p role="alert">{preview.error}</p>

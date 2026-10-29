@@ -39,6 +39,7 @@ export function productSchemaFiles() {
       "029-product-production-shop.sql",
       "030-stripe-notice-decisions.sql",
       "031-product-guest-checkout.sql",
+      "032-product-presentation.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

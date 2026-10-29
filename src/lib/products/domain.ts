@@ -99,6 +99,13 @@ export const productSchema = z
       "archived",
     ]),
     sort_order: z.number().int().min(-1000000).max(1000000),
+    priority: z.number().int().min(0).max(10).default(0),
+    effect_color: z
+      .string()
+      .regex(/^#[0-9a-f]{6}$/i)
+      .default("#8B53FE"),
+    sale_enabled: z.boolean().default(false),
+    sale_audiences: z.array(audienceSchema).max(15).default([]),
     featured: z.boolean(),
     publish_at: z.iso.datetime().nullable(),
     expires_at: z.iso.datetime().nullable(),
@@ -132,6 +139,12 @@ export const productSchema = z
   })
   .strict()
   .superRefine((v, c) => {
+    if (v.sale_enabled && !v.sale_audiences.length)
+      c.addIssue({
+        code: "custom",
+        message: "Wähle mindestens eine Kundenart für den Aktionspreis.",
+        path: ["sale_audiences"],
+      });
     if (
       v.publish_at &&
       v.expires_at &&
@@ -188,6 +201,10 @@ export const emptyProduct = (): Product => ({
   kind: "subscription",
   status: "draft",
   sort_order: 0,
+  priority: 0,
+  effect_color: "#8B53FE",
+  sale_enabled: false,
+  sale_audiences: [],
   featured: false,
   publish_at: null,
   expires_at: null,
