@@ -15,4 +15,13 @@ Nur Admins können ungenutzte Entwürfe ohne Zahlungsangebote endgültig lösche
 - Mobile Ansichten auf horizontalen Überlauf geprüft. Vorschauseiten, Screenshots und ausschließlich erfundene Testcamps liegen in der ignorierten lokalen Testumgebung und werden nicht veröffentlicht.
 - Keine Datenbankmigration, keine Stripe-Konfigurationsänderung und keine Änderung am Jobs-Runner nötig.
 
-Veröffentlichung: auf ausdrücklichen Nutzerauftrag vorbereitet; Ergebnis folgt nach Onlineprüfung.
+## Veröffentlichung
+
+Am 30.10.2026 auf ausdrücklichen Nutzerauftrag veröffentlicht. Funktionscommit `873798a` liegt auf `main` und ist zu `origin/main` gepusht. Cloudflare-Portal-Version `cc921307-15c1-493a-9d46-0ec3359865e1` erhält 100 % Traffic unter `https://portal.proacademy-ak.com`. Onlineprüfung abgeschlossen um 14:20 Uhr (Europe/Istanbul).
+
+- Isolierter Cloudflare-Produktionsbuild mit frischen Dependencies und ohne lokale Vorschauseiten erfolgreich.
+- Shop und Login HTTP 200; Camp- und Adminseiten leiten anonyme Besucher zur Anmeldung weiter. Camp-Dashboard-API, Camp-Lösch-API und Admin-Produkt-API antworten ohne Anmeldung mit HTTP 401.
+- Zwölf vom öffentlichen Shop geladene JS-/CSS-Dateien sowie die beiden Clientdateien mit Camp-Verwaltung und persönlichen Preisen stimmen anhand ihrer SHA-256-Werte exakt mit dem geprüften Build überein. Vorhandene öffentliche Produktbilder laden erfolgreich.
+- Vorhandene Konfigurationswerte und Bindings sind unverändert. Keine Datenbankmigration, kein Jobs-Deployment und keine produktive Datenbereinigung ausgeführt. Die Buchungs-/Löschaktionen wurden online nicht an Kundendaten erprobt.
+
+Private Veröffentlichungsnachweise liegen unter `output/camp-management-release/`.
