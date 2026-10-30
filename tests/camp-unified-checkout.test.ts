@@ -135,6 +135,9 @@ it("creates a booking-specific Checkout with the current early price and an addi
   expect(body.get("metadata[camp_booking_id]")).toBe("booking");
   expect(body.get("client_reference_id")).toBe("booking");
   expect(body.has("allow_promotion_codes")).toBe(false);
+  expect(
+    Number(body.get("expires_at")) - Math.floor(Date.now() / 1000),
+  ).toBeGreaterThan(1800);
 });
 it("classifies camps by the complete schedule, independently of day order", () => {
   const c = {

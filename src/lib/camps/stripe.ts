@@ -223,7 +223,8 @@ export async function createCampCheckout(
       payment_method_types: ["card"],
       locale: "de",
       automatic_tax: { enabled: campPaymentMode() === "live" },
-      expires_at: Math.floor(Date.now() / 1000) + 1800,
+      // Stripe requires at least 30 minutes from its creation time; allow transit time.
+      expires_at: Math.floor(Date.now() / 1000) + 1860,
       success_url: `${appUrl}/camp/erfolg?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/camp/buchung/${offer.camp_id}`,
     },
