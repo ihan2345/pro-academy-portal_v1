@@ -18,4 +18,16 @@ Gezielte Tests decken ein Stripeprodukt mit zwei Preisen ohne Payment Links, zus
 
 Die lokale Kartenübersicht, der Vergangenheitsfilter und das Öffnen sowie Zurückkehren aus einer Campseite wurden im Browser an ausschließlich erfundenen Camps geprüft. Lokale Daten und Vorschauseiten werden nicht veröffentlicht. Ein echter Kauf wurde zur Releaseprüfung nicht ausgelöst.
 
-Veröffentlichung auf ausdrücklichen Nutzerauftrag vorbereitet; Onlineergebnis folgt nach Bereitstellung von Portal und Hintergrunddienst.
+## Veröffentlichung
+
+Auf ausdrücklichen Nutzerauftrag am 30.10.2026 veröffentlicht. Funktionscommit `5272a07` und die anschließende Checkout-Zeitreserve `4203346` sind auf `main` gepusht. Finale Onlineprüfung abgeschlossen um 15:08 Uhr (Europe/Istanbul).
+
+- Portal-Version `87410399-feb1-4f77-b0fc-9bd9dad266a2`, 100 % Traffic unter `https://portal.proacademy-ak.com`.
+- Jobs-Version `c90d4316-30f0-4c1b-9a43-fb0b4014597b`, 100 % Traffic; Container `sha256:f7d7ceb4d4584e5f3323cd16ee8cdcede962f6cdb20974c81d2f48e4b89eb5cb`. Der gebündelte Hintergrunddienst aus dem finalen Quellstand ist bytegleich zum veröffentlichten Stand; die Zeitreserve betrifft ausschließlich die Checkout-Erstellung im Portal.
+- Migration `202610300033` angewendet; der gespeicherte SQL-Text stimmt exakt mit dem Commit überein. Neue Sitzungsspalte und verschachtelte Camp-/Preisbeziehungen sind über die produktive Datenbank-API verfügbar. Die Preisfunktion ist ausschließlich für die Serverrolle ausführbar.
+- TypeScript, 95 gezielte Tests sowie Portal- und Hintergrundbuild erfolgreich. Die Zeitreserve wurde zusätzlich im bestehenden Checkout-Vertragstest bestätigt.
+- Zwölf vom öffentlichen Shop geladene JS-/CSS-Dateien und drei Clientdateien mit Campübersicht, Camp-Datenübernahme und persönlichem Preis stimmen anhand ihrer SHA-256-Werte exakt mit dem finalen Produktionsbuild überein. Vorhandene öffentliche Produktbilder laden weiterhin.
+- Shop/Login HTTP 200, Camp-/Adminseiten ohne Anmeldung HTTP 307. Camp-Dashboard-, Camp-Lösch- und Admin-Produkt-API bleiben ohne Anmeldung mit HTTP 401 gesperrt.
+- Hintergrund-Verbindungsprüfung erfolgreich: Datenbank, Stripe, SMTP und PDF. Dafür wurden keine Jobs ausgelöst und keine Nachrichten verschickt. Bestehende Worker-Konfiguration, Versandfreigaben und die ursprünglichen Zuordnungsfunktionen sind unverändert.
+
+Private Build-, Migrations- und Prüfnachweise liegen unter `output/camp-unified-release/`.
