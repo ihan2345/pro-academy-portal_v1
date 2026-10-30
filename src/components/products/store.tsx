@@ -15,6 +15,7 @@ import type { ProductContext } from "@/lib/products/domain";
 import {
   ProductCard,
   ProductShowcase,
+  CampPriceNote,
   productRequest,
   type ProductDisplay,
 } from "./shared";
@@ -693,6 +694,16 @@ export function ProductStore({
                 <p style={{ whiteSpace: "pre-line" }}>
                   {chosen.description || chosen.short_description}
                 </p>
+                {!loading && (
+                  <CampPriceNote
+                    product={
+                      rows.find((p) => p.id === chosen.id) ?? {
+                        ...chosen,
+                        camp_pricing: undefined,
+                      }
+                    }
+                  />
+                )}
                 {ctx?.auth_id && ctx.role !== "parent" ? (
                   <p>
                     Bitte verwende für einen Kauf ein bestätigtes Elternkonto.

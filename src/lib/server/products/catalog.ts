@@ -23,6 +23,7 @@ import {
 } from "./context";
 import { requireProducts } from "./runtime";
 import { verifyStoredPrice } from "./stripe";
+import { campPricingForCatalog } from "./camp-pricing";
 const hash = (v: unknown) =>
   createHash("sha256").update(JSON.stringify(v)).digest("hex");
 const secret = () => {
@@ -136,6 +137,7 @@ export async function listProducts(
   let after = cursor,
     exhausted = false;
   const rows: any[] = [];
+  const campOfferIds = new Map<string, string>();
   const size = 24;
   do {
     const sortColumn = admin ? "priority" : "published_priority";
@@ -184,7 +186,11 @@ export async function listProducts(
           channel,
           evaluationPlayer,
         );
-        if (decision.visible) rows.push(publicProduct(p, decision));
+        if (decision.visible) {
+          rows.push(publicProduct(p, decision));
+          if (p.published.kind === "camp" && p.published.camp_offer_id)
+            campOfferIds.set(p.id, p.published.camp_offer_id);
+        }
       }
       if (rows.length >= size) {
         exhausted = batch.length <= size && p.id === batch.at(-1)?.id;
@@ -193,6 +199,26 @@ export async function listProducts(
     }
     if (admin || rows.length >= size || batch.length <= size) break;
   } while (true);
+  if (!admin && campOfferIds.size) {
+    const pricing = await campPricingForCatalog(
+      [...campOfferIds.values()],
+      ctx!,
+      player,
+      params.get("new_child") === "true",
+    );
+    for (const row of rows) {
+      const info = pricing.get(campOfferIds.get(row.id) ?? "");
+      // Display only prices tied to the same verified offer used by Checkout.
+      if (
+        info &&
+        row.price?.id === info.price_id &&
+        row.price?.amount === info.amount
+      ) {
+        const { price_id, amount, ...display } = info;
+        row.camp_pricing = display;
+      }
+    }
+  }
   return {
     rows,
     next:

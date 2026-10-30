@@ -13,6 +13,8 @@ import {
 } from "@/lib/camps/domain";
 import { CampError, campApi, date } from "./shared";
 import { CampDiscountCopy } from "./discount-copy";
+import { CampBenefitsEditor } from "./benefits-editor";
+import { CampArchive, CampManagementActions } from "./management";
 import { BookingStatusButton } from "./booking-status";
 import { StripeReview } from "./stripe-review";
 import { FreeCampReview } from "./free-review";
@@ -357,7 +359,11 @@ export function CampDashboard({
     void load();
   }, []);
   useEffect(() => {
-    if (!campId && data?.camps[0]) router.replace(`/camps/${data.camps[0].id}`);
+    const first =
+      data?.role === "parent"
+        ? data.camps[0]
+        : data?.camps.find((c) => c.status !== "archived");
+    if (!campId && first) router.replace(`/camps/${first.id}`);
   }, [campId, data, router]);
   async function action(path: string, body: unknown) {
     setBusy(true);
@@ -454,14 +460,32 @@ export function CampDashboard({
                   router.push(`/camps/${e.target.value}`);
                 }}
               >
-                {data.camps.map((c) => (
-                  <option value={c.id} key={c.id}>
-                    {c.title} ·{" "}
-                    {new Date(c.days[0].starts_at) < new Date()
-                      ? "Vergangen"
-                      : statusLabel[c.status]}
-                  </option>
-                ))}
+                <option value="" disabled>
+                  Camp auswählen
+                </option>
+                <optgroup label="Camps">
+                  {data.camps
+                    .filter((c) => c.status !== "archived")
+                    .map((c) => (
+                      <option value={c.id} key={c.id}>
+                        {c.title} ·{" "}
+                        {new Date(c.days[0].starts_at) < new Date()
+                          ? "Vergangen"
+                          : statusLabel[c.status]}
+                      </option>
+                    ))}
+                </optgroup>
+                {!!data.camps.some((c) => c.status === "archived") && (
+                  <optgroup label="Archivierte Camps">
+                    {data.camps
+                      .filter((c) => c.status === "archived")
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.title} · Archiviert
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
               </select>
             </label>
           )}
@@ -573,27 +597,50 @@ export function CampDashboard({
                           Plätze als Puffer. Ein Platz ist nach erfolgreicher
                           Zahlung gebucht.
                         </p>
+                        <CampManagementActions
+                          camp={camp}
+                          admin={data.role === "admin"}
+                          linked={
+                            data.offers.some((o) => o.camp_id === camp.id) ||
+                            bookings.length > 0
+                          }
+                          onChanged={async (deleted) => {
+                            await load();
+                            setMessage(
+                              deleted
+                                ? "Camp-Entwurf gelöscht."
+                                : camp.status === "archived"
+                                  ? "Camp aus dem Archiv geholt. Die Anmeldung bleibt geschlossen."
+                                  : "Camp archiviert. Buchungen bleiben erhalten.",
+                            );
+                            if (deleted) router.replace("/camps");
+                          }}
+                        />
                         <details className="camp-details">
                           <summary>Buchungslink & Verwaltung</summary>
                           <div className="camp-actions">
-                            <Link
-                              className="primary-button"
-                              href={`/camp/buchung/${camp.id}`}
-                            >
-                              Buchungsformular öffnen
-                            </Link>
-                            <button
-                              className="secondary-button"
-                              onClick={async () => {
-                                await navigator.clipboard.writeText(
-                                  `${location.origin}/camp/buchung/${camp.id}`,
-                                );
-                                setMessage("Formularlink kopiert.");
-                              }}
-                            >
-                              <Copy size={16} />
-                              Link kopieren
-                            </button>
+                            {camp.status !== "archived" && (
+                              <>
+                                <Link
+                                  className="primary-button"
+                                  href={`/camp/buchung/${camp.id}`}
+                                >
+                                  Buchungsformular öffnen
+                                </Link>
+                                <button
+                                  className="secondary-button"
+                                  onClick={async () => {
+                                    await navigator.clipboard.writeText(
+                                      `${location.origin}/camp/buchung/${camp.id}`,
+                                    );
+                                    setMessage("Formularlink kopiert.");
+                                  }}
+                                >
+                                  <Copy size={16} />
+                                  Link kopieren
+                                </button>
+                              </>
+                            )}
                             <button
                               className="secondary-button"
                               disabled={busy}
@@ -606,7 +653,12 @@ export function CampDashboard({
                             </button>
                             <button
                               className="secondary-button"
-                              disabled={busy}
+                              disabled={busy || camp.status === "archived"}
+                              title={
+                                camp.status === "archived"
+                                  ? "Camp zuerst aus dem Archiv holen."
+                                  : undefined
+                              }
                               onClick={() =>
                                 action("status", {
                                   id: camp.id,
@@ -926,44 +978,19 @@ export function CampDashboard({
           {campId && !camp && (
             <CampError message="Dieses Camp ist nicht verfügbar." />
           )}
+          {team && view === "overview" && (
+            <CampArchive
+              camps={data.camps.filter((c) => c.status === "archived")}
+              admin={data.role === "admin"}
+              linkedIds={[
+                ...data.offers.map((o) => o.camp_id),
+                ...data.bookings.map((b) => b.camp_id),
+              ]}
+              onChanged={load}
+            />
+          )}
           {data.role === "admin" && view === "overview" && (
-            <details className="camp-panel camp-details">
-              <summary>Camp-Vorteile der Abo-Tarife</summary>
-              <p>
-                Lege fest, welchen Camp-Rabatt Kinder mit einem aktiven Abo
-                erhalten.
-              </p>
-              {data.plans.map((p) => (
-                <label className="camp-plan" key={p.id}>
-                  <span>
-                    {p.name} ·{" "}
-                    {{
-                      legacy: "Bestandstarif",
-                      current: "Aktueller Tarif",
-                      special: "Sondertarif",
-                    }[p.generation] ?? p.generation}{" "}
-                    · {p.billing_interval === "year" ? "Jahr" : "Monat"}
-                  </span>
-                  <select
-                    disabled={busy}
-                    value={p.camp_benefit_percent ?? ""}
-                    onChange={(e) =>
-                      action("benefit", {
-                        id: p.id,
-                        percent: e.target.value ? Number(e.target.value) : null,
-                      })
-                    }
-                  >
-                    <option value="">Kein Vorteil</option>
-                    {[10, 15, 20].map((n) => (
-                      <option key={n} value={n}>
-                        {n} %
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
-            </details>
+            <CampBenefitsEditor plans={data.plans} />
           )}
         </>
       )}

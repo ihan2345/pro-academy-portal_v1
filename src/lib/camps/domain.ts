@@ -13,6 +13,11 @@ export function childBookingStatus(
 export const benefitSchema = z
   .union([z.literal(10), z.literal(15), z.literal(20)])
   .nullable();
+export const campBenefitUpdateSchema = z.object({
+  // Seeded tariff IDs are valid PostgreSQL UUIDs without RFC version bits.
+  id: z.guid(),
+  percent: benefitSchema,
+});
 export const childSchema = z.object({
   first_name: z.string().trim().min(1).max(80),
   last_name: z.string().trim().min(1).max(80),

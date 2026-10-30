@@ -28,7 +28,8 @@ import {
   approveFreeCampBooking,
 } from "@/lib/camps/free-review";
 import { campAppOrigin } from "@/lib/camps/runtime";
-import { benefitSchema } from "@/lib/camps/domain";
+import { campBenefitUpdateSchema } from "@/lib/camps/domain";
+import { deleteUnusedCamp } from "@/lib/camps/management";
 import { serviceDb, sessionDb } from "@/lib/server/supabase";
 import { HttpError } from "@/lib/server/security";
 
@@ -132,23 +133,29 @@ async function handler(
         const s = await campSession(true);
         if (s.role !== "admin")
           throw new HttpError(403, "Tarifvorteile verwaltet der Admin.");
-        const b = z
-          .object({ id: z.uuid(), percent: benefitSchema })
-          .parse(body);
+        const b = campBenefitUpdateSchema.parse(body);
         const r = await serviceDb()
           .from("plans")
           .update({ camp_benefit_percent: b.percent })
           .eq("id", b.id)
           .or("is_camp.is.null,is_camp.eq.false")
-          .select("id")
+          .select("id,camp_benefit_percent")
           .single();
         if (r.error)
           throw new HttpError(
             400,
             "Tarifvorteil konnte nicht gespeichert werden.",
           );
-        return json({ ok: true });
+        return json({
+          ok: true,
+          id: r.data.id,
+          percent: r.data.camp_benefit_percent,
+        });
       }
+      if (path === "delete")
+        return json(
+          await deleteUnusedCamp(z.object({ id: z.guid() }).parse(body).id),
+        );
       if (path === "status") {
         await campSession(true);
         const b = z

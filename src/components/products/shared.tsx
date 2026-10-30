@@ -8,6 +8,8 @@ import {
   ArrowUpRight,
   ArrowLeft,
   ArrowRight,
+  Sparkles,
+  BadgePercent,
 } from "lucide-react";
 import {
   priceLabel,
@@ -17,6 +19,7 @@ import {
   type ProductPrice,
 } from "@/lib/products/domain";
 import type { Decision } from "@/lib/products/policy";
+import type { CampPricing } from "@/lib/products/camp-pricing";
 export async function productRequest<T = any>(
   url: string,
   method = "GET",
@@ -208,7 +211,82 @@ export type ProductDisplay = Pick<
   | "asset_ids"
   | "training_content"
 > &
-  Partial<Pick<Product, "effect_color" | "sale_enabled" | "sale_audiences">>;
+  Partial<Pick<Product, "effect_color" | "sale_enabled" | "sale_audiences">> & {
+    camp_pricing?: CampPricing;
+  };
+
+export function CampPriceNote({ product }: { product: ProductDisplay }) {
+  const info = product.camp_pricing;
+  if (
+    product.kind !== "camp" ||
+    !info ||
+    (!info.early_until && !info.benefit_available)
+  )
+    return null;
+  const personal = info.personal_amount != null;
+  return (
+    <div className="product-camp-price-note">
+      <div className="product-camp-price-badges">
+        {info.early_until && (
+          <span className="product-early-badge">
+            <Sparkles size={13} aria-hidden="true" /> Frühbucher
+          </span>
+        )}
+        {info.benefit_available && (
+          <span className="product-benefit-badge">
+            <BadgePercent size={14} aria-hidden="true" />
+            {personal ? `${info.percent} % Abo-Vorteil` : "Abo-Vorteil möglich"}
+          </span>
+        )}
+      </div>
+      {info.benefit_available && (
+        <div className="product-personal-price">
+          <span className="product-personal-price-heading">
+            {personal ? "Dein persönlicher Preis" : "Dein Abo-Vorteil"}
+            <Hint>
+              {personal
+                ? `${info.percent} % Abo-Vorteil für ${info.child_name} auf den ${info.early_until ? "bereits reduzierten Frühbucherpreis" : "Camppreis"}. Der Vorteil wird beim Buchen automatisch berücksichtigt.`
+                : "Mit einem berechtigten aktiven Abo erhält dein Kind einen zusätzlichen Camp-Vorteil – auch auf den Frühbucherpreis. Melde dich an und wähle dein Kind aus, um deinen persönlichen Preis zu sehen."}
+            </Hint>
+          </span>
+          {personal ? (
+            <>
+              <strong>
+                {new Intl.NumberFormat("de-DE", {
+                  style: "currency",
+                  currency: product.price?.currency ?? "eur",
+                }).format(info.personal_amount! / 100)}
+              </strong>
+              <small>
+                Für {info.child_name} ·{" "}
+                {info.early_until
+                  ? "Frühbucher + Abo-Vorteil"
+                  : "Abo-Vorteil inklusive"}
+              </small>
+            </>
+          ) : (
+            <small>
+              {info.child_name
+                ? "Für dieses Kind ist aktuell kein zusätzlicher Vorteil hinterlegt."
+                : "Anmelden & Kind auswählen"}
+            </small>
+          )}
+        </div>
+      )}
+      {info.early_until && (
+        <small className="product-early-deadline">
+          Bis{" "}
+          {new Intl.DateTimeFormat("de-DE", {
+            timeZone: "Europe/Berlin",
+            dateStyle: "medium",
+            timeStyle: "short",
+          }).format(new Date(info.early_until))}{" "}
+          Uhr
+        </small>
+      )}
+    </div>
+  );
+}
 function saleApplies(
   product: ProductDisplay,
   decision?: Decision,
@@ -476,6 +554,7 @@ export function ProductCard({
                 ? "pro Jahr"
                 : "einmalig"}
           </span>
+          <CampPriceNote product={product} />
         </div>
       </article>
     );
@@ -527,6 +606,7 @@ export function ProductCard({
           )}
           {priceLabel(product.price)}
         </div>
+        <CampPriceNote product={product} />
         {action}
         {decision?.reasons.length ? <small>{decision.reasons[0]}</small> : null}
       </div>
