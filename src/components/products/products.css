@@ -2521,3 +2521,24 @@
 .product-purchase-form + .product-camp-price-note {
   margin-top: 0;
 }
+.product-camp-source {
+  padding: 18px;
+  border-radius: 17px;
+  border: 1px solid #e6e1ee;
+  background: linear-gradient(135deg, #faf8ff, #fff);
+  margin: 15px 0;
+}
+.product-camp-source strong {
+  font-size: 12px;
+}
+.product-camp-source p {
+  font-size: 12px;
+  margin: 13px 0;
+}
+.product-camp-source small {
+  display: block;
+  color: #8b7d9e;
+  font-size: 10px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}

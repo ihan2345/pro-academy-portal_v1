@@ -173,3 +173,55 @@ describe("Camp payment confirmation", () => {
     );
   });
 });
+
+it("confirms a link-free native checkout with matching Camp metadata and rejects a different session", async () => {
+  Object.assign(f.booking, {
+    booking_origin: "portal_checkout",
+    checkout_session_id: "cs_live_free",
+    offer_id: "offer_current",
+    stripe_payment_link_id: null,
+  });
+  Object.assign(f.session, {
+    payment_link: null,
+    metadata: {
+      camp_id: f.booking.camp_id,
+      camp_booking_id: f.booking.id,
+      camp_offer_id: "offer_current",
+    },
+    payment_intent: "pi_paid",
+    amount_total: 17518,
+    total_details: { amount_discount: 3092, amount_shipping: 0 },
+  });
+  f.retrievePayment.mockResolvedValue({
+    livemode: true,
+    status: "succeeded",
+    currency: "eur",
+    amount_received: 17518,
+    latest_charge: {
+      livemode: true,
+      paid: true,
+      currency: "eur",
+      amount: 17518,
+      payment_intent: "pi_paid",
+    },
+  });
+  expect(await confirmPayment("cs_live_free", true)).toMatchObject({
+    status: "paid",
+  });
+  expect(f.rpc).toHaveBeenCalledWith("camp_confirm_payment", {
+    input: expect.objectContaining({
+      booking_id: f.booking.id,
+      payment_link_id: null,
+      subtotal: 20610,
+      total: 17518,
+    }),
+  });
+  f.rpc.mockClear();
+  f.session.metadata.camp_offer_id = "other_offer";
+  await expect(confirmPayment("cs_live_free", true)).rejects.toThrow(
+    "Checkout gehört nicht",
+  );
+  expect(
+    f.rpc.mock.calls.some(([name]) => name === "camp_confirm_payment"),
+  ).toBe(false);
+});

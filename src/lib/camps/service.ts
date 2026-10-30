@@ -20,6 +20,7 @@ import {
   campStripe,
   checkoutUrl,
   createCampOffer,
+  createCampCheckout,
   verifyOffer,
 } from "./stripe";
 
@@ -187,7 +188,12 @@ export async function publicCamp(id: string) {
     occupied,
     maximum: maximumSeats(camp),
     offer: offer
-      ? { kind: offer.kind, amount: offer.amount, currency: offer.currency }
+      ? {
+          kind: offer.kind,
+          amount: offer.amount,
+          currency: offer.currency,
+          automatic_benefit: !offer.stripe_payment_link_id,
+        }
       : null,
     context: {
       ...context,
@@ -211,6 +217,7 @@ export async function discount(campId: string, playerId: string) {
   return {
     percent,
     code: percent ? (offer?.codes[String(percent)] ?? null) : null,
+    automatic: !offer?.stripe_payment_link_id,
     booking_status: null,
   };
 }
@@ -365,11 +372,12 @@ export async function createBooking(input: unknown) {
       );
     bookingCodes[String(benefit.percent)] = code;
   }
-  await verifyOffer(
-    offer.stripe_price_id,
-    offer.stripe_payment_link_id,
-    bookingCodes,
-  );
+  if (offer.stripe_payment_link_id)
+    await verifyOffer(
+      offer.stripe_price_id,
+      offer.stripe_payment_link_id,
+      bookingCodes,
+    );
   const id = randomUUID();
   check(
     await db.from("camp_bookings").insert({
@@ -387,8 +395,27 @@ export async function createBooking(input: unknown) {
       currency: offer.currency,
       stripe_price_id: offer.stripe_price_id,
       stripe_payment_link_id: offer.stripe_payment_link_id,
+      booking_origin: offer.stripe_payment_link_id
+        ? "checkout"
+        : "portal_checkout",
     }),
   );
+  if (!offer.stripe_payment_link_id) {
+    const session = await createCampCheckout(
+      offer,
+      id,
+      body.parent.email,
+      benefit.percent,
+      campAppOrigin(),
+    );
+    check(
+      await db
+        .from("camp_bookings")
+        .update({ checkout_session_id: session.id })
+        .eq("id", id),
+    );
+    return { id, url: session.url };
+  }
   return { id, url: checkoutUrl(offer, id, body.parent.email) };
 }
 export async function confirmPayment(sessionId: string, asAdmin = false) {
@@ -418,6 +445,15 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
       "Buchung nicht gefunden. Bitte Academy kontaktieren.",
     );
   await getCamp(b.camp_id);
+  if (
+    b.booking_origin === "portal_checkout" &&
+    (b.checkout_session_id !== s.id ||
+      s.metadata?.camp_booking_id !== b.id ||
+      s.metadata?.camp_id !== b.camp_id ||
+      s.metadata?.camp_offer_id !== b.offer_id ||
+      s.payment_link)
+  )
+    throw new HttpError(400, "Checkout gehört nicht zu dieser Camp-Buchung.");
   if (!asAdmin && b.browser_token_hash !== (await browserHash()))
     throw new HttpError(403, "Zahlung gehört nicht zu diesem Buchungsablauf.");
   if (b.status === "cancelled")
@@ -463,7 +499,9 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
     s.amount_total === 0 &&
     off === b.expected_amount;
   const paymentLink =
-    typeof s.payment_link === "string" ? s.payment_link : s.payment_link?.id;
+    typeof s.payment_link === "string"
+      ? s.payment_link
+      : (s.payment_link?.id ?? null);
   if (
     line.price?.id !== b.stripe_price_id ||
     paymentLink !== b.stripe_payment_link_id ||
@@ -535,10 +573,7 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
         livemode: s.livemode,
         payment_status: s.payment_status,
         price_id: line.price?.id,
-        payment_link_id:
-          typeof s.payment_link === "string"
-            ? s.payment_link
-            : s.payment_link?.id,
+        payment_link_id: paymentLink,
         payment_id: paymentId ?? s.id,
         proof_kind: noCost ? "no_cost_checkout" : "payment_intent",
         customer_id:
@@ -559,8 +594,8 @@ export async function confirmPayment(sessionId: string, asAdmin = false) {
       await db
         .from("camp_stripe_assets")
         .select("id")
-        .eq("id", b.stripe_payment_link_id)
-        .eq("kind", "payment_link"),
+        .eq("id", b.stripe_payment_link_id ?? b.stripe_price_id)
+        .eq("kind", b.stripe_payment_link_id ? "payment_link" : "price"),
     );
     if (owned.length)
       check(
@@ -717,17 +752,29 @@ export async function dashboard() {
       ...(await childBenefit(c.id)),
     })),
   );
+  const visibleCamps = camps.filter(
+    (c) =>
+      c.status === "open" ||
+      (ids.length && bookings.some((b) => b.camp_id === c.id)),
+  );
+  const publicOffers = visibleCamps.length
+    ? check(
+        await db
+          .from("camp_offers")
+          .select("camp_id,kind,amount,currency")
+          .in(
+            "camp_id",
+            visibleCamps.map((c) => c.id),
+          ),
+      )
+    : [];
   return {
     role: session.role,
-    camps: camps.filter(
-      (c) =>
-        c.status === "open" ||
-        (ids.length && bookings.some((b) => b.camp_id === c.id)),
-    ),
+    camps: visibleCamps,
+    offers: publicOffers,
     bookings,
     reports,
     children,
-    offers: [],
     plans: [],
     locations: [],
   };
@@ -793,6 +840,12 @@ export async function saveCamp(input: unknown, appUrl: string) {
       status: "draft",
     }),
   );
+  let sharedProductId: string | undefined = check(
+    await db
+      .from("camp_offers")
+      .select("stripe_product_id")
+      .eq("camp_id", campId),
+  )[0]?.stripe_product_id;
   for (const kind of ["main", "early"] as const) {
     const supplied = kind === "main" ? main : early,
       amount = kind === "main" ? extra.main_amount : extra.early_amount;
@@ -811,7 +864,15 @@ export async function saveCamp(input: unknown, appUrl: string) {
           supplied.payment_link_id,
           supplied.codes,
         )
-      : await createCampOffer(campId, fields.title, kind, amount!, appUrl);
+      : await createCampOffer(
+          campId,
+          fields.title,
+          kind,
+          amount!,
+          appUrl,
+          sharedProductId,
+        );
+    sharedProductId ??= offer.stripe_product_id;
     check(
       await db.rpc("camp_save_offer", {
         input: { ...offer, camp_id: campId, kind },
@@ -839,9 +900,9 @@ export async function reconcileCamp(id: string) {
     stripe = campStripe();
   let checked = 0;
   const errors: string[] = [];
-  for (const offer of offers) {
+  for (const offer of offers.filter((o) => o.stripe_payment_link_id)) {
     for await (const s of stripe.checkout.sessions.list({
-      payment_link: offer.stripe_payment_link_id,
+      payment_link: offer.stripe_payment_link_id!,
       limit: 100,
     })) {
       if (s.payment_status !== "paid") continue;
@@ -853,6 +914,26 @@ export async function reconcileCamp(id: string) {
           `${s.id}: ${e instanceof Error ? e.message : "Prüfung fehlgeschlagen"}`,
         );
       }
+    }
+  }
+  const portalBookings = check(
+    await serviceDb()
+      .from("camp_bookings")
+      .select("checkout_session_id")
+      .eq("camp_id", id)
+      .eq("booking_origin", "portal_checkout"),
+  );
+  for (const booking of portalBookings) {
+    if (!booking.checkout_session_id) continue;
+    try {
+      await confirmPayment(booking.checkout_session_id, true);
+      checked++;
+    } catch (e) {
+      errors.push(
+        e instanceof Error
+          ? e.message
+          : "Checkout konnte nicht geprüft werden.",
+      );
     }
   }
   return { checked, errors };

@@ -23,6 +23,7 @@ import {
 } from "./context";
 import { requireProducts } from "./runtime";
 import { verifyStoredPrice } from "./stripe";
+import { campProductSnapshots, withCampSnapshot } from "./camp-product";
 import { campPricingForCatalog } from "./camp-pricing";
 const hash = (v: unknown) =>
   createHash("sha256").update(JSON.stringify(v)).digest("hex");
@@ -169,6 +170,13 @@ export async function listProducts(
         `${sortColumn}.lt.${after.sort},and(${sortColumn}.eq.${after.sort},created_at.lt.${after.created}),and(${sortColumn}.eq.${after.sort},created_at.eq.${after.created},id.lt.${after.id})`,
       );
     const batch = checked<any[]>(await query);
+    const campSnapshots = admin
+      ? new Map()
+      : await campProductSnapshots(
+          batch
+            .slice(0, size)
+            .flatMap((p) => (p.published ? [p.published] : [])),
+        );
     exhausted = batch.length <= size;
     for (const p of batch.slice(0, size)) {
       after = {
@@ -179,6 +187,10 @@ export async function listProducts(
       };
       if (admin) rows.push(p);
       else if (p.published) {
+        p.published = withCampSnapshot(
+          p.published,
+          campSnapshots.get(p.published.camp_offer_id),
+        );
         const decision = decideProduct(
           p.published,
           p.id,
@@ -295,7 +307,7 @@ export async function productReferences(session: ProfileSession) {
       db
         .from("camp_offers")
         .select(
-          "id,kind,camp_id,stripe_price_id,stripe_product_id,amount,currency,camps!inner(title,status,payment_mode)",
+          "id,kind,camp_id,stripe_price_id,stripe_product_id,amount,currency,camps!inner(title,description,days,early_bird_until,status,payment_mode)",
         )
         .eq("camps.payment_mode", productLiveMode() ? "live" : "test"),
     ),

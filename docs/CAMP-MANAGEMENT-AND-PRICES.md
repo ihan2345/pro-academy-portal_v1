@@ -25,3 +25,5 @@ Am 30.10.2026 auf ausdrücklichen Nutzerauftrag veröffentlicht. Funktionscommit
 - Vorhandene Konfigurationswerte und Bindings sind unverändert. Keine Datenbankmigration, kein Jobs-Deployment und keine produktive Datenbereinigung ausgeführt. Die Buchungs-/Löschaktionen wurden online nicht an Kundendaten erprobt.
 
 Private Veröffentlichungsnachweise liegen unter `output/camp-management-release/`.
+
+Die anschließende Erweiterung um eine Camp-Kartenübersicht und die gemeinsame Camp-/Shop-Preisquelle ist in [CAMP-UNIFIED-CHECKOUT.md](CAMP-UNIFIED-CHECKOUT.md) beschrieben.

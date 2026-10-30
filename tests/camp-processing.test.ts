@@ -19,7 +19,8 @@ vi.mock("../src/lib/server/service-db", () => ({
         },
         eq(field: string, value: unknown) {
           data = data.filter(
-            (row) => (row as Record<string, unknown>)[field] === value,
+            (row) =>
+              field.split(".").reduce((v: any, k) => v?.[k], row) === value,
           );
           return chain;
         },
@@ -27,6 +28,28 @@ vi.mock("../src/lib/server/service-db", () => ({
           data = data.filter((row) =>
             values.includes((row as Record<string, unknown>)[field]),
           );
+          return chain;
+        },
+        is(field: string, value: unknown) {
+          data = data.filter((r: any) => (r[field] ?? null) === value);
+          return chain;
+        },
+        gt(field: string, value: string) {
+          data = data.filter((r: any) => r[field] > value);
+          return chain;
+        },
+        limit() {
+          return chain;
+        },
+        order() {
+          return chain;
+        },
+        range(from: number, to: number) {
+          data = data.slice(from, to + 1);
+          return chain;
+        },
+        update() {
+          fixture.operations.push(`update:${table}`);
           return chain;
         },
         maybeSingle() {
@@ -269,4 +292,55 @@ describe("separate Camp processing", () => {
     );
     expect(fixture.operations).toContain("delete:camp_processing_lease");
   });
+});
+
+it("queues a link-free Camp payment only for the recorded booking/session and reconciles it", async () => {
+  fixture.tables.camp_bookings = [
+    {
+      id: booking,
+      camp_id: camp,
+      offer_id: "offer_current",
+      booking_origin: "portal_checkout",
+      checkout_session_id: "cs_live_native",
+      status: "draft",
+      created_at: new Date().toISOString(),
+      camps: { payment_mode: "live" },
+    },
+  ];
+  fixture.retrieve.mockResolvedValue({
+    id: "cs_live_native",
+    livemode: true,
+    mode: "payment",
+    payment_link: null,
+    client_reference_id: booking,
+    metadata: {
+      camp_id: camp,
+      camp_offer_id: "offer_current",
+      camp_booking_id: booking,
+    },
+  });
+  await expect(enqueueCampEvent(event)).resolves.toEqual({ received: true });
+  expect(fixture.upsert).toHaveBeenCalledWith(
+    expect.objectContaining({
+      camp_id: camp,
+      payment_link_id: null,
+      session_id: "cs_live_native",
+    }),
+    expect.anything(),
+  );
+  await runCampProcessing();
+  expect(fixture.confirm).toHaveBeenCalledWith("cs_live_native", true);
+  fixture.retrieve.mockResolvedValue({
+    id: "cs_live_unrelated",
+    livemode: true,
+    mode: "payment",
+    payment_link: null,
+    client_reference_id: booking,
+    metadata: {
+      camp_id: camp,
+      camp_offer_id: "offer_current",
+      camp_booking_id: booking,
+    },
+  });
+  await expect(enqueueCampEvent(event)).resolves.toEqual({ ignored: true });
 });

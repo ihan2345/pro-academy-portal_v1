@@ -712,3 +712,204 @@
     transition: none;
   }
 }
+.camp-back-link {
+  display: inline-flex;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: #8b739f;
+}
+.camp-overview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin: 26px 0 22px;
+}
+.camp-overview-toolbar h2 {
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  margin: 0 0 5px;
+}
+.camp-overview-toolbar p {
+  font-size: 11px;
+  color: #969ba7;
+  margin: 0;
+}
+.camp-segments {
+  display: inline-flex;
+  gap: 3px;
+  padding: 4px;
+  background: #e9eaf0ab;
+  border: 1px solid #dce0e64d;
+  border-radius: 13px;
+}
+.camp-segments button {
+  padding: 8px 14px;
+  border-radius: 9px;
+  color: #8c919e;
+  font-size: 11px;
+  font-weight: 550;
+  background: transparent;
+  border: 0;
+}
+.camp-segments button[aria-pressed="true"] {
+  background: #ffffffeb;
+  color: #555061;
+  box-shadow: 0 2px 6px #25314c0d;
+}
+.camp-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+  gap: 22px;
+}
+.camp-overview-card {
+  display: flex;
+  flex-direction: column;
+  padding: 25px;
+  border-radius: 26px;
+  border: 1px solid #ffffffd9;
+  background: linear-gradient(145deg, #fffefef5, #f7f5fbe0);
+  box-shadow:
+    0 8px 30px #25314c07,
+    inset 0 0 0 1px #25314c0b;
+  color: #35404f;
+  text-decoration: none;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.camp-overview-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px #56436d12;
+}
+.camp-overview-card:focus-visible,
+.camp-segments button:focus-visible {
+  outline: 3px solid #b4a0cc;
+  outline-offset: 4px;
+}
+.camp-overview-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 27px;
+}
+.camp-overview-icon {
+  width: 49px;
+  height: 49px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eae2f6, #f4f0f9);
+  color: #9276ac;
+  border: 1px solid #d7c9e638;
+}
+.camp-overview-status {
+  padding: 7px 10px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 550;
+  background: #eceef3;
+  color: #969aa6;
+}
+.camp-overview-status.open {
+  color: #6c8c3d;
+  background: #eaf3df;
+}
+.camp-overview-status.quiet {
+  color: #a08b63;
+  background: #f4efe5;
+}
+.camp-overview-eyebrow {
+  font-size: 8px;
+  letter-spacing: 1.6px;
+  color: #a48db5;
+  margin-bottom: 8px;
+}
+.camp-overview-card h3 {
+  font-size: 20px;
+  letter-spacing: -0.035em;
+  line-height: 1.25;
+  margin: 0;
+}
+.camp-overview-description {
+  font-size: 12px;
+  line-height: 1.75;
+  color: #979aaa;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 12px 0 22px;
+}
+.camp-overview-card dl {
+  display: grid;
+  gap: 13px;
+  margin: auto 0 23px;
+}
+.camp-overview-card dl > div {
+  display: grid;
+  grid-template-columns: 85px minmax(0, 1fr);
+  gap: 10px;
+}
+.camp-overview-card dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #a0a4af;
+  font-size: 10px;
+}
+.camp-overview-card dd {
+  margin: 0;
+  font-size: 11px;
+  color: #7c8393;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.camp-overview-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+  border-top: 1px solid #25314c09;
+  padding-top: 17px;
+}
+.camp-overview-card-footer > div {
+  display: grid;
+  gap: 4px;
+}
+.camp-overview-card-footer small {
+  font-size: 9px;
+  color: #a0a4af;
+}
+.camp-overview-card-footer strong {
+  font-size: 19px;
+  color: #6e5a81;
+  letter-spacing: -0.025em;
+}
+.camp-overview-card-footer > span {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: #8b739f;
+  font-size: 11px;
+  font-weight: 600;
+}
+.camp-overview-empty {
+  text-align: center;
+  color: #969ba7;
+}
+@media (prefers-reduced-motion: reduce) {
+  .camp-overview-card {
+    transition: none;
+  }
+  .camp-overview-card:hover {
+    transform: none;
+  }
+}
+.camp-dashboard
+  a.camp-overview-card:not(.primary-button):not(.secondary-button) {
+  text-decoration: none;
+}

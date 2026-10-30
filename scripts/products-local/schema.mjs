@@ -40,6 +40,7 @@ export function productSchemaFiles() {
       "030-stripe-notice-decisions.sql",
       "031-product-guest-checkout.sql",
       "032-product-presentation.sql",
+      "033-camp-unified-checkout.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

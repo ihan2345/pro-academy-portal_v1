@@ -1,3 +1,4 @@
+import { activeCampProduct } from "./camp-product";
 import { productLiveMode } from "./runtime";
 import { recordInvoicePayments } from "./payments";
 import { productIdSchema } from "@/lib/products/domain";
@@ -247,6 +248,7 @@ export async function checkoutProduct(
       return resumed;
     }
   }
+  p.published = await activeCampProduct(p.published);
   const decision = decideProduct(p.published, id, ctx, input.channel, playerId);
   if (!decision.purchasable || decision.mode === "change")
     throw new HttpError(
@@ -415,6 +417,8 @@ export async function checkoutProduct(
       customer_id: customerId,
       amount,
       benefit_percent: benefit,
+      camp_offer_id:
+        p.published.kind === "camp" ? p.published.camp_offer_id : undefined,
       camp_details: campDetails,
       channel: input.channel,
     },

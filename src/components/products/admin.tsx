@@ -1076,67 +1076,173 @@ export function AdminProducts() {
               </>
             )}
             {data.kind === "camp" && (
-              <SearchSelect
-                label="Campangebot"
-                value={data.camp_offer_id ?? ""}
-                options={refs.offers.map((o: any) => ({
-                  value: o.id,
-                  label: `${o.camps.title} · ${o.kind === "early" ? "Frühbucher" : "Normalangebot"} · ${o.camps.status}`,
-                }))}
-                onChange={(value) => {
-                  const o = refs.offers.find((o: any) => o.id === value);
-                  update({ camp_offer_id: value || null, price: null });
-                  setPriceId(o?.stripe_price_id ?? "");
-                  setProductId(o?.stripe_product_id ?? "");
-                }}
-              />
+              <>
+                <SearchSelect
+                  label="Camp auswählen"
+                  value={
+                    refs.offers.find(
+                      (o: any) =>
+                        o.kind === "main" &&
+                        o.camp_id ===
+                          refs.offers.find(
+                            (r: any) => r.id === data.camp_offer_id,
+                          )?.camp_id,
+                    )?.id ??
+                    data.camp_offer_id ??
+                    ""
+                  }
+                  options={refs.offers
+                    .filter((o: any) => o.kind === "main")
+                    .map((o: any) => ({
+                      value: o.id,
+                      label: `${o.camps.title} · ${o.camps.status}`,
+                    }))}
+                  onChange={(value) =>
+                    void run(async () => {
+                      if (!value) {
+                        update({ camp_offer_id: null, price: null });
+                        setPriceId("");
+                        setProductId("");
+                        return;
+                      }
+                      const o = refs.offers.find((o: any) => o.id === value);
+                      const price = await productRequest(
+                        `${base}/camp-price`,
+                        "POST",
+                        { id: value },
+                      );
+                      const hours = o.camps.days?.reduce(
+                        (sum: number, d: any) =>
+                          sum +
+                          (Date.parse(d.ends_at) - Date.parse(d.starts_at)) /
+                            3600000,
+                        0,
+                      );
+                      update({
+                        camp_offer_id: value,
+                        price,
+                        ...(!data.name ? { name: o.camps.title } : {}),
+                        ...(!data.description
+                          ? { description: o.camps.description }
+                          : {}),
+                        ...(!data.training_content?.camp_hours && hours
+                          ? {
+                              training_content: {
+                                ...data.training_content,
+                                camp_hours: hours,
+                              },
+                            }
+                          : {}),
+                      });
+                      setPriceId(price.id);
+                      setProductId(price.product_id);
+                      setNotice(
+                        "Campdaten und geprüfte Stripe-Zuordnung übernommen.",
+                      );
+                    })
+                  }
+                />
+                {data.camp_offer_id && (
+                  <div className="product-camp-source">
+                    <strong>Preise und Buchungsdaten aus dem Camp</strong>
+                    {refs.offers
+                      .filter(
+                        (o: any) =>
+                          o.camp_id ===
+                          refs.offers.find(
+                            (r: any) => r.id === data.camp_offer_id,
+                          )?.camp_id,
+                      )
+                      .map((o: any) => (
+                        <p key={o.id}>
+                          {o.kind === "early"
+                            ? "Frühbucherpreis"
+                            : "Normalpreis"}
+                          :{" "}
+                          {new Intl.NumberFormat("de-DE", {
+                            style: "currency",
+                            currency: o.currency,
+                          }).format(o.amount / 100)}
+                          <small>{o.stripe_price_id}</small>
+                        </p>
+                      ))}
+                    {refs.offers.find((o: any) => o.id === data.camp_offer_id)
+                      ?.camps.early_bird_until && (
+                      <small>
+                        Frühbucher bis{" "}
+                        {new Intl.DateTimeFormat("de-DE", {
+                          timeZone: "Europe/Berlin",
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }).format(
+                          new Date(
+                            refs.offers.find(
+                              (o: any) => o.id === data.camp_offer_id,
+                            ).camps.early_bird_until,
+                          ),
+                        )}{" "}
+                        Uhr
+                      </small>
+                    )}
+                    <small>
+                      Beim Kauf gilt automatisch der aktuelle Camppreis,
+                      zusätzlich zum berechtigten Abo-Vorteil. Änderungen an den
+                      Preisen erfolgen im Camp.
+                    </small>
+                  </div>
+                )}
+              </>
             )}
-            <div className="product-inline-fields">
-              <label>
-                Stripe Price-ID
-                <input
-                  value={priceId}
-                  placeholder="price_…"
-                  onChange={(e) => {
-                    setPriceId(e.target.value);
-                    if (data.price) update({ price: null });
-                  }}
-                />
-              </label>
-              <label>
-                Stripe Product-ID <small>Optionaler Gegencheck</small>
-                <input
-                  value={productId}
-                  placeholder="prod_…"
-                  onChange={(e) => {
-                    setProductId(e.target.value);
-                    if (data.price) update({ price: null });
-                  }}
-                />
-              </label>
-            </div>
-            <button
-              className="secondary-button"
-              disabled={busy || !priceId}
-              onClick={() =>
-                void run(async () => {
-                  const price = await productRequest(
-                    `${base}/validate-price`,
-                    "POST",
-                    {
-                      id: priceId,
-                      kind: data.kind,
-                      ...(productId ? { product_id: productId } : {}),
-                    },
-                  );
-                  update({ price });
-                  setProductId(price.product_id);
-                  setNotice("Stripe-Preis erfolgreich geprüft.");
-                })
-              }
-            >
-              <ShieldCheck size={17} /> Preis prüfen
-            </button>
+            {data.kind !== "camp" && (
+              <>
+                <div className="product-inline-fields">
+                  <label>
+                    Stripe Price-ID
+                    <input
+                      value={priceId}
+                      placeholder="price_…"
+                      onChange={(e) => {
+                        setPriceId(e.target.value);
+                        if (data.price) update({ price: null });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Stripe Product-ID <small>Optionaler Gegencheck</small>
+                    <input
+                      value={productId}
+                      placeholder="prod_…"
+                      onChange={(e) => {
+                        setProductId(e.target.value);
+                        if (data.price) update({ price: null });
+                      }}
+                    />
+                  </label>
+                </div>
+                <button
+                  className="secondary-button"
+                  disabled={busy || !priceId}
+                  onClick={() =>
+                    void run(async () => {
+                      const price = await productRequest(
+                        `${base}/validate-price`,
+                        "POST",
+                        {
+                          id: priceId,
+                          kind: data.kind,
+                          ...(productId ? { product_id: productId } : {}),
+                        },
+                      );
+                      update({ price });
+                      setProductId(price.product_id);
+                      setNotice("Stripe-Preis erfolgreich geprüft.");
+                    })
+                  }
+                >
+                  <ShieldCheck size={17} /> Preis prüfen
+                </button>
+              </>
+            )}
             {data.price && (
               <div className="product-price-proof">
                 <Check size={20} />

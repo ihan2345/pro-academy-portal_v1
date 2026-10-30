@@ -14,6 +14,7 @@ import {
 import { CampError, campApi, date } from "./shared";
 import { CampDiscountCopy } from "./discount-copy";
 import { CampBenefitsEditor } from "./benefits-editor";
+import { CampOverview } from "./overview";
 import { CampArchive, CampManagementActions } from "./management";
 import { BookingStatusButton } from "./booking-status";
 import { StripeReview } from "./stripe-review";
@@ -358,13 +359,6 @@ export function CampDashboard({
   useEffect(() => {
     void load();
   }, []);
-  useEffect(() => {
-    const first =
-      data?.role === "parent"
-        ? data.camps[0]
-        : data?.camps.find((c) => c.status !== "archived");
-    if (!campId && first) router.replace(`/camps/${first.id}`);
-  }, [campId, data, router]);
   async function action(path: string, body: unknown) {
     setBusy(true);
     setError("");
@@ -399,6 +393,11 @@ export function CampDashboard({
     );
   return (
     <div className="camp-dashboard">
+      {campId && (
+        <Link className="camp-back-link" href="/camps">
+          ← Alle Camps
+        </Link>
+      )}
       <div className="page-heading">
         <div>
           <div className="camp-eyebrow">GEMEINSAM AUF DEN PLATZ</div>
@@ -451,7 +450,10 @@ export function CampDashboard({
               </p>
             </section>
           )}
-          {!!data.camps.length && (
+          {!campId && !!data.camps.length && (
+            <CampOverview camps={data.camps} offers={data.offers ?? []} />
+          )}
+          {!!campId && !!data.camps.length && (
             <label className="camp-select">
               Camp auswählen
               <select
@@ -733,7 +735,7 @@ export function CampDashboard({
                                 <a
                                   target="_blank"
                                   rel="noreferrer"
-                                  href={`https://dashboard.stripe.com/${camp.payment_mode === "test" ? "test/" : ""}payment_links/${o.stripe_payment_link_id}`}
+                                  href={`https://dashboard.stripe.com/${camp.payment_mode === "test" ? "test/" : ""}${o.stripe_payment_link_id ? `payment_links/${o.stripe_payment_link_id}` : `products/${o.stripe_product_id}`}`}
                                 >
                                   Zahlungsangebot verwalten
                                 </a>

@@ -464,6 +464,7 @@ it("confirms an API Camp checkout through the existing payment/capacity routine 
       player_id: kid,
       customer_id: "cus_payment_test",
       amount: 9900,
+      camp_offer_id: offer,
       channel: "catalog",
       camp_details: {
         first_name: "Kind",
@@ -1191,6 +1192,7 @@ it.each(["paid", "no_payment_required"])(
       const request = {
         id: id(base),
         product_id: p.id,
+        camp_offer_id: p.published.camp_offer_id,
         revision: p.published_revision,
         player_id: id(base + 1),
         player_data: {
@@ -1278,4 +1280,76 @@ it("fails closed on a missing no-cost payment status without creating a family",
       )
     ).rows,
   ).toHaveLength(0);
+});
+
+it("resolves both prices from a single Camp and binds native Checkout confirmation to its recorded session", async () => {
+  await db.exec("begin");
+  try {
+    const p = (
+      await db.query<any>(
+        "select * from catalog_products where published->>'kind'='camp' limit 1",
+      )
+    ).rows[0];
+    const original = (
+      await db.query<any>("select * from camp_offers where id=$1", [
+        p.published.camp_offer_id,
+      ])
+    ).rows[0];
+    await db.query(
+      "update camps set early_bird_until=now()+interval '1 day' where id=$1",
+      [original.camp_id],
+    );
+    const early = (
+      await db.query<any>("select camp_save_offer($1) id", [
+        {
+          camp_id: original.camp_id,
+          kind: "early",
+          stripe_price_id: "price_unified_early",
+          stripe_product_id: original.stripe_product_id,
+          stripe_payment_link_id: null,
+          payment_url: null,
+          amount: 8000,
+          currency: "eur",
+          codes: { "10": "MEMBER10" },
+          livemode: false,
+        },
+      ])
+    ).rows[0].id;
+    const current = (
+      await db.query<any>("select camp_product_snapshot($1) data", [
+        p.published,
+      ])
+    ).rows[0].data;
+    expect(current).toMatchObject({
+      camp_offer_id: early,
+      price: { id: "price_unified_early", amount: 8000 },
+    });
+    await db.query("update camps set early_bird_until=now() where id=$1", [
+      original.camp_id,
+    ]);
+    expect(
+      (
+        await db.query<any>("select camp_product_snapshot($1) data", [
+          p.published,
+        ])
+      ).rows[0].data,
+    ).toMatchObject({
+      camp_offer_id: original.id,
+      price: { amount: original.amount },
+    });
+    const booking = id(1601);
+    await db.query(
+      "insert into camp_bookings(id,camp_id,offer_id,booking_origin,browser_token_hash,parent_data,child_data,customer_group,expected_amount,currency,stripe_price_id,stripe_payment_link_id,checkout_session_id)values($1,$2,$3,'portal_checkout','local-proof','{}','{}','new',8000,'eur','price_unified_early',null,'cs_test_bound')",
+      [booking, original.camp_id, early],
+    );
+    await db.exec("savepoint wrong_session");
+    await expect(
+      db.query("select camp_confirm_payment($1)", [
+        { booking_id: booking, livemode: false, session_id: "cs_test_other" },
+      ]),
+    ).rejects.toThrow("Checkout session does not belong");
+    await db.exec("rollback to wrong_session");
+  } finally {
+    await db.exec("rollback");
+  }
 });

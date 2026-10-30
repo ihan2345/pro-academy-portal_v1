@@ -21,7 +21,12 @@ type Data = {
   camp: Camp;
   occupied: number;
   maximum: number;
-  offer: { amount: number; currency: string; kind: string } | null;
+  offer: {
+    amount: number;
+    currency: string;
+    kind: string;
+    automatic_benefit?: boolean;
+  } | null;
   context: {
     role: string | null;
     children: Child[];
@@ -405,7 +410,13 @@ export function BookingForm({ campId }: { campId: string }) {
                         </label>
                       </div>
                       <h2>3. Zur Zahlung</h2>
-                      {discount.code ? (
+                      {discount.code && data.offer?.automatic_benefit ? (
+                        <p className="camp-success">
+                          Dein Abo-Vorteil von {discount.percent} % wird auf den
+                          aktuellen Camppreis automatisch angewendet – auch
+                          während der Frühbucherzeit.
+                        </p>
+                      ) : discount.code ? (
                         <div className="camp-discount">
                           <DiscountCopy
                             key={discount.code}

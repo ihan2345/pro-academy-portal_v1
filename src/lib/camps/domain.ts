@@ -115,8 +115,8 @@ export type Offer = {
   plan_id: string;
   stripe_price_id: string;
   stripe_product_id: string;
-  stripe_payment_link_id: string;
-  payment_url: string;
+  stripe_payment_link_id: string | null;
+  payment_url: string | null;
   amount: number;
   currency: string;
   codes: Record<string, string>;
@@ -155,4 +155,20 @@ export function bestBenefit(values: (number | null | undefined)[]) {
     0,
     ...values.filter((x): x is number => [10, 15, 20].includes(x ?? 0)),
   );
+}
+
+export function campTiming(camp: Pick<Camp, "days">, now = Date.now()) {
+  const start = Math.min(...camp.days.map((d) => Date.parse(d.starts_at)));
+  const end = Math.max(...camp.days.map((d) => Date.parse(d.ends_at)));
+  const hours = camp.days.reduce(
+    (sum, d) =>
+      sum + (Date.parse(d.ends_at) - Date.parse(d.starts_at)) / 3600000,
+    0,
+  );
+  return {
+    start,
+    end,
+    hours,
+    phase: now >= end ? "past" : now >= start ? "ongoing" : "upcoming",
+  };
 }

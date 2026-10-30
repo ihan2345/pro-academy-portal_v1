@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import { campApi } from "./shared";
@@ -62,6 +63,7 @@ export function CampDiscountCopy({
     code: string | null;
     percent: number;
     booking_status?: CampBookingStatus;
+    automatic?: boolean;
   } | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -101,6 +103,14 @@ export function CampDiscountCopy({
     );
   if (discount.booking_status)
     return <BookingStatusButton status={discount.booking_status} />;
+  if (discount.automatic)
+    return (
+      <Link className="primary-button" href={`/camp/buchung/${campId}`}>
+        {discount.percent
+          ? `Mit ${discount.percent} % Abo-Vorteil buchen`
+          : "Camp buchen"}
+      </Link>
+    );
   if (!discount.code)
     return <span>Für dieses Angebot ist kein Rabattcode verfügbar.</span>;
   return (

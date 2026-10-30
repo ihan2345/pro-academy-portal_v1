@@ -46,18 +46,21 @@ const files = [
   "030-stripe-notice-decisions",
   "031-product-guest-checkout",
   "032-product-presentation",
+  "033-camp-unified-checkout",
 ];
 const history = await sql(
-  "select version,statements from supabase_migrations.schema_migrations where version between '202610260022' and '202610290032' order by version",
+  "select version,statements from supabase_migrations.schema_migrations where version between '202610260022' and '202610300033' order by version",
 );
 const migrations = files.map((file) => {
   const source = readFileSync(`supabase/release/${file}.sql`, "utf8");
   const version =
-    (Number(file.slice(0, 3)) >= 32
-      ? "20261029"
-      : Number(file.slice(0, 3)) >= 30
-        ? "20261027"
-        : "20261026") + file.slice(0, 3).padStart(4, "0");
+    (Number(file.slice(0, 3)) >= 33
+      ? "20261030"
+      : Number(file.slice(0, 3)) >= 32
+        ? "20261029"
+        : Number(file.slice(0, 3)) >= 30
+          ? "20261027"
+          : "20261026") + file.slice(0, 3).padStart(4, "0");
   const existing = history.find((row) => row.version === version);
   if (existing && existing.statements?.[0] !== source)
     throw Error(`Migration ${version} has changed since application.`);

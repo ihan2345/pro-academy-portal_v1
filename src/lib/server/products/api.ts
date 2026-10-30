@@ -1,3 +1,4 @@
+import { campProductPrice } from "./camp-product";
 import {
   operationOverview,
   listOrders,
@@ -141,6 +142,13 @@ export async function productApi(
         return json(await cleanupProductImages(s));
       if (path === "process-events" && method === "POST")
         return json(await processProductEvents());
+      if (path === "camp-price" && method === "POST") {
+        const v = z
+          .object({ id: productIdSchema })
+          .strict()
+          .parse(await body(request));
+        return json(await campProductPrice(v.id));
+      }
       if (path === "validate-price" && method === "POST") {
         const v = z
           .object({

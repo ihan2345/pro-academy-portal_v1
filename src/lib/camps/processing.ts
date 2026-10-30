@@ -1,3 +1,4 @@
+import { processPortalCampBookings } from "./portal-processing";
 import "server-only";
 import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
@@ -51,12 +52,14 @@ export async function campProcessingSources(
   ]);
   const sources: Source[] = [
     ...checked(legacy),
-    ...checked(offers).map((o) => ({
-      camp_id: o.camp_id,
-      payment_link_id: o.stripe_payment_link_id,
-      price_id: o.stripe_price_id,
-      product_id: o.stripe_product_id,
-    })),
+    ...checked(offers)
+      .filter((o) => !!o.stripe_payment_link_id)
+      .map((o) => ({
+        camp_id: o.camp_id,
+        payment_link_id: o.stripe_payment_link_id,
+        price_id: o.stripe_price_id,
+        product_id: o.stripe_product_id,
+      })),
   ];
   const unique = new Map<string, Source>();
   for (const source of sources) {
@@ -105,32 +108,50 @@ export async function enqueueCampEvent(event: Stripe.Event) {
     }))
       sessions.push(session);
   }
-  const matched = sessions.filter(
-    (s) =>
-      s.livemode &&
-      s.mode === "payment" &&
-      sources.some(
-        (source) =>
-          source.payment_link_id ===
-          (typeof s.payment_link === "string"
-            ? s.payment_link
-            : s.payment_link?.id),
-      ),
-  );
+  const matched: {
+    session: Stripe.Checkout.Session;
+    campId: string;
+    link: string | null;
+  }[] = [];
+  for (const session of sessions) {
+    if (!session.livemode || session.mode !== "payment") continue;
+    const link =
+      typeof session.payment_link === "string"
+        ? session.payment_link
+        : (session.payment_link?.id ?? null);
+    const source = sources.find((s) => s.payment_link_id === link);
+    if (source) {
+      matched.push({ session, campId: source.camp_id, link });
+      continue;
+    }
+    if (!link && session.metadata?.camp_booking_id) {
+      const booking = checked(
+        await serviceDb()
+          .from("camp_bookings")
+          .select("id,camp_id,offer_id,camps!inner(payment_mode)")
+          .eq("id", session.metadata.camp_booking_id)
+          .eq("checkout_session_id", session.id)
+          .eq("booking_origin", "portal_checkout")
+          .eq("camps.payment_mode", "live")
+          .maybeSingle(),
+      );
+      if (
+        booking &&
+        booking.id === session.client_reference_id &&
+        booking.camp_id === session.metadata.camp_id &&
+        booking.offer_id === session.metadata.camp_offer_id
+      )
+        matched.push({ session, campId: booking.camp_id, link: null });
+    }
+  }
   if (!matched.length) return { ignored: true };
-  // An event's payment must never map to multiple Camps/sessions.
   if (matched.length !== 1) throw new Error("Mehrdeutige Camp-Zahlung.");
-  const session = matched[0];
-  const link =
-    typeof session.payment_link === "string"
-      ? session.payment_link
-      : session.payment_link?.id;
-  const source = sources.find((s) => s.payment_link_id === link)!;
+  const { session, campId, link } = matched[0];
   checked(
     await serviceDb().from("camp_payment_events").upsert(
       {
         event_id: event.id,
-        camp_id: source.camp_id,
+        camp_id: campId,
         payment_link_id: link,
         session_id: session.id,
       },
@@ -151,6 +172,8 @@ export async function runCampProcessing() {
     failed = 0;
   try {
     const stripe = campReadStripe();
+    const portal = await processPortalCampBookings(db, token);
+    failed += portal.failed;
     for (const source of await campProcessingSources()) {
       if (!checked(await db.rpc("camp_claim_processing", { owner: token })))
         throw new Error("Camp-Verarbeitung wurde übernommen.");
