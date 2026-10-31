@@ -1,4 +1,5 @@
 "use client";
+import { GiftAccountOverview } from "./products/gift-account";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useProfileListState } from "./profile-list-state";
@@ -782,6 +783,7 @@ export function ProfileView({
               Camp-Teilnahmedaten sind derzeit nicht verfügbar.
             </p>
           )}
+          {data.role === "parent" && <GiftAccountOverview compact />}
           {data.role === "admin" && (
             <section className="panel profile-finances">
               <div className="profile-section-heading">

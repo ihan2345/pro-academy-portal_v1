@@ -41,6 +41,9 @@ export function productSchemaFiles() {
       "031-product-guest-checkout.sql",
       "032-product-presentation.sql",
       "033-camp-unified-checkout.sql",
+      "034-gift-cards.sql",
+      "035-gift-order-status.sql",
+      "036-gift-account-links.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

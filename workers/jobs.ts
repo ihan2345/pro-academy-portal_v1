@@ -418,6 +418,13 @@ export async function runJobs() {
             ? new ProtonProvider()
             : captureProvider,
         );
+        const { processGiftMessages } =
+          await import("../src/lib/gifts/messages");
+        await processGiftMessages(
+          process.env.MAIL_PROVIDER === "proton"
+            ? new ProtonProvider()
+            : captureProvider,
+        );
         const cleanup = await db.rpc("cleanup_product_guest_orders");
         if (cleanup.error) throw cleanup.error;
         await productWorkerHeartbeat(false);

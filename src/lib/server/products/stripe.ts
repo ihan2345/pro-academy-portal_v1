@@ -71,7 +71,7 @@ export async function validateProductPrice(
       400,
       "Preisart oder Abrechnungsintervall passt nicht zum Produkt.",
     );
-  if (kind === "camp" && price.currency !== "eur")
+  if (["camp", "gift"].includes(kind) && price.currency !== "eur")
     throw new HttpError(400, "Camps benötigen einen einmaligen EUR-Preis.");
   return priceSchema.parse({
     id: price.id,

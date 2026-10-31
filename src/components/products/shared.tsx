@@ -213,6 +213,8 @@ export type ProductDisplay = Pick<
 > &
   Partial<Pick<Product, "effect_color" | "sale_enabled" | "sale_audiences">> & {
     camp_pricing?: CampPricing;
+    gift_amount?: number | null;
+    gift_variants?: { id: string; amount: number; name: string }[];
   };
 
 export function CampPriceNote({ product }: { product: ProductDisplay }) {
@@ -540,12 +542,14 @@ export function ProductCard({
             <span className="product-sale-label">Aktionspreis</span>
           )}
           <strong>
-            {product.price
-              ? new Intl.NumberFormat("de-DE", {
-                  style: "currency",
-                  currency: product.price.currency,
-                }).format(product.price.amount / 100)
-              : "Preis folgt"}
+            {product.kind === "gift"
+              ? `ab ${new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format((product.gift_amount ?? 0) / 100)}`
+              : product.price
+                ? new Intl.NumberFormat("de-DE", {
+                    style: "currency",
+                    currency: product.price.currency,
+                  }).format(product.price.amount / 100)
+                : "Preis folgt"}
           </strong>
           <span>
             {product.price?.interval === "month"
@@ -604,7 +608,9 @@ export function ProductCard({
           {saleApplies(product, decision, preview) && (
             <span className="product-sale-label">Aktionspreis</span>
           )}
-          {priceLabel(product.price)}
+          {product.kind === "gift"
+            ? `ab ${new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format((product.gift_amount ?? 0) / 100)}`
+            : priceLabel(product.price)}
         </div>
         <CampPriceNote product={product} />
         {action}

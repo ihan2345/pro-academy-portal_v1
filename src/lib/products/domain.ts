@@ -42,6 +42,7 @@ export const kindLabels = {
   subscription: "Abonnement",
   camp: "Camp",
   other: "Sonstiges",
+  gift: "Geschenke",
 } as const;
 export type Audience = keyof typeof audiences;
 export type Channel = keyof typeof channelLabels;
@@ -89,7 +90,14 @@ export const productSchema = z
     description: z.string().max(12000),
     short_description: z.string().max(300),
     category: z.string().trim().max(80),
-    kind: z.enum(["subscription", "camp", "other"]),
+    kind: z.enum(["subscription", "camp", "other", "gift"]),
+    gift_amount: z
+      .number()
+      .int()
+      .min(50)
+      .max(10000000)
+      .nullable()
+      .default(null),
     status: z.enum([
       "draft",
       "active",
@@ -167,6 +175,12 @@ export const productSchema = z
           "Exklusive Angebote benötigen ausdrücklich eingeschränkte Sichtbarkeitsregeln ohne Alle/Besucher.",
         path: ["rules", "visibility"],
       });
+    if (v.kind === "gift" && v.gift_amount == null)
+      c.addIssue({
+        code: "custom",
+        message: "Bitte den Geschenkbetrag angeben.",
+        path: ["gift_amount"],
+      });
     if (v.kind !== "subscription" && v.plan_id)
       c.addIssue({
         code: "custom",
@@ -212,6 +226,7 @@ export const emptyProduct = (): Product => ({
   price: null,
   plan_id: null,
   camp_offer_id: null,
+  gift_amount: null,
   repeatable: false,
   training_content: {
     football_hours: null,

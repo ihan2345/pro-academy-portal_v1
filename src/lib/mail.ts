@@ -6,7 +6,12 @@ export interface Email {
   html: string;
   messageId: string;
   replyTo?: string;
-  attachments?: { filename: string; content: Buffer; contentType: string }[];
+  attachments?: {
+    filename: string;
+    content: Buffer;
+    contentType: string;
+    cid?: string;
+  }[];
 }
 export interface MailProvider {
   name: string;

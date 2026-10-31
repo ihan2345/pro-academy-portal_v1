@@ -1,0 +1,283 @@
+.gift-modal {
+  max-width: 680px;
+}
+.gift-form {
+  padding: 24px;
+}
+.gift-form {
+  display: grid;
+  gap: 22px;
+}
+.gift-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.gift-form input,
+.gift-form select,
+.gift-wallet input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #d9dce5;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  color: #192235;
+  font: inherit;
+}
+.gift-form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.gift-form legend {
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.gift-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.gift-intro {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  background: #f2f0fa;
+  border-radius: 18px;
+  padding: 16px;
+}
+.gift-intro p {
+  margin: 0;
+  font-weight: 600;
+}
+.gift-intro small {
+  display: block;
+  font-weight: 400;
+  margin-top: 4px;
+}
+.gift-help,
+.gift-design-note {
+  color: #697286;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.gift-wallet {
+  padding: 18px;
+  border: 1px solid #e2ddec;
+  border-radius: 18px;
+  background: #faf9fe;
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+.gift-wallet > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.gift-wallet > div span {
+  margin-left: auto;
+  font-size: 14px;
+}
+.gift-wallet form {
+  display: flex;
+  gap: 8px;
+}
+.gift-wallet small {
+  font-size: 12px;
+  color: #697286;
+}
+.gift-use {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.gift-use input {
+  width: auto;
+}
+.gift-page {
+  min-height: 90vh;
+  padding: 60px 20px;
+  background:
+    radial-gradient(ellipse at 15% 15%, #ede7fa, transparent 60%), #f5f6f9;
+  display: grid;
+  place-items: center;
+}
+.gift-receipt {
+  position: relative;
+  max-width: 760px;
+  width: 100%;
+  border: 1px solid #fff;
+  border-radius: 32px;
+  padding: 42px;
+  background: #ffffffda;
+  box-shadow: 0 20px 80px #24234512;
+  backdrop-filter: blur(24px);
+  text-align: center;
+  color: #182236;
+}
+.gift-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+.gift-receipt h1 {
+  font-size: clamp(26px, 4vw, 36px);
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+  margin: 18px 0 28px;
+}
+.gift-close {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  border: 0;
+  background: #eceef3;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.gift-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 22px 0;
+}
+.gift-delivery {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #627069;
+}
+.gift-design-note {
+  display: block;
+  margin-top: 24px;
+}
+.gift-receipt > p {
+  line-height: 1.7;
+}
+.gift-receipt a {
+  color: inherit;
+}
+.gift-form .primary-button {
+  justify-self: start;
+}
+@media (max-width: 600px) {
+  .gift-fields {
+    grid-template-columns: 1fr;
+  }
+  .gift-receipt {
+    padding: 44px 18px 24px;
+    border-radius: 24px;
+  }
+  .gift-page {
+    padding: 20px 12px;
+  }
+  .gift-wallet form {
+    flex-wrap: wrap;
+  }
+}
+.gift-artwork {
+  margin: 0 auto 24px;
+  width: 100%;
+}
+.gift-side-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #e0e3db;
+  border-radius: 12px;
+  background: #eef0eb;
+  margin: 0 0 20px;
+}
+.gift-side-switch button {
+  border: 0;
+  background: transparent;
+  color: #697263;
+  border-radius: 8px;
+  padding: 9px 18px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.gift-side-switch button[aria-pressed="true"] {
+  background: #fff;
+  color: #24311d;
+  box-shadow: 0 2px 6px #17240a13;
+}
+.gift-side-switch button:focus-visible {
+  outline: 2px solid #6a992c;
+  outline-offset: 2px;
+}
+.gift-artwork-frame {
+  aspect-ratio: 1005/603;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 14px 18px #121f1020);
+}
+.gift-artwork-frame svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+}
+.gift-artwork-actions {
+  margin-top: 23px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.gift-artwork-actions button {
+  font-size: 12px;
+  padding: 10px 12px;
+}
+.gift-artwork-notice {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #617057;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gift-artwork-frame svg {
+    animation: gift-card-in 0.28s ease-out;
+  }
+  @keyframes gift-card-in {
+    from {
+      opacity: 0.6;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+@media (max-width: 600px) {
+  .gift-artwork-actions {
+    gap: 7px;
+    margin-top: 18px;
+  }
+  .gift-artwork-actions button {
+    font-size: 11px;
+    padding: 9px;
+  }
+  .gift-side-switch {
+    margin-bottom: 16px;
+  }
+  .gift-side-switch button {
+    padding: 8px 14px;
+  }
+}

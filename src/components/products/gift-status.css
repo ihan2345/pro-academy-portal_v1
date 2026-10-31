@@ -1,0 +1,264 @@
+.gift-status-page {
+  min-height: 95vh;
+  padding: 42px 18px;
+  background:
+    radial-gradient(ellipse at 20% 0%, #edf3df, transparent 60%), #f4f6f8;
+  color: #20302a;
+}
+.gift-status-window {
+  max-width: 900px;
+  margin: auto;
+  border: 1px solid #fff;
+  border-radius: 26px;
+  background: #ffffffed;
+  box-shadow: 0 18px 70px #2541120c;
+  overflow: hidden;
+}
+.gift-status-header {
+  padding: 22px 34px;
+  border-bottom: 1px solid #edf0e8;
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  align-items: center;
+  font-size: 11px;
+  color: #819078;
+  background: #fafbf8;
+}
+.gift-status-brand {
+  letter-spacing: 0.18em;
+  text-decoration: none;
+  font-size: 10px;
+  font-weight: 800;
+  color: #30402a;
+}
+.gift-status-content {
+  padding: 34px;
+}
+.gift-status-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.gift-status-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: #80926d;
+}
+.gift-status-title h1 {
+  font-size: clamp(25px, 4vw, 37px);
+  letter-spacing: -0.045em;
+  line-height: 1.15;
+  margin: 12px 0 24px;
+}
+.gift-status-reference {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: #84917a;
+  font-size: 10px;
+}
+.gift-status-reference code {
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.gift-status-reference button {
+  border: 0;
+  background: none;
+  color: #839476;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.gift-status-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 15px;
+  padding: 23px 0;
+}
+.gift-status-facts > div {
+  border: 1px solid #edf0e8;
+  border-radius: 15px;
+  background: #f9fbf5;
+  padding: 18px;
+}
+.gift-status-facts small {
+  display: block;
+  font-size: 10px;
+  color: #89977c;
+  margin-bottom: 8px;
+}
+.gift-status-facts strong {
+  font-size: 25px;
+  letter-spacing: -0.04em;
+}
+.gift-status-facts .gift-status-payment {
+  font-size: 14px;
+  letter-spacing: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding-top: 6px;
+}
+.gift-status-validity,
+.gift-status-help,
+.gift-status-private,
+.gift-status-buyer-info p {
+  font-size: 12px;
+  color: #85917d;
+  line-height: 1.8;
+}
+.gift-status-validity {
+  margin: 0 0 26px;
+}
+.gift-status-code {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  padding: 18px;
+  background: #f2f7e9;
+  border-radius: 15px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.gift-status-code small {
+  display: block;
+  color: #81906f;
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+.gift-status-code code {
+  font-size: clamp(10px, 1.7vw, 16px);
+  overflow-wrap: anywhere;
+}
+.gift-status-code button {
+  font-size: 12px;
+}
+.gift-status-history-heading {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 30px;
+}
+.gift-status-history-heading h2,
+.gift-status-buyer-info h2 {
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+.gift-status-history-heading span {
+  font-size: 10px;
+  color: #a0aa97;
+}
+.gift-status-history {
+  border: 1px solid #e9ede3;
+  border-radius: 15px;
+  overflow: hidden;
+  margin: 15px 0;
+}
+.gift-status-entry {
+  padding: 18px;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  border-top: 1px solid #eef1e9;
+  font-size: 13px;
+}
+.gift-status-entry:first-child {
+  border-top: 0;
+}
+.gift-status-entry strong {
+  font-size: 13px;
+}
+.gift-status-entry small {
+  display: block;
+  font-size: 10px;
+  line-height: 1.7;
+  color: #96a08b;
+  margin-top: 5px;
+}
+.gift-status-order {
+  overflow-wrap: anywhere;
+}
+.gift-status-acquired {
+  background: #fafbf7;
+  color: #7a8c67;
+}
+.gift-status-empty {
+  padding: 35px 15px;
+  text-align: center;
+  border: 1px solid #e7eddf;
+  border-radius: 18px;
+  background: #f8fbf4;
+}
+.gift-status-empty h2 {
+  font-size: 20px;
+}
+.gift-status-empty p {
+  font-size: 12px;
+  color: #8a977e;
+}
+.gift-status-buyer-info {
+  margin-top: 30px;
+}
+.gift-status-lookup {
+  max-width: 580px;
+  margin: 30px auto;
+  background: white;
+  border-radius: 24px;
+  padding: 34px;
+}
+.gift-status-lookup h1 {
+  font-size: 33px;
+  letter-spacing: -0.045em;
+}
+.gift-status-lookup > p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #84917a;
+}
+.gift-status-lookup .gift-form {
+  padding: 20px 0;
+}
+.gift-status-page > .gift-status-window + .gift-status-error {
+  max-width: 900px;
+  margin: auto;
+}
+@media (max-width: 600px) {
+  .gift-status-page {
+    padding: 18px 10px;
+  }
+  .gift-status-content {
+    padding: 23px 18px;
+  }
+  .gift-status-header {
+    padding: 19px;
+    flex-wrap: wrap;
+  }
+  .gift-status-facts {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .gift-status-facts > div {
+    padding: 14px;
+  }
+  .gift-status-facts strong {
+    font-size: 22px;
+  }
+  .gift-status-lookup {
+    padding: 26px;
+  }
+  .gift-status-code {
+    padding: 15px;
+  }
+  .gift-status-entry {
+    padding: 15px;
+  }
+  .gift-status-entry strong {
+    font-size: 12px;
+  }
+}

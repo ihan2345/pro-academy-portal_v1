@@ -1,3 +1,5 @@
+import { giftsEnabled } from "@/lib/gifts/runtime";
+import { fulfillGiftOrder } from "@/lib/gifts/service";
 import { productLiveMode } from "./runtime";
 import "server-only";
 import Stripe from "stripe";
@@ -86,6 +88,8 @@ export async function processProductEvents() {
         const s = await stripe.checkout.sessions.retrieve(job.object_id);
         if (s.livemode !== productLiveMode())
           throw new Error("Session gehört zu einer anderen Stripe-Umgebung");
+        if (giftsEnabled() && s.metadata?.gift_order_id)
+          await fulfillGiftOrder(s.metadata.gift_order_id, s);
         const id = s.metadata?.product_intent_id;
         if (id) {
           const i = checked(
@@ -204,6 +208,23 @@ export async function processProductEvents() {
           : job.object_id;
         const charge = await stripe.charges.retrieve(chargeId);
         await applyChargeOutcome(charge, stripe, dispute?.status === "won");
+        if (giftsEnabled()) {
+          const pi =
+            typeof charge.payment_intent === "string"
+              ? charge.payment_intent
+              : charge.payment_intent?.id;
+          if (pi) {
+            const o = checked<any>(
+              await db
+                .from("gift_orders")
+                .select("id")
+                .eq("payment_id", pi)
+                .eq("livemode", productLiveMode())
+                .maybeSingle(),
+            );
+            if (o) await fulfillGiftOrder(o.id);
+          }
+        }
       }
       checked(
         await db

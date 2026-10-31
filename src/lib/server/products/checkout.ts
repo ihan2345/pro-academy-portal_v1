@@ -1,3 +1,7 @@
+import { giftCodeSchema } from "@/lib/gifts/domain";
+import { giftCodeHash, newGiftCode, sealGift } from "@/lib/gifts/crypto";
+import { requireGifts } from "@/lib/gifts/runtime";
+import { prepareGiftDiscount } from "@/lib/gifts/checkout";
 import { activeCampProduct } from "./camp-product";
 import { productLiveMode } from "./runtime";
 import { recordInvoicePayments } from "./payments";
@@ -36,6 +40,8 @@ const checkoutSchema = z
     request_id: productIdSchema,
     guest_parent: guestParentSchema.optional(),
     discount_code: z.string().trim().max(80).optional(),
+    use_gift_credit: z.boolean().default(false),
+    gift_code: giftCodeSchema.optional(),
     player_id: productIdSchema.optional(),
     new_child: childInput.optional(),
     camp_details: z
@@ -92,6 +98,16 @@ export async function checkoutProduct(
     );
   const input = checkoutSchema.parse(raw);
   const guest = !session?.user;
+  if (input.gift_code) {
+    requireGifts();
+    if (input.use_gift_credit)
+      throw new HttpError(400, "Bitte nur einen Geschenkgutschein auswählen.");
+  }
+  if (input.use_gift_credit) {
+    requireGifts();
+    if (guest)
+      throw new HttpError(403, "Geschenkguthaben benötigt dein Elternkonto.");
+  }
   if (
     guest &&
     (!input.guest_parent ||
@@ -122,6 +138,8 @@ export async function checkoutProduct(
       400,
       "Elternkonto oder veröffentlichtes Produkt fehlt.",
     );
+  if (p.published?.kind === "gift")
+    throw new HttpError(400, "Bitte den Geschenk-Checkout verwenden.");
   const previous = checked(
     await db
       .from("product_purchase_intents")
@@ -130,6 +148,14 @@ export async function checkoutProduct(
       .maybeSingle(),
   );
   if (previous) {
+    if (
+      (previous.discount?.gift_code_hash ?? null) !==
+      (input.gift_code ? giftCodeHash(input.gift_code) : null)
+    )
+      throw new HttpError(
+        409,
+        "Der offene Kauf wurde mit einem anderen Geschenkcode begonnen. Bitte zuerst abschließen oder prüfen.",
+      );
     if (
       (guest
         ? previous.guest_token_hash !== guestTokenHash ||
@@ -224,6 +250,14 @@ export async function checkoutProduct(
         (p.published!.kind === "subscription" &&
           o.product.kind === "subscription")),
   )) {
+    if (
+      (old.discount?.gift_code_hash ?? null) !==
+      (input.gift_code ? giftCodeHash(input.gift_code) : null)
+    )
+      throw new HttpError(
+        409,
+        "Für dieses Kind ist bereits ein Kauf mit anderer Gutscheinwahl offen. Bitte zuerst prüfen.",
+      );
     const { resumeOrder } = await import("./operations");
     const changedGuestForm =
       guest &&
@@ -401,7 +435,25 @@ export async function checkoutProduct(
     }
   }
   promotion = discount?.promotion_id;
+  if ((input.use_gift_credit || input.gift_code) && input.discount_code)
+    throw new HttpError(
+      409,
+      "Bitte Geschenkguthaben oder einen zusätzlichen Rabattcode wählen. Automatische Camp-Vorteile bleiben kombinierbar.",
+    );
   const amount = discount?.amount ?? price.amount;
+  // Do not replace an existing recurring promotion with an expiring credit coupon.
+  if (
+    (input.use_gift_credit || input.gift_code) &&
+    p.published.kind === "subscription" &&
+    discount &&
+    discount.duration !== "once"
+  )
+    throw new HttpError(
+      409,
+      "Wiederkehrender Rabatt und Geschenkguthaben benötigen eine gesonderte Abrechnung. Der bestehende Rabatt bleibt erhalten; bitte diesen Kauf ohne Guthaben fortsetzen.",
+    );
+  const nextGiftCode = input.gift_code ? newGiftCode() : null,
+    refundGiftCode = input.gift_code ? newGiftCode() : null;
   const reserved = await db.rpc("reserve_product_purchase", {
     input: {
       id: input.request_id,
@@ -412,6 +464,16 @@ export async function checkoutProduct(
       guest_data: guest ? input.guest_parent : undefined,
       guest_token_hash: guest ? guestTokenHash : undefined,
       discount,
+      use_gift_credit: input.use_gift_credit,
+      ...(input.gift_code
+        ? {
+            gift_code_hash: giftCodeHash(input.gift_code),
+            gift_next_hash: giftCodeHash(nextGiftCode!),
+            gift_next_cipher: sealGift(nextGiftCode!),
+            gift_refund_hash: giftCodeHash(refundGiftCode!),
+            gift_refund_cipher: sealGift(refundGiftCode!),
+          }
+        : {}),
       player_id: playerId,
       player_data: input.new_child,
       customer_id: customerId,
@@ -458,6 +520,8 @@ export async function checkoutProduct(
       .eq("id", intent.id)
       .select("id"),
   );
+  if (intent.gift_credit_amount > 0)
+    promotion = await prepareGiftDiscount(intent, customerId!, stripe);
   // Repeat after external validation; a stale card can never initiate a new session.
   const fresh = await productById(id);
   if (

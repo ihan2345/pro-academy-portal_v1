@@ -1,3 +1,4 @@
+import { giftsEnabled } from "@/lib/gifts/runtime";
 import { productLiveMode } from "./runtime";
 import { productIdSchema } from "@/lib/products/domain";
 import "server-only";
@@ -74,7 +75,7 @@ export async function listProducts(
       .max(160)
       .parse(params.get("q") ?? ""),
     kind = z
-      .enum(["", "subscription", "camp", "other"])
+      .enum(["", "subscription", "camp", "other", "gift"])
       .parse(params.get("kind") ?? ""),
     status = z
       .enum([
@@ -135,6 +136,46 @@ export async function listProducts(
   const evaluationPlayer =
     evaluationCtx !== ctx ? "00000000-0000-4000-8000-000000000098" : player;
   if (player) productIdSchema.parse(player);
+  // Select one representative before pagination so priority/cursor order stays intact.
+  let variants: any[] = [];
+  if (!admin && giftsEnabled() && (!kind || kind === "gift")) {
+    let giftsQuery = serviceDb()
+      .from("catalog_products")
+      .select("*")
+      .eq("published->>kind", "gift")
+      .order("published_priority", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (category) giftsQuery = giftsQuery.eq("published->>category", category);
+    if (q)
+      giftsQuery = giftsQuery.textSearch("published_search_document", q, {
+        type: "websearch",
+        config: "simple",
+      });
+    variants = checked<(ProductRecord & { created_at: string })[]>(
+      await giftsQuery,
+    ).flatMap((p) => {
+      const decision = decideProduct(
+        p.published!,
+        p.id,
+        evaluationCtx!,
+        channel,
+      );
+      return decision.visible && decision.purchasable
+        ? [
+            {
+              ...publicProduct(p, decision),
+              priority: p.published!.priority,
+              created_at: p.created_at,
+            },
+          ]
+        : [];
+    });
+  }
+  const giftRepresentative = variants[0];
+  const publicGiftFilter = giftRepresentative
+    ? `published->>kind.neq.gift,id.eq.${giftRepresentative.id}`
+    : "published->>kind.neq.gift";
   let after = cursor,
     exhausted = false;
   const rows: any[] = [];
@@ -165,10 +206,16 @@ export async function listProducts(
     if (admin && params.get("channel"))
       query = query.contains("draft", { channels: [channel] });
     if (!admin) query = query.not("published", "is", null);
-    if (after)
+    const cursorFilter = after
+      ? `${sortColumn}.lt.${after.sort},and(${sortColumn}.eq.${after.sort},created_at.lt.${after.created}),and(${sortColumn}.eq.${after.sort},created_at.eq.${after.created},id.lt.${after.id})`
+      : null;
+    if (!admin)
       query = query.or(
-        `${sortColumn}.lt.${after.sort},and(${sortColumn}.eq.${after.sort},created_at.lt.${after.created}),and(${sortColumn}.eq.${after.sort},created_at.eq.${after.created},id.lt.${after.id})`,
+        cursorFilter
+          ? `and(or(${publicGiftFilter}),or(${cursorFilter}))`
+          : publicGiftFilter,
       );
+    else if (cursorFilter) query = query.or(cursorFilter);
     const batch = checked<any[]>(await query);
     const campSnapshots = admin
       ? new Map()
@@ -199,7 +246,22 @@ export async function listProducts(
           evaluationPlayer,
         );
         if (decision.visible) {
-          rows.push(publicProduct(p, decision));
+          rows.push(
+            p.published.kind === "gift"
+              ? {
+                  ...publicProduct(p, decision),
+                  name: "Geschenkkarte",
+                  gift_variants: variants
+                    .map((v) => ({
+                      id: v.id,
+                      amount: v.gift_amount,
+                      name: v.name,
+                    }))
+                    .sort((a, b) => a.amount - b.amount),
+                  gift_amount: Math.min(...variants.map((v) => v.gift_amount)),
+                }
+              : publicProduct(p, decision),
+          );
           if (p.published.kind === "camp" && p.published.camp_offer_id)
             campOfferIds.set(p.id, p.published.camp_offer_id);
         }
@@ -239,6 +301,7 @@ export async function listProducts(
         : Buffer.from(JSON.stringify(after)).toString("base64url"),
     context: admin ? undefined : ctx,
     payments_enabled: process.env.PRODUCT_PAYMENTS_ENABLED === "true",
+    gifts_enabled: giftsEnabled(),
   };
 }
 export function publicProduct(
@@ -261,6 +324,7 @@ export function publicProduct(
     sale_audiences: v.sale_audiences ?? [],
     asset_ids: v.asset_ids,
     training_content: v.training_content,
+    gift_amount: v.gift_amount ?? null,
     decision,
   };
 }
@@ -278,10 +342,17 @@ export async function saveProduct(
     })
     .strict()
     .parse(raw);
+  if (input.data.kind === "gift" && !giftsEnabled())
+    throw new HttpError(404, "Geschenkkarten sind noch nicht freigegeben.");
   if (id) productIdSchema.parse(id);
   const r = await session.db.rpc("save_catalog_product", {
     input: { ...input, id },
   });
+  if (r.error?.code === "23505")
+    throw new HttpError(
+      409,
+      "Für diesen Geschenkbetrag existiert bereits ein Produkt. Bitte den vorhandenen Eintrag bearbeiten.",
+    );
   if (r.error)
     throw new HttpError(
       409,
@@ -314,7 +385,7 @@ export async function productReferences(session: ProfileSession) {
     // Searchable family options are paginated separately, never silently truncated.
     Promise.resolve([]),
   ]);
-  return { plans, offers, families };
+  return { plans, offers, families, gifts_enabled: giftsEnabled() };
 }
 export async function impactProduct(session: ProfileSession, id: string) {
   requireProducts();
@@ -453,8 +524,14 @@ export async function publishProduct(
       "Änderungsvorschau ist ungültig oder abgelaufen. Bitte erneut berechnen.",
     );
   }
-  if (["active", "internal", "exclusive", "sold_out"].includes(p.draft.status))
-    await verifyStoredPrice(p.draft);
+  if (
+    ["active", "internal", "exclusive", "sold_out"].includes(p.draft.status)
+  ) {
+    if (p.draft.kind === "gift") {
+      const { ensureGiftValue } = await import("@/lib/gifts/stripe");
+      await ensureGiftValue(p.draft.gift_amount!);
+    } else await verifyStoredPrice(p.draft);
+  }
   const r = await serviceDb().rpc("publish_catalog_product", {
     input: { ...evidence, actor_id: session.user.id },
   });

@@ -1,3 +1,17 @@
+import {
+  giftAccount,
+  giftAccountDetail,
+  linkGiftAccount,
+} from "@/lib/gifts/account";
+import { giftStatusView, requestGiftStatusLink } from "@/lib/gifts/status";
+import { requireGifts } from "@/lib/gifts/runtime";
+import {
+  createGiftCheckout,
+  giftSettings,
+  giftOrderView,
+  ownGiftOrder,
+  fulfillGiftOrder,
+} from "@/lib/gifts/service";
 import { campProductPrice } from "./camp-product";
 import {
   operationOverview,
@@ -253,6 +267,79 @@ export async function productApi(
           ),
         );
     } else {
+      if (action[0] === "gifts") {
+        requireGifts();
+        if (path === "gifts/mine" && method === "GET")
+          return json(await giftAccount(session));
+        if (path === "gifts/mine" && method === "POST") {
+          if (!session) throw new HttpError(401, "Bitte anmelden.");
+          await limitGuestRequest(`gift-link:${session.user.id}`);
+          return json(await linkGiftAccount(session, await body(request)));
+        }
+        if (action[1] === "mine" && action.length === 3 && method === "GET")
+          return json(
+            await giftAccountDetail(session, productIdSchema.parse(action[2])),
+          );
+        if (path === "gifts/settings" && method === "GET")
+          return json(await giftSettings());
+        if (path === "gifts/checkout" && method === "POST") {
+          const hash = await guestBrowserHash(true);
+          await limitGuestRequest(`gift-checkout:${hash}`);
+          return json(await createGiftCheckout(session, await body(request)));
+        }
+        if (
+          path === "gifts/wallet" ||
+          path === "gifts/claim" ||
+          path === "gifts/access"
+        )
+          throw new HttpError(
+            410,
+            "Geschenkcodes werden direkt im Checkout verwendet. Deinen Stand findest du unter Bestellstatus.",
+          );
+        if (action[1] === "orders" && action.length === 3 && method === "GET")
+          return json(
+            await giftOrderView(
+              productIdSchema.parse(action[2]),
+              request.nextUrl.searchParams.get("key") ?? "",
+            ),
+          );
+        if (
+          action[1] === "orders" &&
+          action[3] === "reconcile" &&
+          action.length === 4 &&
+          method === "POST"
+        ) {
+          const v = z
+              .object({ key: z.string().max(100) })
+              .strict()
+              .parse(await body(request)),
+            id = productIdSchema.parse(action[2]);
+          await ownGiftOrder(id, v.key);
+          await limitGuestRequest(`gift-reconcile:${id}`);
+          await fulfillGiftOrder(id);
+          return json(await giftOrderView(id, v.key));
+        }
+        if (action[1] === "status" && action.length === 3 && method === "GET")
+          return json(
+            await giftStatusView(
+              productIdSchema.parse(action[2]),
+              request.nextUrl.searchParams.get("key") ?? "",
+            ),
+          );
+        if (path === "gifts/status-link" && method === "POST") {
+          const v = z
+            .object({
+              id: productIdSchema,
+              email: z.email().max(254),
+              scope: z.enum(["buyer", "recipient"]).optional(),
+            })
+            .strict()
+            .parse(await body(request));
+          await limitGuestRequest(`gift-status-link:${v.id}`);
+          return json(await requestGiftStatusLink(v.id, v.email));
+        }
+        throw new HttpError(404, "Geschenkfunktion nicht gefunden.");
+      }
       if (!path && method === "GET")
         return json(await listProducts(session, request.nextUrl.searchParams));
       if (path === "register" && method === "POST") {

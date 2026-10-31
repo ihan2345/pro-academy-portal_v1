@@ -201,6 +201,13 @@ export function decideProduct(
     reason.push("Dieses Angebot ist für diesen Kontext nicht sichtbar.");
     return result("unavailable", "Nicht verfügbar");
   }
+  if (product.kind === "gift") {
+    if (ctx.role && ctx.role !== "parent")
+      return result("unavailable", "Privates Elternkonto verwenden");
+    if (!matchesRule(product.rules.purchase, ctx, child, id, "purchase"))
+      return result("unavailable", "Anmeldung erforderlich");
+    return result("purchase", "Geschenkkarte auswählen", true);
+  }
   if (!ctx.auth_id) {
     if (!product.price) return result("unavailable", "Preis nicht verfügbar");
     // Public guest orders are evaluated as new children, never as members or grantees.

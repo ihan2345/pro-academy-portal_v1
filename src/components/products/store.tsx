@@ -1,4 +1,6 @@
 "use client";
+import { GiftAccountMenu } from "./gift-account";
+import { GiftPurchaseDialog } from "./gifts";
 import { ProductOperations } from "./operations";
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
@@ -57,6 +59,9 @@ export function ProductStore({
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
     [payments, setPayments] = useState(false),
+    [gifts, setGifts] = useState(false),
+    [giftCode, setGiftCode] = useState(""),
+    [giftChosen, setGiftChosen] = useState<any>(null),
     [chosen, setChosen] = useState<any>(null),
     [preview, setPreview] = useState<any>(null),
     [email, setEmail] = useState(""),
@@ -116,6 +121,7 @@ export function ProductStore({
             setCtx(r.context);
             setNext(r.next);
             setPayments(r.payments_enabled);
+            setGifts(r.gifts_enabled);
           }
         })
         .catch((e) => {
@@ -156,6 +162,11 @@ export function ProductStore({
   });
   const requestId = useRef(crypto.randomUUID());
   async function act(p: any) {
+    if (p.kind === "gift") {
+      setGiftChosen(p);
+      return;
+    }
+    setGiftCode("");
     requestId.current = crypto.randomUUID();
     setDiscountCode("");
     if (!ctx?.children.length) setNewChild(true);
@@ -200,6 +211,7 @@ export function ProductStore({
         "POST",
         {
           request_id: id,
+          ...(giftCode.trim() ? { gift_code: giftCode.trim() } : {}),
           ...(!ctx?.auth_id
             ? { guest_parent: { full_name: name, email, phone } }
             : {}),
@@ -279,6 +291,11 @@ export function ProductStore({
         </header>
       )}
       <Content className="product-store-content">
+        {gifts && role === "parent" && (
+          <div className="product-gift-toolbar">
+            <GiftAccountMenu welcomeAllowed={!chosen && !giftChosen} />
+          </div>
+        )}
         {embedded ? (
           <section className="page-heading product-store-portal-heading">
             <div>
@@ -515,6 +532,11 @@ export function ProductStore({
         ) : rows.length ? (
           <>
             <ProductShowcase products={rows} onAction={(p) => void act(p)} />
+            {gifts && (
+              <a href="/bestellstatus" className="gift-status-shop-link">
+                Geschenkkarte & Guthaben ansehen →
+              </a>
+            )}
             <div className="product-catalog-heading">
               <h2>Alle Angebote</h2>
               <span>{rows.length} Angebote auf dieser Seite</span>
@@ -566,6 +588,13 @@ export function ProductStore({
           </footer>
         )}
       </Content>
+      {giftChosen && (
+        <GiftPurchaseDialog
+          product={giftChosen}
+          payments={payments}
+          onClose={() => setGiftChosen(null)}
+        />
+      )}
       {chosen && (
         <Modal
           title={preview ? "Tarifwechsel prüfen" : chosen.name}
@@ -904,7 +933,12 @@ export function ProductStore({
                         <input
                           autoComplete="off"
                           maxLength={80}
-                          placeholder="Code eingeben"
+                          disabled={!!giftCode.trim()}
+                          placeholder={
+                            giftCode.trim()
+                              ? "Geschenkguthaben ausgewählt"
+                              : "Code eingeben"
+                          }
                           value={discountCode}
                           onChange={(e) => setDiscountCode(e.target.value)}
                         />
@@ -931,6 +965,27 @@ export function ProductStore({
                       Stripe. Eine neue Mitgliedschaft wird erst nach
                       bestätigter Zahlung aktiviert.
                     </p>
+                    {gifts && (
+                      <label>
+                        Geschenkcode (optional)
+                        <input
+                          autoComplete="off"
+                          maxLength={80}
+                          value={giftCode}
+                          placeholder="PA-…"
+                          onChange={(e) => {
+                            setGiftCode(e.target.value);
+                            if (e.target.value.trim()) setDiscountCode("");
+                          }}
+                        />
+                        <small>
+                          Dein Gutschein wird nach den automatischen
+                          Preisvorteilen angerechnet. Den Restbetrag und den
+                          jeweils neuen Code findest du ohne Portalanmeldung in
+                          deinem persönlichen Bestellstatus.
+                        </small>
+                      </label>
+                    )}
                     {!payments && (
                       <p role="status">
                         Der Zahlungsabschluss ist in dieser Vorschau noch nicht

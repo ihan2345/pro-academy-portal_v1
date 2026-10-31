@@ -1,4 +1,5 @@
 "use client";
+import { giftMoney } from "@/lib/gifts/domain";
 import { ProductOperations } from "./operations";
 import { EffectColorWheel } from "./color-wheel";
 import Link from "next/link";
@@ -622,7 +623,9 @@ export function AdminProducts() {
                   </small>
                 </span>
                 <span className="product-row-price">
-                  {priceLabel(p.draft.price)}
+                  {p.draft.kind === "gift"
+                    ? giftMoney(p.draft.gift_amount ?? 0)
+                    : priceLabel(p.draft.price)}
                 </span>
                 <span>
                   <span className={`product-status ${p.status}`}>
@@ -741,28 +744,31 @@ export function AdminProducts() {
               </div>
             </div>
             <div className="product-kind-cards">
-              {Object.entries(kindLabels).map(([k, label]) => (
-                <button
-                  type="button"
-                  key={k}
-                  aria-pressed={data.kind === k}
-                  className={data.kind === k ? "selected" : ""}
-                  onClick={() => {
-                    update({
-                      kind: k as Product["kind"],
-                      price: null,
-                      plan_id: null,
-                      camp_offer_id: null,
-                    });
-                    setPriceId("");
-                    setProductId("");
-                  }}
-                >
-                  <ShoppingBag size={23} />
-                  <strong>{label}</strong>
-                  {data.kind === k && <Check size={16} />}
-                </button>
-              ))}
+              {Object.entries(kindLabels)
+                .filter(([k]) => k !== "gift" || refs.gifts_enabled)
+                .map(([k, label]) => (
+                  <button
+                    type="button"
+                    key={k}
+                    aria-pressed={data.kind === k}
+                    className={data.kind === k ? "selected" : ""}
+                    onClick={() => {
+                      update({
+                        kind: k as Product["kind"],
+                        gift_amount: k === "gift" ? 5000 : null,
+                        price: null,
+                        plan_id: null,
+                        camp_offer_id: null,
+                      });
+                      setPriceId("");
+                      setProductId("");
+                    }}
+                  >
+                    <ShoppingBag size={23} />
+                    <strong>{label}</strong>
+                    {data.kind === k && <Check size={16} />}
+                  </button>
+                ))}
             </div>
             <div className="product-inline-fields">
               <label>
@@ -1193,7 +1199,33 @@ export function AdminProducts() {
                 )}
               </>
             )}
-            {data.kind !== "camp" && (
+            {data.kind === "gift" && (
+              <div className="product-inline-fields">
+                <label>
+                  Geschenkbetrag in Euro
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000"
+                    step="0.01"
+                    value={(data.gift_amount ?? 0) / 100}
+                    onChange={(e) =>
+                      update({
+                        gift_amount: Math.round(Number(e.target.value) * 100),
+                        price: null,
+                      })
+                    }
+                  />
+                </label>
+                <p>
+                  Ein Stripe-Artikel je Betrag wird beim Veröffentlichen
+                  automatisch angelegt oder wiederverwendet. Alle
+                  veröffentlichten Beträge erscheinen gemeinsam als eine
+                  Geschenkkarte im Shop.
+                </p>
+              </div>
+            )}
+            {data.kind !== "camp" && data.kind !== "gift" && (
               <>
                 <div className="product-inline-fields">
                   <label>
