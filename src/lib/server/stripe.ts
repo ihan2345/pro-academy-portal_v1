@@ -58,6 +58,9 @@ export async function syncSubscription(id: string, client?: Stripe) {
   const retrieved = new Date().toISOString(),
     stripe = client ?? stripeClient(),
     subscription = await stripe.subscriptions.retrieve(id);
+  // A gift-funded first invoice must be fully settled before any training rights are imported.
+  if (subscription.metadata?.pa_gift_pending === "1")
+    return { pending: true, subscription };
   const customer =
     typeof subscription.customer === "string"
       ? subscription.customer

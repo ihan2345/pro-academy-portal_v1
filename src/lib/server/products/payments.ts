@@ -65,6 +65,16 @@ export async function applyChargeOutcome(
   if (charge.livemode !== productLiveMode()) throw Error("Live charge blocked");
   const pi = ref(charge.payment_intent);
   if (!pi) return;
+  const native =
+    charge.metadata?.pa_gift_payment === "invoice_v1"
+      ? checked<any>(
+          await serviceDb()
+            .from("gift_billings")
+            .select("intent_id")
+            .eq("cash_payment_id", pi)
+            .maybeSingle(),
+        )
+      : null;
   // This also recovers payments of pre-existing / externally changed subscriptions.
   for await (const p of stripe.invoicePayments.list({
     payment: { type: "payment_intent", payment_intent: pi },
@@ -163,6 +173,7 @@ export async function applyChargeOutcome(
   for (const i of new Map(
     [...direct, ...linked].map((i) => [i.id, i]),
   ).values()) {
+    if (native?.intent_id === i.id) continue;
     // Refunds do not cancel contracts or rewrite historical training allowances.
     const orderStatus = status === "paid" ? "fulfilled" : status;
     if (status === "paid" && (!disputeWon || i.status !== "review")) continue;
@@ -213,5 +224,16 @@ export async function applyChargeOutcome(
           .eq("id", i.camp_booking_id)
           .select("id"),
       );
+  }
+  if (native) {
+    const i = checked<any>(
+      await db
+        .from("product_purchase_intents")
+        .select("*")
+        .eq("id", native.intent_id)
+        .single(),
+    );
+    const { reconcileGiftRefund } = await import("@/lib/gifts/refunds");
+    await reconcileGiftRefund(i, stripe);
   }
 }

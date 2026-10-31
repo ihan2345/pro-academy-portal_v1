@@ -21,6 +21,8 @@ import {
 import { requireProductPayments } from "@/lib/server/products/runtime";
 import { requireGifts } from "./runtime";
 import { ensureGiftValue } from "./stripe";
+import { giftBillingConfig } from "./billing";
+import { creditGiftPurchase } from "./refunds";
 
 export async function giftSettings() {
   requireGifts();
@@ -183,15 +185,28 @@ export async function createGiftCheckout(
   };
   if (!prior) checked(await db.from("gift_orders").insert(row));
   const origin = new URL(process.env.APP_URL!).origin;
+  const billing = await giftBillingConfig(productStripe());
   const checkout = await productStripe().checkout.sessions.create(
     {
       mode: "payment",
+      adaptive_pricing: { enabled: false },
       client_reference_id: row.id,
       metadata: { gift_order_id: row.id },
       payment_intent_data: { metadata: { gift_order_id: row.id } },
       customer_creation: "always",
       customer_email: row.buyer.email,
-      line_items: [{ price: value.id, quantity: 1 }],
+      line_items: [{ price: value.id, quantity: 1, tax_rates: [billing.tax] }],
+      billing_address_collection: "required",
+      invoice_creation: {
+        enabled: true,
+        invoice_data: {
+          description:
+            "ProAcademy Einzweckgutschein · Leistungen in Deutschland · 19 % USt. im Geschenkwert enthalten",
+          metadata: { gift_order_id: row.id },
+          footer:
+            "Die Umsatzsteuer wird beim Erwerb des Einzweckgutscheins berücksichtigt. Spätere Einlösungen verrechnen den bereits bezahlten und versteuerten Wert.",
+        },
+      },
       payment_method_types: ["card"],
       locale: "de",
       expires_at: Math.floor(Date.parse(row.checkout_expires_at) / 1000),
@@ -294,7 +309,9 @@ export async function fulfillGiftOrder(
     s.currency !== o.currency ||
     s.total_details?.amount_discount ||
     s.total_details?.amount_shipping ||
-    s.total_details?.amount_tax ||
+    (o.billing_model
+      ? s.total_details?.amount_tax !== Math.round((o.amount * 19) / 119)
+      : s.total_details?.amount_tax) ||
     !piId
   )
     throw new HttpError(
@@ -305,6 +322,33 @@ export async function fulfillGiftOrder(
       expand: ["latest_charge"],
     }),
     charge = typeof pi.latest_charge === "object" ? pi.latest_charge : null;
+  if (o.billing_model) {
+    const invoiceId = typeof s.invoice === "string" ? s.invoice : s.invoice?.id;
+    if (!invoiceId)
+      throw new HttpError(409, "Gutscheinrechnung wird noch erstellt.");
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+    if (
+      invoice.status !== "paid" ||
+      invoice.livemode !== o.livemode ||
+      invoice.total !== o.amount ||
+      invoice.currency !== o.currency ||
+      invoice.amount_remaining !== 0 ||
+      (typeof invoice.customer === "string"
+        ? invoice.customer
+        : invoice.customer?.id) !==
+        (typeof s.customer === "string" ? s.customer : s.customer?.id)
+    )
+      throw new HttpError(409, "Gutscheinrechnung passt nicht zur Zahlung.");
+    checked(
+      await db
+        .from("gift_orders")
+        .update({
+          invoice_id: invoice.id,
+          invoice_url: invoice.hosted_invoice_url,
+        })
+        .eq("id", o.id),
+    );
+  }
   if (
     !charge ||
     pi.livemode !== o.livemode ||
@@ -324,6 +368,12 @@ export async function fulfillGiftOrder(
       "Geschenkzahlung ist noch nicht vollständig bestätigt.",
     );
   if (charge.refunded || charge.disputed || charge.amount_refunded > 0) {
+    if (charge.refunded && o.billing_model)
+      await creditGiftPurchase(
+        { ...o, payment_id: pi.id },
+        (typeof s.invoice === "string" ? s.invoice : s.invoice!.id)!,
+        stripe,
+      );
     const status = charge.refunded ? "refunded" : "review";
     checked(
       await db.rpc("gift_freeze_order", {

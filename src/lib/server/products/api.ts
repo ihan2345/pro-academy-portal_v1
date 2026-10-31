@@ -20,6 +20,7 @@ import {
   updateService,
   recheckOrder,
   resolvePaymentReview,
+  returnGiftPayment,
 } from "./operations";
 import { previewGrantChange, applyGrantChange } from "./grants";
 import { productIdSchema } from "@/lib/products/domain";
@@ -143,6 +144,8 @@ export async function productApi(
           return json(await resumeOrder(s, orderId, true));
         if (action[2] === "service")
           return json(await updateService(s, orderId, await body(request)));
+        if (action[2] === "return-gift")
+          return json(await returnGiftPayment(s, orderId, await body(request)));
       }
       if (!path && method === "GET")
         return json(await listProducts(s, request.nextUrl.searchParams, true));

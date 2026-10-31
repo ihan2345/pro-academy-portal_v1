@@ -75,6 +75,7 @@ export async function presentGiftStatus(o: any, viewer: GiftStatusScope) {
     expires_at: g?.expires_at ?? null,
     messages,
     appearance: o.appearance,
+    invoice_url: viewer === "buyer" ? (o.invoice_url ?? null) : null,
     checkout_url:
       viewer === "buyer" && o.status === "checkout" ? o.checkout_url : null,
   };

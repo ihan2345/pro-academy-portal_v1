@@ -113,6 +113,13 @@ export function GiftStatusView({
             ursprüngliche Gültigkeit seit dem Erwerb bleibt bestehen.
           </p>
         )}
+        {order.invoice_url && (
+          <p>
+            <a href={order.invoice_url} target="_blank" rel="noreferrer">
+              Rechnungsbeleg öffnen
+            </a>
+          </p>
+        )}
         {order.reserved > 0 && (
           <p className="notice">
             {giftMoney(order.reserved)} sind für einen offenen Kauf reserviert.

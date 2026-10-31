@@ -140,12 +140,25 @@ it("issues once from verified references, keeps the same code on replay and queu
     db.query("select gift_issue_paid_order($1)", [{ ...input, amount: 1 }]),
   ).rejects.toThrow(/passt nicht/);
 });
-it("uses twelve calendar months from payment, independent of delayed webhook delivery", async () => {
+it("expires at the end of the third year after the purchase year, independent of delayed delivery", async () => {
   const { gift } = await issue(5000, "2024-02-29T12:00:00Z");
   expect(new Date(gift.expires_at).toISOString()).toBe(
-    "2025-02-28T12:00:00.000Z",
+    "2027-12-31T22:59:59.999Z",
   );
 });
+it.each([
+  ["2026-12-31T22:59:59Z", "2029-12-31T22:59:59.999Z"],
+  ["2026-12-31T23:00:00Z", "2030-12-31T22:59:59.999Z"],
+])(
+  "uses the German purchase year at the year boundary: %s",
+  async (paid, expected) => {
+    const result = await db.query<{ expiry: Date }>(
+      "select gift_expiry($1) expiry",
+      [paid],
+    );
+    expect(new Date(result.rows[0].expiry).toISOString()).toBe(expected);
+  },
+);
 it("claims a code once, permits same-owner retries and rejects a different family or mismatched identity", async () => {
   const { gift, hash } = await issue();
   expect((await claim(hash)).rows[0].id).toBe(gift.id);
@@ -179,7 +192,11 @@ it("holds credit once per intent, spends only on fulfillment and retains a parti
   const proof = {
     session_id: `cs_${i.id}`,
     livemode: false,
-    payment_status: "no_payment_required",
+    payment_status: "paid",
+    gift_invoice_id: `in_${i.id}`,
+    gift_payment_record_id: `pr_${i.id}`,
+    gift_credit_amount: i.gift_credit_amount,
+    gift_invoice_total: i.expected_amount + i.gift_credit_amount,
     price_id: "price_gift_test",
     product_id: "prod_gift_test",
     currency: "eur",
@@ -196,6 +213,16 @@ it("holds credit once per intent, spends only on fulfillment and retains a parti
   const version = (
     await db.query<any>("select product_family_version($1) v", [pid])
   ).rows[0].v;
+  await expect(
+    db.query("select fulfill_product_purchase($1)", [
+      { id: i.id, proof, context_version: version },
+    ]),
+  ).rejects.toThrow(/Rechnung fehlt/);
+  expect((await wallet(gift.id)).reserved).toBe(3500);
+  await db.query(
+    "insert into gift_billings(intent_id,livemode,invoice_id,payment_record_id,state)values($1,false,$2,$3,'settled')",
+    [i.id, proof.gift_invoice_id, proof.gift_payment_record_id],
+  );
   await db.query("select fulfill_product_purchase($1)", [
     { id: i.id, proof, context_version: version },
   ]);
@@ -296,21 +323,67 @@ it("freezes refunded gift value atomically and prevents fulfillment using a froz
     [i.id],
   );
 });
-it("leaves a valid 50-cent Stripe remainder while retaining unused cents in the wallet",async()=>{
+it("leaves a valid 50-cent Stripe remainder while retaining unused cents in the wallet", async () => {
   await db.exec("update gift_wallet_credits set frozen=true");
-  const {gift,hash}=await issue(3480);await claim(hash);const {i}=await reserve();
-  expect(i.expected_amount).toBe(50);expect(i.gift_credit_amount).toBe(3450);expect((await wallet(gift.id)).remaining-(await wallet(gift.id)).reserved).toBe(30);
-  await db.query("update product_purchase_intents set status='expired' where id=$1",[i.id]);
+  const { gift, hash } = await issue(3480);
+  await claim(hash);
+  const { i } = await reserve();
+  expect(i.expected_amount).toBe(50);
+  expect(i.gift_credit_amount).toBe(3450);
+  expect(
+    (await wallet(gift.id)).remaining - (await wallet(gift.id)).reserved,
+  ).toBe(30);
+  await db.query(
+    "update product_purchase_intents set status='expired' where id=$1",
+    [i.id],
+  );
 });
-it("allocates one family balance across different children without overspending",async()=>{
+it("allocates one family balance across different children without overspending", async () => {
   await db.exec("update gift_wallet_credits set frozen=true");
-  const {gift,hash}=await issue();await claim(hash);
-  const secondKid=id(counter++);await db.query("insert into players(id,first_name,last_name,birth_year)values($1,'Zweites','Kind',2016)",[secondKid]);await db.query("insert into parent_players(parent_id,player_id)values($1,$2)",[pid,secondKid]);
-  const inputs=[kid,secondKid].map(player_id=>({id:id(counter++),product_id:productId,revision:1,parent_id:pid,auth_id:uid,player_id,amount:3500,channel:"catalog",use_gift_credit:true}));
-  const results=await Promise.all(inputs.map(v=>db.query<any>("select (reserve_product_purchase($1)).gift_credit_amount used",[v])));
-  expect(results.map(r=>r.rows[0].used).sort((a,b)=>a-b)).toEqual([1500,3500]);expect((await wallet(gift.id)).reserved).toBe(5000);
-  await expect(db.query("select reserve_product_purchase($1)",[{...inputs[0],use_gift_credit:false}])).rejects.toThrow(/Guthabenwahl/);
-  for(const v of inputs)await db.query("update product_purchase_intents set status='expired' where id=$1",[v.id]);
+  const { gift, hash } = await issue();
+  await claim(hash);
+  const secondKid = id(counter++);
+  await db.query(
+    "insert into players(id,first_name,last_name,birth_year)values($1,'Zweites','Kind',2016)",
+    [secondKid],
+  );
+  await db.query(
+    "insert into parent_players(parent_id,player_id)values($1,$2)",
+    [pid, secondKid],
+  );
+  const inputs = [kid, secondKid].map((player_id) => ({
+    id: id(counter++),
+    product_id: productId,
+    revision: 1,
+    parent_id: pid,
+    auth_id: uid,
+    player_id,
+    amount: 3500,
+    channel: "catalog",
+    use_gift_credit: true,
+  }));
+  const results = await Promise.all(
+    inputs.map((v) =>
+      db.query<any>(
+        "select (reserve_product_purchase($1)).gift_credit_amount used",
+        [v],
+      ),
+    ),
+  );
+  expect(results.map((r) => r.rows[0].used).sort((a, b) => a - b)).toEqual([
+    1500, 3500,
+  ]);
+  expect((await wallet(gift.id)).reserved).toBe(5000);
+  await expect(
+    db.query("select reserve_product_purchase($1)", [
+      { ...inputs[0], use_gift_credit: false },
+    ]),
+  ).rejects.toThrow(/Guthabenwahl/);
+  for (const v of inputs)
+    await db.query(
+      "update product_purchase_intents set status='expired' where id=$1",
+      [v.id],
+    );
 });
 it("deduplicates catalogue denominations and keeps accounting RPCs inaccessible to browser roles", async () => {
   const gift = {

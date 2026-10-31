@@ -124,6 +124,23 @@ export function ProductOperations({ admin = false }: { admin?: boolean }) {
             </p>
           )}
           {o.reason && <p>{o.reason}</p>}
+          {admin &&
+            o.gift_credit_amount > 0 &&
+            ["fulfilled", "review"].includes(o.status) && (
+              <button
+                disabled={busy || reason.trim().length < 5}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Geschenkguthaben vollständig zurückbuchen? Eine Zuzahlung muss zuvor in Stripe vollständig erstattet sein. Ein Abo-Vertrag wird dadurch nicht gekündigt.",
+                    )
+                  )
+                    void action(o.id, "return-gift", { reason });
+                }}
+              >
+                Guthaben-Erstattung abschließen
+              </button>
+            )}
           {!admin && ["reserved", "checkout", "failed"].includes(o.status) && (
             <>
               <button

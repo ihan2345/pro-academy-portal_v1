@@ -51,7 +51,7 @@ export async function listOrders(
   let q = serviceDb()
     .from("product_purchase_intents")
     .select(
-      "id,product,player_data,player_id,parent_id,auth_id,guest_data,status,reason,created_at,expires_at,parents(full_name),product_guest_messages(status,last_error,sent_at,attempts),product_purchases(id,service_status,service_note)",
+      "id,product,player_data,player_id,parent_id,auth_id,guest_data,status,reason,created_at,expires_at,gift_credit_amount,parents(full_name),product_guest_messages(status,last_error,sent_at,attempts),product_purchases(id,service_status,service_note)",
     )
     .order("id", { ascending: false })
     .limit(31);
@@ -78,6 +78,7 @@ export async function listOrders(
       id: i.id,
       name: i.product.name,
       kind: i.product.kind,
+      gift_credit_amount: i.gift_credit_amount ?? 0,
       player_id: i.player_id,
       family: i.parents?.full_name ?? i.guest_data?.full_name,
       guest: !!i.guest_data,
@@ -362,4 +363,34 @@ export async function resolvePaymentReview(
       "Zahlungsprüfung konnte nicht abgeschlossen werden.",
     );
   return { ok: true };
+}
+
+export async function returnGiftPayment(
+  session: ProfileSession,
+  id: string,
+  raw: unknown,
+) {
+  assertRole(session.role, "admin");
+  const { reason } = z
+    .object({ reason: z.string().trim().min(5).max(500) })
+    .strict()
+    .parse(raw);
+  const i = await ownIntent(session, id);
+  if (
+    !i.gift_credit_amount ||
+    !["fulfilled", "review", "refunded"].includes(i.status)
+  )
+    throw new HttpError(409, "Keine abgeschlossene Guthabenzahlung vorhanden.");
+  const { reconcileGiftRefund } = await import("@/lib/gifts/refunds");
+  const returned = await reconcileGiftRefund(
+    { ...i, refund_reason: reason, refund_actor: session.user.id },
+    productStripe(),
+    true,
+  );
+  if (!returned)
+    throw new HttpError(
+      409,
+      "Für diese Bestellung ist keine zuordenbare Guthabenzahlung vorhanden.",
+    );
+  return { id, status: "refunded" };
 }

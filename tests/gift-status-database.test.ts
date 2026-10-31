@@ -158,7 +158,11 @@ async function complete(i: any) {
   const proof = {
     session_id: session,
     livemode: false,
-    payment_status: i.expected_amount === 0 ? "no_payment_required" : "paid",
+    payment_status: "paid",
+    gift_invoice_id: `in_${i.id}`,
+    gift_payment_record_id: `pr_${i.id}`,
+    gift_credit_amount: i.gift_credit_amount,
+    gift_invoice_total: i.expected_amount + i.gift_credit_amount,
     price_id: "price_gift_test",
     product_id: "prod_gift_test",
     currency: "eur",
@@ -171,6 +175,10 @@ async function complete(i: any) {
   const context_version = (
     await db.query<any>("select product_family_version($1) v", [pid])
   ).rows[0].v;
+  await db.query(
+    "insert into gift_billings(intent_id,livemode,invoice_id,payment_record_id,state)values($1,false,$2,$3,'settled')on conflict do nothing",
+    [i.id, proof.gift_invoice_id, proof.gift_payment_record_id],
+  );
   await db.query("select fulfill_product_purchase($1)", [
     { id: i.id, proof, context_version },
   ]);
@@ -273,14 +281,23 @@ it("returns a fully refunded purchase contribution once, rotates again, and reta
   const { gift, hash } = await issue(5000),
     a = await codeReserve(hash);
   await complete(a.intent);
+  const refund = {
+    id: a.intent.id,
+    record_id: `pr_${a.intent.id}`,
+    credit_note_id: `cn_${a.intent.id}`,
+    amount: a.intent.gift_credit_amount,
+  };
+  await db.query("select gift_start_return($1)", [{ id: a.intent.id }]);
+  await expect(
+    db.query("select gift_complete_return($1)", [refund]),
+  ).rejects.toThrow(/Erstattungsnachweis/);
+  expect((await card(gift.id)).remaining).toBe(1500);
   await db.query(
-    "update product_purchase_intents set status='refunded' where id=$1",
-    [a.intent.id],
+    "update gift_billings set credit_note_id=$2 where intent_id=$1",
+    [a.intent.id, refund.credit_note_id],
   );
-  await db.query(
-    "update product_purchase_intents set status='refunded' where id=$1",
-    [a.intent.id],
-  );
+  await db.query("select gift_complete_return($1)", [refund]);
+  await db.query("select gift_complete_return($1)", [refund]);
   expect(await card(gift.id)).toMatchObject({
     remaining: 5000,
     reserved: 0,

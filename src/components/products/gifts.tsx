@@ -158,8 +158,9 @@ export function GiftPurchaseDialog({
         </fieldset>
         <p className="gift-help">
           Der persönliche Code entsteht nach bestätigter Zahlung. Käufer und
-          beschenkte Person erhalten jeweils eine E-Mail. Einmal dem Elternkonto
-          gutgeschrieben, bleibt ein Restwert bis zum Ablauf verfügbar.
+          beschenkte Person erhalten jeweils eine E-Mail. Die Karte ist bis zum
+          Ende des dritten Jahres nach dem Kaufjahr einlösbar. Restguthaben
+          behält dieses ursprüngliche Gültigkeitsdatum.
         </p>
         {error && (
           <p role="alert" className="notice error">

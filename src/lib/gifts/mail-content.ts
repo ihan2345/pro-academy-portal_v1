@@ -76,6 +76,12 @@ export function giftMailContent({
             "Dein Geschenk ist bereits vollständig eingelöst. Die bisherigen Vorgänge findest du in deiner Guthaben-Historie.",
           ]),
       `Einlösbar bis ${date}.`,
+      ...(buyer && order.invoice_url
+        ? [
+            `Dein Rechnungsbeleg: ${order.invoice_url}`,
+            "Im Geschenkwert sind 19 % Umsatzsteuer enthalten. Die Einlösung verrechnet den bereits versteuerten Einzweckgutschein.",
+          ]
+        : []),
       buyer
         ? "Dein persönlicher Bestellstatus zeigt dir Kaufbestätigung und Zahlungsstatus. Die beschenkte Person erhält einen eigenen Link für Gutschein, Restguthaben und Verbrauchshistorie."
         : "Gib den Geschenkcode im Shop direkt beim Checkout ein. Ein gesondertes Gutscheinkonto ist nicht nötig. Nach jedem erfolgreichen Einsatz wird der bisherige Code gesperrt; für verbleibendes Guthaben erhältst du einen neuen Code.",

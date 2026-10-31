@@ -933,12 +933,7 @@ export function ProductStore({
                         <input
                           autoComplete="off"
                           maxLength={80}
-                          disabled={!!giftCode.trim()}
-                          placeholder={
-                            giftCode.trim()
-                              ? "Geschenkguthaben ausgewählt"
-                              : "Code eingeben"
-                          }
+                          placeholder="Code eingeben"
                           value={discountCode}
                           onChange={(e) => setDiscountCode(e.target.value)}
                         />
@@ -975,7 +970,6 @@ export function ProductStore({
                           placeholder="PA-…"
                           onChange={(e) => {
                             setGiftCode(e.target.value);
-                            if (e.target.value.trim()) setDiscountCode("");
                           }}
                         />
                         <small>

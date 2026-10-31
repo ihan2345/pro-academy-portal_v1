@@ -158,7 +158,11 @@ async function complete(i: any) {
   const proof = {
     session_id: session,
     livemode: false,
-    payment_status: i.expected_amount === 0 ? "no_payment_required" : "paid",
+    payment_status: "paid",
+    gift_invoice_id: `in_${i.id}`,
+    gift_payment_record_id: `pr_${i.id}`,
+    gift_credit_amount: i.gift_credit_amount,
+    gift_invoice_total: i.expected_amount + i.gift_credit_amount,
     price_id: "price_gift_test",
     product_id: "prod_gift_test",
     currency: "eur",
@@ -171,6 +175,10 @@ async function complete(i: any) {
   const context_version = (
     await db.query<any>("select product_family_version($1) v", [pid])
   ).rows[0].v;
+  await db.query(
+    "insert into gift_billings(intent_id,livemode,invoice_id,payment_record_id,state)values($1,false,$2,$3,'settled')on conflict do nothing",
+    [i.id, proof.gift_invoice_id, proof.gift_payment_record_id],
+  );
   await db.query("select fulfill_product_purchase($1)", [
     { id: i.id, proof, context_version },
   ]);

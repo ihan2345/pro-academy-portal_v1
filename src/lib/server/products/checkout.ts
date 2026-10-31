@@ -1,7 +1,11 @@
 import { giftCodeSchema } from "@/lib/gifts/domain";
 import { giftCodeHash, newGiftCode, sealGift } from "@/lib/gifts/crypto";
 import { requireGifts } from "@/lib/gifts/runtime";
-import { prepareGiftDiscount } from "@/lib/gifts/checkout";
+import {
+  giftCheckoutParams,
+  nativeGiftPayment,
+  type GiftPaymentProof,
+} from "@/lib/gifts/billing";
 import { activeCampProduct } from "./camp-product";
 import { productLiveMode } from "./runtime";
 import { recordInvoicePayments } from "./payments";
@@ -149,7 +153,7 @@ export async function checkoutProduct(
   );
   if (previous) {
     if (
-      (previous.discount?.gift_code_hash ?? null) !==
+      (previous.gift_code_hash ?? previous.discount?.gift_code_hash ?? null) !==
       (input.gift_code ? giftCodeHash(input.gift_code) : null)
     )
       throw new HttpError(
@@ -251,7 +255,7 @@ export async function checkoutProduct(
           o.product.kind === "subscription")),
   )) {
     if (
-      (old.discount?.gift_code_hash ?? null) !==
+      (old.gift_code_hash ?? old.discount?.gift_code_hash ?? null) !==
       (input.gift_code ? giftCodeHash(input.gift_code) : null)
     )
       throw new HttpError(
@@ -435,23 +439,7 @@ export async function checkoutProduct(
     }
   }
   promotion = discount?.promotion_id;
-  if ((input.use_gift_credit || input.gift_code) && input.discount_code)
-    throw new HttpError(
-      409,
-      "Bitte Geschenkguthaben oder einen zusätzlichen Rabattcode wählen. Automatische Camp-Vorteile bleiben kombinierbar.",
-    );
   const amount = discount?.amount ?? price.amount;
-  // Do not replace an existing recurring promotion with an expiring credit coupon.
-  if (
-    (input.use_gift_credit || input.gift_code) &&
-    p.published.kind === "subscription" &&
-    discount &&
-    discount.duration !== "once"
-  )
-    throw new HttpError(
-      409,
-      "Wiederkehrender Rabatt und Geschenkguthaben benötigen eine gesonderte Abrechnung. Der bestehende Rabatt bleibt erhalten; bitte diesen Kauf ohne Guthaben fortsetzen.",
-    );
   const nextGiftCode = input.gift_code ? newGiftCode() : null,
     refundGiftCode = input.gift_code ? newGiftCode() : null;
   const reserved = await db.rpc("reserve_product_purchase", {
@@ -520,8 +508,6 @@ export async function checkoutProduct(
       .eq("id", intent.id)
       .select("id"),
   );
-  if (intent.gift_credit_amount > 0)
-    promotion = await prepareGiftDiscount(intent, customerId!, stripe);
   // Repeat after external validation; a stale card can never initiate a new session.
   const fresh = await productById(id);
   if (
@@ -547,6 +533,9 @@ export async function checkoutProduct(
         cancel_url: `${origin}/produkte?purchase=${intent.id}`,
         expires_at: Math.floor(Date.parse(intent.expires_at) / 1000),
         locale: "de",
+        ...(intent.gift_credit_amount > 0
+          ? giftCheckoutParams(intent, customerId!)
+          : {}),
       },
       { idempotencyKey: `product-checkout:${intent.id}` },
     );
@@ -609,6 +598,11 @@ export async function fulfillCheckout(id: string) {
     await db.from("product_purchase_intents").select("*").eq("id", id).single(),
   );
   if (i.status === "fulfilled" || i.status === "refunded") {
+    if (i.gift_credit_amount > 0 && i.status === "fulfilled") {
+      const { reconcileGiftRefund } = await import("@/lib/gifts/refunds");
+      if (await reconcileGiftRefund(i, stripe))
+        return { id, status: "refunded" };
+    }
     if (
       i.status === "fulfilled" &&
       i.subscription_id &&
@@ -624,6 +618,11 @@ export async function fulfillCheckout(id: string) {
   // identity-review reason required for a later verified guest claim.
   if (i.status === "review") return { id, status: "review" };
   if (!i.session_id) throw new HttpError(409, "Checkout-Referenz fehlt.");
+  if (i.gift_credit_amount > 0) {
+    const native = await nativeGiftPayment(i, stripe);
+    if ("status" in native) return { id, status: native.status };
+    return completeProductPurchase(i, native, stripe);
+  }
   const session = await stripe.checkout.sessions.retrieve(i.session_id);
   if (
     session.livemode !== productLiveMode() ||
@@ -774,6 +773,20 @@ export async function fulfillCheckout(id: string) {
     payment_id: paymentId,
     created_at: new Date(session.created * 1000).toISOString(),
   };
+  return completeProductPurchase(
+    i,
+    { proof, paymentId, subscription, item },
+    stripe,
+  );
+}
+async function completeProductPurchase(
+  i: any,
+  payment: GiftPaymentProof,
+  stripe: Stripe,
+) {
+  const id = i.id,
+    db = serviceDb(),
+    { proof, paymentId, subscription, item } = payment;
   if (subscription) await syncSubscription(subscription.id, stripe);
   const contextVersion = i.parent_id
     ? checked<string>(

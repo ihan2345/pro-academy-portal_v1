@@ -832,7 +832,7 @@ it("only a Super-Admin can toggle storefront access, with optimistic locking and
 it("database payment verification is bound to deployment mode and retained order mode", async () => {
   const defs = (
     await db.query<any>(
-      "select pg_get_functiondef('fulfill_product_purchase(jsonb)'::regprocedure) d, pg_get_functiondef('publish_catalog_product(jsonb)'::regprocedure) p",
+      "select pg_get_functiondef('fulfill_product_purchase_before_invoice_gifts(jsonb)'::regprocedure) d, pg_get_functiondef('publish_catalog_product(jsonb)'::regprocedure) p",
     )
   ).rows[0];
   expect(defs.d).toContain(
