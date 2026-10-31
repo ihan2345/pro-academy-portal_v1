@@ -239,13 +239,15 @@ export function StripeNoticeOverview({
                 <div className="stripe-billing-head">
                   <h3>{row.customer}</h3>
                   <span className={`stripe-notice-state ${row.state}`}>
-                    {row.state === "done"
-                      ? "Erledigt"
-                      : row.state === "ignored"
-                        ? "Ignoriert"
-                        : row.actionRequired
-                          ? "Offen"
-                          : "Information"}
+                    {row.resolvedAutomatically
+                      ? "Automatisch erledigt"
+                      : row.state === "done"
+                        ? "Erledigt"
+                        : row.state === "ignored"
+                          ? "Ignoriert"
+                          : row.actionRequired
+                            ? "Offen"
+                            : "Information"}
                   </span>
                 </div>
                 <div className="stripe-notice-title">

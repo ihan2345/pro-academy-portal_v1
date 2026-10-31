@@ -158,6 +158,158 @@ it("links the activity to a pending review of its own subscription and keeps pro
     href: "/admin/stripe?customer=cus_one",
   });
 });
+it("recognizes the existing owner of a paid invoice's old item after a package change, while keeping the new item actionable", async () => {
+  const invoice = event(1);
+  (invoice.payload.data.object as any).lines = {
+    has_more: false,
+    data: [
+      {
+        quantity: 1,
+        parent: { subscription_item_details: { subscription_item: "si_old" } },
+      },
+    ],
+  };
+  mock.tables.stripe_webhook_events = [
+    invoice,
+    {
+      ...event(2),
+      type: "customer.subscription.updated",
+      payload: { data: { object: { id: "sub_one", customer: "cus_one" } } },
+    },
+    {
+      ...event(3),
+      type: "customer.subscription.updated",
+      payload: {
+        data: {
+          object: {
+            id: "sub_one",
+            customer: "cus_one",
+            items: { has_more: false, data: [{ id: "si_old", quantity: 1 }] },
+          },
+        },
+      },
+    },
+  ];
+  mock.tables.subscription_players = [
+    {
+      id: "mapping",
+      subscription_id: "local",
+      stripe_item_id: "si_old",
+      players: {
+        first_name: "Existing",
+        last_name: "Child",
+        archived_at: null,
+      },
+    },
+  ];
+  mock.tables.subscription_assignment_reviews = [
+    {
+      id: "new_review",
+      subscription_id: "local",
+      stripe_item_id: "si_one",
+      status: "pending",
+    },
+  ];
+  const r = await stripeActivities({ role: "admin" } as any, { asOf });
+  expect(r.rows[0]).toMatchObject({
+    assignment: "assigned",
+    children: ["Existing Child"],
+    actionRequired: false,
+    resolvedAutomatically: true,
+    reviewId: null,
+  });
+  expect(r.rows[1]).toMatchObject({
+    assignment: "unassigned",
+    actionRequired: true,
+    resolvedAutomatically: false,
+    reviewId: "new_review",
+  });
+  expect(r.rows[2]).toMatchObject({
+    assignment: "assigned",
+    actionRequired: false,
+    resolvedAutomatically: true,
+    reviewId: null,
+  });
+});
+it("recognizes an explicit existing player mapping at quantity two without altering billing or allowances", async () => {
+  mock.tables.stripe_webhook_events[0].payload.data.object.lines = {
+    has_more: false,
+    data: [{ subscription_item: "si_one", quantity: 2 }],
+  };
+  mock.tables.subscriptions[0].stripe_data.items[0].quantity = 2;
+  mock.tables.subscription_players = [
+    {
+      id: "mapping",
+      subscription_id: "local",
+      stripe_item_id: "si_one",
+      players: {
+        first_name: "Confirmed",
+        last_name: "Child",
+        archived_at: null,
+      },
+    },
+  ];
+  const r = await stripeActivities({ role: "admin" } as any, { asOf });
+  expect(r.rows[0]).toMatchObject({
+    assignment: "assigned",
+    actionRequired: false,
+    resolvedAutomatically: true,
+  });
+  expect(mock.tables.subscriptions[0].stripe_data.items[0].quantity).toBe(2);
+});
+it.each([
+  "archived",
+  "missing_item",
+  "truncated",
+  "failed",
+  "pending_review",
+  "pending_event",
+  "missing_lines",
+  "failed_payment",
+  "unpaid_checkout",
+])("keeps %s evidence out of automatic completion", async (fault) => {
+  const row = mock.tables.stripe_webhook_events[0];
+  row.payload.data.object.lines = {
+    has_more: fault === "truncated",
+    data: [
+      {
+        subscription_item: fault === "missing_item" ? "si_other" : "si_one",
+        quantity: 1,
+      },
+    ],
+  };
+  mock.tables.subscription_players = [
+    {
+      id: "mapping",
+      subscription_id: "local",
+      stripe_item_id: "si_one",
+      players: {
+        first_name: "Existing",
+        last_name: "Child",
+        archived_at: fault === "archived" ? "2026-10-01" : null,
+      },
+    },
+  ];
+  if (fault === "failed") row.status = "failed";
+  if (fault === "pending_event") row.status = "pending";
+  if (fault === "pending_review")
+    mock.tables.subscription_assignment_reviews = [
+      {
+        id: "review",
+        subscription_id: "local",
+        stripe_item_id: "si_one",
+        status: "pending",
+      },
+    ];
+  if (fault === "missing_lines") delete row.payload.data.object.lines;
+  if (fault === "failed_payment") row.type = "invoice.payment_failed";
+  if (fault === "unpaid_checkout") {
+    row.type = "checkout.session.completed";
+    row.payload.data.object.payment_status = "unpaid";
+  }
+  const r = await stripeActivities({ role: "admin" } as any, { asOf });
+  expect(r.rows[0].resolvedAutomatically).toBe(false);
+});
 it("returns three latest original events and filters seven days", async () => {
   mock.tables.stripe_webhook_events = [
     event(1),

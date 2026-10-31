@@ -31,12 +31,20 @@ type SourceNotice = Omit<StripeNotice, "state" | "token"> & {
   revision: unknown;
 };
 async function decorate(rows: SourceNotice[], now: number) {
-  return stripeNoticeDecisions(
+  const decorated = await stripeNoticeDecisions(
     rows.map(({ revision, ...r }) => ({
       ...r,
       state: "open",
       ...stripeNoticeIdentity(r.kind, r.id, revision, now),
     })),
+  );
+  return decorated.map((row) =>
+    row.state === "open" &&
+    !row.actionRequired &&
+    row.activity?.resolvedAutomatically &&
+    row.activity.assignment === "assigned"
+      ? { ...row, state: "done" as const, resolvedAutomatically: true }
+      : row,
   );
 }
 function checked(r: any) {

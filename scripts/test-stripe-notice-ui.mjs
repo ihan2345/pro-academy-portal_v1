@@ -76,7 +76,8 @@ const sample = Array.from({ length: 21 }, (_, i) => ({
   at: new Date(now - (i === 11 ? 45 : 1) * 86400000).toISOString(),
   customer: `Familie ${i}`,
   title: i < 12 ? "Aktion erforderlich" : "Information oder bearbeitet",
-  actionRequired: i < 17,
+  actionRequired: i < 17 && i !== 12,
+  resolvedAutomatically: i === 12,
   state: i < 12 || i >= 17 ? "open" : i < 15 ? "done" : "ignored",
 }));
 const reports = [];
@@ -204,6 +205,9 @@ try {
       await box.getByRole("button", { name: "Gesamt", exact: true }).click();
       await expect(box.getByText("1–10 von 21", { exact: true })).toBeVisible();
       await box.getByRole("button", { name: "Weiter", exact: true }).click();
+      await expect(
+        box.getByText("Automatisch erledigt", { exact: true }),
+      ).toBeVisible();
       await expect(
         box.getByRole("button", { name: "Wieder öffnen", exact: true }).first(),
       ).toBeVisible();

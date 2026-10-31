@@ -5,6 +5,7 @@ export interface StripeActivity {
   customer: string;
   subscriptionId: string | null;
   reviewId?: string | null;
+  resolvedAutomatically?: boolean;
   assignment: "assigned" | "partial" | "unassigned" | "not_applicable";
   children: string[];
   trialCandidates?: string[];

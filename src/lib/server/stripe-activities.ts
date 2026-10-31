@@ -155,7 +155,7 @@ export async function stripeActivityRows(
         collect(() =>
           db
             .from("subscription_assignment_reviews")
-            .select("id,subscription_id")
+            .select("id,subscription_id,stripe_item_id")
             .in("subscription_id", localIds)
             .eq("status", "pending"),
         ),
@@ -172,7 +172,28 @@ export async function stripeActivityRows(
   const result: StripeActivity[] = events.map(
     ({ r, object, customerId, subscriptionId }) => {
       const sub = subs.find((s) => s.stripe_subscription_id === subscriptionId);
-      const items: any[] = sub?.stripe_data?.items ?? [];
+      // A paid renewal belongs to the invoiced item, even if Stripe replaced it
+      // during a later package change. Never infer an owner from names alone.
+      const lines = object.lines;
+      const invoiced =
+        r.type.startsWith("invoice.") && Array.isArray(lines?.data)
+          ? lines.data.flatMap((line: any) => {
+              const item =
+                id(line.parent?.subscription_item_details?.subscription_item) ??
+                id(line.subscription_item);
+              return item ? [{ id: item, quantity: line.quantity ?? 1 }] : [];
+            })
+          : [];
+      const snapshotItems =
+        r.type.startsWith("customer.subscription.") &&
+        Array.isArray(object.items?.data)
+          ? object.items.data
+          : [];
+      const items: any[] = invoiced.length
+        ? invoiced
+        : snapshotItems.length
+          ? snapshotItems
+          : (sub?.stripe_data?.items ?? []);
       const assigned = mappings.filter(
         (m) =>
           m.subscription_id === sub?.id &&
@@ -182,9 +203,11 @@ export async function stripeActivityRows(
       );
       const complete =
         items.length > 0 &&
+        !(r.type.startsWith("invoice.") && lines?.has_more) &&
+        !(snapshotItems.length && object.items.has_more) &&
         items.every(
           (i) =>
-            Number(i.quantity ?? 1) === 1 &&
+            Number(i.quantity ?? 1) > 0 &&
             assigned.some((m) => m.stripe_item_id === i.id),
         );
       const assignment: StripeActivity["assignment"] = subscriptionId
@@ -199,7 +222,11 @@ export async function stripeActivityRows(
             : "unassigned"
           : "not_applicable";
       const pendingReview = reviews.find(
-        (review) => review.subscription_id === sub?.id,
+        (review) =>
+          review.subscription_id === sub?.id &&
+          ((!invoiced.length && !snapshotItems.length) ||
+            !review.stripe_item_id ||
+            items.some((i) => i.id === review.stripe_item_id)),
       );
       const failed = r.status === "failed";
       const missing =
@@ -208,6 +235,13 @@ export async function stripeActivityRows(
         (!sub || ["active", "trialing"].includes(sub.status));
       const actionRequired =
         failed || !!pendingReview || (missing && r.status === "processed");
+      const successfulEvent =
+        r.type === "invoice.paid" ||
+        (r.type.startsWith("customer.subscription.") &&
+          r.type !== "customer.subscription.deleted" &&
+          ["active", "trialing"].includes(object.status ?? sub?.status)) ||
+        (r.type === "checkout.session.completed" &&
+          ["paid", "no_payment_required"].includes(object.payment_status));
       return {
         id: r.stripe_event_id,
         at: new Date(r.stripe_created * 1000).toISOString(),
@@ -225,6 +259,16 @@ export async function stripeActivityRows(
           "Kunde nicht angegeben",
         subscriptionId,
         reviewId: !failed && pendingReview ? pendingReview.id : null,
+        resolvedAutomatically:
+          r.status === "processed" &&
+          successfulEvent &&
+          complete &&
+          !actionRequired &&
+          (r.type.startsWith("invoice.")
+            ? invoiced.length > 0
+            : r.type.startsWith("customer.subscription.")
+              ? snapshotItems.length > 0
+              : !!subscriptionId),
         assignment,
         children: [
           ...new Set(

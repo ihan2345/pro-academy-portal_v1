@@ -279,6 +279,52 @@ it("passes the exact pending review reference from an activity to the overview a
     },
   });
 });
+it("automatically completes evidenced assignments without persisting decisions, and reopens a new unresolved source state", async () => {
+  m.tables.stripe_webhook_events = [
+    {
+      id: "0001",
+      stripe_event_id: "evt_assigned",
+      stripe_created: Math.floor(now / 1000) - 60,
+      status: "processed",
+    },
+  ];
+  let resolved = true;
+  m.hydrate.mockImplementation(async (rows) =>
+    rows.map((r: any) => ({
+      id: r.stripe_event_id,
+      at: new Date(r.stripe_created * 1000).toISOString(),
+      customer: "Test",
+      title: "Rechnung bezahlt",
+      subscriptionId: "sub_assigned",
+      assignment: resolved ? "assigned" : "unassigned",
+      children: [],
+      actionRequired: !resolved,
+      resolvedAutomatically: resolved,
+      actionLabel: resolved ? null : "Kind zuordnen",
+      href: resolved ? null : "/admin/stripe",
+    })),
+  );
+  const load = (state = "all") =>
+    stripeOverview(admin, { section: "activities", window: "all", state });
+  const initial = await load();
+  expect(initial.rows[0]).toMatchObject({
+    state: "done",
+    resolvedAutomatically: true,
+    actionRequired: false,
+  });
+  expect((await load("open")).total).toBe(0);
+  expect(m.tables.stripe_notice_decisions).toBeUndefined();
+  await decideStripeNotice(admin, {
+    token: initial.rows[0].token,
+    state: "ignored",
+  });
+  expect((await load()).rows[0]).toMatchObject({ state: "ignored" });
+  resolved = false;
+  expect((await load("open")).rows[0]).toMatchObject({
+    state: "open",
+    actionRequired: true,
+  });
+});
 it("filters actionable activities across the whole history before pagination and excludes acknowledged or informational rows", async () => {
   m.tables.stripe_webhook_events = Array.from({ length: 36 }, (_, n) => ({
     id: String(n).padStart(4, "0"),

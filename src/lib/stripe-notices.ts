@@ -10,6 +10,7 @@ export interface StripeNotice {
   title: string;
   actionRequired: boolean;
   state: StripeNoticeState;
+  resolvedAutomatically?: boolean;
   token: string;
   billing?: StripeBillingConflict;
   activity?: StripeActivity;
