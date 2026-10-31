@@ -1,7 +1,6 @@
 "use client";
 import { PlatformFeatures } from "@/components/platform-features";
 import { StripeParentInputs } from "./stripe-parent-inputs";
-import { StripeActivityPreview } from "./stripe-activity-preview";
 import { SubscriptionReviews } from "./subscription-reviews";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -394,8 +393,7 @@ export function AdminView({
       )}
       {!slug && (
         <>
-          <SubscriptionReviews />
-          <StripeActivityPreview />
+          <SubscriptionReviews includeActivities />
           <div className="admin-metrics">
             {[
               { n: data.players.length, t: "Spieler", i: Users },

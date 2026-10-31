@@ -128,6 +128,34 @@ it("keeps assigned tariffs requiring review actionable", async () => {
     assignment: "assigned",
     actionRequired: true,
     actionLabel: "Zuordnung / Tarif prüfen",
+    reviewId: "review",
+  });
+});
+it("links the activity to a pending review of its own subscription and keeps processing failures on the log action", async () => {
+  mock.tables.subscription_assignment_reviews = [
+    { id: "other", subscription_id: "other_subscription", status: "pending" },
+    { id: "own", subscription_id: "local", status: "pending" },
+  ];
+  expect(
+    (await stripeActivities({ role: "admin" } as any, { asOf })).rows[0]
+      .reviewId,
+  ).toBe("own");
+  mock.tables.stripe_webhook_events[0].status = "failed";
+  expect(
+    (await stripeActivities({ role: "admin" } as any, { asOf })).rows[0],
+  ).toMatchObject({
+    reviewId: null,
+    actionLabel: "Verarbeitung prüfen",
+    href: "/admin/protokolle",
+  });
+  mock.tables.stripe_webhook_events[0].status = "processed";
+  mock.tables.subscription_assignment_reviews = [];
+  expect(
+    (await stripeActivities({ role: "admin" } as any, { asOf })).rows[0],
+  ).toMatchObject({
+    reviewId: null,
+    actionLabel: "Kind zuordnen",
+    href: "/admin/stripe?customer=cus_one",
   });
 });
 it("returns three latest original events and filters seven days", async () => {

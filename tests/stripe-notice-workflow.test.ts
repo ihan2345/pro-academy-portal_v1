@@ -246,6 +246,39 @@ it("leaves assignment reviews available and the badge uncertain when the live bi
   expect(result.warning).toBeTruthy();
   expect(result.rows[0].reviewId).toBe("review");
 });
+it("passes the exact pending review reference from an activity to the overview action", async () => {
+  m.tables.stripe_webhook_events = [
+    {
+      id: "0001",
+      stripe_event_id: "evt_review",
+      stripe_created: Math.floor(now / 1000) - 60,
+      status: "processed",
+    },
+  ];
+  m.hydrate.mockResolvedValueOnce([
+    {
+      id: "evt_review",
+      at: new Date(now - 60000).toISOString(),
+      customer: "Prüffamilie",
+      title: "Buchung abgeschlossen",
+      subscriptionId: "sub_review",
+      reviewId: "specific-review",
+      assignment: "unassigned",
+      children: [],
+      actionRequired: true,
+      actionLabel: "Zuordnung / Tarif prüfen",
+      href: "/admin",
+    },
+  ]);
+  const page = await stripeOverview(admin, { section: "activities" });
+  expect(page.rows[0]).toMatchObject({
+    reviewId: "specific-review",
+    activity: {
+      reviewId: "specific-review",
+      actionLabel: "Zuordnung / Tarif prüfen",
+    },
+  });
+});
 it("filters actionable activities across the whole history before pagination and excludes acknowledged or informational rows", async () => {
   m.tables.stripe_webhook_events = Array.from({ length: 36 }, (_, n) => ({
     id: String(n).padStart(4, "0"),

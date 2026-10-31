@@ -4,6 +4,7 @@ export interface StripeActivity {
   title: string;
   customer: string;
   subscriptionId: string | null;
+  reviewId?: string | null;
   assignment: "assigned" | "partial" | "unassigned" | "not_applicable";
   children: string[];
   trialCandidates?: string[];

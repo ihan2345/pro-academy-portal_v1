@@ -107,26 +107,54 @@ const review = {
     { id: secondChild, name: "Alex Beispiel" },
   ],
 };
-const overview = (saved = false) => ({
-  rows: saved
+const overview = (saved = false, section = "conflicts") => {
+  const rows = saved
     ? []
-    : [
-        {
-          id: review.id,
-          kind: "review",
+    : section === "activities"
+      ? ["created", "checkout"].map((event) => ({
+          id: `evt_${event}`,
+          kind: "activity",
           at: new Date().toISOString(),
           customer: context.customerName,
-          title: "Abo-Zuordnung prüfen",
+          title: "Buchung abgeschlossen",
           actionRequired: true,
           state: "open",
           token: "local-ui-only",
           reviewId: review.id,
-        },
-      ],
-  total: saved ? 0 : 1,
-  openCount: saved ? 0 : 1,
-  checkedAt: new Date().toISOString(),
-});
+          activity: {
+            id: `evt_${event}`,
+            at: new Date().toISOString(),
+            customer: context.customerName,
+            title: "Buchung abgeschlossen",
+            subscriptionId: context.subscriptionId,
+            reviewId: review.id,
+            assignment: "unassigned",
+            children: [],
+            actionRequired: true,
+            actionLabel: "Zuordnung / Tarif prüfen",
+            href: "/admin",
+          },
+        }))
+      : [
+          {
+            id: review.id,
+            kind: "review",
+            at: new Date().toISOString(),
+            customer: context.customerName,
+            title: "Abo-Zuordnung prüfen",
+            actionRequired: true,
+            state: "open",
+            token: "local-ui-only",
+            reviewId: review.id,
+          },
+        ];
+  return {
+    rows,
+    total: rows.length,
+    openCount: rows.length,
+    checkedAt: new Date().toISOString(),
+  };
+};
 try {
   for (const [name, viewport] of [
     ["desktop", { width: 1440, height: 1000 }],
@@ -134,13 +162,17 @@ try {
   ]) {
     const page = await browser.newPage({ viewport });
     let saved = false,
-      attempt = 0;
+      attempt = 0,
+      failLoad = true;
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.route("**/api/**", async (route) => {
       if (route.request().url().includes("stripe-overview"))
         return route.fulfill({
-          json: overview(saved),
+          json: overview(
+            saved,
+            new URL(route.request().url()).searchParams.get("section"),
+          ),
         });
       if (route.request().url().includes("stripe-parent-inputs"))
         return route.fulfill({
@@ -165,10 +197,22 @@ try {
         });
       if (!route.request().url().includes("subscription-reviews"))
         return route.fulfill({ json: { ok: true } });
-      if (route.request().method() === "GET")
+      if (route.request().method() === "GET") {
+        assert.equal(
+          new URL(route.request().url()).searchParams.get("id"),
+          review.id,
+        );
+        if (failLoad) {
+          failLoad = false;
+          return route.fulfill({
+            status: 503,
+            json: { error: "Prüfung vorübergehend nicht verfügbar" },
+          });
+        }
         return route.fulfill({
           json: { rows: saved ? [] : [review], total: saved ? 0 : 1 },
         });
+      }
       assert.deepEqual(route.request().postDataJSON(), {
         review_id: review.id,
         signature: review.signature,
@@ -186,6 +230,51 @@ try {
       return route.fulfill({ json: { ok: true } });
     });
     await page.goto(base);
+    const activities = page.getByRole("region", {
+      name: "Stripe-Aktivitäten",
+      exact: true,
+    });
+    await activities.getByRole("button", { expanded: false }).click();
+    await activities
+      .getByRole("button", { name: "Zuordnung / Tarif prüfen →", exact: true })
+      .first()
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "Abo-Zuordnungen prüfen" }),
+    ).toHaveCount(1);
+    await expect(page.getByRole("alert")).toHaveText(
+      "Prüfung vorübergehend nicht verfügbar",
+    );
+    await page
+      .getByRole("button", { name: "Zuordnungen neu laden", exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByText(/Erika Beispiel/)
+        .first(),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Dialog schließen", exact: true })
+      .click();
+    await activities
+      .getByRole("button", { name: "Zuordnung / Tarif prüfen →", exact: true })
+      .nth(1)
+      .click();
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByText(/Erika Beispiel/)
+        .first(),
+    ).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(1);
+    await page.screenshot({
+      path: `${output}/${name}-activity-review.png`,
+      fullPage: true,
+    });
+    await page
+      .getByRole("button", { name: "Dialog schließen", exact: true })
+      .click();
     await page.getByRole("button", { name: /Stripe\/Abo-Konflikte/ }).click();
     await expect(
       page.getByRole("button", { name: "Kinder und Vorschläge prüfen →" }),
@@ -232,6 +321,8 @@ try {
     await expect(
       page.getByText("Keine Konflikte in den letzten 30 Tagen vorhanden."),
     ).toBeVisible();
+    await expect(activities.locator(".stripe-notice-card")).toHaveCount(0);
+    await expect(activities.locator(".dashboard-action-count")).toHaveText("0");
     await page.unroute("**/api/**");
     await page.route("**/api/**", (route) =>
       route.fulfill({
@@ -266,7 +357,10 @@ try {
                 total: 1,
               }
             : route.request().url().includes("stripe-overview")
-              ? overview()
+              ? overview(
+                  false,
+                  new URL(route.request().url()).searchParams.get("section"),
+                )
               : { ok: true },
       }),
     );

@@ -315,9 +315,12 @@ export function StripeNoticeOverview({
                   <button
                     type="button"
                     className="secondary-button"
+                    disabled={!onReview}
                     onClick={() => onReview?.(row.reviewId!)}
                   >
-                    Kinder und Vorschläge prüfen →
+                    {row.activity?.actionLabel ??
+                      "Kinder und Vorschläge prüfen"}{" "}
+                    →
                   </button>
                 )}
                 {row.activity && (
@@ -341,14 +344,16 @@ export function StripeNoticeOverview({
                         Angaben können bei der Abo-Zuordnung übernommen werden.
                       </p>
                     )}
-                    {row.activity.actionRequired && row.activity.href && (
-                      <Link
-                        className="secondary-button"
-                        href={row.activity.href}
-                      >
-                        {row.activity.actionLabel} →
-                      </Link>
-                    )}
+                    {row.activity.actionRequired &&
+                      !row.reviewId &&
+                      row.activity.href && (
+                        <Link
+                          className="secondary-button"
+                          href={row.activity.href}
+                        >
+                          {row.activity.actionLabel} →
+                        </Link>
+                      )}
                   </>
                 )}
                 {row.actionRequired && (

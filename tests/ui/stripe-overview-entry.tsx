@@ -2,7 +2,6 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { Portal } from "../../src/components/portal";
 import { SubscriptionReviews } from "../../src/components/subscription-reviews";
-import { StripeActivityPreview } from "../../src/components/stripe-activity-preview";
 import { portalFixture } from "../fixtures/portal";
 
 createRoot(document.getElementById("root")!).render(
@@ -14,7 +13,6 @@ createRoot(document.getElementById("root")!).render(
       <h1>Alles im Blick.</h1>
       <p>Organisation, Training und Entwicklung an einem Ort.</p>
     </div>
-    <SubscriptionReviews />
-    <StripeActivityPreview />
+    <SubscriptionReviews includeActivities />
   </Portal>,
 );

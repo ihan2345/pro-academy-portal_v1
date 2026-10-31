@@ -7,18 +7,30 @@ import { StripeParentInputs } from "./stripe-parent-inputs";
 import { Modal } from "./portal";
 import { formatDate } from "@/lib/domain";
 import { StripeNoticeOverview } from "./stripe-notice-overview";
+import { StripeActivityPreview } from "./stripe-activity-preview";
 import type {
   SubscriptionReview,
   SubscriptionReviewPage,
 } from "@/lib/subscription-reviews";
 
-export function SubscriptionReviews() {
+export function SubscriptionReviews({
+  includeActivities = false,
+}: {
+  includeActivities?: boolean;
+}) {
   const router = useRouter();
   const [reviewId, setReviewId] = useState<string | null>(null),
     [data, setData] = useState<SubscriptionReviewPage | null>(null),
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
     [revision, setRevision] = useState(0);
+  function openReview(id: string) {
+    // Reopening must not briefly show the previous form while the next read starts.
+    setData(null);
+    setError("");
+    setLoading(true);
+    setReviewId(id);
+  }
   useEffect(() => {
     if (!reviewId) return;
     const abort = new AbortController();
@@ -47,8 +59,11 @@ export function SubscriptionReviews() {
       <StripeNoticeOverview
         section="conflicts"
         revision={revision}
-        onReview={setReviewId}
+        onReview={openReview}
       />
+      {includeActivities && (
+        <StripeActivityPreview onReview={openReview} revision={revision} />
+      )}
       {reviewId && (
         <Modal title="Abo-Zuordnungen prüfen" close={() => setReviewId(null)}>
           <div className="subscription-review-body">

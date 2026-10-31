@@ -198,7 +198,7 @@ export async function stripeActivityRows(
             ? "assigned"
             : "unassigned"
           : "not_applicable";
-      const pendingReview = reviews.some(
+      const pendingReview = reviews.find(
         (review) => review.subscription_id === sub?.id,
       );
       const failed = r.status === "failed";
@@ -207,7 +207,7 @@ export async function stripeActivityRows(
         !!subscriptionId &&
         (!sub || ["active", "trialing"].includes(sub.status));
       const actionRequired =
-        failed || pendingReview || (missing && r.status === "processed");
+        failed || !!pendingReview || (missing && r.status === "processed");
       return {
         id: r.stripe_event_id,
         at: new Date(r.stripe_created * 1000).toISOString(),
@@ -224,6 +224,7 @@ export async function stripeActivityRows(
           customerId ||
           "Kunde nicht angegeben",
         subscriptionId,
+        reviewId: !failed && pendingReview ? pendingReview.id : null,
         assignment,
         children: [
           ...new Set(

@@ -12,7 +12,7 @@ createRoot(document.getElementById("root")!).render(
     section={location.pathname.slice(1)}
   >
     {location.pathname.endsWith("stripe-preview") ? (
-      <StripeActivityPreview />
+      <StripeActivityPreview onReview={() => {}} revision={0} />
     ) : (
       <Activities base={base} all={location.pathname.endsWith("/alle")} />
     )}
