@@ -140,6 +140,7 @@ export const productSchema = z
     sale_enabled: z.boolean().default(false),
     sale_audiences: z.array(audienceSchema).max(15).default([]),
     featured: z.boolean(),
+    popular: z.boolean().default(false),
     publish_at: z.iso.datetime().nullable(),
     expires_at: z.iso.datetime().nullable(),
     channels: z
@@ -254,6 +255,7 @@ export const emptyProduct = (): Product => ({
   sale_enabled: false,
   sale_audiences: [],
   featured: false,
+  popular: false,
   publish_at: null,
   expires_at: null,
   channels: [],

@@ -46,3 +46,25 @@ Produktmotive liegen in der Bühne und Angebotsübersicht in abgerundeten Glaska
 Die Änderung betrifft ausschließlich Darstellung und Bild-Wrapper. Keine Datenbankmigration, Änderung produktiver Produktdaten, Preis-/Kauflogik oder Runner-Veröffentlichung. Die lokal geprüfte Darstellung einschließlich Mobilansicht wurde mit einem isolierten Cloudflare-Produktionsbuild samt TypeScript-Prüfung veröffentlicht. Shop, Login, bestehende Bilder und Zugriffsschutz sind online geprüft; alle zwölf referenzierten JavaScript-/CSS-Dateien stimmen exakt mit dem Build überein. Portal-Bindings und Konfigurationswerte bleiben unverändert. Glaskarten und Produktwechsel wurden im öffentlichen Shop mit den vorhandenen Motiven geprüft, ohne Käufe auszulösen.
 
 Private Build-, Deployment- und Abnahmebelege liegen unter `output/shop-glass-release/`; lokale Bilder unter `output/shop-design-review/`.
+
+## Ergänzung: unabhängige Produktakzente am 01.11.2026 veröffentlicht
+
+Auf ausdrücklichen Nutzerauftrag veröffentlicht. Portal-Version `d03a80f6-a10f-4755-b3f2-be58fdf66239` erhält 100 % Traffic. Grundlage war der GitHub-Stand `dca8e39`; die Ergänzung wird zusammen mit der folgenden Effekt-Überarbeitung auf `main` committet und gepusht.
+
+- **Produkt hervorheben** verwendet weiterhin das bestehende Feld `featured`: ein dezenter goldener Kronen-Badge, animierte Lichtreflexion und ein leicht schwebendes Produktmotiv machen das Angebot sichtbar. Bisher hervorgehobene Produkte behalten ihre Auswahl; der bisher damit verknüpfte Empfehlungs-Text wird durch die Krone ersetzt.
+- **Am beliebtesten** ist eine zusätzliche, unabhängig speicherbare manuelle Auswahl (`popular`) mit dem Badge **Unsere Empfehlung** und sanftem Leuchten. Es handelt sich nicht um eine berechnete Verkaufsrangliste. Alte Produkte ohne dieses Feld verwenden `false`.
+- Beide Auswahlen können kombiniert werden. Sie erscheinen auf Bühne und Produktkarten und werden über den bestehenden Entwurfs-/Veröffentlichungsprozess gespeichert. Animationen verändern keine Karten-, Preis- oder Buttonpositionen und laufen nur, wenn keine reduzierte Bewegung eingestellt ist.
+
+Keine Migration erforderlich: Die neue Auswahl liegt im bestehenden Produkt-JSON. Preise, Berechtigungen, Priorität und Kaufabläufe bleiben unverändert; keine produktiven Auswahlwerte wurden zur Demonstration geändert. Jobs-Runner und Cloudflare-Bindings sind unverändert.
+
+Prüfung: 41 gezielte Tests in zwei vorhandenen Dateien erfolgreich, einschließlich rückwärtskompatibler Standardwerte, aller vier Schalterkombinationen und Trennung von Entwurf und Veröffentlichung. Isolierter Produktionsbuild inklusive TypeScript erfolgreich. Lokale Browserprüfung aller Kombinationen sowie Desktop- und 390px-Mobilansicht ohne Überlauf, mit identischen Kartenhöhen und Buttonpositionen. Online-Abgleich bestätigt denselben öffentlichen Katalog inklusive Preisen und Geschenkbeträgen, die neuen ausgelieferten JavaScript-/CSS-Dateien anhand SHA-256, erhaltene Stripe-Verwaltungsfunktionen und unveränderten anonymen API-Zugriffsschutz. Die lokale Prüfseite ist produktiv nicht erreichbar (404). Kronen-Badge mit vorhandenem FirstTouch-Produkt im Live-Shop sichtbar geprüft, ohne Checkout oder Produktänderung.
+
+Private Nachweise: `output/product-promotions-release/`.
+
+### Verstärkte Effekte am 02.11.2026 veröffentlicht
+
+Auf ausdrücklichen Nutzerauftrag veröffentlicht, committet und auf `main` gepusht. Portal-Version `7e24d7f8-01f8-4ccd-9ec0-a3eca8ab34e8` erhält 100 % Traffic. Der Kronen-Badge enthält jetzt den sichtbaren Text **Premium-Produkt**. Umlaufende Lichtbögen, goldgrüne Reflexe, Glanzpunkte und eine stärkere Schwebe-/Neigebewegung verstärken die Premium-Auswahl. **Unsere Empfehlung** erhält eine violette Aura, animierte Glanzpunkte, ein schwebendes Motiv und stärkere Badge-/Kartenschatten. Beide verwenden zusätzliche rein dekorative, für Assistenztechnologien ausgeblendete Ebenen im Motivbereich. Bewegungen bleiben an die Einstellung für reduzierte Bewegung gebunden.
+
+Die lokale Vergleichsansicht `/produkt-effekte-vorschau` zeigt beide Auswahlen einzeln und kombiniert mit einem echten Beispielmotiv. TypeScript-Prüfung erfolgreich; Desktop (1280px) und Mobilansicht (390px) ohne Überlauf und mit identischen Kartenhöhen sowie Buttonpositionen geprüft. Keine Änderungen an gespeicherten Auswahlen, Preisen oder Kaufabläufen. Nachweise: `output/product-promotions-release/stronger-*`.
+
+Produktive Abnahme: isolierter Produktionsbuild inklusive TypeScript erfolgreich. Live-Katalog, Preise und Geschenkwerte entsprechen dem unmittelbar zuvor gesicherten Stand. Die neuen JavaScript-/CSS-Dateien stimmen exakt mit dem Build überein, inklusive Lichtorbit und verstärkter Premium-/Empfehlungsanimationen. Bestehende Stripe-Verwaltungsfunktionen und anonymer API-Zugriffsschutz bleiben erhalten; Cloudflare-Bindings und Jobs-Runner sind unverändert. Premium-Produkt und Unsere Empfehlung im Browser mit echten Produkten sichtbar geprüft, ohne Checkout oder Änderungen an Produktdaten. Die lokale Vergleichsseite bleibt ausschließlich lokal verfügbar. Nachweise: `output/product-premium-effects-release/`.

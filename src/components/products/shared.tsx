@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import {
   Info,
   Check,
+  Crown,
   ImageIcon,
   ArrowUpRight,
   ArrowLeft,
@@ -211,7 +212,12 @@ export type ProductDisplay = Pick<
   | "asset_ids"
   | "training_content"
 > &
-  Partial<Pick<Product, "effect_color" | "sale_enabled" | "sale_audiences">> & {
+  Partial<
+    Pick<
+      Product,
+      "effect_color" | "sale_enabled" | "sale_audiences" | "popular"
+    >
+  > & {
     camp_pricing?: CampPricing;
     gift_amount?: number | null;
     gift_amounts?: number[];
@@ -461,6 +467,41 @@ function ShoppingBagIcon({ kind }: { kind: Product["kind"] }) {
   );
 }
 
+function ProductPromotionBadges({ product }: { product: ProductDisplay }) {
+  if (!product.featured && !product.popular) return null;
+  return (
+    <div className="product-promotion-badges">
+      {product.featured && (
+        <span
+          className="product-promotion-badge product-promotion-crown"
+          title="Premium-Produkt"
+        >
+          <Crown size={15} aria-hidden="true" /> Premium-Produkt
+        </span>
+      )}
+      {product.popular && (
+        <span className="product-promotion-badge product-promotion-recommendation">
+          <Sparkles size={13} aria-hidden="true" /> Unsere Empfehlung
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ProductPromotionEffects({ product }: { product: ProductDisplay }) {
+  if (!product.featured && !product.popular) return null;
+  return (
+    <div
+      className="product-promotion-effects"
+      data-tone={product.featured ? "premium" : "recommendation"}
+      aria-hidden="true"
+    >
+      <span className="product-promotion-orbit" />
+      <span className="product-promotion-sparkles" />
+    </div>
+  );
+}
+
 export function ProductCard({
   product,
   decision,
@@ -491,7 +532,7 @@ export function ProductCard({
   if (stage)
     return (
       <article
-        className="product-stage"
+        className={`product-stage${product.featured ? " featured" : ""}${product.popular ? " popular" : ""}`}
         style={
           {
             "--product-effect": product.effect_color ?? "#8B53FE",
@@ -517,6 +558,7 @@ export function ProductCard({
           {decision?.reasons[0] && <small>{decision.reasons[0]}</small>}
         </div>
         <div className="product-stage-art">
+          <ProductPromotionEffects product={product} />
           {product.asset_ids[0] ? (
             <div className="product-art-card">
               <img
@@ -535,11 +577,7 @@ export function ProductCard({
           )}
         </div>
         <div className="product-stage-price">
-          {product.featured && (
-            <span className="product-stage-recommendation">
-              Unsere Empfehlung
-            </span>
-          )}
+          <ProductPromotionBadges product={product} />
           {saleApplies(product, decision, preview) && (
             <span className="product-sale-label">Aktionspreis</span>
           )}
@@ -566,7 +604,7 @@ export function ProductCard({
     );
   return (
     <article
-      className={`product-card ${product.featured ? "featured" : ""} ${product.effect_color ? "has-effect" : ""}`}
+      className={`product-card ${product.featured ? "featured" : ""} ${product.popular ? "popular" : ""} ${product.effect_color ? "has-effect" : ""}`}
       style={
         { "--product-effect": product.effect_color } as React.CSSProperties
       }
@@ -591,9 +629,8 @@ export function ProductCard({
             <strong>{kindLabels[product.kind]}</strong>
           </div>
         )}
-        {product.featured && (
-          <span className="product-feature-tag">Unsere Empfehlung</span>
-        )}
+        <ProductPromotionEffects product={product} />
+        <ProductPromotionBadges product={product} />
       </div>
       <div className="product-card-content">
         <span className="product-kicker">

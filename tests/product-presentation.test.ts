@@ -2,8 +2,14 @@ import { expect, it } from "vitest";
 import { emptyProduct, productSchema } from "../src/lib/products/domain";
 
 it("loads older product data without discarding legacy sorting or requiring new presentation fields", () => {
-  const { priority, effect_color, sale_enabled, sale_audiences, ...legacy } =
-    emptyProduct();
+  const {
+    priority,
+    effect_color,
+    sale_enabled,
+    sale_audiences,
+    popular,
+    ...legacy
+  } = emptyProduct();
   const product = productSchema.parse({ ...legacy, sort_order: 999 });
   expect(product).toMatchObject({
     sort_order: 999,
@@ -11,6 +17,7 @@ it("loads older product data without discarding legacy sorting or requiring new 
     effect_color: "#8B53FE",
     sale_enabled: false,
     sale_audiences: [],
+    popular: false,
   });
 });
 
@@ -39,4 +46,47 @@ it.each([
   expect(productSchema.safeParse({ ...emptyProduct(), ...patch }).success).toBe(
     false,
   );
+});
+
+it.each([
+  [false, false],
+  [true, false],
+  [false, true],
+  [true, true],
+])(
+  "persists independent featured=%s and popular=%s flags in the public product",
+  async (featured, popular) => {
+    const { publicProduct } =
+      await import("../src/lib/server/products/catalog");
+    const product = productSchema.parse({
+      ...emptyProduct(),
+      featured,
+      popular,
+    });
+    expect(
+      productSchema.parse(JSON.parse(JSON.stringify(product))),
+    ).toMatchObject({ featured, popular });
+    const view = publicProduct(
+      {
+        id: "d0000000-0000-4000-8000-000000000001",
+        published: product,
+        published_revision: 1,
+      } as any,
+      {} as any,
+    );
+    expect(view).toMatchObject({ featured, popular });
+  },
+);
+it("treats an absent popularity flag in a published legacy product as off", async () => {
+  const { publicProduct } = await import("../src/lib/server/products/catalog");
+  const { popular, ...legacy } = emptyProduct();
+  expect(
+    publicProduct(
+      {
+        published: { ...legacy, featured: true },
+        published_revision: 1,
+      } as any,
+      {} as any,
+    ),
+  ).toMatchObject({ featured: true, popular: false });
 });

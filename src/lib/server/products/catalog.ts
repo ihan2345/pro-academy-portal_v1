@@ -319,6 +319,7 @@ export function publicProduct(
     category: v.category,
     price: v.price,
     featured: v.featured,
+    popular: v.popular ?? false,
     effect_color: v.effect_color ?? "#8B53FE",
     sale_enabled: v.sale_enabled ?? false,
     sale_audiences: v.sale_audiences ?? [],

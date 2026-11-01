@@ -369,6 +369,8 @@ it("persists presentation settings and keeps draft priority changes out of the p
         sort_order: 100,
         priority: 10,
         effect_color: "#F57C00",
+        featured: true,
+        popular: true,
         sale_enabled: true,
         sale_audiences: ["subscriber", "camp"],
       },
@@ -390,9 +392,30 @@ it("persists presentation settings and keeps draft priority changes out of the p
   expect(saved.priority).toBe(10);
   expect(saved.draft).toMatchObject({
     effect_color: "#F57C00",
+    featured: true,
+    popular: true,
     sale_enabled: true,
     sale_audiences: ["subscriber", "camp"],
   });
+  const snapshot = async () =>
+    (
+      await db.query<any>(
+        "select published from catalog_products where id=$1",
+        [p.id],
+      )
+    ).rows[0].published;
+  expect(await snapshot()).toMatchObject({ featured: false, popular: false });
+  await db.query("select publish_catalog_product($1)", [
+    {
+      id: p.id,
+      revision: 2,
+      actor_id: id(1),
+      context_version: (
+        await db.query<any>("select product_context_version() v")
+      ).rows[0].v,
+    },
+  ]);
+  expect(await snapshot()).toMatchObject({ featured: true, popular: true });
 });
 it("confirms an API Camp checkout through the existing payment/capacity routine without a fabricated link", async () => {
   const camp = id(50),

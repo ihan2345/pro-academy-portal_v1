@@ -989,12 +989,20 @@ export function AdminProducts() {
                 </fieldset>
               )}
             </div>
-            <Toggle
-              checked={data.featured}
-              label="Produkt hervorheben"
-              hint="Kennzeichnet das Angebot als Empfehlung."
-              onChange={(v) => update({ featured: v })}
-            />
+            <div className="product-promotion-settings">
+              <Toggle
+                checked={data.featured}
+                label="Produkt hervorheben"
+                hint="Premium-Produkt mit Krone, Lichtschweif und schwebendem Motiv."
+                onChange={(v) => update({ featured: v })}
+              />
+              <Toggle
+                checked={data.popular ?? false}
+                label="Am beliebtesten"
+                hint="Zeigt „Unsere Empfehlung“ mit leuchtender Aura und animierten Akzenten."
+                onChange={(v) => update({ popular: v })}
+              />
+            </div>
             {data.kind === "other" && (
               <Toggle
                 label="Mehrfach kaufbar"
