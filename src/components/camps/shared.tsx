@@ -1,4 +1,5 @@
 "use client";
+import { SiteFooter } from "../site-footer";
 import Link from "next/link";
 import { createContext, useContext } from "react";
 const CampLoginContext = createContext("/login");
@@ -19,7 +20,7 @@ export function CampFrame({ children }: { children: React.ReactNode }) {
         <Link href={loginHref}>Kundenzugang</Link>
       </header>
       <div className="camp-content">{children}</div>
-      <footer>ProAcademy by Ayhan & Karaman</footer>
+      <SiteFooter />
     </main>
   );
 }

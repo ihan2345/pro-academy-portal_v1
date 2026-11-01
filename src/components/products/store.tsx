@@ -1,4 +1,5 @@
 "use client";
+import { SiteFooter } from "../site-footer";
 import { GiftAccountMenu } from "./gift-account";
 import { GiftPurchaseDialog } from "./gifts";
 import { ProductOperations } from "./operations";
@@ -587,13 +588,14 @@ export function ProductStore({
           </button>
         )}
         {!embedded && (
-          <footer className="product-store-footer">
+          <div className="product-store-footer">
             <strong>Gemeinsam besser werden.</strong>
             <p>Persönliches Training. Klare nächste Schritte. ProAcademy.</p>
             <Link href="/produkte?channel=trials">
               Angebote für Probetraining-Familien
             </Link>
-          </footer>
+            <SiteFooter />
+          </div>
         )}
       </Content>
       {giftChosen && (

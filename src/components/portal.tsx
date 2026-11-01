@@ -1,4 +1,5 @@
 "use client";
+import { SiteFooter } from "./site-footer";
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -1032,19 +1033,7 @@ export function Portal({
               showBar={section !== "pai"}
             />
           )}
-          <footer className="content-footer">
-            <span>© 2026 ProAcademy by Ayhan & Karaman</span>
-            <div>
-              <a
-                href="https://proacademy-ak.com/datenschutz"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Datenschutz
-              </a>
-              <span>Europe/Berlin</span>
-            </div>
-          </footer>
+          <SiteFooter compact />
         </main>
       </div>
       {detail && (

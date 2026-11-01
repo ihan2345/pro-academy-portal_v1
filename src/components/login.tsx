@@ -1,4 +1,5 @@
 "use client";
+import { SiteFooter } from "./site-footer";
 import { useState } from "react";
 import { Mail, ArrowRight, ShieldCheck } from "lucide-react";
 import { Brand } from "./portal";
@@ -90,6 +91,7 @@ export function LoginForm({
           Dein Link ist persönlich und nur einmal gültig.
         </p>
       </section>
+      <SiteFooter compact />
     </main>
   );
 }

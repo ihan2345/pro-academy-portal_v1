@@ -952,16 +952,16 @@
   margin-top: 70px;
   border-top: 1px solid #e3e7ed;
 }
-.product-store-footer strong {
+.product-store-footer > strong {
   font-size: 23px;
   letter-spacing: -0.7px;
 }
-.product-store-footer p {
+.product-store-footer > p {
   color: #87909d;
   font-size: 12px;
   margin-top: 10px;
 }
-.product-store-footer a {
+.product-store-footer > a {
   display: block;
   margin-top: 20px;
   color: #8351cc;
@@ -1437,7 +1437,7 @@
     margin-top: 40px;
     padding: 35px 0;
   }
-  .product-store-footer strong {
+  .product-store-footer > strong {
     font-size: 20px;
   }
   .product-register-panel form {

@@ -1,4 +1,5 @@
 "use client";
+import { SiteFooter } from "../site-footer";
 import { useCallback, useEffect, useState } from "react";
 import { Copy, RefreshCw, CheckCircle2, Gift, ArrowRight } from "lucide-react";
 import { productRequest } from "./shared";
@@ -382,6 +383,7 @@ export function GiftStatusPage() {
         </section>
       )}
       {order && error && <p role="alert">{error}</p>}
+      <SiteFooter compact />
     </main>
   );
 }
