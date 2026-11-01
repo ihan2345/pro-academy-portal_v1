@@ -83,6 +83,30 @@ export const priceSchema = z
   })
   .strict();
 export type ProductPrice = z.infer<typeof priceSchema>;
+type GiftDenominations = {
+  gift_amount?: number | null;
+  gift_amounts?: number[];
+};
+export function giftAmounts(product: GiftDenominations): number[] {
+  return product.gift_amounts?.length
+    ? product.gift_amounts
+    : product.gift_amount == null
+      ? []
+      : [product.gift_amount];
+}
+export function giftCatalogVariants(
+  products: (GiftDenominations & { id: string; name: string })[],
+) {
+  const values = new Map<
+    number,
+    { id: string; name: string; amount: number }
+  >();
+  for (const product of products)
+    for (const amount of giftAmounts(product))
+      if (!values.has(amount))
+        values.set(amount, { id: product.id, name: product.name, amount });
+  return [...values.values()].sort((a, b) => a.amount - b.amount);
+}
 export const productSchema = z
   .object({
     name: z.string().trim().min(2).max(160),
@@ -98,6 +122,7 @@ export const productSchema = z
       .max(10000000)
       .nullable()
       .default(null),
+    gift_amounts: z.array(z.number().int().min(50).max(10000000)).default([]),
     status: z.enum([
       "draft",
       "active",
@@ -175,11 +200,20 @@ export const productSchema = z
           "Exklusive Angebote benötigen ausdrücklich eingeschränkte Sichtbarkeitsregeln ohne Alle/Besucher.",
         path: ["rules", "visibility"],
       });
-    if (v.kind === "gift" && v.gift_amount == null)
+    if (v.kind === "gift" && !giftAmounts(v).length)
       c.addIssue({
         code: "custom",
         message: "Bitte den Geschenkbetrag angeben.",
         path: ["gift_amount"],
+      });
+    if (
+      v.kind === "gift" &&
+      new Set(giftAmounts(v)).size !== giftAmounts(v).length
+    )
+      c.addIssue({
+        code: "custom",
+        message: "Jeden Geschenkbetrag bitte nur einmal hinzufügen.",
+        path: ["gift_amounts"],
       });
     if (v.kind !== "subscription" && v.plan_id)
       c.addIssue({
@@ -227,6 +261,7 @@ export const emptyProduct = (): Product => ({
   plan_id: null,
   camp_offer_id: null,
   gift_amount: null,
+  gift_amounts: [],
   repeatable: false,
   training_content: {
     football_hours: null,

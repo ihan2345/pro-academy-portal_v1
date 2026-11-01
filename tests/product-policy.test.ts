@@ -232,3 +232,39 @@ it("keeps purchased Abo rights in the specialist model even when shop usage rule
     true,
   );
 });
+
+it.each([null, "parent", "admin", "staff"] as const)(
+  "includes %s in gift visibility and purchase when the audience is all",
+  (role) => {
+    const ctx = simulateProductContext("visitor", id);
+    ctx.role = role;
+    ctx.auth_id = role ? "a0000000-0000-4000-8000-000000000001" : null;
+    const gift = product({ kind: "gift", gift_amount: 5000 });
+    expect(decideProduct(gift, id, ctx, "catalog")).toMatchObject({
+      visible: true,
+      purchasable: true,
+      mode: "purchase",
+    });
+    const restricted = {
+      ...gift,
+      rules: {
+        ...gift.rules,
+        purchase: {
+          mode: "all" as const,
+          clauses: [
+            {
+              scope: "family" as const,
+              mode: "any" as const,
+              include: ["subscriber" as const],
+              exclude: [],
+            },
+          ],
+        },
+      },
+    };
+    expect(decideProduct(restricted, id, ctx, "catalog")).toMatchObject({
+      visible: true,
+      purchasable: false,
+    });
+  },
+);

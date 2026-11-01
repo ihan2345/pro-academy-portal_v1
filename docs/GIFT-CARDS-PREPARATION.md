@@ -4,7 +4,7 @@ Stand: 31.10.2026. Ersetzt die ursprüngliche Vorbereitung mit Coupon-Anrechnung
 
 ## Ablauf
 
-Der Shop fasst veröffentlichte Geschenkbeträge in einer Karte zusammen; ein eigener Betrag ist möglich. Käufer und Empfänger werden getrennt erfasst, Telefon optional. Kein automatisches Empfängerkonto. Deterministische Stripe-Produkt-IDs verhindern doppelte Artikel je Betrag, EUR und Zahlungsmodus. Eigene Beträge erzeugen keinen öffentlichen Katalogeintrag. Zwei zusätzliche interne Stripe-Produkte dienen ausschließlich der steuerlichen Verrechnung.
+Ein Geschenkprodukt verwaltet mehrere Beträge direkt unter „Stripe & Leistung“. Beträge lassen sich hinzufügen oder entfernen; die gemeinsame Veröffentlichung bereitet alle benötigten Stripe-Artikel vor. Der Shop fasst veröffentlichte Geschenkbeträge in einer Karte zusammen; ein eigener Betrag ist möglich. Käufer und Empfänger werden getrennt erfasst, Telefon optional. Kein automatisches Empfängerkonto. Deterministische Stripe-Produkt-IDs verhindern doppelte Artikel je Betrag, EUR und Zahlungsmodus. Eigene Beträge erzeugen keinen öffentlichen Katalogeintrag. Zwei zusätzliche interne Stripe-Produkte dienen ausschließlich der steuerlichen Verrechnung.
 
 Erst ein bestätigter Checkout einschließlich tatsächlich bezahlter Rechnung erzeugt den Code. Bei Einlösung wird der Wert reserviert und erst beim bestätigten Abschluss verbraucht. Der bisherige Code wird gesperrt, verbleibender Wert erhält einen neuen Code. Bei 0 Euro entfällt der Folgecode. Ein bestätigter Checkout-Ablauf gibt die Reservierung frei. Gleichzeitige offene Käufe mit demselben Code sind ausgeschlossen.
 
@@ -36,8 +36,20 @@ Die Originalmotive unter `public/gifts` werden mit Betrag, Code, Gültigkeit und
 
 ## Betrieb und Prüfung
 
-Migrationen 034–038 sind im Release-Skript registriert. Tabellen besitzen RLS, finanzielle Funktionen sind ausschließlich für `service_role` freigegeben. Codes und Leseschlüssel werden mit AES-256-GCM verschlüsselt. Der dauerhaft zu sichernde `GIFT_ENCRYPTION_KEY` muss in Portal und Jobs identisch sein. Ein Schlüsselwechsel benötigt eine Datenmigration. Aktivierung: `GIFT_CARDS_ENABLED=true`, `GIFT_CARDS_LIVE_ENABLED=true`, `GIFT_MAIL_ENABLED=true`.
+Migrationen 034–039 sind im Release-Skript registriert. Tabellen besitzen RLS, finanzielle Funktionen sind ausschließlich für `service_role` freigegeben. Codes und Leseschlüssel werden mit AES-256-GCM verschlüsselt. Der dauerhaft zu sichernde `GIFT_ENCRYPTION_KEY` muss in Portal und Jobs identisch sein. Ein Schlüsselwechsel benötigt eine Datenmigration. Aktivierung: `GIFT_CARDS_ENABLED=true`, `GIFT_CARDS_LIVE_ENABLED=true`, `GIFT_MAIL_ENABLED=true`.
 
 Die isolierte Vorschau auf Port 3115 verwendet nur lokale Beispieldaten ohne Zahlungen oder SMTP. Die separate Testinstanz auf Port 3116 nutzt Stripe-Testmodus und lokale Supabase-Daten. Keine echten Zahlungen oder produktiven Testmails.
 
 Geprüft wurden relevante Geschenk-, Produkt- und Camp-Fälle einschließlich PostgreSQL/PGlite, Typprüfung und Produktionsbuild. Tatsächliche Stripe-Sandbox-Prüfungen deckten vollständige und anteilige Guthabenzahlungen für Abos und Einmalkäufe, wiederkehrende Rabatte, unveränderte Folgepreise, native Zahlungszuordnung, Wiederholungen und vollständige Erstattungen samt Steuerbelegen ab. Ein 77-Euro-Geschenkkauf wurde im gehosteten Checkout abgeschlossen und anschließend ein echter 49-Euro-Testkauf mit 28 Euro Restwert und Codewechsel durchgeführt. Testartefakte und Zugangsdaten bleiben in ignorierten lokalen Ausgabeverzeichnissen.
+
+## Mehrere Beträge je Produkt (31.10.2026)
+
+`gift_amounts` speichert die Beträge eines Produkts in Cent. Bestehende Einträge mit einzelnem `gift_amount` bleiben kompatibel und werden beim nächsten Speichern normalisiert. Die Veröffentlichung prüft alle Beträge und übernimmt sie gemeinsam; entfernte Werte verschwinden erst nach Veröffentlichung aus der Auswahl. Bestehende Käufe und ausgegebene Karten bleiben erhalten.
+
+Die Stripe-Zuordnung ist weiterhin je Betrag, EUR und Zahlungsmodus eindeutig. Mehrere Katalogeinträge können vorhandene Stripe-Werte gemeinsam nutzen. Auf Bühne und Liste bleibt ein gemeinsamer Eintrag; gleiche Beträge werden in der Auswahl zusammengefasst. Die Auswahl identifiziert Varianten anhand von Produkt-ID und Betrag, damit mehrere Werte desselben Produkts eindeutig bleiben.
+
+„Geschenkkarte veröffentlichen“ speichert, prüft und veröffentlicht in einem Ablauf unter Beibehaltung der bestehenden serverseitigen Versions-/Berechtigungsprüfung. Ein Entwurf wird dabei aktiviert; fehlen Anzeigeorte, werden zentrale Produktübersicht und Elternportal verwendet. „Entwurf speichern“ veröffentlicht weiterhin nichts. Andere Produktarten behalten den bisherigen Prüf-/Veröffentlichungsablauf.
+
+## Shopzugang und Zielgruppen (01.11.2026)
+
+„Alle“ schließt Gäste, Eltern, Admins und Mitarbeiter bei Sichtbarkeit und Kauf ein. Die feste Beschränkung auf Elternkonten ist entfernt; explizite Zielgruppenregeln und die Bestätigung der E-Mail bei angemeldeten Käufern bleiben erhalten. Der persönliche Profil-/Guthabenbereich bleibt dem Elternprofil zugeordnet; andere Käufer nutzen ihre persönlichen Bestellstatuslinks. Im öffentlichen Shop führt der dezente Button „Gutscheinstatus“ neben dem hervorgehobenen Anmeldebutton zur allgemeinen Statusabfrage. Der bisherige Link unter der Bühne entfällt.

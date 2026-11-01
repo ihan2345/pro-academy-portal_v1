@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  giftAmounts,
   audiences,
   channelLabels,
   kindLabels,
@@ -47,6 +48,91 @@ import {
 import { Modal } from "../portal";
 const base = "/api/admin/products";
 type Details = ProductRecord & { assets?: any[]; grants?: any[] };
+function GiftAmountsEditor({
+  value,
+  published,
+  onChange,
+}: {
+  value: Product;
+  published: Product | null;
+  onChange: (amounts: number[]) => void;
+}) {
+  const amounts = giftAmounts(value);
+  return (
+    <div className="product-gift-values">
+      <div className="product-gift-values-heading">
+        <div>
+          <h3>Geschenkbeträge</h3>
+          <p>
+            Ein Produkt, mehrere wählbare Werte. Bilder, Farbe und Beschreibung
+            gelten für alle Beträge.
+          </p>
+        </div>
+        <span>
+          {amounts.length} {amounts.length === 1 ? "Betrag" : "Beträge"}
+        </span>
+      </div>
+      <div className="product-gift-value-list">
+        {amounts.map((amount, index) => (
+          <div className="product-gift-value-row" key={index}>
+            <span className="product-gift-value-number">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <label>
+              Geschenkbetrag {index + 1} in Euro
+              <div className="product-gift-value-input">
+                <input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="0.01"
+                  autoFocus={amount === 0}
+                  placeholder="z. B. 75"
+                  value={amount ? amount / 100 : ""}
+                  onChange={(e) =>
+                    onChange(
+                      amounts.map((v, n) =>
+                        n === index
+                          ? Math.round(Number(e.target.value) * 100)
+                          : v,
+                      ),
+                    )
+                  }
+                />
+                <span>€</span>
+              </div>
+            </label>
+            <small>
+              {published && giftAmounts(published).includes(amount)
+                ? "Bei Stripe vorbereitet"
+                : "Wird beim Veröffentlichen verknüpft"}
+            </small>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={`Geschenkbetrag ${index + 1} entfernen`}
+              onClick={() => onChange(amounts.filter((_, n) => n !== index))}
+            >
+              <Trash2 size={17} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => onChange([...amounts, 0])}
+      >
+        <Plus size={17} /> Betrag hinzufügen
+      </button>
+      <p className="product-muted">
+        Fehlende Stripe-Artikel und Preise werden automatisch erstellt.
+        Vorhandene Beträge werden wiederverwendet. Im Shop bleibt es bei einer
+        Geschenkkarte mit Betragsauswahl.
+      </p>
+    </div>
+  );
+}
 function RuleEditor({
   value,
   onChange,
@@ -457,12 +543,12 @@ export function AdminProducts() {
       setPreviewPlayer("");
     });
   }
-  async function persist() {
-    if (!data) throw Error("Produkt fehlt");
+  async function persist(nextData = data) {
+    if (!nextData) throw Error("Produkt fehlt");
     const p = await productRequest<Details>(
       editing ? `${base}/${editing.id}` : base,
       editing ? "PATCH" : "POST",
-      { data, ...(editing ? { revision: editing.revision } : {}) },
+      { data: nextData, ...(editing ? { revision: editing.revision } : {}) },
     );
     setEditing(p);
     setData(p.draft);
@@ -624,7 +710,7 @@ export function AdminProducts() {
                 </span>
                 <span className="product-row-price">
                   {p.draft.kind === "gift"
-                    ? giftMoney(p.draft.gift_amount ?? 0)
+                    ? `${giftAmounts(p.draft).length} ${giftAmounts(p.draft).length === 1 ? "Betrag" : "Beträge"} · ab ${giftMoney(Math.min(...giftAmounts(p.draft)))}`
                     : priceLabel(p.draft.price)}
                 </span>
                 <span>
@@ -753,9 +839,11 @@ export function AdminProducts() {
                     aria-pressed={data.kind === k}
                     className={data.kind === k ? "selected" : ""}
                     onClick={() => {
+                      if (data.kind === k) return;
                       update({
                         kind: k as Product["kind"],
                         gift_amount: k === "gift" ? 5000 : null,
+                        gift_amounts: k === "gift" ? [5000] : [],
                         price: null,
                         plan_id: null,
                         camp_offer_id: null,
@@ -1200,30 +1288,17 @@ export function AdminProducts() {
               </>
             )}
             {data.kind === "gift" && (
-              <div className="product-inline-fields">
-                <label>
-                  Geschenkbetrag in Euro
-                  <input
-                    type="number"
-                    min="1"
-                    max="1000"
-                    step="0.01"
-                    value={(data.gift_amount ?? 0) / 100}
-                    onChange={(e) =>
-                      update({
-                        gift_amount: Math.round(Number(e.target.value) * 100),
-                        price: null,
-                      })
-                    }
-                  />
-                </label>
-                <p>
-                  Ein Stripe-Artikel je Betrag wird beim Veröffentlichen
-                  automatisch angelegt oder wiederverwendet. Alle
-                  veröffentlichten Beträge erscheinen gemeinsam als eine
-                  Geschenkkarte im Shop.
-                </p>
-              </div>
+              <GiftAmountsEditor
+                value={data}
+                published={editing?.published ?? null}
+                onChange={(amounts) =>
+                  update({
+                    gift_amounts: amounts,
+                    gift_amount: amounts.length ? Math.min(...amounts) : null,
+                    price: null,
+                  })
+                }
+              />
             )}
             {data.kind !== "camp" && data.kind !== "gift" && (
               <>
@@ -1717,6 +1792,37 @@ export function AdminProducts() {
           disabled={busy}
           onClick={() =>
             void run(async () => {
+              if (data.kind === "gift") {
+                setOperation("save");
+                const saved = await persist({
+                  ...data,
+                  status: data.status === "draft" ? "active" : data.status,
+                  channels: data.channels.length
+                    ? data.channels
+                    : ["catalog", "parents"],
+                });
+                setOperation("impact");
+                const checked = await productRequest<any>(
+                  `${base}/${saved.id}/impact`,
+                  "POST",
+                  {},
+                );
+                setOperation("publish");
+                const published = await productRequest<Details>(
+                  `${base}/${saved.id}/publish`,
+                  "POST",
+                  { token: checked.token },
+                );
+                setEditing(published);
+                setData(published.draft);
+                setDirty(false);
+                setNotice(
+                  published.draft.status === "archived"
+                    ? "Geschenkkarte archiviert."
+                    : `${giftAmounts(published.draft).length} Geschenkbeträge veröffentlicht und mit Stripe verknüpft.`,
+                );
+                return;
+              }
               if (dirty || !editing) setOperation("save");
               const p = dirty || !editing ? await persist() : editing;
               setOperation("impact");
@@ -1726,14 +1832,20 @@ export function AdminProducts() {
             }, "impact")
           }
         >
-          {operation === "impact" ? (
+          {operation === "impact" || operation === "publish" ? (
             <LoaderCircle className="product-spin" size={17} />
           ) : (
             <Eye size={17} />
           )}{" "}
           {operation === "impact"
             ? "Prüft Auswirkungen …"
-            : "Änderungen prüfen"}
+            : operation === "publish"
+              ? "Verknüpft Stripe & veröffentlicht …"
+              : data.kind === "gift"
+                ? data.status === "archived"
+                  ? "Archivierung übernehmen"
+                  : "Geschenkkarte veröffentlichen"
+                : "Änderungen prüfen"}
         </button>
       </div>
       {grantImpact && (

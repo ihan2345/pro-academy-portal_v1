@@ -46,6 +46,7 @@ export function productSchemaFiles() {
       "036-gift-account-links.sql",
       "037-gift-validity.sql",
       "038-gift-invoice-payments.sql",
+      "039-gift-denominations.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

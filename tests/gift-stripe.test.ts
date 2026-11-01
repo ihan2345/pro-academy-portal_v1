@@ -77,7 +77,7 @@ vi.mock("../src/lib/server/service-db", () => ({
     },
   }),
 }));
-import { ensureGiftValue } from "../src/lib/gifts/stripe";
+import { ensureGiftValue, ensureGiftValues } from "../src/lib/gifts/stripe";
 beforeEach(() => {
   vi.stubEnv("APP_MODE", "test");
   vi.stubEnv("GIFT_CARDS_ENABLED", "true");
@@ -95,8 +95,8 @@ it("uses one deterministic Stripe product per denomination, including simultaneo
   expect(a.id).toBe(b.id);
   expect(state.created).toEqual(["prod_pa_gift_test_eur_5000"]);
   await ensureGiftValue(5000);
-  await ensureGiftValue(7500);
-  expect(state.created).toHaveLength(2);
+  await ensureGiftValues([5000, 7500, 10000, 7500]);
+  expect(state.created).toHaveLength(3);
 });
 it("recovers the same Stripe product and price when persistence stopped between Stripe creation and local caching", async () => {
   const first = await ensureGiftValue(5000);

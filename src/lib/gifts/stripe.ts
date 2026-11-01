@@ -128,3 +128,17 @@ export async function ensureGiftValue(amount: number) {
   );
   return actual;
 }
+
+/** Prepare several denominations with bounded Stripe concurrency; each mapping stays globally unique. */
+export async function ensureGiftValues(amounts: number[]) {
+  const remaining = [...new Set(amounts)];
+  await Promise.all(
+    Array.from({ length: Math.min(4, remaining.length) }, async () => {
+      for (;;) {
+        const amount = remaining.shift();
+        if (amount == null) return;
+        await ensureGiftValue(amount);
+      }
+    }),
+  );
+}

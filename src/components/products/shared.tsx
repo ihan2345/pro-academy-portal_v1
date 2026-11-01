@@ -214,6 +214,7 @@ export type ProductDisplay = Pick<
   Partial<Pick<Product, "effect_color" | "sale_enabled" | "sale_audiences">> & {
     camp_pricing?: CampPricing;
     gift_amount?: number | null;
+    gift_amounts?: number[];
     gift_variants?: { id: string; amount: number; name: string }[];
   };
 
@@ -473,6 +474,7 @@ export function ProductCard({
   preview?: boolean;
   stage?: boolean;
 }) {
+  const training = trainingContentLabel(product);
   const action = (
     <button
       type="button"
@@ -597,24 +599,41 @@ export function ProductCard({
         <span className="product-kicker">
           {product.category || kindLabels[product.kind]}
         </span>
-        <h3>{product.name}</h3>
-        <p>{product.short_description || "Training, das dich weiterbringt."}</p>
-        {trainingContentLabel(product) && (
-          <p className="product-training-content">
-            {trainingContentLabel(product)}
-          </p>
-        )}
+        <h3 title={product.name}>{product.name}</h3>
+        <p
+          className="product-card-description"
+          title={product.short_description || undefined}
+        >
+          {product.short_description || "Training, das dich weiterbringt."}
+        </p>
+        <p
+          className="product-training-content"
+          aria-hidden={!training || undefined}
+          title={training || undefined}
+        >
+          {training}
+        </p>
         <div className="product-card-price">
           {saleApplies(product, decision, preview) && (
             <span className="product-sale-label">Aktionspreis</span>
           )}
-          {product.kind === "gift"
-            ? `ab ${new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format((product.gift_amount ?? 0) / 100)}`
-            : priceLabel(product.price)}
+          <span className="product-card-price-value">
+            {product.kind === "gift"
+              ? `ab ${new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format((product.gift_amount ?? 0) / 100)}`
+              : priceLabel(product.price)}
+          </span>
         </div>
-        <CampPriceNote product={product} />
+        <div className="product-card-benefits">
+          <CampPriceNote product={product} />
+        </div>
         {action}
-        {decision?.reasons.length ? <small>{decision.reasons[0]}</small> : null}
+        <small
+          className="product-card-reason"
+          title={decision?.reasons[0]}
+          aria-hidden={!decision?.reasons.length || undefined}
+        >
+          {decision?.reasons[0]}
+        </small>
       </div>
     </article>
   );

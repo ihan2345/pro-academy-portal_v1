@@ -385,7 +385,7 @@ it("allocates one family balance across different children without overspending"
       [v.id],
     );
 });
-it("deduplicates catalogue denominations and keeps accounting RPCs inaccessible to browser roles", async () => {
+it("allows shared catalogue denominations while keeping accounting RPCs inaccessible to browser roles", async () => {
   const gift = {
     ...emptyProduct(),
     name: "Geschenk 50",
@@ -396,12 +396,10 @@ it("deduplicates catalogue denominations and keeps accounting RPCs inaccessible 
     "insert into catalog_products(name,kind,draft)values('Gift A','gift',$1)",
     [gift],
   );
-  await expect(
-    db.query(
-      "insert into catalog_products(name,kind,draft)values('Gift B','gift',$1)",
-      [gift],
-    ),
-  ).rejects.toThrow(/gift_catalog_amount_unique/);
+  await db.query(
+    "insert into catalog_products(name,kind,draft)values('Gift B','gift',$1)",
+    [gift],
+  );
   const r = (
     await db.query<any>(
       "select has_function_privilege('authenticated','gift_claim(jsonb)','execute') allowed,has_function_privilege('service_role','reserve_product_purchase_before_gifts(jsonb)','execute') bypass",

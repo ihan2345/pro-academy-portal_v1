@@ -52,9 +52,10 @@ const files = [
   "036-gift-account-links",
   "037-gift-validity",
   "038-gift-invoice-payments",
+  "039-gift-denominations",
 ];
 const history = await sql(
-  "select version,statements from supabase_migrations.schema_migrations where version between '202610260022' and '202610310038' order by version",
+  "select version,statements from supabase_migrations.schema_migrations where version between '202610260022' and '202610310039' order by version",
 );
 const migrations = files.map((file) => {
   const source = readFileSync(`supabase/release/${file}.sql`, "utf8");

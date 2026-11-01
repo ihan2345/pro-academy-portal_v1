@@ -18,7 +18,8 @@ export function GiftPurchaseDialog({
   const variants = product.gift_variants ?? [
     { id: product.id, amount: product.gift_amount, name: product.name },
   ];
-  const [value, setValue] = useState(variants[0].id),
+  const variantKey = (v: any) => `${v.id}:${v.amount}`;
+  const [value, setValue] = useState(variantKey(variants[0])),
     [custom, setCustom] = useState(""),
     [settings, setSettings] = useState<any>(null),
     [busy, setBusy] = useState(false),
@@ -35,7 +36,7 @@ export function GiftPurchaseDialog({
     setError("");
     const f = new FormData(e.currentTarget);
     try {
-      const selected = variants.find((v: any) => v.id === value),
+      const selected = variants.find((v: any) => variantKey(v) === value),
         amount = value === "custom" ? parseGiftAmount(custom) : selected.amount;
       const r = await productRequest("/api/products/gifts/checkout", "POST", {
         request_id: request.current,
@@ -83,7 +84,7 @@ export function GiftPurchaseDialog({
             }}
           >
             {variants.map((v: any) => (
-              <option key={v.id} value={v.id}>
+              <option key={variantKey(v)} value={variantKey(v)}>
                 {giftMoney(v.amount)}
               </option>
             ))}

@@ -56,3 +56,29 @@ it("requires beneficiary identity and a valid email while keeping phone optional
   ).toBe(true);
   expect(giftCodeSchema.safeParse("PA-test").success).toBe(false);
 });
+
+it("groups multiple values from one gift product with older individual amounts and rejects duplicate or empty configurations", async () => {
+  const { giftAmounts, giftCatalogVariants, productSchema, emptyProduct } =
+    await import("../src/lib/products/domain");
+  expect(giftAmounts({ gift_amount: 5000 })).toEqual([5000]);
+  expect(
+    giftCatalogVariants([
+      { id: "new", name: "Neu", gift_amounts: [7500, 2500, 5000] },
+      { id: "old", name: "Alt", gift_amount: 5000 },
+      { id: "old100", name: "Alt", gift_amount: 10000 },
+    ]),
+  ).toEqual([
+    { id: "new", name: "Neu", amount: 2500 },
+    { id: "new", name: "Neu", amount: 5000 },
+    { id: "new", name: "Neu", amount: 7500 },
+    { id: "old100", name: "Alt", amount: 10000 },
+  ]);
+  const data = { ...emptyProduct(), kind: "gift" };
+  expect(
+    productSchema.safeParse({ ...data, gift_amounts: [2500, 5000] }).success,
+  ).toBe(true);
+  expect(
+    productSchema.safeParse({ ...data, gift_amounts: [5000, 5000] }).success,
+  ).toBe(false);
+  expect(productSchema.safeParse(data).success).toBe(false);
+});

@@ -1353,3 +1353,81 @@ it("resolves both prices from a single Camp and binds native Checkout confirmati
     await db.exec("rollback");
   }
 });
+
+it("publishes several gift denominations atomically, preserves the prior selection until publish and accepts legacy gifts", async () => {
+  const data = {
+    ...emptyProduct(),
+    name: "Geschenkkarte",
+    kind: "gift",
+    status: "active",
+    channels: ["catalog"],
+    gift_amounts: [7500, 2500, 5000],
+  };
+  const [created] = await asUser(id(1), "select save_catalog_product($1) id", [
+    { data },
+  ]);
+  const publish = async (revision: number) =>
+    db.query("select publish_catalog_product($1)", [
+      {
+        id: created.id,
+        revision,
+        actor_id: id(1),
+        context_version: (
+          await db.query<any>("select product_context_version() v")
+        ).rows[0].v,
+      },
+    ]);
+  const values = async () =>
+    (
+      await db.query<any>(
+        "select draft,published from catalog_products where id=$1",
+        [created.id],
+      )
+    ).rows[0];
+  expect((await values()).draft.gift_amounts).toEqual([2500, 5000, 7500]);
+  await expect(publish(1)).rejects.toThrow(/noch nicht vorbereitet/);
+  expect((await values()).published).toBeNull();
+  for (const amount of [2500, 5000, 7500])
+    await db.query(
+      "insert into gift_stripe_values(livemode,currency,amount,product_id,price_id)values(false,'eur',$1,$2,$3)",
+      [amount, "prod_values_" + amount, "price_values_" + amount],
+    );
+  await publish(1);
+  const original = (await values()).published;
+  expect(original.gift_amounts).toEqual([2500, 5000, 7500]);
+  expect(original.price.amount).toBe(2500);
+  expect(original.price.id).toBe("price_values_2500");
+  await asUser(id(1), "select save_catalog_product($1)", [
+    {
+      id: created.id,
+      revision: 1,
+      data: { ...data, gift_amounts: [2500, 5000] },
+    },
+  ]);
+  expect((await values()).published.gift_amounts).toEqual([2500, 5000, 7500]);
+  await publish(2);
+  expect((await values()).published.gift_amounts).toEqual([2500, 5000]);
+  for (const gift_amounts of [[2500, 2500], [99], [100001], []])
+    await expect(
+      asUser(id(1), "select save_catalog_product($1)", [
+        { data: { ...data, gift_amounts } },
+      ]),
+    ).rejects.toThrow();
+  const [legacy] = await asUser(id(1), "select save_catalog_product($1) id", [
+    { data: { ...data, gift_amounts: [], gift_amount: 5000 } },
+  ]);
+  expect(
+    (
+      await db.query<any>("select draft from catalog_products where id=$1", [
+        legacy.id,
+      ])
+    ).rows[0].draft.gift_amounts,
+  ).toEqual([5000]);
+  expect(
+    (
+      await db.query<any>(
+        "select has_function_privilege('authenticated','save_catalog_product_before_gift_denominations(jsonb)','execute') bypass",
+      )
+    ).rows[0].bypass,
+  ).toBe(false);
+});

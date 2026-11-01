@@ -202,8 +202,6 @@ export function decideProduct(
     return result("unavailable", "Nicht verfügbar");
   }
   if (product.kind === "gift") {
-    if (ctx.role && ctx.role !== "parent")
-      return result("unavailable", "Privates Elternkonto verwenden");
     if (!matchesRule(product.rules.purchase, ctx, child, id, "purchase"))
       return result("unavailable", "Anmeldung erforderlich");
     return result("purchase", "Geschenkkarte auswählen", true);

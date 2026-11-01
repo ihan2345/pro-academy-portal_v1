@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   Search,
   ShoppingBag,
+  Ticket,
   UserRound,
 } from "lucide-react";
 import type { ProductContext } from "@/lib/products/domain";
@@ -268,7 +269,15 @@ export function ProductStore({
             PRO<span>ACADEMY</span>
             <small>BY AYHAN & KARAMAN</small>
           </Link>
-          <nav>
+          <nav aria-label="Shopnavigation">
+            {gifts && (
+              <Link
+                href="/bestellstatus"
+                className="product-shop-action product-shop-action-status"
+              >
+                <Ticket size={16} aria-hidden="true" /> Gutscheinstatus
+              </Link>
+            )}
             {role === "parent" && (
               <Link href="/profil" className="product-store-profile">
                 <UserRound size={17} /> Mein Profil
@@ -283,8 +292,12 @@ export function ProductStore({
                 Konto ergänzen <ArrowRight size={16} />
               </a>
             ) : (
-              <Link href="/login">
-                Anmelden <ArrowRight size={16} />
+              <Link
+                href="/login"
+                className="product-shop-action product-shop-action-login"
+              >
+                <UserRound size={16} aria-hidden="true" /> Anmelden{" "}
+                <ArrowRight size={15} aria-hidden="true" />
               </Link>
             )}
           </nav>
@@ -532,11 +545,6 @@ export function ProductStore({
         ) : rows.length ? (
           <>
             <ProductShowcase products={rows} onAction={(p) => void act(p)} />
-            {gifts && (
-              <a href="/bestellstatus" className="gift-status-shop-link">
-                Geschenkkarte & Guthaben ansehen →
-              </a>
-            )}
             <div className="product-catalog-heading">
               <h2>Alle Angebote</h2>
               <span>{rows.length} Angebote auf dieser Seite</span>

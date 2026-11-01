@@ -5,6 +5,8 @@ import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
+  giftAmounts,
+  giftCatalogVariants,
   channelLabels,
   productSchema,
   type Channel,
@@ -161,7 +163,7 @@ export async function listProducts(
         evaluationCtx!,
         channel,
       );
-      return decision.visible && decision.purchasable
+      return decision.visible
         ? [
             {
               ...publicProduct(p, decision),
@@ -172,7 +174,11 @@ export async function listProducts(
         : [];
     });
   }
-  const giftRepresentative = variants[0];
+  const purchasableGifts = variants.filter((v) => v.decision.purchasable);
+  const giftRepresentative = purchasableGifts[0] ?? variants[0];
+  const giftValues = giftCatalogVariants(
+    purchasableGifts.length ? purchasableGifts : variants,
+  );
   const publicGiftFilter = giftRepresentative
     ? `published->>kind.neq.gift,id.eq.${giftRepresentative.id}`
     : "published->>kind.neq.gift";
@@ -251,14 +257,8 @@ export async function listProducts(
               ? {
                   ...publicProduct(p, decision),
                   name: "Geschenkkarte",
-                  gift_variants: variants
-                    .map((v) => ({
-                      id: v.id,
-                      amount: v.gift_amount,
-                      name: v.name,
-                    }))
-                    .sort((a, b) => a.amount - b.amount),
-                  gift_amount: Math.min(...variants.map((v) => v.gift_amount)),
+                  gift_variants: giftValues,
+                  gift_amount: giftValues[0]?.amount ?? null,
                 }
               : publicProduct(p, decision),
           );
@@ -325,6 +325,7 @@ export function publicProduct(
     asset_ids: v.asset_ids,
     training_content: v.training_content,
     gift_amount: v.gift_amount ?? null,
+    gift_amounts: giftAmounts(v),
     decision,
   };
 }
@@ -351,7 +352,7 @@ export async function saveProduct(
   if (r.error?.code === "23505")
     throw new HttpError(
       409,
-      "Für diesen Geschenkbetrag existiert bereits ein Produkt. Bitte den vorhandenen Eintrag bearbeiten.",
+      "Dieser Produkteintrag besteht bereits. Bitte den vorhandenen Eintrag bearbeiten.",
     );
   if (r.error)
     throw new HttpError(
@@ -528,8 +529,8 @@ export async function publishProduct(
     ["active", "internal", "exclusive", "sold_out"].includes(p.draft.status)
   ) {
     if (p.draft.kind === "gift") {
-      const { ensureGiftValue } = await import("@/lib/gifts/stripe");
-      await ensureGiftValue(p.draft.gift_amount!);
+      const { ensureGiftValues } = await import("@/lib/gifts/stripe");
+      await ensureGiftValues(giftAmounts(p.draft));
     } else await verifyStoredPrice(p.draft);
   }
   const r = await serviceDb().rpc("publish_catalog_product", {

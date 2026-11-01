@@ -31,7 +31,8 @@ vi.mock("../src/lib/server/products/stripe", () => ({
     paymentIntents: { retrieve: async () => state.pi },
   }),
 }));
-import { fulfillGiftOrder } from "../src/lib/gifts/service";
+import { fulfillGiftOrder, createGiftCheckout } from "../src/lib/gifts/service";
+import { productById } from "../src/lib/server/products/catalog";
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("APP_MODE", "test");
@@ -124,4 +125,45 @@ it("freezes refunded or disputed value instead of issuing a usable code", async 
   expect(state.rpc).toHaveBeenCalledWith("gift_freeze_order", {
     input: { id: "order", status: "refunded", payment_id: "pi_gift" },
   });
+});
+
+it("lets confirmed internal gift buyers reach normal offer checks while requiring email confirmation", async () => {
+  vi.stubEnv("PRODUCT_MANAGEMENT_ENABLED", "true");
+  vi.stubEnv("PRODUCT_PAYMENTS_ENABLED", "true");
+  vi.stubEnv("APP_URL", "http://127.0.0.1:3115");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:57321");
+  vi.mocked(productById).mockResolvedValue({ published: null } as any);
+  const input = {
+    request_id: crypto.randomUUID(),
+    product_id: crypto.randomUUID(),
+    amount: 5000,
+    buyer: { full_name: "Test Käufer", email: "buyer@example.invalid" },
+    recipient: {
+      first_name: "Test",
+      last_name: "Geschenk",
+      email: "recipient@example.invalid",
+    },
+  };
+  for (const role of ["admin", "staff"]) {
+    vi.mocked(productById).mockClear();
+    const session = {
+      role,
+      user: {
+        id: crypto.randomUUID(),
+        email_confirmed_at: new Date().toISOString(),
+      },
+    } as any;
+    await expect(createGiftCheckout(session, input)).rejects.toThrow(
+      "Diese Geschenkkarte ist nicht verfügbar.",
+    );
+    expect(productById).toHaveBeenCalledWith(input.product_id);
+    vi.mocked(productById).mockClear();
+    await expect(
+      createGiftCheckout(
+        { ...session, user: { ...session.user, email_confirmed_at: null } },
+        input,
+      ),
+    ).rejects.toThrow("Bitte deine E-Mail bestätigen");
+    expect(productById).not.toHaveBeenCalled();
+  }
 });

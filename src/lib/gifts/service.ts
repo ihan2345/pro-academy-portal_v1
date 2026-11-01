@@ -1,3 +1,4 @@
+import { giftAmounts } from "@/lib/products/domain";
 import { giftStatusView, ensureGiftRecipientAccess } from "./status";
 import "server-only";
 import type Stripe from "stripe";
@@ -39,13 +40,10 @@ export async function createGiftCheckout(
   const input = giftCheckoutSchema.parse(raw),
     db = serviceDb(),
     live = productLiveMode();
-  if (
-    session?.role &&
-    (session.role !== "parent" || !session.user.email_confirmed_at)
-  )
+  if (session?.user && !session.user.email_confirmed_at)
     throw new HttpError(
       403,
-      "Bitte ein bestätigtes Elternkonto oder den Gastkauf verwenden.",
+      "Bitte deine E-Mail bestätigen oder den Gastkauf verwenden.",
     );
   const p = await productById(input.product_id),
     ctx = await loadProductContext(session);
@@ -56,7 +54,10 @@ export async function createGiftCheckout(
   )
     throw new HttpError(403, "Diese Geschenkkarte ist nicht verfügbar.");
   const settings = await giftSettings();
-  if (!settings.allow_custom && input.amount !== p.published.gift_amount)
+  if (
+    !settings.allow_custom &&
+    !giftAmounts(p.published).includes(input.amount)
+  )
     throw new HttpError(400, "Bitte einen veröffentlichten Betrag auswählen.");
   const prior = checked<any>(
     await db
