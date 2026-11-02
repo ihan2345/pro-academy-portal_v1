@@ -21,6 +21,15 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => vi.clearAllMocks());
 
+// Public pages have their own routes outside the role-specific portal sections.
+const publicPagePaths = new Set([
+  "/impressum",
+  "/datenschutz",
+  "/agb",
+  "/gs-tb",
+  "/kontakt",
+]);
+
 const cases: [PortalRole, string, string[]][] = [
   ["parent", "", ["team", "admin", "admin/trainingsplanung"]],
   ["staff", "team", ["", "berichte", "admin", "admin/spieler"]],
@@ -57,10 +66,15 @@ describe.each(cases)(
           (match) => match[1],
         );
         expect(hrefs).toContain(portalHome(role));
+        for (const path of publicPagePaths) expect(hrefs).toContain(path);
         for (const href of hrefs.filter(
           (value) => value.startsWith("/") && !value.startsWith("//"),
         )) {
-          expect(canOpenPortalSection(role, href.slice(1)), href).toBe(true);
+          expect(
+            publicPagePaths.has(href) ||
+              canOpenPortalSection(role, href.slice(1)),
+            href,
+          ).toBe(true);
         }
         expect(html).not.toMatch(/>Eltern<|>Mitarbeiter<\/a>|>Admin<\/a>/);
       },
