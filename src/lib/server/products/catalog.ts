@@ -101,12 +101,16 @@ export async function listProducts(
   const channel = z
     .enum(Object.keys(channelLabels) as [Channel, ...Channel[]])
     .parse(params.get("channel") || "catalog");
+  const selectedProduct = params.get("product")
+    ? productIdSchema.parse(params.get("product"))
+    : undefined;
   const searchTerms = productSearchTerms(q);
   const fingerprint = hash({
       q,
       kind,
       status,
       category,
+      ...(selectedProduct ? { product: selectedProduct } : {}),
       channel,
       admin,
       order: "priority-newest",
@@ -180,7 +184,9 @@ export async function listProducts(
     matchesProductSearch(v, searchTerms),
   );
   const giftRepresentative =
-    matchingGifts.find((v) => v.decision.purchasable) ?? matchingGifts[0];
+    matchingGifts.find((v) => v.id === selectedProduct) ??
+    matchingGifts.find((v) => v.decision.purchasable) ??
+    matchingGifts[0];
   const giftValues = giftCatalogVariants(
     purchasableGifts.length ? purchasableGifts : variants,
   );
@@ -201,6 +207,7 @@ export async function listProducts(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(size + 1);
+    if (selectedProduct) query = query.eq("id", selectedProduct);
     if (q && admin)
       query = query.textSearch("search_document", q, {
         type: "websearch",

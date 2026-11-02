@@ -315,7 +315,13 @@ function saleApplies(
 export function ProductShowcase({
   products,
   onAction,
+  actionHref,
+  imageUrl = (id: string) => `/api/products/image/${id}`,
 }: {
+  actionHref?: (
+    product: ProductDisplay & { id: string; decision: Decision },
+  ) => string;
+  imageUrl?: (id: string) => string;
   products: (ProductDisplay & { id: string; decision: Decision })[];
   onAction: (
     product: ProductDisplay & { id: string; decision: Decision },
@@ -402,7 +408,12 @@ export function ProductShowcase({
               );
             }}
           >
-            <ProductCard product={outgoing.product} stage preview />
+            <ProductCard
+              product={outgoing.product}
+              stage
+              preview
+              imageUrl={imageUrl}
+            />
           </div>
         )}
         <div
@@ -418,6 +429,8 @@ export function ProductShowcase({
                 : product.decision
             }
             onAction={() => onAction(product)}
+            actionHref={actionHref?.(product)}
+            imageUrl={imageUrl}
             stage
           />
         </div>
@@ -444,7 +457,7 @@ export function ProductShowcase({
             >
               {p.asset_ids[0] ? (
                 <img
-                  src={`/api/products/image/${p.asset_ids[0]}`}
+                  src={imageUrl(p.asset_ids[0])}
                   alt=""
                   width={48}
                   height={48}
@@ -510,27 +523,41 @@ export function ProductCard({
   onAction,
   preview = false,
   stage = false,
+  actionHref,
+  imageUrl = (id: string) => `/api/products/image/${id}`,
 }: {
   product: ProductDisplay;
   decision?: Decision;
   onAction?: () => void;
   preview?: boolean;
   stage?: boolean;
+  actionHref?: string;
+  imageUrl?: (id: string) => string;
 }) {
   const training = trainingContentLabel(product);
-  const action = (
-    <button
-      type="button"
-      className="primary-button"
-      disabled={
-        preview || (!decision?.purchasable && decision?.mode !== "register")
-      }
-      onClick={onAction}
-    >
-      {decision?.label ?? "Vorschau"}
-      <ArrowUpRight size={16} />
-    </button>
-  );
+  const action =
+    actionHref && !preview ? (
+      <a
+        className="primary-button"
+        href={actionHref}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Produkt ansehen <ArrowUpRight size={16} />
+      </a>
+    ) : (
+      <button
+        type="button"
+        className="primary-button"
+        disabled={
+          preview || (!decision?.purchasable && decision?.mode !== "register")
+        }
+        onClick={onAction}
+      >
+        {decision?.label ?? "Vorschau"}
+        <ArrowUpRight size={16} />
+      </button>
+    );
   if (stage)
     return (
       <article
@@ -564,7 +591,7 @@ export function ProductCard({
           {product.asset_ids[0] ? (
             <div className="product-art-card">
               <img
-                src={`/api/products/image/${product.asset_ids[0]}`}
+                src={imageUrl(product.asset_ids[0])}
                 alt={product.name}
                 width={640}
                 height={640}
@@ -616,7 +643,7 @@ export function ProductCard({
           <div className="product-card-image-stage">
             <div className="product-art-card">
               <img
-                src={`/api/products/image/${product.asset_ids[0]}`}
+                src={imageUrl(product.asset_ids[0])}
                 alt={product.name}
                 loading="lazy"
                 width={640}

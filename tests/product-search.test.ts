@@ -178,3 +178,17 @@ it("keeps all gift values and selects a matching representative when only one gi
   );
   expect(none.rows).toHaveLength(0);
 });
+it("opens the selected product regardless of its catalogue page while retaining visibility rules", async () => {
+  state.rows = [row(1), row(2), row(3, { status: "draft" })];
+  const selected = await listProducts(
+    null,
+    new URLSearchParams({ product: id(2) }),
+  );
+  expect(selected.rows.map((p) => p.id)).toEqual([id(2)]);
+  expect(
+    (await listProducts(null, new URLSearchParams({ product: id(3) }))).rows,
+  ).toEqual([]);
+  await expect(
+    listProducts(null, new URLSearchParams({ product: "bad" })),
+  ).rejects.toThrow();
+});

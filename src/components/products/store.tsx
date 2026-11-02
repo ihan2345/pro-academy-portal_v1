@@ -205,6 +205,28 @@ export function ProductStore({
     }
     if (!player && ctx.children.length === 1) setPlayer(ctx.children[0].id);
   }
+  const openedProduct = useRef<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("product");
+    if (!ctx || !id || openedProduct.current === id) return;
+    openedProduct.current = id;
+    let live = true;
+    void productRequest(
+      `/api/products?${new URLSearchParams({ product: id, channel })}`,
+    )
+      .then((r) => {
+        if (!live) return;
+        if (r.rows[0]) void act(r.rows[0]);
+        else setNotice("Dieses Produkt ist aktuell nicht verfügbar.");
+      })
+      .catch((e) => {
+        if (live) setError(e.message);
+      });
+    return () => {
+      live = false;
+      openedProduct.current = null;
+    };
+  }, [ctx?.auth_id, channel, !!ctx]);
   async function start() {
     if (!chosen) return;
     await run(async () => {

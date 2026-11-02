@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ShowcaseSettings } from "./products/showcase-settings";
+import "./products/showcase-embed.css";
 type Feature = { key: string; enabled: boolean; updated_at: string };
 export function PlatformFeatures({
   linkOnly = false,
@@ -148,6 +150,8 @@ export function PlatformFeatures({
             </button>
           </div>
         ))}
+      {features?.some((f) => f.key === "product_shop") &&
+        (!only || only === "product_shop") && <ShowcaseSettings />}
       {!only && features?.some((f) => f.key === "pai" && f.enabled) && (
         <p>
           <Link href="/pai">pAi öffnen</Link> ·{" "}

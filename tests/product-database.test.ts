@@ -1550,3 +1550,48 @@ it("searches published substrings, German spelling and descriptions without leak
     await db.exec("rollback");
   }
 });
+it("allows only feature managers to rotate the singleton showcase token and rejects stale writes", async () => {
+  const old = "a".repeat(64),
+    next = "b".repeat(64);
+  expect(
+    await asUser(id(1), "select token from product_showcase_share"),
+  ).toEqual([]);
+  await expect(
+    asUser(id(1), "select rotate_product_showcase_share($1,null)", [old]),
+  ).rejects.toThrow("Keine Berechtigung");
+  await db.query(
+    "insert into platform_permissions(user_id,permission) values($1,'manage_features') on conflict do nothing",
+    [id(1)],
+  );
+  expect(
+    await asUser(id(1), "select rotate_product_showcase_share($1,null) share", [
+      old,
+    ]),
+  ).toEqual([{ share: { token: old } }]);
+  await expect(
+    asUser(id(1), "select rotate_product_showcase_share($1,null)", [next]),
+  ).rejects.toThrow("zwischenzeitlich");
+  await asUser(id(1), "select rotate_product_showcase_share($1,$2)", [
+    next,
+    old,
+  ]);
+  expect(
+    await asUser(id(1), "select token from product_showcase_share"),
+  ).toEqual([{ token: next }]);
+  expect(
+    await asUser(id(2), "select token from product_showcase_share"),
+  ).toEqual([]);
+  await expect(
+    asUser(id(2), "select rotate_product_showcase_share($1,$2)", [old, next]),
+  ).rejects.toThrow("Keine Berechtigung");
+  await expect(
+    asUser(id(1), "update product_showcase_share set token=$1", [old]),
+  ).rejects.toThrow("permission denied");
+  const audit = await db.query<any>(
+    "select new_value from audit_log where table_name='product_showcase_share'",
+  );
+  expect(audit.rows).toEqual([
+    { new_value: { rotated: true } },
+    { new_value: { rotated: true } },
+  ]);
+});
