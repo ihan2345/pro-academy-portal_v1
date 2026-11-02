@@ -1837,27 +1837,35 @@
   width: 44px;
   height: 44px;
   padding: 0;
-  background: transparent;
-  border: 0;
+  background: #fffffff2;
+  border: 1px solid #fff;
   border-radius: 50%;
-  color: #ffffffa6;
+  color: #192238;
+  box-shadow:
+    0 4px 14px #0003,
+    inset 0 1px 0 #fff;
   cursor: pointer;
   pointer-events: auto;
   transition:
-    color 0.2s,
-    background-color 0.2s;
+    background-color 0.2s,
+    box-shadow 0.2s;
 }
-.product-showcase-controls button:hover {
-  background: #ffffff0d;
-  color: #fff;
+.product-showcase-controls button:hover:not(:disabled) {
+  background: #fff;
+  box-shadow:
+    0 6px 20px #0005,
+    0 0 0 3px #ffffff26;
+}
+.product-showcase-controls button:active:not(:disabled) {
+  background: #e5eaf2;
+  box-shadow: 0 2px 6px #0003;
 }
 .product-showcase-controls button:focus-visible {
-  outline: 2px solid #ffffffb3;
-  outline-offset: 2px;
-  color: #fff;
+  outline: 2px solid #fff;
+  outline-offset: 3px;
 }
 .product-showcase-controls button:disabled {
-  opacity: 0.25;
+  opacity: 0.35;
   cursor: default;
 }
 .product-stage-visual {

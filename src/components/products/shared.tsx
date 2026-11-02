@@ -416,7 +416,7 @@ export function ProductShowcase({
                   disabled={products.length < 2}
                   onClick={() => move(-1)}
                 >
-                  <ChevronLeft size={18} strokeWidth={1.5} />
+                  <ChevronLeft size={20} strokeWidth={2.25} />
                 </button>
                 <button
                   type="button"
@@ -424,7 +424,7 @@ export function ProductShowcase({
                   disabled={products.length < 2}
                   onClick={() => move(1)}
                 >
-                  <ChevronRight size={18} strokeWidth={1.5} />
+                  <ChevronRight size={20} strokeWidth={2.25} />
                 </button>
               </div>
             }
