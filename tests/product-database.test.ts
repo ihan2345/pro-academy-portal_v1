@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { beforeAll, afterAll, it, expect } from "vitest";
 import { applyProductSchema } from "../scripts/products-local/schema.mjs";
 import { emptyProduct } from "../src/lib/products/domain";
@@ -6,7 +7,7 @@ let db: PGlite;
 const id = (n: number) =>
   `d0000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 beforeAll(async () => {
-  db = new PGlite();
+  db = new PGlite({ extensions: { pg_trgm } });
   await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create schema storage;
   create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
   create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
@@ -1453,4 +1454,99 @@ it("publishes several gift denominations atomically, preserves the prior selecti
       )
     ).rows[0].bypass,
   ).toBe(false);
+});
+
+it("searches published substrings, German spelling and descriptions without leaking draft text", async () => {
+  const { productSearchTerms, normalizeProductSearch, productShopSearchText } =
+    await import("../src/lib/products/search");
+  const snapshots = [
+    {
+      ...emptyProduct(),
+      name: "Pro-Player",
+      category: "Fußballtraining",
+      description: "Analyse für München",
+      kind: "subscription" as const,
+    },
+    {
+      ...emptyProduct(),
+      name: "GameChanger",
+      short_description: "Fußballtraining mit Camp-Vorteil",
+      kind: "subscription" as const,
+    },
+    { ...emptyProduct(), name: "PA-Karte", kind: "gift" as const },
+  ];
+  await db.exec("begin");
+  try {
+    for (const [i, p] of snapshots.entries())
+      await db.query(
+        "insert into catalog_products(id,name,kind,draft,published) values($1,$2,$3,$4,$5)",
+        [
+          id(9000 + i),
+          "GeheimerEntwurf",
+          p.kind,
+          { ...p, description: "UnveröffentlichtesSonderangebot" },
+          p,
+        ],
+      );
+    for (const [q, expected] of [
+      ["Game", [1]],
+      ["ProPlayer", [0]],
+      ["Pro Player", [0]],
+      ["fußball", [0, 1]],
+      ["Fussball TRAINING", [0, 1]],
+      ["Munchen", [0]],
+      ["Gutschein", [2]],
+      ["Geschenkkarte", [2]],
+      ["GeheimerEntwurf", []],
+      ["UnveröffentlichtesSonderangebot", []],
+      ["%_*", []],
+      ["不存在", []],
+    ] as [string, number[]][]) {
+      const terms = productSearchTerms(q);
+      const r = await db.query<{ id: string }>(
+        `select id from catalog_products where id=any($1::uuid[]) and ${terms.map((_, i) => `published_shop_search like $${i + 2}`).join(" and ") || "true"} order by id`,
+        [snapshots.map((_, i) => id(9000 + i)), ...terms.map((t) => `%${t}%`)],
+      );
+      expect(
+        r.rows.map((p) => p.id),
+        q,
+      ).toEqual(expected.map((i) => id(9000 + i)));
+    }
+    for (const [i, p] of snapshots.entries()) {
+      const stored = (
+        await db.query<{ text: string }>(
+          "select published_shop_search text from catalog_products where id=$1",
+          [id(9000 + i)],
+        )
+      ).rows[0].text;
+      expect(stored).toBe(productShopSearchText(p));
+    }
+    for (const value of [
+      "Fußball",
+      "PRO-PLAYER",
+      "München",
+      "Créativité",
+      "æ œ",
+      "中文",
+      "Привет",
+      "%_*",
+    ]) {
+      const normalized = (
+        await db.query<{ text: string }>(
+          "select normalize_product_shop_search($1) text",
+          [value],
+        )
+      ).rows[0].text;
+      expect(normalized, value).toBe(normalizeProductSearch(value));
+    }
+    const index = (
+      await db.query<{ indexdef: string }>(
+        "select indexdef from pg_indexes where indexname='product_public_shop_search'",
+      )
+    ).rows[0].indexdef;
+    expect(index).toContain("gin");
+    expect(index).toContain("gin_trgm_ops");
+  } finally {
+    await db.exec("rollback");
+  }
 });

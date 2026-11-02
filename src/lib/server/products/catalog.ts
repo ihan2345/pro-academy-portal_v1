@@ -1,3 +1,7 @@
+import {
+  productSearchTerms,
+  matchesProductSearch,
+} from "@/lib/products/search";
 import { giftsEnabled } from "@/lib/gifts/runtime";
 import { productLiveMode } from "./runtime";
 import { productIdSchema } from "@/lib/products/domain";
@@ -97,6 +101,7 @@ export async function listProducts(
   const channel = z
     .enum(Object.keys(channelLabels) as [Channel, ...Channel[]])
     .parse(params.get("channel") || "catalog");
+  const searchTerms = productSearchTerms(q);
   const fingerprint = hash({
       q,
       kind,
@@ -105,6 +110,7 @@ export async function listProducts(
       channel,
       admin,
       order: "priority-newest",
+      ...(admin ? {} : { search: "normalized-substring-v1" }),
       player: params.get("player"),
       new_child: params.get("new_child") === "true",
     }),
@@ -149,11 +155,6 @@ export async function listProducts(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
     if (category) giftsQuery = giftsQuery.eq("published->>category", category);
-    if (q)
-      giftsQuery = giftsQuery.textSearch("published_search_document", q, {
-        type: "websearch",
-        config: "simple",
-      });
     variants = checked<(ProductRecord & { created_at: string })[]>(
       await giftsQuery,
     ).flatMap((p) => {
@@ -175,7 +176,11 @@ export async function listProducts(
     });
   }
   const purchasableGifts = variants.filter((v) => v.decision.purchasable);
-  const giftRepresentative = purchasableGifts[0] ?? variants[0];
+  const matchingGifts = variants.filter((v) =>
+    matchesProductSearch(v, searchTerms),
+  );
+  const giftRepresentative =
+    matchingGifts.find((v) => v.decision.purchasable) ?? matchingGifts[0];
   const giftValues = giftCatalogVariants(
     purchasableGifts.length ? purchasableGifts : variants,
   );
@@ -196,15 +201,14 @@ export async function listProducts(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(size + 1);
-    if (q)
-      query = query.textSearch(
-        admin ? "search_document" : "published_search_document",
-        q,
-        {
-          type: "websearch",
-          config: "simple",
-        },
-      );
+    if (q && admin)
+      query = query.textSearch("search_document", q, {
+        type: "websearch",
+        config: "simple",
+      });
+    if (!admin)
+      for (const term of searchTerms)
+        query = query.ilike("published_shop_search", `%${term}%`);
     if (kind) query = query.eq(admin ? "kind" : "published->>kind", kind);
     if (status) query = query.eq("status", status);
     if (category)

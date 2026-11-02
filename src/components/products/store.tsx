@@ -56,6 +56,7 @@ export function ProductStore({
       clearInterval(timer);
     };
   }, []);
+  const [catalogError, setCatalogError] = useState("");
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -107,15 +108,23 @@ export function ProductStore({
   }, [refresh]);
   useEffect(() => {
     let cancel = false;
+    const controller = new AbortController();
+    const q = new URLSearchParams({ q: search, channel });
+    if (player) q.set("player", player);
+    if (newChild) q.set("new_child", "true");
+    if (cursor) q.set("cursor", cursor);
+    const query = q.toString();
+    // Keep background refreshes mounted; changed searches must not show old hits.
+    const changed = loadedCatalogQuery.current !== query;
+    if (changed) setLoading(true);
+    setCatalogError("");
     const t = setTimeout(() => {
-      const q = new URLSearchParams({ q: search, channel });
-      if (player) q.set("player", player);
-      if (newChild) q.set("new_child", "true");
-      if (cursor) q.set("cursor", cursor);
-      const query = q.toString();
-      // Keep the catalogue mounted during polling/focus refreshes of the same view.
-      if (loadedCatalogQuery.current !== query) setLoading(true);
-      void productRequest(`/api/products?${query}`)
+      void productRequest(
+        `/api/products?${query}`,
+        "GET",
+        undefined,
+        controller.signal,
+      )
         .then((r) => {
           if (!cancel) {
             loadedCatalogQuery.current = query;
@@ -127,7 +136,14 @@ export function ProductStore({
           }
         })
         .catch((e) => {
-          if (!cancel) setError(e.message);
+          if (!cancel) {
+            setCatalogError(e.message);
+            if (changed) {
+              loadedCatalogQuery.current = null;
+              setRows([]);
+              setNext(null);
+            }
+          }
         })
         .finally(() => {
           if (!cancel) setLoading(false);
@@ -136,6 +152,7 @@ export function ProductStore({
     return () => {
       cancel = true;
       clearTimeout(t);
+      controller.abort();
     };
   }, [player, search, cursor, channel, newChild, refresh]);
   useEffect(() => {
@@ -337,9 +354,9 @@ export function ProductStore({
             </p>
           </section>
         )}
-        {error && !chosen && (
+        {(catalogError || (error && !chosen)) && (
           <p className="error-message" role="alert">
-            {error}
+            {catalogError || error}
           </p>
         )}
         {notice && (
@@ -508,6 +525,7 @@ export function ProductStore({
             <input
               type="search"
               value={search}
+              maxLength={160}
               aria-label="Angebote suchen"
               placeholder="Angebote suchen …"
               onChange={(e) => {
@@ -547,7 +565,7 @@ export function ProductStore({
           <>
             <ProductShowcase products={rows} onAction={(p) => void act(p)} />
             <div className="product-catalog-heading">
-              <h2>Alle Angebote</h2>
+              <h2>{search.trim() ? "Suchergebnisse" : "Alle Angebote"}</h2>
               <span>{rows.length} Angebote auf dieser Seite</span>
             </div>
             <div className="product-store-grid">
@@ -565,11 +583,19 @@ export function ProductStore({
               ))}
             </div>
           </>
-        ) : (
+        ) : catalogError ? null : (
           <div className="product-empty">
             <ShoppingBag size={38} />
-            <h2>Gerade kein passendes Angebot</h2>
-            <p>Wähle ein Kind oder passe deine Suche an.</p>
+            <h2>
+              {search.trim()
+                ? "Keine passenden Angebote gefunden"
+                : "Gerade kein passendes Angebot"}
+            </h2>
+            <p>
+              {search.trim()
+                ? "Versuche einen anderen Suchbegriff oder passe deine Suche an."
+                : "Wähle ein Kind oder passe deine Suche an."}
+            </p>
           </div>
         )}
         {next && (

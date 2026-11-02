@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { beforeAll, afterAll, it, expect } from "vitest";
 import { applyProductSchema } from "../scripts/products-local/schema.mjs";
 import { emptyProduct } from "../src/lib/products/domain";
@@ -13,7 +14,7 @@ const uid = id(1),
   otherPid = id(5),
   productId = id(6);
 beforeAll(async () => {
-  db = new PGlite();
+  db = new PGlite({ extensions: { pg_trgm } });
   await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create schema storage;
  create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;

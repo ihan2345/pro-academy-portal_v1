@@ -25,10 +25,12 @@ export async function productRequest<T = any>(
   url: string,
   method = "GET",
   data?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   const response = await fetch(url, {
     method,
     credentials: "same-origin",
+    signal,
     headers:
       data === undefined ? undefined : { "Content-Type": "application/json" },
     body: data === undefined ? undefined : JSON.stringify(data),
