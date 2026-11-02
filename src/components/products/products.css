@@ -1822,27 +1822,50 @@
   white-space: nowrap;
 }
 .product-showcase-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   display: flex;
-  gap: 8px;
-  margin-top: 34px;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
 }
 .product-showcase-controls button {
   display: grid;
   place-items: center;
-  width: 33px;
-  height: 33px;
-  background: #ffffff12;
-  border: 1px solid #ffffff25;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: 0;
   border-radius: 50%;
-  color: #fff;
+  color: #ffffffa6;
   cursor: pointer;
+  pointer-events: auto;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
 }
 .product-showcase-controls button:hover {
-  background: #ffffff30;
+  background: #ffffff0d;
+  color: #fff;
+}
+.product-showcase-controls button:focus-visible {
+  outline: 2px solid #ffffffb3;
+  outline-offset: 2px;
+  color: #fff;
 }
 .product-showcase-controls button:disabled {
-  opacity: 0.35;
+  opacity: 0.25;
   cursor: default;
+}
+.product-stage-visual {
+  position: relative;
+  min-width: 0;
+}
+.product-showcase .product-stage-art {
+  padding-inline: clamp(64px, 5vw, 72px);
 }
 .product-stage {
   display: grid;
@@ -2044,6 +2067,7 @@
   align-items: center;
   justify-content: space-between;
   width: min(230px, 85%);
+  max-width: 100%;
   max-height: var(--product-art-height);
   aspect-ratio: 4/5;
   border-radius: 28px;
@@ -2142,6 +2166,7 @@
   font-size: 30px;
 }
 .product-showcase-stage {
+  margin-top: clamp(24px, 3vw, 40px);
   position: relative;
   perspective: 1200px;
 }
@@ -2314,10 +2339,12 @@
     grid-column: 1;
     grid-row: 1 / 3;
   }
-  .product-stage-art {
-    --product-art-height: 207px;
+  .product-stage-visual {
     grid-column: 2;
     grid-row: 1;
+  }
+  .product-stage-art {
+    --product-art-height: 207px;
     height: 240px;
   }
   .product-stage-emblem {
@@ -2340,9 +2367,6 @@
   .product-showcase-topline > span > span {
     display: none;
   }
-  .product-showcase-controls {
-    margin-top: 24px;
-  }
   .product-stage {
     display: flex;
     flex-direction: column;
@@ -2356,10 +2380,11 @@
     font-size: 36px;
     margin: 12px 0;
   }
-  .product-stage-art {
+  .product-stage-visual {
     order: 0;
+  }
+  .product-stage-art {
     height: 230px;
-    margin-top: -20px;
     pointer-events: none;
   }
   .product-stage-emblem {

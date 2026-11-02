@@ -7,8 +7,8 @@ import {
   Crown,
   ImageIcon,
   ArrowUpRight,
-  ArrowLeft,
-  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
   BadgePercent,
 } from "lucide-react";
@@ -376,24 +376,6 @@ export function ProductShowcase({
           {String(products.length).padStart(2, "0")}
         </span>
       </div>
-      <div className="product-showcase-controls">
-        <button
-          type="button"
-          aria-label="Vorheriges Produkt"
-          disabled={products.length < 2}
-          onClick={() => move(-1)}
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <button
-          type="button"
-          aria-label="Nächstes Produkt"
-          disabled={products.length < 2}
-          onClick={() => move(1)}
-        >
-          <ArrowRight size={18} />
-        </button>
-      </div>
       <div className="product-showcase-stage" data-transition={!!outgoing}>
         {outgoing && (
           <div
@@ -416,11 +398,7 @@ export function ProductShowcase({
             />
           </div>
         )}
-        <div
-          key={product.id}
-          className="product-showcase-slide is-current"
-          aria-live="polite"
-        >
+        <div className="product-showcase-slide is-current" aria-live="polite">
           <ProductCard
             product={product}
             decision={
@@ -429,6 +407,27 @@ export function ProductShowcase({
                 : product.decision
             }
             onAction={() => onAction(product)}
+            stageKey={product.id}
+            stageNavigation={
+              <div className="product-showcase-controls">
+                <button
+                  type="button"
+                  aria-label="Vorheriges Produkt"
+                  disabled={products.length < 2}
+                  onClick={() => move(-1)}
+                >
+                  <ChevronLeft size={18} strokeWidth={1.5} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Nächstes Produkt"
+                  disabled={products.length < 2}
+                  onClick={() => move(1)}
+                >
+                  <ChevronRight size={18} strokeWidth={1.5} />
+                </button>
+              </div>
+            }
             actionHref={actionHref?.(product)}
             imageUrl={imageUrl}
             stage
@@ -525,7 +524,11 @@ export function ProductCard({
   stage = false,
   actionHref,
   imageUrl = (id: string) => `/api/products/image/${id}`,
+  stageNavigation,
+  stageKey,
 }: {
+  stageNavigation?: React.ReactNode;
+  stageKey?: string;
   product: ProductDisplay;
   decision?: Decision;
   onAction?: () => void;
@@ -568,7 +571,7 @@ export function ProductCard({
           } as React.CSSProperties
         }
       >
-        <div className="product-stage-copy">
+        <div key={`copy-${stageKey}`} className="product-stage-copy">
           <span className="product-kicker">
             {product.category || kindLabels[product.kind]}
           </span>
@@ -586,26 +589,29 @@ export function ProductCard({
           {action}
           {decision?.reasons[0] && <small>{decision.reasons[0]}</small>}
         </div>
-        <div className="product-stage-art">
-          <ProductPromotionEffects product={product} />
-          {product.asset_ids[0] ? (
-            <div className="product-art-card">
-              <img
-                src={imageUrl(product.asset_ids[0])}
-                alt={product.name}
-                width={640}
-                height={640}
-              />
-            </div>
-          ) : (
-            <div className="product-stage-emblem">
-              <span>PROACADEMY</span>
-              <ShoppingBagIcon kind={product.kind} />
-              <span>{kindLabels[product.kind]}</span>
-            </div>
-          )}
+        <div className="product-stage-visual">
+          <div key={`art-${stageKey}`} className="product-stage-art">
+            <ProductPromotionEffects product={product} />
+            {product.asset_ids[0] ? (
+              <div className="product-art-card">
+                <img
+                  src={imageUrl(product.asset_ids[0])}
+                  alt={product.name}
+                  width={640}
+                  height={640}
+                />
+              </div>
+            ) : (
+              <div className="product-stage-emblem">
+                <span>PROACADEMY</span>
+                <ShoppingBagIcon kind={product.kind} />
+                <span>{kindLabels[product.kind]}</span>
+              </div>
+            )}
+          </div>
+          {stageNavigation}
         </div>
-        <div className="product-stage-price">
+        <div key={`price-${stageKey}`} className="product-stage-price">
           <ProductPromotionBadges product={product} />
           {saleApplies(product, decision, preview) && (
             <span className="product-sale-label">Aktionspreis</span>
