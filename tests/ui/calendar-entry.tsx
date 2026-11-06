@@ -6,6 +6,9 @@ import { calendarDate, addMonths, monthStart } from "../../src/lib/calendar";
 import { calculateAutoAttendanceAt, localToUtc } from "../../src/lib/domain";
 
 const today = calendarDate();
+const testRole = new URLSearchParams(window.location.search).has("admin")
+  ? "admin"
+  : "staff";
 const next = addMonths(today, 1).slice(0, 8) + "05";
 const events = Array.from({ length: 16 }, (_, index) => {
   const starts_at = localToUtc(
@@ -52,7 +55,7 @@ createRoot(document.getElementById("root")!).render(
       new URLSearchParams(window.location.search).has("grace")
         ? {
             ...portalFixture,
-            role: "staff",
+            role: testRole,
             events: [],
             players: [
               {
@@ -69,8 +72,8 @@ createRoot(document.getElementById("root")!).render(
               },
             ],
           }
-        : { ...portalFixture, role: "staff", events }
+        : { ...portalFixture, role: testRole, events }
     }
-    section="team"
+    section={testRole === "admin" ? "admin/trainingsplanung" : "team"}
   />,
 );

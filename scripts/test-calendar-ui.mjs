@@ -436,6 +436,133 @@ try {
     );
     await page.close();
   }
+  // Editing a training must survive incidental input, dismissal and background polls.
+  // All writes are intercepted synthetic requests; no production data is touched.
+  for (const role of ["staff", "admin"]) {
+    for (const viewport of [
+      { width: 1440, height: 1050 },
+      { width: 390, height: 844 },
+    ]) {
+      const page = await browser.newPage({
+        viewport,
+        locale: "de-DE",
+        timezoneId: "Europe/Berlin",
+      });
+      const saves = [];
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.clock.install({ time: new Date("2026-09-07T10:00:00Z") });
+      await page.route("**/*", async (route) => {
+        const url = new URL(route.request().url());
+        if (url.origin !== base) return route.abort();
+        if (url.pathname === "/api/team/events") {
+          saves.push(route.request().postDataJSON());
+          return route.fulfill({ json: { id: `synthetic-${role}` } });
+        }
+        if (url.pathname === "/api/platform/availability")
+          return route.fulfill({ json: { pai: false, mascot: false } });
+        if (url.pathname === "/api/activities/summary")
+          return route.fulfill({
+            json: { asOf: new Date().toISOString(), recent: 0, open: 0 },
+          });
+        if (url.pathname === "/api/activity")
+          return route.fulfill({ json: { ok: true } });
+        if (url.pathname.startsWith("/api/"))
+          throw Error("Unexpected API request: " + url.pathname);
+        return route.continue();
+      });
+      await page.goto(role === "admin" ? `${base}?admin` : base);
+      await page
+        .getByRole("button", { name: "Termin erstellen", exact: true })
+        .click();
+      const dialog = page.getByRole("dialog", {
+        name: "Neues Training planen",
+      });
+      const title = dialog.getByLabel("Trainingstitel", { exact: true });
+      await title.waitFor();
+      assert(await title.evaluate((el) => el === document.activeElement));
+      await title.fill("Ungespeicherter Termin");
+      await title.press("Enter");
+      await title.press("Escape");
+      assert(await dialog.isVisible());
+      await dialog.locator('input[name="date"]').press("Escape");
+      await dialog.locator('input[name="start"]').press("Escape");
+      await page.locator(".modal-backdrop").click({ position: { x: 4, y: 4 } });
+      assert(await dialog.isVisible());
+      assert.equal(await title.inputValue(), "Ungespeicherter Termin");
+      await dialog
+        .getByRole("checkbox", { name: "Max Beispiel", exact: true })
+        .check();
+      const search = dialog.getByRole("textbox", {
+        name: "Kind suchen",
+        exact: true,
+      });
+      await search.fill("Max");
+      await search.press("Enter");
+      assert(await dialog.isVisible());
+      assert.equal(
+        saves.length,
+        0,
+        "Enter in search must never save a training",
+      );
+      const note = dialog.getByLabel("Interne Notiz", { exact: true });
+      await note.fill("Erste Zeile");
+      await note.press("End");
+      await note.press("Enter");
+      await note.pressSequentially("Zweite Zeile");
+      await page.clock.fastForward(61_000);
+      assert(
+        await dialog.isVisible(),
+        "Background refresh must preserve the draft",
+      );
+      assert.equal(await title.inputValue(), "Ungespeicherter Termin");
+      assert.equal(await note.inputValue(), "Erste Zeile\nZweite Zeile");
+      assert.equal(saves.length, 0);
+      await page.screenshot({
+        path: `${output}/editor-protected-${role}-${viewport.width}.png`,
+      });
+      // Explicit saving retains native required-field validation.
+      await title.fill("");
+      await dialog
+        .getByRole("button", { name: "Termin speichern", exact: true })
+        .click();
+      assert.equal(saves.length, 0);
+      assert(await dialog.isVisible());
+      await title.fill("Bewusst gespeicherter Termin");
+      await dialog
+        .getByRole("button", { name: "Termin speichern", exact: true })
+        .press("Enter");
+      await dialog.waitFor({ state: "hidden" });
+      assert.equal(saves.length, 1);
+      assert.equal(saves[0].title, "Bewusst gespeicherter Termin");
+      assert.equal(saves[0].note, "Erste Zeile\nZweite Zeile");
+      assert.deepEqual(saves[0].player_ids, ["max"]);
+      for (const button of ["Abbrechen", "Dialog schließen"]) {
+        await page
+          .getByRole("button", { name: "Termin erstellen", exact: true })
+          .click();
+        await dialog.getByRole("button", { name: button, exact: true }).click();
+        await dialog.waitFor({ state: "hidden" });
+      }
+      assert.equal(saves.length, 1);
+      // Other dialogs retain their normal Escape behavior.
+      await page
+        .getByRole("button", { name: "Ausnahmen eintragen", exact: true })
+        .first()
+        .click();
+      const exceptions = page.getByRole("dialog", {
+        name: "Teilnahmen & Ausnahmen",
+      });
+      await exceptions.waitFor();
+      await page.keyboard.press("Escape");
+      await exceptions.waitFor({ state: "hidden" });
+      assert.deepEqual(errors, []);
+      console.log(
+        `editor ${role} ${viewport.width}: draft protection, explicit save and cancel passed`,
+      );
+      await page.close();
+    }
+  }
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));

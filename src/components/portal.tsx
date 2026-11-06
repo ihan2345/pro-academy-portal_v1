@@ -1371,12 +1371,18 @@ export function Modal({
   title,
   className = "",
   active = true,
+  dismissOnBackdropClick = true,
+  dismissOnEscape = true,
+  initialFocus,
   close,
   children,
 }: {
   title: string;
   className?: string;
   active?: boolean;
+  dismissOnBackdropClick?: boolean;
+  dismissOnEscape?: boolean;
+  initialFocus?: string;
   close: () => void;
   children: React.ReactNode;
 }) {
@@ -1389,10 +1395,10 @@ export function Modal({
     const old = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     ref.current
-      ?.querySelector<HTMLElement>("button")
+      ?.querySelector<HTMLElement>(initialFocus ?? "button")
       ?.focus({ preventScroll: true });
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && dismissOnEscape && !e.defaultPrevented) {
         e.preventDefault();
         onClose.current();
       }
@@ -1419,14 +1425,14 @@ export function Modal({
       document.body.style.overflow = old;
       previous?.focus({ preventScroll: true });
     };
-  }, [active]);
+  }, [active, dismissOnEscape, initialFocus]);
   return createPortal(
     <div
       className="modal-backdrop"
       hidden={!active}
       inert={!active}
       style={active ? undefined : { display: "none" }}
-      onClick={close}
+      onClick={dismissOnBackdropClick ? close : undefined}
     >
       <div
         ref={ref}
@@ -1439,6 +1445,7 @@ export function Modal({
         <div className="modal-heading">
           <h2>{title}</h2>
           <button
+            type="button"
             className="icon-button"
             onClick={close}
             aria-label="Dialog schließen"

@@ -931,6 +931,9 @@ function EventEditor({
     <Modal
       title={event ? "Termin bearbeiten" : "Neues Training planen"}
       close={close}
+      dismissOnBackdropClick={false}
+      dismissOnEscape={false}
+      initialFocus='input[name="title"]'
     >
       <form className="form-body" onSubmit={submit}>
         <label>
@@ -1254,7 +1257,20 @@ function EventEditor({
               Termin stornieren
             </button>
           )}
-          <button className="primary-button" disabled={busy} type="submit">
+          <button
+            className="secondary-button"
+            disabled={busy}
+            type="button"
+            onClick={close}
+          >
+            Abbrechen
+          </button>
+          <button
+            className="primary-button"
+            disabled={busy}
+            type="button"
+            onClick={(event) => event.currentTarget.form?.requestSubmit()}
+          >
             {busy ? "Wird gespeichert …" : "Termin speichern"}
             <Check size={17} />
           </button>
