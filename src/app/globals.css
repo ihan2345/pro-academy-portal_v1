@@ -1648,6 +1648,8 @@ label {
   margin-top: 22px;
 }
 .auth-success {
+  margin-bottom: 20px;
+  overflow-wrap: anywhere;
   padding: 20px;
   background: #edf6e6;
   border-radius: 8px;

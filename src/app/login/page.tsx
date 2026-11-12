@@ -17,7 +17,7 @@ export default async function Login({
       : undefined;
   const initialError =
     error === "auth"
-      ? "Der Anmeldelink ist abgelaufen, wurde bereits verwendet oder gehört zu einem anderen Browser. Bitte fordere hier einen neuen Link an."
+      ? "Der Anmeldelink ist abgelaufen, wurde bereits verwendet oder gehört zu einem anderen Browser. Bitte fordere hier einen neuen Code mit Anmeldelink an."
       : error === "invitation"
         ? "Deine Einladung konnte nicht bestätigt werden. Bitte wende dich an unser Team."
         : "";

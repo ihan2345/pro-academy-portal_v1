@@ -1,3 +1,4 @@
+import { verifyLoginCode } from "@/lib/server/login-code";
 import { stripeActivities } from "@/lib/server/stripe-activities";
 import { stripeOverview } from "@/lib/server/stripe-overview";
 import { decideStripeNotice } from "@/lib/server/stripe-notice-decisions";
@@ -196,6 +197,8 @@ async function handler(
       });
       return json({ ok: true });
     }
+    if (path === "auth/verify" && request.method === "POST")
+      return json(await verifyLoginCode(request, await request.json()));
     const session = await sessionUser();
     if (!session?.role) throw new HttpError(401, "Bitte melde dich an.");
     const { db, user, role } = session;
