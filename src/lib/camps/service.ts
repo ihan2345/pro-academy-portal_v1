@@ -73,7 +73,7 @@ export async function campContext() {
   const parents = check(
     await serviceDb()
       .from("parents")
-      .select("id,full_name,contact_email")
+      .select("id,full_name,contact_email,phone")
       .eq("auth_user_id", s.user.id)
       .is("archived_at", null),
   );
@@ -83,7 +83,7 @@ export async function campContext() {
     await serviceDb()
       .from("parent_players")
       .select(
-        "players!inner(id,first_name,last_name,birth_year,camp_birth_date,camp_gender,camp_clothing_size,archived_at)",
+        "players!inner(id,first_name,last_name,birth_year,camp_birth_date,gender,camp_gender,camp_clothing_size,archived_at)",
       )
       .eq("parent_id", parent.id),
   );

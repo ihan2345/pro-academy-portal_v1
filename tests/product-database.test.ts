@@ -494,8 +494,9 @@ it("confirms an API Camp checkout through the existing payment/capacity routine 
         first_name: "Kind",
         last_name: "Test",
         birth_date: "2016-04-15",
-        gender: "keine Angabe",
+        gender: "divers",
         clothing_size: "M",
+        phone: "+49 11111111",
       },
     },
   ]);
@@ -533,6 +534,19 @@ it("confirms an API Camp checkout through the existing payment/capacity routine 
   ).rows[0];
   expect(booking.status).toBe("paid");
   expect(booking.stripe_payment_link_id).toBeNull();
+  expect(
+    (await db.query<any>("select phone from parents where id=$1", [parent]))
+      .rows[0].phone,
+  ).toBe("+49 11111111");
+  expect(
+    (
+      await db.query<any>(
+        "select birth_year,gender,camp_clothing_size from players where id=$1",
+        [kid],
+      )
+    ).rows[0],
+  ).toEqual({ birth_year: 2016, gender: "divers", camp_clothing_size: "M" });
+
   expect(booking.booking_origin).toBe("api_checkout");
   expect(booking.player_id).toBe(kid);
 });
@@ -2249,3 +2263,307 @@ it("starts Camps without benefits and rejects membership reductions in both rese
     await db.exec("rollback");
   }
 });
+
+async function profileBookingFixture(
+  n: number,
+  linked: boolean,
+  childPatch: Record<string, unknown> = {},
+  parentPatch: Record<string, unknown> = {},
+) {
+  const camp = id(50),
+    offer = id(51),
+    parent = id(n + 1),
+    player = id(n + 2),
+    booking = id(n);
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)", [id(1)]);
+  await db.query(
+    "update camps set status='open',capacity=100,booking_option=null where id=$1",
+    [camp],
+  );
+  const parentData = {
+    name: "Profilfamilie",
+    email: `profile-${n}@example.invalid`,
+    phone: "+49 22222222",
+    ...parentPatch,
+  };
+  const childData = {
+    first_name: "Profilkind",
+    last_name: "Test",
+    birth_date: "2015-04-15",
+    gender: "weiblich",
+    clothing_size: "152",
+    ...childPatch,
+  };
+  if (linked) {
+    await db.query(
+      "insert into parents(id,full_name,contact_email,phone) values($1,'Profilfamilie',$2,'old-phone')",
+      [parent, `profile-${n}@example.invalid`],
+    );
+    await db.query(
+      "insert into players(id,first_name,last_name,birth_year,gender,camp_gender,camp_clothing_size,club) values($1,'Profilkind','Test',2015,'männlich','männlich','140','Unveränderter Verein')",
+      [player],
+    );
+    await db.query(
+      "insert into parent_players(parent_id,player_id)values($1,$2)",
+      [parent, player],
+    );
+  }
+  await db.query(
+    "insert into camp_bookings(id,camp_id,offer_id,parent_id,player_id,booking_origin,browser_token_hash,parent_data,child_data,customer_group,expected_amount,currency,stripe_price_id,stripe_payment_link_id,checkout_session_id) values($1,$2,$3,$4,$5,'portal_checkout','profile-sync',$6,$7,'new',9900,'eur','price_camp_api',null,$8)",
+    [
+      booking,
+      camp,
+      offer,
+      linked ? parent : null,
+      linked ? player : null,
+      parentData,
+      childData,
+      `cs_test_profile_${n}`,
+    ],
+  );
+  const proof = {
+    booking_id: booking,
+    session_id: `cs_test_profile_${n}`,
+    payment_id: `pi_profile_${n}`,
+    payment_status: "paid",
+    livemode: false,
+    price_id: "price_camp_api",
+    payment_link_id: null,
+    currency: "eur",
+    subtotal: 9900,
+    total: 9900,
+    quantity: 1,
+    refunded: false,
+  };
+  return { parent, player, booking, proof };
+}
+it("creates and links new Camp profiles after verified payment, deriving birth year and storing contact and general child fields", async () => {
+  await db.exec("begin");
+  try {
+    const f = await profileBookingFixture(2300, false);
+    await db.query("select camp_confirm_payment($1)", [f.proof]);
+    const row = (
+      await db.query<any>(
+        "select b.parent_id,b.player_id,p.phone,k.first_name,k.birth_year,k.camp_birth_date::text birth_date,k.gender,k.camp_gender,k.camp_clothing_size from camp_bookings b join parents p on p.id=b.parent_id join players k on k.id=b.player_id join parent_players pp on pp.parent_id=p.id and pp.player_id=k.id where b.id=$1",
+        [f.booking],
+      )
+    ).rows[0];
+    expect(row).toMatchObject({
+      phone: "+49 22222222",
+      first_name: "Profilkind",
+      birth_year: 2015,
+      birth_date: "2015-04-15",
+      gender: "weiblich",
+      camp_gender: "weiblich",
+      camp_clothing_size: "152",
+    });
+    await db.query("update parents set phone='newer-phone' where id=$1", [
+      row.parent_id,
+    ]);
+    await db.query("select camp_confirm_payment($1)", [f.proof]);
+    expect(
+      (
+        await db.query<any>("select phone from parents where id=$1", [
+          row.parent_id,
+        ])
+      ).rows[0].phone,
+    ).toBe("newer-phone");
+  } finally {
+    await db.exec("rollback");
+  }
+});
+it("updates the linked profiles only on confirmation, retaining unrelated profile fields", async () => {
+  await db.exec("begin");
+  try {
+    const f = await profileBookingFixture(2310, true);
+    expect(
+      (await db.query<any>("select phone from parents where id=$1", [f.parent]))
+        .rows[0].phone,
+    ).toBe("old-phone");
+    await db.query("select camp_confirm_payment($1)", [f.proof]);
+    expect(
+      (await db.query<any>("select phone from parents where id=$1", [f.parent]))
+        .rows[0].phone,
+    ).toBe("+49 22222222");
+    expect(
+      (
+        await db.query<any>(
+          "select birth_year,camp_birth_date::text birth_date,gender,camp_clothing_size,club from players where id=$1",
+          [f.player],
+        )
+      ).rows[0],
+    ).toEqual({
+      birth_year: 2015,
+      birth_date: "2015-04-15",
+      gender: "weiblich",
+      camp_clothing_size: "152",
+      club: "Unveränderter Verein",
+    });
+  } finally {
+    await db.exec("rollback");
+  }
+});
+it.each(["review", "refunded"])(
+  "does not update profiles for a %s payment",
+  async (status) => {
+    await db.exec("begin");
+    try {
+      const f = await profileBookingFixture(
+        status === "review" ? 2320 : 2330,
+        true,
+      );
+      const proof = {
+        ...f.proof,
+        ...(status === "review"
+          ? { review_reason: "Bitte prüfen" }
+          : { refunded: true }),
+      };
+      await db.query("select camp_confirm_payment($1)", [proof]);
+      expect(
+        (
+          await db.query<any>("select phone from parents where id=$1", [
+            f.parent,
+          ])
+        ).rows[0].phone,
+      ).toBe("old-phone");
+      expect(
+        (
+          await db.query<any>("select gender from players where id=$1", [
+            f.player,
+          ])
+        ).rows[0].gender,
+      ).toBe("männlich");
+    } finally {
+      await db.exec("rollback");
+    }
+  },
+);
+it("keeps meaningful existing fields when optional Camp inputs are blank or unspecified", async () => {
+  await db.exec("begin");
+  try {
+    const f = await profileBookingFixture(
+      2340,
+      true,
+      { gender: "keine Angabe", clothing_size: "" },
+      { phone: "  " },
+    );
+    await db.query("select camp_confirm_payment($1)", [f.proof]);
+    expect(
+      (await db.query<any>("select phone from parents where id=$1", [f.parent]))
+        .rows[0].phone,
+    ).toBe("old-phone");
+    expect(
+      (
+        await db.query<any>(
+          "select gender,camp_gender,camp_clothing_size from players where id=$1",
+          [f.player],
+        )
+      ).rows[0],
+    ).toEqual({
+      gender: "männlich",
+      camp_gender: "männlich",
+      camp_clothing_size: "140",
+    });
+  } finally {
+    await db.exec("rollback");
+  }
+});
+it("does not overwrite profiles edited after Checkout began or conflicting birth identities", async () => {
+  await db.exec("begin");
+  try {
+    const f = await profileBookingFixture(2350, true, {
+      birth_date: "2014-04-15",
+    });
+    await db.query("select camp_confirm_payment($1)", [f.proof]);
+    expect(
+      (
+        await db.query<any>(
+          "select birth_year,camp_birth_date,gender from players where id=$1",
+          [f.player],
+        )
+      ).rows[0],
+    ).toEqual({ birth_year: 2015, camp_birth_date: null, gender: "männlich" });
+    const later = await profileBookingFixture(2360, true);
+    await db.query(
+      "update camp_bookings set created_at=now()-interval '1 day' where id=$1",
+      [later.booking],
+    );
+    await db.query(
+      "update parents set profile_self_service_updated_at=now() where id=$1",
+      [later.parent],
+    );
+    await db.query(
+      "update players set created_at=now()-interval '2 days' where id=$1",
+      [later.player],
+    );
+    await db.query("select camp_confirm_payment($1)", [later.proof]);
+    expect(
+      (
+        await db.query<any>("select phone from parents where id=$1", [
+          later.parent,
+        ])
+      ).rows[0].phone,
+    ).toBe("old-phone");
+    expect(
+      (
+        await db.query<any>("select gender from players where id=$1", [
+          later.player,
+        ])
+      ).rows[0].gender,
+    ).toBe("männlich");
+  } finally {
+    await db.exec("rollback");
+  }
+});
+it("keeps profile synchronisation private and skips a changed family relationship", async () => {
+  await db.exec("begin");
+  try {
+    expect(
+      (
+        await db.query<any>(
+          "select has_function_privilege('anon','camp_sync_paid_profiles()','execute') a,has_function_privilege('authenticated','camp_sync_paid_profiles()','execute') b",
+        )
+      ).rows[0],
+    ).toEqual({ a: false, b: false });
+    const f = await profileBookingFixture(2370, true);
+    await db.query(
+      "delete from parent_players where parent_id=$1 and player_id=$2",
+      [f.parent, f.player],
+    );
+    const result = (
+      await db.query<any>("select camp_confirm_payment($1) result", [f.proof])
+    ).rows[0].result;
+    expect(result.status).toBe("review");
+    expect(
+      (await db.query<any>("select phone from parents where id=$1", [f.parent]))
+        .rows[0].phone,
+    ).toBe("old-phone");
+  } finally {
+    await db.exec("rollback");
+  }
+});
+
+it.each([true, false])(
+  "derives a missing profile birth year from the complete date (already stored: %s)",
+  async (stored) => {
+    await db.exec("begin");
+    try {
+      const f = await profileBookingFixture(stored ? 2380 : 2390, true);
+      await db.query(
+        "update players set birth_year=null,camp_birth_date=$2 where id=$1",
+        [f.player, stored ? "2015-04-15" : null],
+      );
+      await db.query("select camp_confirm_payment($1)", [f.proof]);
+      expect(
+        (
+          await db.query<any>(
+            "select birth_year,camp_birth_date::text birth_date from players where id=$1",
+            [f.player],
+          )
+        ).rows[0],
+      ).toEqual({ birth_year: 2015, birth_date: "2015-04-15" });
+    } finally {
+      await db.exec("rollback");
+    }
+  },
+);

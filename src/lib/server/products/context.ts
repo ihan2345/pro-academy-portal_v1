@@ -51,13 +51,17 @@ export async function loadProductContext(
   };
   const now = snapshot?.now ?? Date.now();
   if (!parentOverride && session?.role !== "parent") return context;
-  let q = db.from("parents").select("id,auth_user_id").is("archived_at", null);
+  let q = db
+    .from("parents")
+    .select("id,auth_user_id,phone")
+    .is("archived_at", null);
   q = parentOverride
     ? q.eq("id", parentOverride)
     : q.eq("auth_user_id", session!.user.id);
   const parent = snapshot?.parent ?? checked(await q.maybeSingle());
   if (!parent) return context;
   context.parent_id = parent.id;
+  context.parent_phone = parent.phone ?? null;
   context.auth_id = parent.auth_user_id;
   context.role = "parent";
   const [links, families, purchases, grants] = snapshot
@@ -67,7 +71,7 @@ export async function loadProductContext(
           db
             .from("parent_players")
             .select(
-              "id,players!inner(id,first_name,last_name,camp_birth_date,archived_at)",
+              "id,players!inner(id,first_name,last_name,camp_birth_date,gender,camp_gender,camp_clothing_size,archived_at)",
             )
             .eq("parent_id", parent.id),
         ),
@@ -100,7 +104,9 @@ export async function loadProductContext(
       ? await collect(() =>
           db
             .from("trial_players")
-            .select("id,family_id,first_name,last_name,birth_date,converted_at")
+            .select(
+              "id,family_id,first_name,last_name,birth_date,gender,converted_at",
+            )
             .in(
               "family_id",
               families.map((f) => f.id),
@@ -116,6 +122,8 @@ export async function loadProductContext(
         first_name: c.first_name,
         last_name: c.last_name,
         birth_date: c.camp_birth_date,
+        gender: c.gender ?? c.camp_gender ?? null,
+        clothing_size: c.camp_clothing_size ?? null,
         trial: false,
         former_trial: false,
         memberships: [],
@@ -136,6 +144,7 @@ export async function loadProductContext(
         first_name: c.first_name,
         last_name: c.last_name,
         birth_date: c.birth_date,
+        gender: c.gender ?? null,
         memberships: [],
         camp_ids: [],
         purchases: [],
@@ -250,7 +259,11 @@ export async function loadProductContext(
   return context;
 }
 
-type ContextParent = { id: string; auth_user_id: string | null };
+type ContextParent = {
+  id: string;
+  auth_user_id: string | null;
+  phone?: string | null;
+};
 type FamilyContextSnapshot = {
   parent: ContextParent;
   now: number;
@@ -298,7 +311,7 @@ export async function loadProductContexts(
           db
             .from("parent_players")
             .select(
-              "id,parent_id,players!inner(id,first_name,last_name,camp_birth_date,archived_at)",
+              "id,parent_id,players!inner(id,first_name,last_name,camp_birth_date,gender,camp_gender,camp_clothing_size,archived_at)",
             ),
         "parent_id",
         parentIds,
@@ -339,7 +352,9 @@ export async function loadProductContexts(
     () =>
       db
         .from("trial_players")
-        .select("id,family_id,first_name,last_name,birth_date,converted_at"),
+        .select(
+          "id,family_id,first_name,last_name,birth_date,gender,converted_at",
+        ),
     "family_id",
     families.map((f) => f.id),
   );

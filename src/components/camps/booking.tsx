@@ -21,6 +21,7 @@ type Child = {
   last_name: string;
   birth_year?: number | null;
   camp_birth_date?: string | null;
+  gender?: string;
   camp_gender?: string;
   camp_clothing_size?: string;
   booking_status?: CampBookingStatus;
@@ -38,7 +39,11 @@ type Data = {
   context: {
     role: string | null;
     children: Child[];
-    parent: { full_name: string; contact_email: string } | null;
+    parent: {
+      full_name: string;
+      contact_email: string;
+      phone?: string | null;
+    } | null;
   };
 };
 export function BookingForm({ campId }: { campId: string }) {
@@ -84,6 +89,7 @@ export function BookingForm({ campId }: { campId: string }) {
             ...p,
             name: d.context.parent?.full_name ?? "",
             email: d.context.parent?.contact_email ?? "",
+            phone: d.context.parent?.phone ?? "",
           }));
         } else {
           try {
@@ -112,7 +118,7 @@ export function BookingForm({ campId }: { campId: string }) {
         first_name: c.first_name,
         last_name: c.last_name,
         birth_date: c.camp_birth_date ?? "",
-        gender: c.camp_gender ?? "keine Angabe",
+        gender: c.gender ?? c.camp_gender ?? "keine Angabe",
         clothing_size: c.camp_clothing_size ?? "",
       });
     else
@@ -529,7 +535,9 @@ export function BookingForm({ campId }: { campId: string }) {
                         ))}
                       <p>
                         Dein Platz ist erst nach bestätigter Zahlung gebucht.
-                        Das Formular reserviert keinen Platz.
+                        Das Formular reserviert keinen Platz. Telefonnummer und
+                        Kindesangaben übernehmen wir nach bestätigter Buchung in
+                        deine Profile.
                       </p>
                       <CampError message={error} />
                       <button

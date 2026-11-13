@@ -152,6 +152,7 @@ try {
       errors.push(e.message);
       console.log("UI error", e.message);
     });
+    let profileContext = null;
     let calls = 0,
       submitted,
       saved;
@@ -201,7 +202,7 @@ try {
             },
             occupied: 0,
             maximum: 33,
-            context: visitor,
+            context: profileContext ?? visitor,
           },
         });
       if (path === "/api/camp/save" || path === "/api/camp/booking-option") {
@@ -236,7 +237,7 @@ try {
         path === "/api/products"
           ? {
               rows: [fixture],
-              context: visitor,
+              context: profileContext ?? visitor,
               next: null,
               payments_enabled: true,
             }
@@ -593,6 +594,74 @@ try {
       .getByRole("button", { name: "Andere E-Mail verwenden", exact: true })
       .click();
     await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+    assert.deepEqual(errors, []);
+    profileContext = {
+      ...visitor,
+      auth_id: "local-parent",
+      role: "parent",
+      parent_id: "local-family",
+      parent_phone: "0123456789",
+      parent: {
+        full_name: "Testfamilie",
+        contact_email: "known@example.invalid",
+        phone: "0123456789",
+      },
+      children: [
+        {
+          id: "90000000-0000-4000-8000-000000000009",
+          name: "Profil Kind",
+          first_name: "Profil",
+          last_name: "Kind",
+          birth_date: "2016-04-15",
+          camp_birth_date: "2016-04-15",
+          gender: "weiblich",
+          camp_gender: "männlich",
+          clothing_size: "140",
+          camp_clothing_size: "140",
+          memberships: [],
+          camp_ids: [],
+          purchases: [],
+          trial: false,
+          former_trial: false,
+        },
+      ],
+    };
+    await page.goto(base + "/produkte");
+    await page
+      .getByRole("button", { name: "Jetzt buchen", exact: true })
+      .first()
+      .click();
+    await expect(
+      page.getByLabel("Telefon für Rückfragen", { exact: true }),
+    ).toHaveValue("0123456789");
+    await expect(
+      page.getByRole("combobox", { name: "Geschlecht", exact: true }),
+    ).toHaveValue("weiblich");
+    await expect(page.getByLabel("Kleidergröße", { exact: false })).toHaveValue(
+      "140",
+    );
+    await page
+      .getByLabel("Telefon für Rückfragen", { exact: true })
+      .fill("0987654321");
+    await page
+      .getByRole("button", { name: "Weiter zur Buchung", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("Isolierter Test");
+    assert.equal(submitted.camp_details.phone, "0987654321");
+    assert.equal(submitted.camp_details.gender, "weiblich");
+    await page.goto(base + "/camp/buchung/" + fixture.id);
+    await expect(
+      page.getByLabel("Telefon für Rückfragen", { exact: true }),
+    ).toHaveValue("0123456789");
+    await page
+      .getByRole("combobox", { name: "Kind auswählen", exact: true })
+      .selectOption(profileContext.children[0].id);
+    await expect(
+      page.getByRole("combobox", { name: "Geschlecht", exact: true }),
+    ).toHaveValue("weiblich");
+    await expect(page.getByLabel("Kleidergröße", { exact: false })).toHaveValue(
+      "140",
+    );
     assert.deepEqual(errors, []);
     await page.close();
     console.log(

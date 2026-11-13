@@ -207,12 +207,17 @@ export function ProductStore({
     requestId.current = crypto.randomUUID();
     setDiscountCode("");
     if (!ctx?.children.length) setNewChild(true);
+    if (ctx?.auth_id) setPhone(ctx.parent_phone ?? "");
     setCampDetails({
       birth_date:
         ctx?.children.find((c) => c.id === (player || ctx.children[0]?.id))
           ?.birth_date ?? "",
-      gender: "keine Angabe",
-      clothing_size: "",
+      gender:
+        ctx?.children.find((c) => c.id === (player || ctx.children[0]?.id))
+          ?.gender ?? "keine Angabe",
+      clothing_size:
+        ctx?.children.find((c) => c.id === (player || ctx.children[0]?.id))
+          ?.clothing_size ?? "",
     });
     setChosen(p);
     setPreview(null);
@@ -295,6 +300,7 @@ export function ProductStore({
             ? {
                 camp_details: {
                   ...campDetails,
+                  phone,
                   birth_date: newChild
                     ? child.birth_date
                     : campDetails.birth_date,
@@ -924,6 +930,18 @@ export function ProductStore({
                     {emailCheck.message && (
                       <p role="status">{emailCheck.message}</p>
                     )}
+                    {ctx?.auth_id && chosen.kind === "camp" && (
+                      <label>
+                        Telefon für Rückfragen
+                        <input
+                          type="tel"
+                          autoComplete="tel"
+                          maxLength={50}
+                          value={phone}
+                          onChange={(event) => setPhone(event.target.value)}
+                        />
+                      </label>
+                    )}
                     {ctx?.auth_id && (
                       <label>
                         Kind auswählen
@@ -934,6 +952,14 @@ export function ProductStore({
                               : player || ctx.children[0]?.id || "new"
                           }
                           onChange={(e) => {
+                            const selectedChild = ctx.children.find(
+                              (c) => c.id === e.target.value,
+                            );
+                            setCampDetails({
+                              birth_date: selectedChild?.birth_date ?? "",
+                              gender: selectedChild?.gender ?? "keine Angabe",
+                              clothing_size: selectedChild?.clothing_size ?? "",
+                            });
                             setNewChild(e.target.value === "new");
                             setPlayer(
                               e.target.value === "new" ? "" : e.target.value,
@@ -1134,6 +1160,12 @@ export function ProductStore({
                         Link zur Bestätigung deines Portalzugangs.{" "}
                         {chosen.kind === "subscription" &&
                           "Dein Abo beginnt mit dem bei Stripe angezeigten Vertragsbeginn und läuft auch ohne bestätigten Portalzugang."}
+                      </p>
+                    )}
+                    {chosen.kind === "camp" && (
+                      <p className="product-checkout-note">
+                        Telefonnummer und Kindesangaben übernehmen wir nach
+                        bestätigter Buchung in deine Profile.
                       </p>
                     )}
                     <p className="product-checkout-note">

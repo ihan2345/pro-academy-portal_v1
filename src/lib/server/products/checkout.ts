@@ -55,6 +55,7 @@ const checkoutSchema = z
     new_child: childInput.optional(),
     camp_details: z
       .object({
+        phone: z.string().trim().max(50).optional(),
         birth_date: z.iso.date(),
         gender: z.enum(["weiblich", "männlich", "divers", "keine Angabe"]),
         clothing_size: z.string().trim().min(1).max(20),

@@ -300,6 +300,8 @@ export type Membership = {
   cancel_at?: number | null;
 };
 export type ProductChild = {
+  gender?: string | null;
+  clothing_size?: string | null;
   id: string;
   name: string;
   first_name: string;
@@ -313,6 +315,7 @@ export type ProductChild = {
   reserved?: boolean;
 };
 export type ProductContext = {
+  parent_phone?: string | null;
   auth_id: string | null;
   role: "parent" | "staff" | "admin" | null;
   parent_id: string | null;
