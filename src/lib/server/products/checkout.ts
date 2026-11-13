@@ -199,6 +199,17 @@ export async function checkoutProduct(
       throw new HttpError(409, "Anfragereferenz gehört zu einem anderen Kauf.");
     if (previous.status === "fulfilled")
       return { id: previous.id, status: "fulfilled" };
+    if (
+      String(
+        previous.discount?.source === "membership"
+          ? ""
+          : (previous.discount?.code ?? ""),
+      ).toLowerCase() !== (input.discount_code ?? "").toLowerCase()
+    )
+      throw new HttpError(
+        409,
+        "Der Rabattcode des offenen Kaufs wurde geändert. Bitte den Kauf neu starten.",
+      );
     if (!["reserved", "checkout"].includes(previous.status))
       throw new HttpError(409, "Dieser Kauf muss zuerst geprüft werden.");
     if (
@@ -294,10 +305,11 @@ export async function checkoutProduct(
         "Für dieses Kind ist ein Kauf mit anderer Buchungsoption offen. Bitte zuerst prüfen.",
       );
     const { resumeOrder } = await import("./operations");
-    const changedGuestForm =
-      guest &&
-      (String(old.discount?.code ?? "").toLowerCase() !==
-        (input.discount_code ?? "").toLowerCase() ||
+    const changedCheckout =
+      String(
+        old.discount?.source === "membership" ? "" : (old.discount?.code ?? ""),
+      ).toLowerCase() !== (input.discount_code ?? "").toLowerCase() ||
+      (guest &&
         ["full_name", "email", "phone"].some(
           (k) =>
             (old.guest_data?.[k] ?? "") !==
@@ -306,8 +318,8 @@ export async function checkoutProduct(
     const resumed = guest
       ? await (
           await import("./guest-checkout")
-        ).resumeGuestOrder(old.id, changedGuestForm)
-      : await resumeOrder(session!, old.id);
+        ).resumeGuestOrder(old.id, changedCheckout)
+      : await resumeOrder(session!, old.id, changedCheckout);
     if (resumed.status !== "expired") {
       if (old.product_id !== id)
         throw new HttpError(
@@ -611,7 +623,14 @@ export async function checkoutProduct(
           .from("product_purchase_intents")
           .update({
             status: "expired",
-            reason: "Stripe hat den Bestellstart abgelehnt",
+            reason: [
+              "Stripe hat den Bestellstart abgelehnt",
+              error.code,
+              error.param,
+              error.requestId,
+            ]
+              .filter(Boolean)
+              .join(" · "),
             updated_at: new Date().toISOString(),
           })
           .eq("id", intent.id)

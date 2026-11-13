@@ -24,6 +24,8 @@ export async function resolveDiscount(
     code,
     active: true,
     limit: 100,
+    // Stripe omits product restrictions unless this field is explicitly expanded.
+    expand: ["data.coupon.applies_to"],
   });
   const ref = (v: string | { id: string } | null) =>
     typeof v === "string" ? v : v?.id;
@@ -47,8 +49,6 @@ export async function resolveDiscount(
       promo.times_redeemed >= promo.max_redemptions) ||
     (coupon.max_redemptions != null &&
       coupon.times_redeemed >= coupon.max_redemptions) ||
-    (coupon.applies_to?.products &&
-      !coupon.applies_to.products.includes(price.product_id)) ||
     (coupon.amount_off != null && coupon.currency !== price.currency) ||
     (promo.restrictions.minimum_amount != null &&
       (promo.restrictions.minimum_amount_currency !== price.currency ||
@@ -57,6 +57,14 @@ export async function resolveDiscount(
     throw new HttpError(
       400,
       "Dieser Rabattcode ist für dieses Angebot nicht gültig oder abgelaufen.",
+    );
+  if (
+    coupon.applies_to?.products &&
+    !coupon.applies_to.products.includes(price.product_id)
+  )
+    throw new HttpError(
+      400,
+      "Dieser Rabattcode ist für dieses Angebot nicht gültig. Er gilt nur für andere Produkte.",
     );
   if (guest && (promo.customer || promo.restrictions.first_time_transaction))
     throw new HttpError(

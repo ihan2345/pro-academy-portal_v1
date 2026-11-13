@@ -28,6 +28,25 @@ beforeEach(() => {
   };
 });
 afterEach(() => vi.unstubAllEnvs());
+it("loads Stripe's expandable product restrictions before accepting a 100 percent code", async () => {
+  promotion.coupon.percent_off = 100;
+  stripe.promotionCodes.list.mockImplementationOnce(async (params: any) => ({
+    data: [
+      {
+        ...promotion,
+        coupon: {
+          ...promotion.coupon,
+          ...(params.expand?.includes("data.coupon.applies_to")
+            ? { applies_to: { products: ["prod_other"] } }
+            : {}),
+        },
+      },
+    ],
+  }));
+  await expect(
+    resolveDiscount(stripe, "START", price, undefined, true),
+  ).rejects.toThrow(/nur für andere Produkte/);
+});
 it("computes a public percentage discount and retains the actual recurring duration", async () => {
   expect(
     await resolveDiscount(stripe, "start", price, undefined, true),

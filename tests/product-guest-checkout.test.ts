@@ -12,6 +12,10 @@ const state = vi.hoisted(() => ({
   giftCredit: 0,
   knownParent: false,
   lookupError: false,
+  resume: vi.fn(),
+}));
+vi.mock("../src/lib/server/products/operations", () => ({
+  resumeOrder: (...args: any[]) => state.resume(...args),
 }));
 vi.mock("../src/lib/server/service-db", () => ({
   serviceDb: () => ({
@@ -146,6 +150,7 @@ const form = {
   },
 };
 beforeEach(() => {
+  state.resume.mockReset().mockResolvedValue({ status: "expired" });
   vi.stubEnv("APP_MODE", "test");
   vi.stubEnv("APP_URL", "http://127.0.0.1:3110");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:57321");
@@ -293,6 +298,9 @@ it("releases only definitively rejected Checkout creation, while retaining ambig
     new Stripe.errors.StripeInvalidRequestError({
       message: "promotion expired",
       type: "invalid_request_error",
+      code: "test_rejection",
+      param: "discounts[0]",
+      requestId: "req_test_rejection",
     }),
   );
   await expect(
@@ -304,6 +312,9 @@ it("releases only definitively rejected Checkout creation, while retaining ambig
     ),
   ).rejects.toThrow(/Rabattcode/);
   expect(state.tables.product_purchase_intents[0].status).toBe("expired");
+  expect(state.tables.product_purchase_intents[0].reason).toContain(
+    "req_test_rejection",
+  );
   state.tables.product_purchase_intents = [];
   state.stripe.checkout.sessions.create.mockRejectedValueOnce(
     Error("connection lost after remote create"),
@@ -312,6 +323,59 @@ it("releases only definitively rejected Checkout creation, while retaining ambig
     checkoutProduct(null, productId, form, "a".repeat(64)),
   ).rejects.toThrow(/connection lost/);
   expect(state.tables.product_purchase_intents[0].status).not.toBe("expired");
+});
+
+it("safely closes an authenticated full-price checkout before applying a new discount", async () => {
+  const uid = "90000000-0000-4000-8000-000000000010";
+  const kid = "90000000-0000-4000-8000-000000000011";
+  const parentId = "90000000-0000-4000-8000-000000000012";
+  const oldId = "90000000-0000-4000-8000-000000000013";
+  const session = {
+    role: "parent",
+    user: { id: uid, email_confirmed_at: new Date().toISOString() },
+  } as any;
+  state.context = {
+    ...visitorContext(),
+    auth_id: uid,
+    role: "parent",
+    parent_id: parentId,
+    children: [
+      {
+        id: kid,
+        first_name: "Kind",
+        last_name: "Test",
+        memberships: [],
+        camp_ids: [],
+        purchases: [],
+      },
+    ],
+  };
+  state.tables.parents = [
+    {
+      id: parentId,
+      full_name: "Testfamilie",
+      contact_email: "test@example.invalid",
+    },
+  ];
+  state.tables.parent_stripe_customers = [];
+  state.tables.product_purchase_intents.push({
+    id: oldId,
+    auth_id: uid,
+    player_id: kid,
+    product_id: productId,
+    product: state.product.published,
+    status: "checkout",
+    discount: null,
+  });
+  await checkoutProduct(session, productId, {
+    request_id: requestId,
+    player_id: kid,
+    discount_code: "START",
+  });
+  expect(state.resume).toHaveBeenCalledWith(session, oldId, true);
+  expect(
+    state.stripe.checkout.sessions.create.mock.calls[0][0].discounts,
+  ).toEqual([{ promotion_code: "promo_public" }]);
 });
 
 it.each([
