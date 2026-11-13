@@ -1,11 +1,71 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ProductShowcase, type ProductDisplay } from "./shared";
 import type { Decision } from "@/lib/products/policy";
 type Row = ProductDisplay & { id: string; decision: Decision };
 export function ShowcaseEmbed({ token }: { token: string }) {
+  const rootRef = useRef<HTMLElement>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [message, setMessage] = useState("Angebote werden geladen …");
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || window.parent === window) return;
+
+    let parentOrigin: string | null = null;
+    let lastHeight = 0;
+    let animationFrame = 0;
+
+    const reportHeight = () => {
+      if (!parentOrigin) return;
+      const height = Math.ceil(root.getBoundingClientRect().height);
+      if (height === lastHeight) return;
+      lastHeight = height;
+      window.parent.postMessage(
+        { type: "proacademy:showcase:height", height },
+        parentOrigin,
+      );
+    };
+
+    const scheduleHeightReport = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(reportHeight);
+    };
+
+    const receiveViewport = (event: MessageEvent) => {
+      if (
+        event.source !== window.parent ||
+        event.origin === "null" ||
+        event.data?.type !== "proacademy:showcase:viewport"
+      ) {
+        return;
+      }
+      const height: unknown = event.data.height;
+      if (
+        typeof height !== "number" ||
+        !Number.isFinite(height) ||
+        height <= 0
+      ) {
+        return;
+      }
+      parentOrigin = event.origin;
+      // Use the outer viewport as the minimum, not the growing iframe itself.
+      // Otherwise viewport units can cause a resize feedback loop.
+      root.style.setProperty("--showcase-viewport-height", `${height}px`);
+      scheduleHeightReport();
+    };
+
+    const observer = new ResizeObserver(scheduleHeightReport);
+    observer.observe(root);
+    window.addEventListener("message", receiveViewport);
+    // The parent may have sent its first viewport before hydration completed.
+    window.parent.postMessage({ type: "proacademy:showcase:ready" }, "*");
+
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("message", receiveViewport);
+    };
+  }, []);
   useEffect(() => {
     let live = true;
     let active: AbortController | null = null;
@@ -48,7 +108,7 @@ export function ShowcaseEmbed({ token }: { token: string }) {
     };
   }, [token]);
   return (
-    <main className="showcase-embed">
+    <main ref={rootRef} className="showcase-embed">
       {rows.length ? (
         <ProductShowcase
           products={rows}
