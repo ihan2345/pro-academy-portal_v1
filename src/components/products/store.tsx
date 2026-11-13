@@ -1,4 +1,5 @@
 "use client";
+import { useGuestEmailCheck } from "../camps/guest-email-check";
 import { SiteFooter } from "../site-footer";
 import { GiftAccountMenu } from "./gift-account";
 import { GiftPurchaseDialog } from "./gifts";
@@ -80,6 +81,14 @@ export function ProductStore({
     [accounts, setAccounts] = useState<string[]>([]),
     [customer, setCustomer] = useState(""),
     [purchase, setPurchase] = useState<any>(null);
+  const bookingLoginHref = chosen
+    ? `/login?next=${encodeURIComponent(`/produkte?product=${chosen.id}`)}`
+    : "/login?shop=1";
+  const emailCheck = useGuestEmailCheck(
+    email,
+    !!chosen && chosen.kind === "camp" && !ctx?.auth_id,
+    bookingLoginHref,
+  );
   const reconciledPurchase = useRef<string | null>(null);
   const loadedCatalogQuery = useRef<string | null>(null);
   useEffect(() => {
@@ -232,7 +241,7 @@ export function ProductStore({
     };
   }, [ctx?.auth_id, channel, !!ctx]);
   async function start() {
-    if (!chosen) return;
+    if (!chosen || !(await emailCheck.verify())) return;
     await run(async () => {
       const selected = player || ctx?.children[0]?.id;
       if (
@@ -822,8 +831,9 @@ export function ProductStore({
                 ) : (
                   <form
                     className="product-purchase-form"
-                    onSubmit={(e) => {
+                    onSubmit={async (e) => {
                       e.preventDefault();
+                      if (!(await emailCheck.verify())) return;
                       if (
                         chosen.kind === "camp" &&
                         optionSelected &&
@@ -862,6 +872,7 @@ export function ProductStore({
                               required
                               maxLength={254}
                               value={email}
+                              onBlur={() => void emailCheck.verify()}
                               onChange={(e) => setEmail(e.target.value)}
                             />
                           </label>
@@ -877,6 +888,12 @@ export function ProductStore({
                           </label>
                         </div>
                       </>
+                    )}
+                    {emailCheck.checking && (
+                      <p role="status">E-Mail wird geprüft …</p>
+                    )}
+                    {emailCheck.message && (
+                      <p role="status">{emailCheck.message}</p>
                     )}
                     {ctx?.auth_id && (
                       <label>

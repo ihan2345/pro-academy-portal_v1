@@ -1,3 +1,4 @@
+import { safeBookingReturn } from "@/lib/booking-return";
 import { parentCanActivate } from "@/lib/server/parent-activation";
 import { verifyLoginCode } from "@/lib/server/login-code";
 import { stripeActivities } from "@/lib/server/stripe-activities";
@@ -156,11 +157,15 @@ async function handler(
     if (request.method !== "GET") requireOrigin(request);
 
     if (path === "auth/login" && request.method === "POST") {
-      const { email, player_id, return_to_shop } = z
+      const { email, player_id, return_to_shop, return_to } = z
         .object({
           email: z.email().trim().toLowerCase(),
           player_id: z.uuid().optional(),
           return_to_shop: z.boolean().optional(),
+          return_to: z
+            .string()
+            .refine((value) => !!safeBookingReturn(value))
+            .optional(),
         })
         .parse(await request.json());
       if (!isAllowedTestLogin(email))
@@ -200,6 +205,15 @@ async function handler(
           path: "/",
           maxAge: 3600,
         });
+      if (return_to)
+        store.set("pa_booking_return", return_to, {
+          httpOnly: true,
+          secure: new URL(required("APP_URL")).protocol === "https:",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 3600,
+        });
+      else store.delete("pa_booking_return");
       const mayCreate = invitationValid || (await parentCanActivate(email));
       const db = await sessionDb();
       await db.auth.signInWithOtp({

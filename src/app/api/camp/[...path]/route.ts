@@ -1,3 +1,4 @@
+import { guestEmailRequiresLogin } from "@/lib/server/parent-activation";
 import { updateCamp, saveCampBookingOption } from "@/lib/camps/management";
 import { limitCampRequest } from "@/lib/camps/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
@@ -97,7 +98,7 @@ async function handler(
       }
     }
     if (req.method === "POST") {
-      if (["book", "confirm", "invitation-wish"].includes(path))
+      if (["book", "confirm", "invitation-wish", "email-check"].includes(path))
         await limitCampRequest(req, path);
       const raw = await req.text();
       if (raw.length > 32768) throw new HttpError(413, "Anfrage ist zu groß.");
@@ -106,6 +107,13 @@ async function handler(
         body = JSON.parse(raw);
       } catch {
         throw new HttpError(400, "Ungültige Anfrage.");
+      }
+      if (path === "email-check") {
+        const { email } = z
+          .object({ email: z.string().trim().toLowerCase().pipe(z.email()) })
+          .strict()
+          .parse(body);
+        return json({ requires_login: await guestEmailRequiresLogin(email) });
       }
       if (path === "remove-member") return json(await removeCampMember(body));
       if (path === "book") return json(await createBooking(body));

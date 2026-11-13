@@ -121,6 +121,18 @@ try {
     await page.route("**/api/**", async (route) => {
       const req = route.request(),
         path = new URL(req.url()).pathname;
+      if (path === "/api/camp/email-check")
+        return req.postDataJSON().email === "failure@example.invalid"
+          ? route.fulfill({
+              status: 503,
+              json: { error: "E-Mail-Prüfung nicht verfügbar" },
+            })
+          : route.fulfill({
+              json: {
+                requires_login:
+                  req.postDataJSON().email === "known@example.invalid",
+              },
+            });
       if (path.startsWith("/api/camp/public/"))
         return route.fulfill({
           json: {
@@ -439,6 +451,47 @@ try {
       false,
     );
     assert.deepEqual(errors, []);
+    await page.goto(base + "/camp/buchung/" + fixture.id);
+    await page
+      .getByRole("button", { name: "Neu bei uns", exact: true })
+      .click();
+    await page
+      .getByLabel("E-Mail", { exact: true })
+      .fill("failure@example.invalid");
+    await page.getByLabel("E-Mail", { exact: true }).press("Tab");
+    await expect(page.getByRole("status")).toContainText(
+      "E-Mail-Prüfung nicht verfügbar",
+    );
+    await expect(page.getByLabel("E-Mail", { exact: true })).toHaveValue(
+      "failure@example.invalid",
+    );
+    await page
+      .getByLabel("E-Mail", { exact: true })
+      .fill("KNOWN@example.invalid");
+    await page.getByLabel("E-Mail", { exact: true }).press("Tab");
+    await expect(page).toHaveURL(
+      base + "/login?next=" + encodeURIComponent("/camp/buchung/" + fixture.id),
+    );
+    await expect(
+      page.getByLabel("Deine E-Mail-Adresse", { exact: true }),
+    ).toHaveValue("known@example.invalid");
+    await page.goto(base + "/produkte");
+    await page
+      .getByRole("button", { name: "Jetzt buchen", exact: true })
+      .first()
+      .click();
+    await page
+      .getByLabel("Deine E-Mail", { exact: true })
+      .fill("known@example.invalid");
+    await page.getByLabel("Deine E-Mail", { exact: true }).press("Tab");
+    await expect(page).toHaveURL(
+      base +
+        "/login?next=" +
+        encodeURIComponent("/produkte?product=" + fixture.id),
+    );
+    await expect(
+      page.getByLabel("Deine E-Mail-Adresse", { exact: true }),
+    ).toHaveValue("known@example.invalid");
     await page.close();
     console.log(
       `Camp booking option UI passed: ${width}px, central Camp creation/editing, product editor removal, shop/direct booking, popup confirmation, price version and discounts.`,

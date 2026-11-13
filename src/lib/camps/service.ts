@@ -1,3 +1,4 @@
+import { requireGuestEmailAvailable } from "@/lib/server/parent-activation";
 import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
@@ -303,6 +304,7 @@ export async function createBooking(input: unknown) {
       "Die Camp-Buchungsoption wurde geändert. Bitte die Seite neu laden und den aktuellen Preis prüfen.",
     );
   const context = await campContext();
+  if (!context.parent) await requireGuestEmailAvailable(body.parent.email);
   let parentId: string | null = null,
     playerId: string | null = null,
     benefit = { percent: 0, group: "new" };

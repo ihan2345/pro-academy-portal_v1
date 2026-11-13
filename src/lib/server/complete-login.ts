@@ -1,3 +1,4 @@
+import { safeBookingReturn } from "@/lib/booking-return";
 import "server-only";
 import { cookies } from "next/headers";
 import { claimGuestPurchases } from "./products/guest-checkout";
@@ -36,6 +37,11 @@ export async function completeLogin(db: Awaited<ReturnType<typeof sessionDb>>) {
   const productReturn =
     productsEnabled() && store.get("pa_product_return")?.value === "1";
   if (productReturn) store.delete("pa_product_return");
+  const bookingReturn = safeBookingReturn(
+    store.get("pa_booking_return")?.value,
+  );
+  store.delete("pa_booking_return");
+  if (bookingReturn) return bookingReturn;
   return productReturn
     ? "/produkte"
     : player &&

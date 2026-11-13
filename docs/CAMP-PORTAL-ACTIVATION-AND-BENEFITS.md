@@ -11,3 +11,11 @@ Bei einem neuen Gastkauf wird eine bereits bekannte Familienadresse vor Reservie
 Die Migration verändert keine Warteschlangenstatus, keine Einladungen und keine bisherigen Empfängerlisten. `portal_delivery_release.automatic_invitations` bleibt unverändert. `camp_portal_mail_release.starts_after` markiert die Freigabe; `parent_self_activation_release` steuert die selbstständige Aktivierung.
 
 Geprüft: 1.236 automatisierte Tests einschließlich SQL-Zuordnung, unveränderter Alt-Sperren und beider Rabatt-Reservierungswege; TypeScript, Cloudflare-Produktionsbuild und Browserprüfungen für Camp-Erstellung/-Bearbeitung, Buchung und E-Mail-Anmeldung auf Mobil-/Desktopbreite. Keine realen Anmeldemails oder Testkäufe ausgelöst.
+
+## Frühe E-Mail-Prüfung im Campformular
+
+Beim Verlassen des E-Mail-Felds prüfen Campformular und Camp-Kaufdialog im Shop die Adresse. Bereits zugeordnete Familien werden zur Anmeldung/Aktivierung geleitet. Die E-Mail wird im selben Browser vorausgefüllt; nach Code oder Anmeldelink führt eine geprüfte interne Rücksprungadresse zum ausgewählten Camp beziehungsweise Shopprodukt. Die Prüfung selbst fordert keinen Code an und erzeugt keine E-Mail, Einladung, Buchung oder Zahlung.
+
+Der Lookup nutzt die bestehende serverseitige Familienprüfung, Origin-Prüfung, IP-Ratenbegrenzung und eine nicht zwischenspeicherbare Antwort ohne Familienangaben. Neue Adressen können fortfahren. Bei Fehlern bleiben die Eingaben erhalten und der Buchungsablauf wartet auf eine erfolgreiche Prüfung. Die Prüfung vor dem Checkout bleibt zusätzlich bestehen, auch für direkte Campbuchungen. Rücksprünge sind auf Camp-Buchungsseiten und ausgewählte Shopprodukte mit UUID begrenzt.
+
+Validiert mit 1.260 Tests, Mobil-/Desktop-Browserprüfungen für bekannte/neue Adressen, Prüffehler, vorausgefüllte Anmeldung und Rücksprünge sowie dem Cloudflare-Produktionsbuild. Keine Datenbankmigration erforderlich.

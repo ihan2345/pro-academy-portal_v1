@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 const f = vi.hoisted(() => ({
+  emailCheck: vi.fn(),
   from: vi.fn(),
   session: vi.fn(),
   verify: vi.fn(),
@@ -9,6 +10,9 @@ const f = vi.hoisted(() => ({
   update: vi.fn(),
   queries: [] as any[],
   rows: {} as Record<string, any[]>,
+}));
+vi.mock("../src/lib/server/parent-activation", () => ({
+  requireGuestEmailAvailable: f.emailCheck,
 }));
 vi.mock("../src/lib/server/service-db", () => ({
   serviceDb: () => ({
@@ -63,6 +67,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-03T12:00:00Z"));
   f.queries = [];
+  f.emailCheck.mockResolvedValue(undefined);
   f.checkout.mockResolvedValue({
     id: "cs_test_disabled",
     url: "https://checkout.stripe.com/test",
@@ -554,5 +559,17 @@ it("removes membership codes and uses a native no-benefit Checkout when disabled
     0,
     "https://example.invalid",
   );
+  expect(f.verify).not.toHaveBeenCalled();
+});
+
+it("checks a known family email before starting guest payment", async () => {
+  f.session.mockResolvedValue(null);
+  f.emailCheck.mockRejectedValue({ status: 409 });
+  await expect(
+    createBooking({ ...input, player_id: undefined }),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(f.emailCheck).toHaveBeenCalledWith(input.parent.email);
+  expect(f.insert).not.toHaveBeenCalled();
+  expect(f.checkout).not.toHaveBeenCalled();
   expect(f.verify).not.toHaveBeenCalled();
 });

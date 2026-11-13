@@ -7,10 +7,12 @@ export function LoginForm({
   initialError = "",
   playerId,
   returnToShop = false,
+  returnTo,
 }: {
   initialError?: string;
   playerId?: string;
   returnToShop?: boolean;
+  returnTo?: string;
 }) {
   const [email, setEmail] = useState(""),
     [code, setCode] = useState(""),
@@ -19,6 +21,15 @@ export function LoginForm({
     [sent, setSent] = useState(false),
     [cooldown, setCooldown] = useState(0),
     [cooldownUntil, setCooldownUntil] = useState(0);
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem("pa_login_email");
+      if (stored) {
+        setEmail(stored);
+        sessionStorage.removeItem("pa_login_email");
+      }
+    } catch {}
+  }, []);
   useEffect(() => {
     if (!cooldownUntil) return;
     const update = () =>
@@ -38,6 +49,7 @@ export function LoginForm({
           email: email.trim().toLowerCase(),
           ...(playerId ? { player_id: playerId } : {}),
           ...(returnToShop ? { return_to_shop: true } : {}),
+          ...(returnTo ? { return_to: returnTo } : {}),
         }),
       });
       const result = await response.json();

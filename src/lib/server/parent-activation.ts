@@ -12,7 +12,7 @@ export async function parentCanActivate(email: string) {
     );
   return r.data === true;
 }
-export async function requireGuestEmailAvailable(email: string) {
+export async function guestEmailRequiresLogin(email: string) {
   const r = await serviceDb().rpc("parent_email_requires_login", {
     input_email: email.trim().toLowerCase(),
   });
@@ -21,7 +21,10 @@ export async function requireGuestEmailAvailable(email: string) {
       503,
       "Die E-Mail konnte nicht geprüft werden. Bitte versuche es später erneut.",
     );
-  if (r.data === true)
+  return r.data;
+}
+export async function requireGuestEmailAvailable(email: string) {
+  if (await guestEmailRequiresLogin(email))
     throw new HttpError(
       409,
       "Bitte melde dich vor der Buchung mit dieser E-Mail an oder aktiviere deinen Zugang. Du kannst dort einen E-Mail-Code anfordern.",

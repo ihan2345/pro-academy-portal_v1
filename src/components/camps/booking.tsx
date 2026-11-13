@@ -1,4 +1,5 @@
 "use client";
+import { useGuestEmailCheck } from "./guest-email-check";
 import { Modal } from "@/components/portal";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -40,7 +41,11 @@ type Data = {
   };
 };
 export function BookingForm({ campId }: { campId: string }) {
-  const loginHref = useCampLogin();
+  const baseLoginHref = useCampLogin();
+  const loginHref =
+    baseLoginHref === "/login"
+      ? `/login?next=${encodeURIComponent(`/camp/buchung/${campId}`)}`
+      : baseLoginHref;
   const [optionSelected, setOptionSelected] = useState(false),
     [optionAlert, setOptionAlert] = useState(false);
   const [data, setData] = useState<Data | null>(null),
@@ -54,6 +59,11 @@ export function BookingForm({ campId }: { campId: string }) {
       booking_status?: CampBookingStatus;
     }>({ percent: 0, code: null });
   const [parent, setParent] = useState({ name: "", email: "", phone: "" });
+  const emailCheck = useGuestEmailCheck(
+    parent.email,
+    mode === "new",
+    loginHref,
+  );
   const [child, setChild] = useState({
     first_name: "",
     last_name: "",
@@ -138,14 +148,16 @@ export function BookingForm({ campId }: { campId: string }) {
     data?.camp.member_benefits_enabled,
     registrationClosed,
   ]);
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (bookingStatus || busy || registrationClosed) return;
+    if (!(await emailCheck.verify())) return;
     if (optionSelected && data?.camp.booking_option) setOptionAlert(true);
     else void book();
   }
   async function book() {
     if (bookingStatus || busy || registrationClosed) return;
+    if (!(await emailCheck.verify())) return;
     setBusy(true);
     setError("");
     try {
@@ -281,6 +293,7 @@ export function BookingForm({ campId }: { campId: string }) {
                         type="email"
                         required
                         value={parent.email}
+                        onBlur={() => void emailCheck.verify()}
                         readOnly={mode === "existing"}
                         onInput={(e) =>
                           setParent({ ...parent, email: e.currentTarget.value })
@@ -299,6 +312,12 @@ export function BookingForm({ campId }: { campId: string }) {
                       />
                     </label>
                   </div>
+                  {emailCheck.checking && (
+                    <p role="status">E-Mail wird geprüft …</p>
+                  )}
+                  {emailCheck.message && (
+                    <p role="status">{emailCheck.message}</p>
+                  )}
                   <h2>2. Dein Kind</h2>
                   {mode === "existing" && (
                     <label>

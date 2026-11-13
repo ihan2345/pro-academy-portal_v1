@@ -308,3 +308,52 @@ it("can recover an expired invitation only through successful verified self-acti
   expect(m.rpc).toHaveBeenCalledWith("activate_verified_parent");
   expect(m.remove).toHaveBeenCalledWith("pa_invitation");
 });
+
+it.each([
+  "/camp/buchung/90000000-0000-4000-8000-000000000001",
+  "/produkte?product=90000000-0000-4000-8000-000000000001",
+])(
+  "retains the selected booking through both login completion methods: %s",
+  async (target) => {
+    const requested = await call(
+      { email: "parent@example.com", return_to: target },
+      "auth/login",
+    );
+    expect(requested.status).toBe(200);
+    expect(m.set).toHaveBeenCalledWith(
+      "pa_booking_return",
+      target,
+      expect.objectContaining({
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 3600,
+      }),
+    );
+    m.get.mockImplementation((key) =>
+      key === "pa_booking_return" ? { value: target } : undefined,
+    );
+    const verified = await call({
+      email: "parent@example.com",
+      code: "123456",
+    });
+    expect((await verified.json()).redirect).toBe(target);
+  },
+);
+it.each([
+  "https://evil.example",
+  "//evil.example",
+  "/admin/spieler/90000000-0000-4000-8000-000000000001",
+  "/produkte?product=invalid",
+  "/camp/buchung/90000000-0000-4000-8000-000000000001?next=https://evil.example",
+])("rejects unsafe booking return destinations: %s", async (target) => {
+  expect(
+    (
+      await call(
+        { email: "parent@example.com", return_to: target },
+        "auth/login",
+      )
+    ).status,
+  ).toBe(400);
+  expect(m.send).not.toHaveBeenCalled();
+});

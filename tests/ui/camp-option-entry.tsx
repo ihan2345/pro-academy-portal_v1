@@ -1,3 +1,4 @@
+import { LoginForm } from "../../src/components/login";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { ProductStore } from "../../src/components/products/store";
@@ -30,7 +31,11 @@ const camp = {
 };
 const path = location.pathname;
 createRoot(document.getElementById("root")!).render(
-  path === "/camp/new" ? (
+  path === "/login" ? (
+    <LoginForm
+      returnTo={new URLSearchParams(location.search).get("next") ?? undefined}
+    />
+  ) : path === "/camp/new" ? (
     <NewCamp
       locations={[{ id: camp.id, name: "Testplatz", address: "Testweg" }]}
       saved={() => {}}
