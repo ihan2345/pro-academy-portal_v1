@@ -39,7 +39,13 @@ export async function productRequest<T = any>(
   if (!response.ok) throw new Error(result.error ?? "Anfrage fehlgeschlagen.");
   return result;
 }
-export function Hint({ children }: { children: React.ReactNode }) {
+export function Hint({
+  children,
+  label = "Information anzeigen",
+}: {
+  children: React.ReactNode;
+  label?: string;
+}) {
   const id = useId();
   const anchor = useRef<HTMLButtonElement>(null);
   const tooltip = useRef<HTMLSpanElement>(null);
@@ -100,8 +106,9 @@ export function Hint({ children }: { children: React.ReactNode }) {
       <button
         ref={anchor}
         type="button"
-        aria-label="Information anzeigen"
+        aria-label={label}
         aria-describedby={open ? id : undefined}
+        onClick={() => setOpen(true)}
         onFocus={() => setOpen(true)}
         onBlur={close}
         onKeyDown={(event) => {
@@ -217,7 +224,11 @@ export type ProductDisplay = Pick<
   Partial<
     Pick<
       Product,
-      "effect_color" | "sale_enabled" | "sale_audiences" | "popular"
+      | "effect_color"
+      | "sale_enabled"
+      | "sale_audiences"
+      | "popular"
+      | "booking_option"
     >
   > & {
     camp_pricing?: CampPricing;
@@ -537,6 +548,7 @@ export function ProductCard({
   imageUrl?: (id: string) => string;
 }) {
   const training = trainingContentLabel(product);
+  const bookingOption = product.kind === "camp" ? product.booking_option : null;
   const action =
     actionHref && !preview ? (
       <a
@@ -563,7 +575,7 @@ export function ProductCard({
   if (stage)
     return (
       <article
-        className={`product-stage${product.featured ? " featured" : ""}${product.popular ? " popular" : ""}`}
+        className={`product-stage${product.featured ? " featured" : ""}${product.popular ? " popular" : ""}${bookingOption ? " has-booking-option" : ""}`}
         style={
           {
             "--product-effect": product.effect_color ?? "#8B53FE",
@@ -615,23 +627,45 @@ export function ProductCard({
           {saleApplies(product, decision, preview) && (
             <span className="product-sale-label">Aktionspreis</span>
           )}
-          <strong>
-            {product.kind === "gift"
-              ? `ab ${new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format((product.gift_amount ?? 0) / 100)}`
-              : product.price
-                ? new Intl.NumberFormat("de-DE", {
+          <div className="product-stage-price-values">
+            <div className="product-stage-price-value">
+              <strong>
+                {product.kind === "gift"
+                  ? `ab ${new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format((product.gift_amount ?? 0) / 100)}`
+                  : product.price
+                    ? new Intl.NumberFormat("de-DE", {
+                        style: "currency",
+                        currency: product.price.currency,
+                      }).format(product.price.amount / 100)
+                    : "Preis folgt"}
+              </strong>
+              <span>
+                {product.price?.interval === "month"
+                  ? "pro Monat"
+                  : product.price?.interval === "year"
+                    ? "pro Jahr"
+                    : "einmalig"}
+              </span>
+            </div>
+            {bookingOption && (
+              <div className="product-stage-price-value product-stage-option-price">
+                <strong>
+                  {new Intl.NumberFormat("de-DE", {
                     style: "currency",
-                    currency: product.price.currency,
-                  }).format(product.price.amount / 100)
-                : "Preis folgt"}
-          </strong>
-          <span>
-            {product.price?.interval === "month"
-              ? "pro Monat"
-              : product.price?.interval === "year"
-                ? "pro Jahr"
-                : "einmalig"}
-          </span>
+                    currency: product.price?.currency ?? "eur",
+                  }).format(bookingOption.amount / 100)}
+                </strong>
+                <span className="product-stage-option-title">
+                  <span>{bookingOption.title}</span>
+                  <Hint label={`Information zu ${bookingOption.title}`}>
+                    <span className="product-option-alert">
+                      {bookingOption.alert}
+                    </span>
+                  </Hint>
+                </span>
+              </div>
+            )}
+          </div>
           <CampPriceNote product={product} />
         </div>
       </article>

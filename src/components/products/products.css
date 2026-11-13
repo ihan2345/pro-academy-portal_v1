@@ -2112,16 +2112,64 @@
   align-self: start;
   padding-top: 28px;
 }
-.product-stage-price > strong {
+.product-stage-price-values,
+.product-stage-price-value {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.product-stage-price-value > strong {
   font-size: clamp(24px, 2.5vw, 36px);
   line-height: 1.1;
   white-space: nowrap;
   font-weight: 500;
   letter-spacing: -0.04em;
 }
-.product-stage-price > span:not(.product-sale-label) {
+.product-stage-price-value > span {
   color: #ffffffae;
   font-size: 11px;
+}
+.has-booking-option .product-stage-price {
+  min-width: 0;
+}
+.has-booking-option .product-stage-price-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+}
+.product-stage-option-price {
+  border-left: 1px solid #ffffff40;
+  padding-left: 16px;
+}
+.product-stage-option-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 3px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.product-stage-option-title .product-hint {
+  flex-shrink: 0;
+  margin: -3px 0 0;
+}
+.product-stage-option-title .product-hint > button {
+  color: #ffffffc4;
+}
+.product-stage-option-title .product-hint > button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+.product-option-alert {
+  white-space: pre-line;
+}
+@media (min-width: 901px) {
+  .product-stage.has-booking-option {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(270px, 0.9fr);
+  }
 }
 
 .product-showcase-footer {
@@ -2408,8 +2456,11 @@
     text-align: left;
     gap: 6px;
   }
-  .product-stage-price > strong {
+  .product-stage-price-value > strong {
     font-size: 30px;
+  }
+  .has-booking-option .product-stage-price-value > strong {
+    font-size: clamp(24px, 7.5vw, 30px);
   }
   .product-stage .primary-button {
     width: 100%;
