@@ -3202,3 +3202,47 @@
     animation: product-recommendation-art-lift 5.2s ease-in-out infinite;
   }
 }
+
+.product-booking-option {
+  padding: 18px;
+  border: 1px solid #8b53fe;
+  border-radius: 12px;
+  background: #f8f5ff;
+  display: grid;
+  gap: 12px;
+}
+.product-booking-option label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+.product-booking-option input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.product-booking-option p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.product-option-alert-body {
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+  overflow-wrap: anywhere;
+}
+.product-option-alert-body p {
+  margin: 0;
+}
+.product-option-alert-body .actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 480px) {
+  .product-option-alert-body .actions button {
+    width: 100%;
+  }
+}

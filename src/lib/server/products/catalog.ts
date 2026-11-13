@@ -336,6 +336,7 @@ export function publicProduct(
     sale_audiences: v.sale_audiences ?? [],
     asset_ids: v.asset_ids,
     training_content: v.training_content,
+    booking_option: v.kind === "camp" ? (v.booking_option ?? null) : null,
     gift_amount: v.gift_amount ?? null,
     gift_amounts: giftAmounts(v),
     decision,

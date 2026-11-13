@@ -149,6 +149,16 @@ export const productSchema = z
     price: priceSchema.nullable(),
     plan_id: productIdSchema.nullable(),
     camp_offer_id: productIdSchema.nullable(),
+    booking_option: z
+      .object({
+        amount: z.number().int().min(50).max(10000000),
+        title: z.string().trim().min(2).max(160),
+        description: z.string().trim().max(3000),
+        alert: z.string().trim().min(1).max(3000),
+      })
+      .strict()
+      .nullable()
+      .optional(),
     repeatable: z.boolean(),
     training_content: z
       .object({
@@ -221,6 +231,12 @@ export const productSchema = z
         code: "custom",
         message: "Tarifbezug nur bei Abonnements.",
         path: ["plan_id"],
+      });
+    if (v.kind !== "camp" && v.booking_option)
+      c.addIssue({
+        code: "custom",
+        message: "Buchungsoption nur bei Camps.",
+        path: ["booking_option"],
       });
     if (v.kind !== "camp" && v.camp_offer_id)
       c.addIssue({

@@ -31,3 +31,12 @@ Auf ausdrücklichen Nutzerauftrag am 30.10.2026 veröffentlicht. Funktionscommit
 - Hintergrund-Verbindungsprüfung erfolgreich: Datenbank, Stripe, SMTP und PDF. Dafür wurden keine Jobs ausgelöst und keine Nachrichten verschickt. Bestehende Worker-Konfiguration, Versandfreigaben und die ursprünglichen Zuordnungsfunktionen sind unverändert.
 
 Private Build-, Migrations- und Prüfnachweise liegen unter `output/camp-unified-release/`.
+
+
+## Option mit abweichendem Gesamtpreis
+
+In der Camp-Produkterstellung kann „Buchungsoption aktivieren“ eingeschaltet werden. Danach stehen Options-Preis (EUR), Options-Titel, Options-Beschreibung und Options-Alert zur Verfügung. Ohne Auswahl bleibt der jeweils aktuelle Camppreis einschließlich Frühbucher-Regeln erhalten. Mit Auswahl ersetzt der Optionspreis den Camppreis; bestehende Mitgliederrabatte und Rabattcode-Regeln gelten auch dafür. Vor der Weiterleitung zur Zahlung muss der konfigurierte Hinweis im Popup bestätigt werden. Zurück oder Escape kehren zum ausgefüllten Formular zurück.
+
+Der Browser übermittelt nur die Auswahl und die veröffentlichte Produktrevision. Der Server prüft die Revision und den Campbezug und erstellt oder verwendet einen geprüften einmaligen Stripe-Preis auf demselben Camp-Produkt. Der Kaufauftrag speichert die gewählte Variante, den geprüften Optionspreis und den ursprünglichen Camp-Preis. Reservierungs-, Kapazitäts-, Zahlungsnachweis- und Wiederholungsprüfungen verwenden diese gespeicherten Daten. Ein offener Auftrag kann nicht stillschweigend zwischen Varianten wechseln.
+
+Die additive Datenbankfreigabe `042-camp-booking-option.sql` läuft nach den bestehenden Produktfreigaben. Sie ändert keine bestehenden Produkte oder Buchungen. Die internen Hilfsfunktionen bleiben für öffentliche und angemeldete Clients gesperrt. Prüfung: `npm test`, `npm run typecheck`, `node scripts/test-camp-option-ui.mjs` sowie Cloudflare-Produktionsbuild.

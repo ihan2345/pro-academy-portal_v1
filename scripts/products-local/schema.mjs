@@ -49,6 +49,7 @@ export function productSchemaFiles() {
       "039-gift-denominations.sql",
       "040-product-shop-search.sql",
       "041-product-showcase-embed.sql",
+      "042-camp-booking-option.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

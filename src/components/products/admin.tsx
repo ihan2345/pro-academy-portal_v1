@@ -847,6 +847,7 @@ export function AdminProducts() {
                         price: null,
                         plan_id: null,
                         camp_offer_id: null,
+                        booking_option: null,
                       });
                       setPriceId("");
                       setProductId("");
@@ -1244,6 +1245,96 @@ export function AdminProducts() {
                     })
                   }
                 />
+                <Toggle
+                  label="Buchungsoption aktivieren"
+                  checked={!!data.booking_option}
+                  onChange={(enabled) =>
+                    update({
+                      booking_option: enabled
+                        ? { amount: 0, title: "", description: "", alert: "" }
+                        : null,
+                    })
+                  }
+                />
+                {data.booking_option && (
+                  <div className="product-camp-source">
+                    <p>
+                      Wird diese Option ausgewählt, ersetzt ihr Preis den
+                      normalen Camppreis.
+                    </p>
+                    <label>
+                      Options-Preis in Euro
+                      <input
+                        type="number"
+                        min="0.50"
+                        max="100000"
+                        step="0.01"
+                        value={
+                          data.booking_option.amount
+                            ? data.booking_option.amount / 100
+                            : ""
+                        }
+                        onChange={(e) =>
+                          update({
+                            booking_option: {
+                              ...data.booking_option!,
+                              amount: Math.round(Number(e.target.value) * 100),
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Options-Titel
+                      <input
+                        maxLength={160}
+                        value={data.booking_option.title}
+                        onChange={(e) =>
+                          update({
+                            booking_option: {
+                              ...data.booking_option!,
+                              title: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Options-Beschreibung
+                      <textarea
+                        maxLength={3000}
+                        value={data.booking_option.description}
+                        onChange={(e) =>
+                          update({
+                            booking_option: {
+                              ...data.booking_option!,
+                              description: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Options-Alert
+                      <textarea
+                        maxLength={3000}
+                        value={data.booking_option.alert}
+                        onChange={(e) =>
+                          update({
+                            booking_option: {
+                              ...data.booking_option!,
+                              alert: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                      <small>
+                        Dieser Hinweis erscheint bei ausgewählter Option vor dem
+                        Buchungsabschluss als Popup.
+                      </small>
+                    </label>
+                  </div>
+                )}
                 {data.camp_offer_id && (
                   <div className="product-camp-source">
                     <strong>Preise und Buchungsdaten aus dem Camp</strong>

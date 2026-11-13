@@ -90,6 +90,13 @@ vi.mock("../src/lib/server/products/stripe", () => ({
   productStripe: () => state.stripe,
   verifyStoredPrice: async (p: any) => p.price,
 }));
+vi.mock("../src/lib/server/products/booking-option", () => ({
+  bookingOptionPrice: async (p: any) => ({
+    ...p.price,
+    id: "price_camp_option",
+    amount: p.booking_option.amount,
+  }),
+}));
 vi.mock("../src/lib/server/stripe", () => ({ syncSubscription: vi.fn() }));
 import { checkoutProduct } from "../src/lib/server/products/checkout";
 const productId = "90000000-0000-4000-8000-000000000001",
@@ -265,4 +272,81 @@ it("releases only definitively rejected Checkout creation, while retaining ambig
     checkoutProduct(null, productId, form, "a".repeat(64)),
   ).rejects.toThrow(/connection lost/);
   expect(state.tables.product_purchase_intents[0].status).not.toBe("expired");
+});
+
+it("uses the selected Camp price for Checkout and discounts while retaining the original offer identity", async () => {
+  const offer = {
+    id: productId,
+    camp_id: requestId,
+    kind: "main",
+    stripe_price_id: "price_test",
+    stripe_product_id: "prod_test",
+    amount: 9900,
+    currency: "eur",
+    codes: {},
+  };
+  const camp = {
+    id: requestId,
+    title: "Testcamp",
+    status: "open",
+    payment_mode: "test",
+    min_age: 5,
+    max_age: 18,
+    early_bird_until: null,
+    days: [{ starts_at: new Date(Date.now() + 86400000 * 30).toISOString() }],
+    camp_offers: [offer],
+  };
+  state.tables.camp_offers = [{ ...offer, camps: camp }];
+  state.tables.camps = [camp];
+  state.product.published = {
+    ...state.product.published,
+    kind: "camp",
+    camp_offer_id: productId,
+    booking_option: {
+      amount: 7900,
+      title: "Tagesoption",
+      description: "Ein Tag",
+      alert: "Tag abstimmen",
+    },
+  };
+  await checkoutProduct(
+    null,
+    productId,
+    {
+      ...form,
+      booking_option_selected: true,
+      booking_option_revision: 1,
+      discount_code: "START",
+      camp_details: {
+        birth_date: form.new_child.birth_date,
+        gender: "keine Angabe",
+        clothing_size: "M",
+      },
+    },
+    "a".repeat(64),
+  );
+  expect(
+    state.rpc.find((r) => r.name === "reserve_product_purchase").args.input,
+  ).toMatchObject({
+    camp_offer_id: productId,
+    booking_option_selected: true,
+    booking_option_price: { id: "price_camp_option", amount: 7900 },
+    amount: 6320,
+    discount: { amount: 6320, promotion_id: "promo_public" },
+  });
+  expect(state.stripe.checkout.sessions.create.mock.calls[0][0]).toMatchObject({
+    line_items: [{ price: "price_camp_option", quantity: 1 }],
+    discounts: [{ promotion_code: "promo_public" }],
+  });
+});
+it("rejects stale selected options before opening Checkout", async () => {
+  await expect(
+    checkoutProduct(
+      null,
+      productId,
+      { ...form, booking_option_selected: true, booking_option_revision: 99 },
+      "a".repeat(64),
+    ),
+  ).rejects.toThrow(/Buchungsoption wurde geändert/);
+  expect(state.stripe.checkout.sessions.create).not.toHaveBeenCalled();
 });

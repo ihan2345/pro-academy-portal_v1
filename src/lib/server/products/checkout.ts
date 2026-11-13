@@ -1,3 +1,4 @@
+import { bookingOptionPrice } from "./booking-option";
 import { giftCodeSchema } from "@/lib/gifts/domain";
 import { giftCodeHash, newGiftCode, sealGift } from "@/lib/gifts/crypto";
 import { requireGifts } from "@/lib/gifts/runtime";
@@ -42,6 +43,8 @@ const childInput = z
 const checkoutSchema = z
   .object({
     request_id: productIdSchema,
+    booking_option_selected: z.boolean().default(false),
+    booking_option_revision: z.number().int().positive().optional(),
     guest_parent: guestParentSchema.optional(),
     discount_code: z.string().trim().max(80).optional(),
     use_gift_credit: z.boolean().default(false),
@@ -151,6 +154,28 @@ export async function checkoutProduct(
       .eq("id", input.request_id)
       .maybeSingle(),
   );
+  if (
+    input.booking_option_selected &&
+    input.booking_option_revision !== p.published_revision
+  )
+    throw new HttpError(
+      409,
+      "Die Buchungsoption wurde geändert. Bitte das Produkt neu öffnen und den aktuellen Preis prüfen.",
+    );
+  if (
+    input.booking_option_selected &&
+    (p.published.kind !== "camp" || !p.published.booking_option)
+  )
+    throw new HttpError(400, "Diese Buchungsoption ist nicht verfügbar.");
+  if (
+    previous &&
+    !!previous.product?.booking_option_selected !==
+      input.booking_option_selected
+  )
+    throw new HttpError(
+      409,
+      "Die Buchungsoption des offenen Kaufs wurde geändert. Bitte zuerst den offenen Kauf prüfen.",
+    );
   if (previous) {
     if (
       (previous.gift_code_hash ?? previous.discount?.gift_code_hash ?? null) !==
@@ -262,6 +287,13 @@ export async function checkoutProduct(
         409,
         "Für dieses Kind ist bereits ein Kauf mit anderer Gutscheinwahl offen. Bitte zuerst prüfen.",
       );
+    if (
+      !!old.product?.booking_option_selected !== input.booking_option_selected
+    )
+      throw new HttpError(
+        409,
+        "Für dieses Kind ist ein Kauf mit anderer Buchungsoption offen. Bitte zuerst prüfen.",
+      );
     const { resumeOrder } = await import("./operations");
     const changedGuestForm =
       guest &&
@@ -295,16 +327,20 @@ export async function checkoutProduct(
         ? "Bitte den bestehenden Tarif wechseln."
         : decision.reasons.join(" ") || "Nicht kaufbar.",
     );
-  const price = await verifyStoredPrice(p.published),
-    parent = guest
-      ? { ...input.guest_parent!, contact_email: input.guest_parent!.email }
-      : checked(
-          await db
-            .from("parents")
-            .select("id,full_name,contact_email,phone")
-            .eq("id", ctx.parent_id)
-            .single(),
-        );
+  const basePrice = await verifyStoredPrice(p.published);
+  const optionPrice = input.booking_option_selected
+    ? await bookingOptionPrice(p.published)
+    : null;
+  const price = optionPrice ?? basePrice;
+  const parent = guest
+    ? { ...input.guest_parent!, contact_email: input.guest_parent!.email }
+    : checked(
+        await db
+          .from("parents")
+          .select("id,full_name,contact_email,phone")
+          .eq("id", ctx.parent_id)
+          .single(),
+      );
   const accounts = guest
     ? []
     : await collect(() =>
@@ -466,6 +502,8 @@ export async function checkoutProduct(
       player_data: input.new_child,
       customer_id: customerId,
       amount,
+      booking_option_selected: input.booking_option_selected,
+      booking_option_price: optionPrice,
       benefit_percent: benefit,
       camp_offer_id:
         p.published.kind === "camp" ? p.published.camp_offer_id : undefined,

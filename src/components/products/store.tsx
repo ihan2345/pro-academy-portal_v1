@@ -174,6 +174,8 @@ export function ProductStore({
       setBusy(false);
     }
   }
+  const [optionSelected, setOptionSelected] = useState(false);
+  const [optionAlert, setOptionAlert] = useState(false);
   const [campDetails, setCampDetails] = useState({
     birth_date: "",
     gender: "keine Angabe",
@@ -181,6 +183,8 @@ export function ProductStore({
   });
   const requestId = useRef(crypto.randomUUID());
   async function act(p: any) {
+    setOptionSelected(false);
+    setOptionAlert(false);
     if (p.kind === "gift") {
       setGiftChosen(p);
       return;
@@ -252,6 +256,14 @@ export function ProductStore({
         "POST",
         {
           request_id: id,
+          ...(chosen.kind === "camp"
+            ? {
+                booking_option_selected: optionSelected,
+                ...(optionSelected
+                  ? { booking_option_revision: chosen.revision }
+                  : {}),
+              }
+            : {}),
           ...(giftCode.trim() ? { gift_code: giftCode.trim() } : {}),
           ...(!ctx?.auth_id
             ? { guest_parent: { full_name: name, email, phone } }
@@ -657,6 +669,7 @@ export function ProductStore({
         <Modal
           title={preview ? "Tarifwechsel prüfen" : chosen.name}
           className="product-checkout-modal"
+          active={!optionAlert}
           close={() => {
             setChosen(null);
             setPreview(null);
@@ -781,7 +794,7 @@ export function ProductStore({
                 <p style={{ whiteSpace: "pre-line" }}>
                   {chosen.description || chosen.short_description}
                 </p>
-                {!loading && (
+                {!loading && !optionSelected && (
                   <CampPriceNote
                     product={
                       rows.find((p) => p.id === chosen.id) ?? {
@@ -800,7 +813,13 @@ export function ProductStore({
                     className="product-purchase-form"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      void start();
+                      if (
+                        chosen.kind === "camp" &&
+                        optionSelected &&
+                        chosen.booking_option
+                      )
+                        setOptionAlert(true);
+                      else void start();
                     }}
                   >
                     {!ctx?.auth_id && (
@@ -914,6 +933,50 @@ export function ProductStore({
                           />
                         </label>
                       </div>
+                    )}
+                    {chosen.kind === "camp" && chosen.booking_option && (
+                      <section className="product-booking-option">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={optionSelected}
+                            onChange={(event) => {
+                              setOptionSelected(event.target.checked);
+                              requestId.current = crypto.randomUUID();
+                            }}
+                          />
+                          {chosen.booking_option.title}
+                        </label>
+                        <p style={{ whiteSpace: "pre-line" }}>
+                          {chosen.booking_option.description}
+                        </p>
+                        <p>
+                          Mit Option:{" "}
+                          <strong>
+                            {money(
+                              chosen.booking_option.amount,
+                              chosen.price.currency,
+                            )}
+                          </strong>{" "}
+                          statt{" "}
+                          {money(chosen.price.amount, chosen.price.currency)}.
+                        </p>
+                        <p>
+                          Bestehende Rabatte gelten auch auf den Options-Preis.
+                          Den endgültigen Betrag prüfst du bei Stripe.
+                        </p>
+                        <p role="status">
+                          Gewählter Preis:{" "}
+                          <strong>
+                            {money(
+                              optionSelected
+                                ? chosen.booking_option.amount
+                                : chosen.price.amount,
+                              chosen.price.currency,
+                            )}
+                          </strong>
+                        </p>
+                      </section>
                     )}
                     {chosen.kind === "camp" && (
                       <div className="product-new-child">
@@ -1062,6 +1125,45 @@ export function ProductStore({
                 )}
               </>
             )}
+          </div>
+        </Modal>
+      )}
+      {chosen && optionAlert && chosen.booking_option && (
+        <Modal
+          title={chosen.booking_option.title}
+          close={() => setOptionAlert(false)}
+          dismissOnBackdropClick={false}
+        >
+          <div className="product-option-alert-body">
+            <p style={{ whiteSpace: "pre-line" }}>
+              {chosen.booking_option.alert}
+            </p>
+            <p>
+              Options-Preis:{" "}
+              <strong>
+                {money(chosen.booking_option.amount, chosen.price.currency)}
+              </strong>
+            </p>
+            <div className="actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setOptionAlert(false)}
+              >
+                Zurück
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={busy}
+                onClick={() => {
+                  setOptionAlert(false);
+                  void start();
+                }}
+              >
+                Hinweis bestätigen und weiter
+              </button>
+            </div>
           </div>
         </Modal>
       )}

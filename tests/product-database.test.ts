@@ -1595,3 +1595,162 @@ it("allows only feature managers to rotate the singleton showcase token and reje
     { new_value: { rotated: true } },
   ]);
 });
+
+it.each([false, true])(
+  "fulfills the selected Camp price and preserves discounts (option=%s)",
+  async (selected) => {
+    await db.exec("begin");
+    try {
+      const p = (
+        await db.query<any>(
+          "select * from catalog_products where published->>'kind'='camp' limit 1",
+        )
+      ).rows[0];
+      const option = {
+        amount: 7900,
+        title: "Tagesoption",
+        description: "Ein Camp-Tag",
+        alert: "Bitte den Tag mit uns abstimmen.",
+      };
+      await db.query(
+        "update catalog_products set published=published||jsonb_build_object('booking_option',$2::jsonb) where id=$1",
+        [p.id, option],
+      );
+      const optionPrice = {
+        ...p.published.price,
+        id: "price_option_test",
+        amount: 7900,
+        source: "stripe",
+      };
+      const subtotal = selected ? 7900 : p.published.price.amount;
+      const request = {
+        id: id(1800),
+        product_id: p.id,
+        revision: p.published_revision,
+        camp_offer_id: p.published.camp_offer_id,
+        player_id: id(1801),
+        player_data: {
+          first_name: "Optionskind",
+          last_name: "Test",
+          birth_date: "2016-04-15",
+        },
+        guest_data: {
+          full_name: "Optionsfamilie",
+          email: "option@example.invalid",
+        },
+        guest_token_hash: "e".repeat(64),
+        customer_id: "cus_option_test",
+        amount: Math.round(subtotal * 0.8),
+        discount: {
+          amount: Math.round(subtotal * 0.8),
+          promotion_id: "promo_option",
+          source: "code",
+        },
+        camp_details: {
+          birth_date: "2016-04-15",
+          gender: "keine Angabe",
+          clothing_size: "M",
+        },
+        booking_option_selected: selected,
+        booking_option_price: selected ? optionPrice : null,
+      };
+      const reserved = (
+        await db.query<any>("select (reserve_product_purchase($1)).*", [
+          request,
+        ])
+      ).rows[0];
+      expect(reserved.expected_subtotal).toBe(subtotal);
+      expect(reserved.expected_amount).toBe(Math.round(subtotal * 0.8));
+      expect(!!reserved.product.booking_option_selected).toBe(selected);
+      await db.exec("savepoint changed_option");
+      await expect(
+        db.query("select reserve_product_purchase($1)", [
+          { ...request, booking_option_selected: !selected },
+        ]),
+      ).rejects.toThrow(/Buchungsoption/);
+      await db.exec("rollback to changed_option");
+      await db.query(
+        "update product_purchase_intents set status='checkout',session_id='cs_test_option' where id=$1",
+        [request.id],
+      );
+      const proof = {
+        session_id: "cs_test_option",
+        livemode: false,
+        payment_status: "paid",
+        price_id: selected ? optionPrice.id : p.published.price.id,
+        product_id: p.published.price.product_id,
+        currency: "eur",
+        subtotal,
+        total: request.amount,
+        quantity: 1,
+        customer_id: request.customer_id,
+        payment_id: "pi_option_test",
+      };
+      await db.query("select fulfill_product_purchase($1)", [
+        { id: request.id, proof },
+      ]);
+      const i = (
+        await db.query<any>(
+          "select * from product_purchase_intents where id=$1",
+          [request.id],
+        )
+      ).rows[0];
+      expect(i.status).toBe("fulfilled");
+      const booking = (
+        await db.query<any>("select * from camp_bookings where id=$1", [
+          i.camp_booking_id,
+        ])
+      ).rows[0];
+      expect(booking.status).toBe("paid");
+      expect(booking.expected_amount).toBe(subtotal);
+      expect(booking.paid_amount).toBe(request.amount);
+      expect(booking.stripe_price_id).toBe(proof.price_id);
+    } finally {
+      await db.exec("rollback");
+    }
+  },
+);
+
+it("rejects forged option amounts, mismatched Stripe products and unavailable options", async () => {
+  const price = {
+    id: "price_option",
+    product_id: "prod_camp",
+    amount: 7900,
+    currency: "eur",
+    livemode: false,
+    interval: null,
+    source: "stripe",
+  };
+  const data = {
+    kind: "camp",
+    price: { ...price, id: "price_original", amount: 9900 },
+    booking_option: { amount: 7900, title: "Tagesoption", alert: "Abstimmen" },
+  };
+  for (const bad of [
+    { ...price, amount: 100 },
+    { ...price, product_id: "prod_foreign" },
+    { ...price, livemode: true },
+    { ...price, source: "fixture" },
+  ])
+    await expect(
+      db.query("select camp_booking_option_snapshot($1,$2)", [
+        data,
+        { booking_option_selected: true, booking_option_price: bad },
+      ]),
+    ).rejects.toThrow(/ungültig/);
+  await expect(
+    db.query("select camp_booking_option_snapshot($1,$2)", [
+      { ...data, booking_option: null },
+      { booking_option_selected: true, booking_option_price: price },
+    ]),
+  ).rejects.toThrow(/ungültig/);
+  await expect(
+    asUser(id(2), "select camp_booking_option_snapshot('{}','{}')"),
+  ).rejects.toThrow(/permission denied/);
+  const access = (
+    await db.query<any>(
+      "select has_function_privilege('service_role','public.reserve_product_purchase_before_booking_options(jsonb)','execute') allowed",
+    )
+  ).rows[0];
+  expect(access.allowed).toBe(false);
+});
