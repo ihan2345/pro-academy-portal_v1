@@ -16,6 +16,7 @@ import {
   money,
   childBookingStatus,
   campRegistrationClosedReason,
+  campEditState,
 } from "@/lib/camps/domain";
 import { CampError, campApi, date } from "./shared";
 import { CampDiscountCopy } from "./discount-copy";
@@ -93,17 +94,37 @@ function berlin(value: string) {
 export function NewCamp({
   saved,
   locations,
+  camp,
+  offers = [],
 }: {
+  camp?: Camp;
+  offers?: Offer[];
   saved: () => void;
   locations: Data["locations"];
 }) {
   const [bookingOption, setBookingOption] = useState<BookingOption | null>(
-    null,
+    camp?.booking_option ?? null,
   );
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [id] = useState(() => crypto.randomUUID()),
-    [days, setDays] = useState([{ date: "", start: "09:00", end: "15:00" }]),
+    [id] = useState(() => camp?.id ?? crypto.randomUUID()),
+    [days, setDays] = useState(() =>
+      camp
+        ? camp.days.map((d) => {
+            const start = Temporal.Instant.from(d.starts_at).toZonedDateTimeISO(
+              "Europe/Berlin",
+            );
+            const end = Temporal.Instant.from(d.ends_at).toZonedDateTimeISO(
+              "Europe/Berlin",
+            );
+            return {
+              date: start.toPlainDate().toString(),
+              start: start.toPlainTime().toString({ smallestUnit: "minute" }),
+              end: end.toPlainTime().toString({ smallestUnit: "minute" }),
+            };
+          })
+        : [{ date: "", start: "09:00", end: "15:00" }],
+    ),
     [link, setLink] = useState("");
   return (
     <form
@@ -121,7 +142,12 @@ export function NewCamp({
             member_benefits_enabled:
               f.get("member_benefits_enabled") === "true",
             title: f.get("title"),
-            location_id: f.get("location_id"),
+            ...(camp
+              ? {
+                  location: f.get("location"),
+                  expected_state: JSON.stringify(campEditState(camp)),
+                }
+              : { location_id: f.get("location_id") }),
             description: f.get("description"),
             capacity: Number(f.get("capacity")),
             buffer_percent: Number(f.get("buffer")),
@@ -145,8 +171,8 @@ export function NewCamp({
                 ? Math.round(Number(f.get("early_amount")) * 100)
                 : undefined,
           };
-          const result = await campApi("save", body);
-          setLink(result.url);
+          const result = await campApi(camp ? "update" : "save", body);
+          if (result.url) setLink(result.url);
           saved();
         } catch (e) {
           setError((e as Error).message);
@@ -155,35 +181,40 @@ export function NewCamp({
         }
       }}
     >
-      <h2>Neues Camp</h2>
+      <h2>{camp ? "Camp bearbeiten" : "Neues Camp"}</h2>
       <p>
-        Lege Termine, Plätze und Preise fest. Nach dem Speichern erhältst du den
-        Buchungslink für dein Camp.
+        {camp
+          ? "Passe die Angaben dieses Camps an und speichere die Änderungen."
+          : "Lege Termine, Plätze und Preise fest. Nach dem Speichern erhältst du den Buchungslink für dein Camp."}
       </p>
       <div className="camp-grid">
         <label>
           Campname
-          <input name="title" required />
+          <input name="title" required defaultValue={camp?.title} />
         </label>
         <label>
           Ort / Adresse
-          <select
-            name="location_id"
-            required
-            defaultValue=""
-            disabled={!locations.length}
-          >
-            <option value="" disabled>
-              Standort auswählen
-            </option>
-            {locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-                {location.address ? ` · ${location.address}` : ""}
+          {camp ? (
+            <input name="location" required defaultValue={camp.location} />
+          ) : (
+            <select
+              name="location_id"
+              required
+              defaultValue=""
+              disabled={!locations.length}
+            >
+              <option value="" disabled>
+                Standort auswählen
               </option>
-            ))}
-          </select>
-          {!locations.length && (
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                  {location.address ? ` · ${location.address}` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+          {!camp && !locations.length && (
             <span>Es ist noch kein aktiver Standort hinterlegt.</span>
           )}
         </label>
@@ -192,7 +223,7 @@ export function NewCamp({
           <input
             type="number"
             name="capacity"
-            defaultValue="30"
+            defaultValue={camp?.capacity ?? 30}
             min="1"
             required
           />
@@ -202,7 +233,7 @@ export function NewCamp({
           <input
             type="number"
             name="buffer"
-            defaultValue="10"
+            defaultValue={camp?.buffer_percent ?? 10}
             min="0"
             max="20"
             required
@@ -210,43 +241,106 @@ export function NewCamp({
         </label>
         <label>
           Mindestalter
-          <input type="number" name="min_age" defaultValue="6" required />
+          <input
+            type="number"
+            name="min_age"
+            defaultValue={camp?.min_age ?? 6}
+            required
+          />
         </label>
         <label>
           Höchstalter
-          <input type="number" name="max_age" defaultValue="16" required />
+          <input
+            type="number"
+            name="max_age"
+            defaultValue={camp?.max_age ?? 16}
+            required
+          />
         </label>
         <label>
           Gelten Abo-Vorteile?
-          <select name="member_benefits_enabled" defaultValue="false">
+          <select
+            name="member_benefits_enabled"
+            defaultValue={String(camp?.member_benefits_enabled === true)}
+          >
             <option value="false">Nein</option>
             <option value="true">Ja</option>
           </select>
         </label>
         <label>
           Normalpreis in €
-          <input type="number" name="amount" min="0.50" step="0.01" />
+          <input
+            type="number"
+            name="amount"
+            min="0.50"
+            step="0.01"
+            disabled={!!camp}
+            defaultValue={
+              offers.find((o) => o.kind === "main")
+                ? offers.find((o) => o.kind === "main")!.amount / 100
+                : undefined
+            }
+          />
         </label>
         <label>
           Frühbucherpreis in €
-          <input type="number" name="early_amount" min="0.50" step="0.01" />
+          <input
+            type="number"
+            name="early_amount"
+            min="0.50"
+            step="0.01"
+            disabled={!!camp}
+            defaultValue={
+              offers.find((o) => o.kind === "early")
+                ? offers.find((o) => o.kind === "early")!.amount / 100
+                : undefined
+            }
+          />
         </label>
         <label>
           Frühbucher bis
-          <input type="datetime-local" name="early_until" />
+          <input
+            type="datetime-local"
+            name="early_until"
+            defaultValue={
+              camp?.early_bird_until
+                ? Temporal.Instant.from(camp.early_bird_until)
+                    .toZonedDateTimeISO("Europe/Berlin")
+                    .toPlainDateTime()
+                    .toString({ smallestUnit: "minute" })
+                : ""
+            }
+          />
         </label>
         <label>
           Anmeldestatus
-          <select name="status" defaultValue="draft">
+          <select name="status" defaultValue={camp?.status ?? "draft"}>
             <option value="draft">In Vorbereitung</option>
             <option value="open">Anmeldung offen</option>
+            {camp && (
+              <>
+                <option value="closed">Anmeldung geschlossen</option>
+                <option value="archived">Archiviert</option>
+              </>
+            )}
           </select>
         </label>
       </div>
       <label>
         Beschreibung
-        <textarea name="description" rows={3} />
+        <textarea
+          name="description"
+          rows={3}
+          defaultValue={camp?.description}
+        />
       </label>
+      {camp && (
+        <p className="camp-muted">
+          Bestehende Zahlungsangebote und bereits gebuchte Preise bleiben
+          unverändert. Änderungen an Terminen versenden keine automatische
+          Änderungsnachricht.
+        </p>
+      )}
       <CampBookingOptionFields
         value={bookingOption}
         onChange={setBookingOption}
@@ -331,8 +425,15 @@ export function NewCamp({
         Trainingstag hinzufügen
       </button>
       <CampError message={error} />
-      <button className="primary-button" disabled={busy || !locations.length}>
-        {busy ? "Camp wird eingerichtet …" : "Camp speichern"}
+      <button
+        className="primary-button"
+        disabled={busy || (!camp && !locations.length)}
+      >
+        {busy
+          ? "Wird gespeichert …"
+          : camp
+            ? "Änderungen speichern"
+            : "Camp speichern"}
       </button>
       {link && (
         <div className="camp-success">
@@ -348,6 +449,42 @@ export function NewCamp({
         </div>
       )}
     </form>
+  );
+}
+export function CampEditButton({
+  camp,
+  offers,
+  locations,
+  saved,
+}: {
+  camp: Camp;
+  offers: Offer[];
+  locations: Data["locations"];
+  saved: () => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <section className="camp-details">
+      <button
+        type="button"
+        className="secondary-button"
+        aria-expanded={editing}
+        onClick={() => setEditing(!editing)}
+      >
+        {editing ? "Bearbeitung schließen" : "Camp bearbeiten"}
+      </button>
+      {editing && (
+        <NewCamp
+          key={camp.id}
+          camp={camp}
+          offers={offers.filter((o) => o.camp_id === camp.id)}
+          locations={locations}
+          saved={() => {
+            void saved().then(() => setEditing(false));
+          }}
+        />
+      )}
+    </section>
   );
 }
 export function CampDashboard({
@@ -623,6 +760,15 @@ export function CampDashboard({
                           Plätze als Puffer. Ein Platz ist nach erfolgreicher
                           Zahlung gebucht.
                         </p>
+                        <CampEditButton
+                          camp={camp}
+                          offers={data.offers}
+                          locations={data.locations}
+                          saved={async () => {
+                            await load();
+                            setMessage("Camp-Einstellungen gespeichert.");
+                          }}
+                        />
                         <CampBookingOptionEditor
                           key={`${camp.id}:${camp.booking_option_version ?? 0}`}
                           camp={camp}

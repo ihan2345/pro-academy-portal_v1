@@ -1,3 +1,4 @@
+import { campSchema, campEditState, maximumSeats } from "./domain";
 import { z } from "zod";
 import { bookingOptionSchema } from "./booking-option";
 import "server-only";
@@ -70,6 +71,58 @@ export async function saveCampBookingOption(input: unknown) {
       "Die Camp-Buchungsoption konnte nicht gespeichert werden.",
     );
   if (!r.data)
+    throw new HttpError(
+      409,
+      "Das Camp wurde geändert. Bitte neu laden und erneut prüfen.",
+    );
+  return { ok: true };
+}
+
+export async function updateCamp(input: unknown) {
+  await campSession(true);
+  const body = z
+    .object({ id: z.uuid(), expected_state: z.string().max(20000) })
+    .parse(input);
+  const fields = campSchema.parse(input);
+  const { camp, offers, occupied } = await getCamp(body.id);
+  const baseline = campEditState(camp);
+  if (body.expected_state !== JSON.stringify(baseline))
+    throw new HttpError(
+      409,
+      "Das Camp wurde geändert. Bitte neu laden und erneut prüfen.",
+    );
+  if (maximumSeats(fields) < occupied)
+    throw new HttpError(
+      409,
+      "Die Platzzahl darf nicht unter den bereits belegten Plätzen liegen.",
+    );
+  if (
+    fields.status === "open" &&
+    (!offers.some((o) => o.kind === "main") ||
+      (fields.early_bird_until && !offers.some((o) => o.kind === "early")))
+  )
+    throw new HttpError(
+      400,
+      "Vor dem Öffnen müssen die passenden Zahlungsangebote hinterlegt sein.",
+    );
+  const { id, main, early, ...data } = fields;
+  let query = serviceDb()
+    .from("camps")
+    .update(data)
+    .eq("id", body.id)
+    .eq("payment_mode", camp.payment_mode);
+  for (const [key, value] of Object.entries(baseline))
+    query =
+      value === null
+        ? query.is(key, null)
+        : query.eq(key, key === "days" ? JSON.stringify(value) : value);
+  const result = await query.select("id").maybeSingle();
+  if (result.error)
+    throw new HttpError(
+      503,
+      "Camp-Einstellungen konnten nicht gespeichert werden.",
+    );
+  if (!result.data)
     throw new HttpError(
       409,
       "Das Camp wurde geändert. Bitte neu laden und erneut prüfen.",

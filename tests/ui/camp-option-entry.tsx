@@ -2,7 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { ProductStore } from "../../src/components/products/store";
 import { AdminProducts } from "../../src/components/products/admin";
-import { NewCamp } from "../../src/components/camps/dashboard";
+import { CampEditButton, NewCamp } from "../../src/components/camps/dashboard";
 import { CampBookingOptionEditor } from "../../src/components/camps/booking-option-editor";
 import { BookingForm } from "../../src/components/camps/booking";
 const camp = {
@@ -34,6 +34,13 @@ createRoot(document.getElementById("root")!).render(
     <NewCamp
       locations={[{ id: camp.id, name: "Testplatz", address: "Testweg" }]}
       saved={() => {}}
+    />
+  ) : path === "/camp/settings" ? (
+    <CampEditButton
+      camp={camp}
+      offers={[]}
+      locations={[]}
+      saved={async () => {}}
     />
   ) : path === "/camp/edit" ? (
     <CampBookingOptionEditor camp={camp} onChanged={async () => {}} />

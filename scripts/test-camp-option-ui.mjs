@@ -273,6 +273,57 @@ try {
       ),
       false,
     );
+    await page.goto(base + "/camp/settings");
+    await page
+      .getByRole("button", { name: "Camp bearbeiten", exact: true })
+      .click();
+    await expect(page.getByLabel("Campname", { exact: true })).toHaveValue(
+      "Camp Test",
+    );
+    await expect(page.getByLabel("Ort / Adresse", { exact: true })).toHaveValue(
+      "Testplatz",
+    );
+    await expect(page.locator('[name="day-date-0"]')).toHaveValue("2027-04-01");
+    await expect(page.locator('[name="day-start-0"]')).toHaveValue("11:00");
+    await expect(
+      page.getByLabel("Normalpreis in €", { exact: true }),
+    ).toBeDisabled();
+    await page.getByLabel("Campname", { exact: true }).fill("Geändertes Camp");
+    await page
+      .getByLabel("Ort / Adresse", { exact: true })
+      .fill("Neuer Testplatz");
+    let updated,
+      editAttempts = 0;
+    await page.route("**/api/camp/update", async (route) => {
+      updated = route.request().postDataJSON();
+      editAttempts++;
+      await route.fulfill(
+        editAttempts === 1
+          ? { status: 409, json: { error: "Zwischenzeitlich geändert" } }
+          : { json: { ok: true } },
+      );
+    });
+    await page
+      .getByRole("button", { name: "Änderungen speichern", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText(
+      "Zwischenzeitlich geändert",
+    );
+    await expect(page.getByLabel("Campname", { exact: true })).toHaveValue(
+      "Geändertes Camp",
+    );
+    await page
+      .getByRole("button", { name: "Änderungen speichern", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Camp bearbeiten", exact: true }),
+    ).toBeVisible();
+    assert.equal(updated.id, fixture.id);
+    assert.equal(updated.title, "Geändertes Camp");
+    assert.equal(updated.location, "Neuer Testplatz");
+    assert.equal(updated.days[0].starts_at, "2027-04-01T09:00:00Z");
+    assert(updated.expected_state);
+    assert.equal(updated.main_amount, undefined);
     await page.goto(base + "/admin/products");
     await page
       .getByRole("button", { name: "Produkt anlegen", exact: true })

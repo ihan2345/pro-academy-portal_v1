@@ -192,3 +192,23 @@ export function campTiming(camp: Pick<Camp, "days">, now = Date.now()) {
     phase: now >= end ? "past" : now >= start ? "ongoing" : "upcoming",
   };
 }
+
+export function campEditState(camp: Camp) {
+  return Object.fromEntries(
+    (
+      [
+        "title",
+        "location",
+        "description",
+        "capacity",
+        "buffer_percent",
+        "min_age",
+        "max_age",
+        "status",
+        "days",
+        "early_bird_until",
+        "booking_option_version",
+      ] as const
+    ).map((key) => [key, camp[key] ?? null]),
+  );
+}

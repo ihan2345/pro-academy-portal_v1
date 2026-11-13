@@ -27,3 +27,11 @@ Am 30.10.2026 auf ausdrücklichen Nutzerauftrag veröffentlicht. Funktionscommit
 Private Veröffentlichungsnachweise liegen unter `output/camp-management-release/`.
 
 Die anschließende Erweiterung um eine Camp-Kartenübersicht und die gemeinsame Camp-/Shop-Preisquelle ist in [CAMP-UNIFIED-CHECKOUT.md](CAMP-UNIFIED-CHECKOUT.md) beschrieben.
+
+## Camp nachträglich bearbeiten
+
+Beim jeweiligen Camp öffnet „Camp bearbeiten“ für Admin und Mitarbeiter das vorausgefüllte Erstellungsformular. Bearbeitbar sind Name, Ort/Adresse, Beschreibung, Trainingstage mit deutscher Ortszeit, Plätze und Puffer, Altersgrenzen, Frühbucherfrist, Status sowie Buchungsoption und Abo-Vorteile. Bestehende Zahlungsangebote werden mit ihren Preisen schreibgeschützt angezeigt. Buchungen, Zahlungsnachweise und Stripe-Angebote werden durch diesen Vorgang nicht verändert. Terminänderungen lösen keine automatische Änderungsnachricht aus.
+
+Der eigene Update-Endpunkt prüft die Teamberechtigung, den Zahlungsmodus, die Feldvalidierung und die belegten Plätze. Eine Öffnung benötigt die passenden Zahlungsangebote. Ein Vergleich mit dem ursprünglichen Formularstand und bedingte Datenbankfilter verhindern das Überschreiben zwischenzeitlicher Änderungen. Bei Speicherfehlern bleiben Formular und Eingaben offen.
+
+Geprüft mit 1.248 automatisierten Tests, Cloudflare-Produktionsbuild und Browserprüfungen auf 390 und 1.440 Pixeln, einschließlich Vorausfüllung, Sommerzeitumrechnung, Speicherfehler und erneutem Speichern. Keine Datenbankmigration erforderlich.
