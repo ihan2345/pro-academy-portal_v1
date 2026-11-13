@@ -64,6 +64,7 @@ export function CampDiscountCopy({
     percent: number;
     booking_status?: CampBookingStatus;
     automatic?: boolean;
+    benefits_enabled?: boolean;
   } | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -103,7 +104,7 @@ export function CampDiscountCopy({
     );
   if (discount.booking_status)
     return <BookingStatusButton status={discount.booking_status} />;
-  if (discount.automatic)
+  if (discount.automatic || discount.benefits_enabled === false)
     return (
       <Link className="primary-button" href={`/camp/buchung/${campId}`}>
         {discount.percent

@@ -6,9 +6,11 @@ import { Brand } from "./portal";
 export function LoginForm({
   initialError = "",
   playerId,
+  returnToShop = false,
 }: {
   initialError?: string;
   playerId?: string;
+  returnToShop?: boolean;
 }) {
   const [email, setEmail] = useState(""),
     [code, setCode] = useState(""),
@@ -35,6 +37,7 @@ export function LoginForm({
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           ...(playerId ? { player_id: playerId } : {}),
+          ...(returnToShop ? { return_to_shop: true } : {}),
         }),
       });
       const result = await response.json();
@@ -58,6 +61,14 @@ export function LoginForm({
         <Brand />
         <h1>Willkommen im Team.</h1>
         <p>Melde dich sicher und ohne Passwort in deinem Elternportal an.</p>
+        {!sent && (
+          <p>
+            Du bist bereits bei uns, hast deinen Portalzugang aber noch nicht
+            aktiviert? Fordere mit deiner bei uns hinterlegten E-Mail-Adresse
+            einen Code an. Nach der Bestätigung wird dein Zugang sicher
+            zugeordnet.
+          </p>
+        )}
         {sent ? (
           <>
             <div className="auth-success" role="status">

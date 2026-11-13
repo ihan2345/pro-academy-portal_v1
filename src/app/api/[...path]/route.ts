@@ -1,3 +1,4 @@
+import { parentCanActivate } from "@/lib/server/parent-activation";
 import { verifyLoginCode } from "@/lib/server/login-code";
 import { stripeActivities } from "@/lib/server/stripe-activities";
 import { stripeOverview } from "@/lib/server/stripe-overview";
@@ -155,8 +156,12 @@ async function handler(
     if (request.method !== "GET") requireOrigin(request);
 
     if (path === "auth/login" && request.method === "POST") {
-      const { email, player_id } = z
-        .object({ email: z.email(), player_id: z.uuid().optional() })
+      const { email, player_id, return_to_shop } = z
+        .object({
+          email: z.email().trim().toLowerCase(),
+          player_id: z.uuid().optional(),
+          return_to_shop: z.boolean().optional(),
+        })
         .parse(await request.json());
       if (!isAllowedTestLogin(email))
         throw new HttpError(
@@ -187,11 +192,20 @@ async function handler(
           maxAge: 3600,
         });
       else store.delete("pa_player_redirect");
+      if (return_to_shop)
+        store.set("pa_product_return", "1", {
+          httpOnly: true,
+          secure: new URL(required("APP_URL")).protocol === "https:",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 3600,
+        });
+      const mayCreate = invitationValid || (await parentCanActivate(email));
       const db = await sessionDb();
       await db.auth.signInWithOtp({
         email,
         options: {
-          shouldCreateUser: invitationValid,
+          shouldCreateUser: mayCreate,
           emailRedirectTo: `${required("APP_URL")}/auth/callback`,
         },
       });

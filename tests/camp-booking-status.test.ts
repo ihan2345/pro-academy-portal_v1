@@ -63,6 +63,10 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-03T12:00:00Z"));
   f.queries = [];
+  f.checkout.mockResolvedValue({
+    id: "cs_test_disabled",
+    url: "https://checkout.stripe.com/test",
+  });
   f.session.mockResolvedValue({ role: "parent", user: { id: "user" } });
   const children = [playerId, siblingId].map((id) => ({
     id,
@@ -89,6 +93,7 @@ beforeEach(() => {
       {
         id: campId,
         payment_mode: "test",
+        member_benefits_enabled: true,
         status: "open",
         capacity: 20,
         buffer_percent: 0,
@@ -469,4 +474,32 @@ it("rejects a stale or disabled central option before booking or creating Stripe
   expect(f.insert).not.toHaveBeenCalled();
   expect(f.optionOffer).not.toHaveBeenCalled();
   expect(f.checkout).not.toHaveBeenCalled();
+});
+
+it("removes membership codes and uses a native no-benefit Checkout when disabled, including legacy link offers", async () => {
+  f.rows.camps[0].member_benefits_enabled = false;
+  const info = await discount(campId, playerId);
+  expect(info).toMatchObject({
+    percent: 0,
+    code: null,
+    benefits_enabled: false,
+    automatic: true,
+  });
+  await createBooking(input);
+  expect(f.insert).toHaveBeenCalledWith(
+    expect.objectContaining({
+      benefit_percent: 0,
+      expected_amount: f.rows.camp_offers[0].amount,
+      stripe_payment_link_id: null,
+      booking_origin: "portal_checkout",
+    }),
+  );
+  expect(f.checkout).toHaveBeenCalledWith(
+    expect.objectContaining({ stripe_payment_link_id: null }),
+    expect.any(String),
+    "test@example.invalid",
+    0,
+    "https://example.invalid",
+  );
+  expect(f.verify).not.toHaveBeenCalled();
 });

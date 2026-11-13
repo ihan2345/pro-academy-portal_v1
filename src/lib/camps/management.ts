@@ -45,6 +45,7 @@ export async function saveCampBookingOption(input: unknown) {
     .object({
       camp_id: z.uuid(),
       booking_option: bookingOptionSchema.nullable(),
+      member_benefits_enabled: z.boolean().optional(),
       expected_version: z.number().int().nonnegative(),
     })
     .strict()
@@ -52,7 +53,12 @@ export async function saveCampBookingOption(input: unknown) {
   const { camp } = await getCamp(body.camp_id);
   const r = await serviceDb()
     .from("camps")
-    .update({ booking_option: body.booking_option })
+    .update({
+      booking_option: body.booking_option,
+      ...(body.member_benefits_enabled === undefined
+        ? {}
+        : { member_benefits_enabled: body.member_benefits_enabled }),
+    })
     .eq("payment_mode", camp.payment_mode)
     .eq("id", body.camp_id)
     .eq("booking_option_version", body.expected_version)

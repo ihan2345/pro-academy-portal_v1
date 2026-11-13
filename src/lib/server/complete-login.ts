@@ -8,12 +8,21 @@ import type { sessionDb } from "./supabase";
 export async function completeLogin(db: Awaited<ReturnType<typeof sessionDb>>) {
   const store = await cookies(),
     invitation = store.get("pa_invitation")?.value;
+  let activated = false;
   if (invitation) {
     const result = await db.rpc("accept_invitation", {
       invitation_hash: invitation,
     });
-    if (result.error) return "/login?error=invitation";
+    if (result.error) {
+      const fallback = await db.rpc("activate_verified_parent");
+      if (fallback.error || !fallback.data) return "/login?error=invitation";
+      activated = true;
+    }
     store.delete("pa_invitation");
+  }
+  if (!activated) {
+    const activation = await db.rpc("activate_verified_parent");
+    if (activation.error) return "/login?error=account";
   }
   if (productsEnabled()) {
     try {

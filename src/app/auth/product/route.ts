@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
     type: type as "invite" | "magiclink" | "signup",
   });
   if (error) return NextResponse.redirect(new URL("/login?error=auth", origin));
+  const activation = await db.rpc("activate_verified_parent");
+  if (activation.error)
+    return NextResponse.redirect(new URL("/login?error=account", origin));
   try {
     await claimGuestPurchases(db);
   } catch {

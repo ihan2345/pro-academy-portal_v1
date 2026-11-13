@@ -27,24 +27,31 @@ export async function campPricingForCatalog(
       : undefined;
   const db = serviceDb();
   // One offer query for the page; resolve a child's benefit once for all camp cards.
-  const [offers, plans, benefit] = await Promise.all([
-    db
+  const offers = checked<any[]>(
+    await db
       .from("camp_offers")
       .select(
-        "id,kind,stripe_price_id,amount,codes,camps!inner(early_bird_until)",
+        "id,kind,stripe_price_id,amount,codes,camps!inner(early_bird_until,member_benefits_enabled)",
       )
       .in("id", [...new Set(offerIds)]),
-    db
-      .from("plans")
-      .select("camp_benefit_percent")
-      .or("is_camp.is.null,is_camp.eq.false")
-      .in("camp_benefit_percent", [10, 15, 20]),
-    child && !child.reserved
-      ? childBenefit(child.id)
-      : Promise.resolve({ percent: 0 }),
-  ]);
+  );
+  const enabled = offers.some(
+    (offer) => offer.camps.member_benefits_enabled === true,
+  );
+  const [plans, benefit] = enabled
+    ? await Promise.all([
+        db
+          .from("plans")
+          .select("camp_benefit_percent")
+          .or("is_camp.is.null,is_camp.eq.false")
+          .in("camp_benefit_percent", [10, 15, 20]),
+        child && !child.reserved
+          ? childBenefit(child.id)
+          : Promise.resolve({ percent: 0 }),
+      ])
+    : [{ data: [], error: null }, { percent: 0 }];
   const available = checked(plans).length > 0;
-  for (const offer of checked<any[]>(offers)) {
+  for (const offer of offers) {
     const deadline = offer.camps.early_bird_until;
     const currentKind =
       deadline && Date.now() < Date.parse(deadline) ? "early" : "main";
@@ -52,7 +59,9 @@ export async function campPricingForCatalog(
     const early =
       offer.kind === "early" && deadline && Date.now() < Date.parse(deadline);
     const percent =
-      benefit.percent && offer.codes?.[String(benefit.percent)]
+      offer.camps.member_benefits_enabled === true &&
+      benefit.percent &&
+      offer.codes?.[String(benefit.percent)]
         ? benefit.percent
         : 0;
     result.set(offer.id, {
@@ -60,6 +69,7 @@ export async function campPricingForCatalog(
       amount: offer.amount,
       early_until: early ? deadline : null,
       benefit_available:
+        offer.camps.member_benefits_enabled === true &&
         available &&
         Object.keys(offer.codes ?? {}).some((p) =>
           ["10", "15", "20"].includes(p),

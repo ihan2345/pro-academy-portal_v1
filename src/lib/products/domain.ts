@@ -152,6 +152,7 @@ export const productSchema = z
     camp_offer_id: productIdSchema.nullable(),
     booking_option: bookingOptionSchema.nullable().optional(),
     booking_option_version: z.number().int().nonnegative().optional(),
+    member_benefits_enabled: z.boolean().optional(),
     repeatable: z.boolean(),
     training_content: z
       .object({

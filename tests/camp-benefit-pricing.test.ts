@@ -61,7 +61,10 @@ function fixture() {
       amount: 19999,
       kind: "early",
       codes: { "15": "promo_internal" },
-      camps: { early_bird_until: "2026-11-01T12:00:00Z" },
+      camps: {
+        member_benefits_enabled: true,
+        early_bird_until: "2026-11-01T12:00:00Z",
+      },
     })),
   };
   mock.benefit.mockResolvedValue({ percent: 15 });
@@ -129,4 +132,22 @@ it("does not advertise an expired early-bird offer or an unconfigured member dis
     percent: 0,
     benefit_available: false,
   });
+});
+
+it("hides all membership price hints and skips benefit calculation when the Camp switch is off", async () => {
+  const ctx = fixture();
+  for (const offer of mock.tables.camp_offers)
+    offer.camps.member_benefits_enabled = false;
+  const prices = await campPricingForCatalog(
+    ["offer1", "offer2"],
+    ctx,
+    "child",
+  );
+  for (const price of prices.values())
+    expect(price).toMatchObject({
+      benefit_available: false,
+      percent: 0,
+      personal_amount: null,
+    });
+  expect(mock.benefit).not.toHaveBeenCalled();
 });

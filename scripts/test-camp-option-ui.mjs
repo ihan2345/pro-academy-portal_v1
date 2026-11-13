@@ -80,6 +80,7 @@ const fixture = {
   id: "90000000-0000-4000-8000-000000000001",
   revision: 3,
   booking_option_version: 2,
+  member_benefits_enabled: false,
   name: "Camp Test",
   kind: "camp",
   description: "Campangebot",
@@ -255,6 +256,17 @@ try {
     assert.equal(submitted.booking_option_revision, 3);
     assert.equal(submitted.booking_option_version, 2);
     assert.equal(submitted.discount_code, "START20");
+    assert(
+      !/Abo-Vorteil|Abo-Rabatt|Mitgliederrabatt/.test(
+        await page.locator("body").innerText(),
+      ),
+    );
+    await expect(
+      page.getByRole("link", {
+        name: "Mit E-Mail-Code anmelden / Zugang aktivieren",
+        exact: true,
+      }),
+    ).toHaveAttribute("href", "/login?shop=1");
     assert.equal(
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
@@ -276,6 +288,9 @@ try {
       }),
     ).toBeVisible();
     await page.goto(base + "/camp/new");
+    await expect(
+      page.getByLabel("Gelten Abo-Vorteile?", { exact: false }),
+    ).toHaveValue("false");
     await page
       .getByLabel("Campname", { exact: true })
       .fill("Zentrales Testcamp");
@@ -297,17 +312,25 @@ try {
       .click();
     await expect.poll(() => saved?.booking_option?.amount).toBe(7900);
     assert.equal(saved.booking_option.title, "Tagesoption");
+    assert.equal(saved.member_benefits_enabled, false);
     await page.goto(base + "/camp/edit");
     await page.getByText("Buchungsoption bearbeiten", { exact: true }).click();
     await expect(
       page.getByLabel("Options-Preis in Euro", { exact: true }),
     ).toHaveValue("79");
     await page.getByLabel("Options-Preis in Euro", { exact: true }).fill("89");
+    await expect(
+      page.getByLabel("Gelten Abo-Vorteile?", { exact: false }),
+    ).toHaveValue("false");
+    await page
+      .getByLabel("Gelten Abo-Vorteile?", { exact: false })
+      .selectOption("true");
     await page
       .getByRole("button", { name: "Buchungsoption speichern", exact: true })
       .click();
     await expect.poll(() => saved?.booking_option?.amount).toBe(8900);
     assert.equal(saved.expected_version, 2);
+    assert.equal(saved.member_benefits_enabled, true);
     await page.goto(base + "/camp/buchung/" + fixture.id);
     await page
       .getByRole("button", { name: "Neu bei uns", exact: true })
@@ -323,6 +346,11 @@ try {
     await page.getByLabel("Nachname", { exact: true }).fill("Test");
     await page.getByLabel("Geburtsdatum", { exact: true }).fill("2016-04-15");
     await page.getByLabel("Kleidergröße", { exact: false }).selectOption("140");
+    assert(
+      !/Abo-Vorteil|Abo-Rabatt|Mitgliederrabatt/.test(
+        await page.locator("body").innerText(),
+      ),
+    );
     const directBuy = page.getByRole("button", {
       name: "Weiter zur Zahlung",
       exact: false,

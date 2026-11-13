@@ -7,6 +7,8 @@ const state = vi.hoisted(() => ({
   rpc: [] as any[],
   stripe: {} as any,
   product: {} as any,
+  knownParent: false,
+  lookupError: false,
 }));
 vi.mock("../src/lib/server/service-db", () => ({
   serviceDb: () => ({
@@ -62,6 +64,11 @@ vi.mock("../src/lib/server/service-db", () => ({
       return b;
     },
     rpc: async (name: string, args: any) => {
+      if (name === "parent_email_requires_login")
+        return {
+          data: state.knownParent,
+          error: state.lookupError ? { message: "lookup unavailable" } : null,
+        };
       state.rpc.push({ name, args });
       if (name === "reserve_product_purchase") {
         const i = {
@@ -120,6 +127,8 @@ beforeEach(() => {
   state.tables = { product_purchase_intents: [] };
   state.reads = [];
   state.rpc = [];
+  state.knownParent = false;
+  state.lookupError = false;
   const product = {
     ...emptyProduct(),
     status: "active",
@@ -356,5 +365,23 @@ it("rejects stale selected options before opening Checkout", async () => {
       "a".repeat(64),
     ),
   ).rejects.toThrow(/Buchungsoption wurde geändert/);
+  expect(state.stripe.checkout.sessions.create).not.toHaveBeenCalled();
+});
+
+it("stops an existing family before reserving or creating a Stripe payment", async () => {
+  state.knownParent = true;
+  await expect(
+    checkoutProduct(null, productId, form, "a".repeat(64)),
+  ).rejects.toThrow(/aktiviere deinen Zugang/);
+  expect(state.rpc).toHaveLength(0);
+  expect(state.stripe.customers.create).not.toHaveBeenCalled();
+  expect(state.stripe.checkout.sessions.create).not.toHaveBeenCalled();
+});
+it("fails closed if the pre-payment family lookup is unavailable", async () => {
+  state.lookupError = true;
+  await expect(
+    checkoutProduct(null, productId, form, "a".repeat(64)),
+  ).rejects.toMatchObject({ status: 503 });
+  expect(state.rpc).toHaveLength(0);
   expect(state.stripe.checkout.sessions.create).not.toHaveBeenCalled();
 });

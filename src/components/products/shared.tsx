@@ -221,6 +221,7 @@ export type ProductDisplay = Pick<
     >
   > & {
     camp_pricing?: CampPricing;
+    member_benefits_enabled?: boolean;
     gift_amount?: number | null;
     gift_amounts?: number[];
     gift_variants?: { id: string; amount: number; name: string }[];
@@ -228,13 +229,11 @@ export type ProductDisplay = Pick<
 
 export function CampPriceNote({ product }: { product: ProductDisplay }) {
   const info = product.camp_pricing;
-  if (
-    product.kind !== "camp" ||
-    !info ||
-    (!info.early_until && !info.benefit_available)
-  )
+  const benefits =
+    product.member_benefits_enabled === true && !!info?.benefit_available;
+  if (product.kind !== "camp" || !info || (!info.early_until && !benefits))
     return null;
-  const personal = info.personal_amount != null;
+  const personal = benefits && info.personal_amount != null;
   return (
     <div className="product-camp-price-note">
       <div className="product-camp-price-badges">
@@ -243,14 +242,14 @@ export function CampPriceNote({ product }: { product: ProductDisplay }) {
             <Sparkles size={13} aria-hidden="true" /> Frühbucher
           </span>
         )}
-        {info.benefit_available && (
+        {benefits && (
           <span className="product-benefit-badge">
             <BadgePercent size={14} aria-hidden="true" />
             {personal ? `${info.percent} % Abo-Vorteil` : "Abo-Vorteil möglich"}
           </span>
         )}
       </div>
-      {info.benefit_available && (
+      {benefits && (
         <div className="product-personal-price">
           <span className="product-personal-price-heading">
             {personal ? "Dein persönlicher Preis" : "Dein Abo-Vorteil"}

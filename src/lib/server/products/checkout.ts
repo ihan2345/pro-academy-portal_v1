@@ -1,3 +1,4 @@
+import { requireGuestEmailAvailable } from "../parent-activation";
 import { bookingOptionPrice } from "./booking-option";
 import { giftCodeSchema } from "@/lib/gifts/domain";
 import { giftCodeHash, newGiftCode, sealGift } from "@/lib/gifts/crypto";
@@ -314,6 +315,7 @@ export async function checkoutProduct(
       return resumed;
     }
   }
+  if (guest) await requireGuestEmailAvailable(input.guest_parent!.email);
   p.published = await activeCampProduct(p.published);
   if (
     input.booking_option_selected &&
@@ -436,7 +438,8 @@ export async function checkoutProduct(
     );
     if (currentOffer(allOffers, camp.early_bird_until)?.id !== offer.id)
       throw new HttpError(409, "Das Campangebot ist nicht mehr aktuell.");
-    if (!child.reserved) benefit = (await childBenefit(child.id)).percent;
+    if (camp.member_benefits_enabled === true && !child.reserved)
+      benefit = (await childBenefit(child.id)).percent;
     if (benefit) {
       const code = offer.codes[String(benefit)];
       if (!code) throw new HttpError(400, "Passender Camp-Rabattcode fehlt.");
@@ -470,7 +473,10 @@ export async function checkoutProduct(
     )
       throw new HttpError(
         400,
-        "Mitgliederrabatte werden für berechtigte Kinder automatisch angewendet. Bitte keinen persönlichen Camp-Code eingeben.",
+        p.published.kind === "camp" &&
+          p.published.member_benefits_enabled !== true
+          ? "Dieser Rabattcode ist für dieses Camp nicht verfügbar."
+          : "Mitgliederrabatte werden für berechtigte Kinder automatisch angewendet. Bitte keinen persönlichen Camp-Code eingeben.",
       );
     const entered = await resolveDiscount(
       stripe,

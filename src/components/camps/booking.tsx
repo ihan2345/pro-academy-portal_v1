@@ -109,6 +109,10 @@ export function BookingForm({ campId }: { campId: string }) {
       });
   }
   useEffect(() => {
+    if (data?.camp.member_benefits_enabled !== true) {
+      setDiscount({ percent: 0, code: null });
+      return;
+    }
     if (!player || storedChild?.booking_status) return;
     let current = true;
     campApi(`discount?camp_id=${campId}&player_id=${player}`)
@@ -121,7 +125,12 @@ export function BookingForm({ campId }: { campId: string }) {
     return () => {
       current = false;
     };
-  }, [player, campId, storedChild?.booking_status]);
+  }, [
+    player,
+    campId,
+    storedChild?.booking_status,
+    data?.camp.member_benefits_enabled,
+  ]);
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (bookingStatus || busy) return;
@@ -205,7 +214,8 @@ export function BookingForm({ campId }: { campId: string }) {
           {data.offer?.kind === "early" && (
             <p className="camp-success">
               Frühbucherpreis bis {date(data.camp.early_bird_until!)}.
-              Berechtigte Abo-Rabatte können zusätzlich eingelöst werden.
+              {data.camp.member_benefits_enabled === true &&
+                "Berechtigte Abo-Rabatte können zusätzlich eingelöst werden."}
             </p>
           )}
           {data.camp.status !== "open" || data.occupied >= data.maximum ? (
@@ -455,39 +465,41 @@ export function BookingForm({ campId }: { campId: string }) {
                               data.offer?.amount ?? 0,
                               data.offer?.currency,
                             )}
-                            . Bestehende Rabatte gelten auch auf den
-                            Optionspreis.
+                            .{" "}
+                            {data.camp.member_benefits_enabled === true &&
+                              "Bestehende Rabatte gelten auch auf den Optionspreis."}
                           </p>
                         </section>
                       )}
 
-                      {discount.code &&
-                      (data.offer?.automatic_benefit || optionSelected) ? (
-                        <p className="camp-success">
-                          Dein Abo-Vorteil von {discount.percent} % wird auf den
-                          aktuellen Camppreis automatisch angewendet – auch
-                          während der Frühbucherzeit.
-                        </p>
-                      ) : discount.code ? (
-                        <div className="camp-discount">
-                          <DiscountCopy
-                            key={discount.code}
-                            code={discount.code}
-                            percent={discount.percent}
-                          />
-                          <p>
-                            Den kopierten Code bei der Zahlung im Feld für
-                            Rabattcodes einsetzen. Dort siehst du den
-                            endgültigen Betrag.
+                      {data.camp.member_benefits_enabled === true &&
+                        (discount.code &&
+                        (data.offer?.automatic_benefit || optionSelected) ? (
+                          <p className="camp-success">
+                            Dein Abo-Vorteil von {discount.percent} % wird auf
+                            den aktuellen Camppreis automatisch angewendet –
+                            auch während der Frühbucherzeit.
                           </p>
-                        </div>
-                      ) : (
-                        <p>
-                          {player
-                            ? "Für dieses Kind ist aktuell kein einlösbarer Abo-Rabatt hinterlegt."
-                            : "Ohne aktives Abo gilt der angezeigte Camp-Preis."}
-                        </p>
-                      )}
+                        ) : discount.code ? (
+                          <div className="camp-discount">
+                            <DiscountCopy
+                              key={discount.code}
+                              code={discount.code}
+                              percent={discount.percent}
+                            />
+                            <p>
+                              Den kopierten Code bei der Zahlung im Feld für
+                              Rabattcodes einsetzen. Dort siehst du den
+                              endgültigen Betrag.
+                            </p>
+                          </div>
+                        ) : (
+                          <p>
+                            {player
+                              ? "Für dieses Kind ist aktuell kein einlösbarer Abo-Rabatt hinterlegt."
+                              : "Ohne aktives Abo gilt der angezeigte Camp-Preis."}
+                          </p>
+                        ))}
                       <p>
                         Dein Platz ist erst nach bestätigter Zahlung gebucht.
                         Das Formular reserviert keinen Platz.
@@ -528,7 +540,9 @@ export function BookingForm({ campId }: { campId: string }) {
               <strong>
                 {money(data.camp.booking_option.amount, data.offer?.currency)}
               </strong>{" "}
-              vor bestehenden Rabatten.
+              {data.camp.member_benefits_enabled === true
+                ? "vor bestehenden Rabatten."
+                : ""}
             </p>
             <div className="camp-actions">
               <button

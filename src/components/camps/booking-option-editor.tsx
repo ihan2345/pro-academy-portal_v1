@@ -94,6 +94,9 @@ export function CampBookingOptionEditor({
   camp: Camp;
   onChanged: () => Promise<void>;
 }) {
+  const [benefits, setBenefits] = useState(
+    camp.member_benefits_enabled === true,
+  );
   const [value, setValue] = useState(camp.booking_option ?? null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -112,6 +115,7 @@ export function CampBookingOptionEditor({
             await campApi("booking-option", {
               camp_id: camp.id,
               booking_option: value,
+              member_benefits_enabled: benefits,
               expected_version: camp.booking_option_version ?? 0,
             });
             await onChanged();
@@ -123,6 +127,17 @@ export function CampBookingOptionEditor({
           }
         }}
       >
+        <label>
+          Gelten Abo-Vorteile?
+          <select
+            value={String(benefits)}
+            disabled={busy}
+            onChange={(e) => setBenefits(e.target.value === "true")}
+          >
+            <option value="false">Nein</option>
+            <option value="true">Ja</option>
+          </select>
+        </label>
         <CampBookingOptionFields
           value={value}
           onChange={(v) => {

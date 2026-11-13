@@ -56,7 +56,7 @@ it.each(["parent", "staff", "admin"] as PortalRole[])(
     expect(activeShop).toContain(
       'aria-label="' + (role === "parent" ? "Produkte" : "Shop") + '"',
     );
-    expect(html).not.toContain('href="/login"');
+    expect(html).not.toContain('href="/login?shop=1"');
     expect(html).not.toContain('class="product-store-nav"');
     expect(html).not.toContain("Mehr Möglichkeiten.");
     expect((html.match(/<main(?:\s|>)/g) ?? []).length).toBe(1);
@@ -66,7 +66,7 @@ it("keeps the public shop and registration entry available to visitors", async (
   const html = renderToStaticMarkup(await ProductsPage());
   expect(mocks.portal).not.toHaveBeenCalled();
   expect(html).not.toContain('id="portal-sidebar"');
-  expect(html).toContain('href="/login"');
+  expect(html).toContain('href="/login?shop=1"');
   expect(html).toContain("Anmelden");
   expect(html).toContain("Mehr Möglichkeiten.");
 });
@@ -91,7 +91,7 @@ it.each(["parent", "staff", "admin"] as PortalRole[])(
     expect(html).toMatch(
       new RegExp(`href="${portalHome(role)}"[^>]*>Überblick`),
     );
-    expect(html).not.toContain('href="/login"');
+    expect(html).not.toContain('href="/login?shop=1"');
     expect(html.includes('href="/profil"')).toBe(role === "parent");
   },
 );

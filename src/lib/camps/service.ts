@@ -213,10 +213,19 @@ export async function discount(campId: string, playerId: string) {
   const bookingStatus = await existingChildBooking(campId, playerId);
   if (bookingStatus)
     return { percent: 0, code: null, booking_status: bookingStatus };
+  if (camp.member_benefits_enabled !== true)
+    return {
+      percent: 0,
+      code: null,
+      automatic: true,
+      benefits_enabled: false,
+      booking_status: null,
+    };
   const { percent } = await childBenefit(playerId);
   const offer = currentOffer(offers, camp.early_bird_until);
   return {
     percent,
+    benefits_enabled: true,
     code: percent ? (offer?.codes[String(percent)] ?? null) : null,
     automatic: !offer?.stripe_payment_link_id,
     booking_status: null,
@@ -304,7 +313,8 @@ export async function createBooking(input: unknown) {
           ? "Dieses Kind ist bereits angemeldet und bestätigt."
           : "Die Buchung für dieses Kind wird bereits geprüft. Bitte nicht erneut buchen.",
       );
-    benefit = await childBenefit(playerId);
+    if (camp.member_benefits_enabled === true)
+      benefit = await childBenefit(playerId);
     body.parent.name = context.parent.full_name;
     body.parent.email = context.parent.contact_email;
     const child = context.children.find(
@@ -383,6 +393,8 @@ export async function createBooking(input: unknown) {
     bookingCodes[String(benefit.percent)] = code;
   }
   if (body.booking_option_selected) offer = await campOptionOffer(camp, offer);
+  if (camp.member_benefits_enabled !== true && offer.stripe_payment_link_id)
+    offer = { ...offer, stripe_payment_link_id: null, payment_url: null };
   if (offer.stripe_payment_link_id)
     await verifyOffer(
       offer.stripe_price_id,
@@ -763,10 +775,11 @@ export async function dashboard() {
           .eq("visible_to_parent", true),
       )
     : [];
+  const benefitsEnabled = camps.some((c) => c.member_benefits_enabled === true);
   const children = await Promise.all(
     context.children.map(async (c) => ({
       ...c,
-      ...(await childBenefit(c.id)),
+      ...(benefitsEnabled ? await childBenefit(c.id) : { percent: 0 }),
     })),
   );
   const visibleCamps = camps.filter(

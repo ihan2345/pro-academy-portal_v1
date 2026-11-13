@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   limit: vi.fn(),
   claim: vi.fn(),
   query: vi.fn(),
+  known: vi.fn(),
   session: vi.fn(),
 }));
 vi.mock("next/headers", () => ({
@@ -19,6 +20,9 @@ vi.mock("@opennextjs/cloudflare", () => ({
   getCloudflareContext: () => ({
     env: { CAMP_REQUEST_LIMIT: { limit: m.limit } },
   }),
+}));
+vi.mock("../src/lib/server/service-db", () => ({
+  serviceDb: () => ({ rpc: m.known }),
 }));
 vi.mock("../src/lib/server/supabase", () => ({
   sessionDb: async () => ({
@@ -65,6 +69,7 @@ beforeEach(() => {
   m.limit.mockResolvedValue({ success: true });
   m.rpc.mockResolvedValue({ error: null });
   m.send.mockResolvedValue({ error: null });
+  m.known.mockResolvedValue({ data: false, error: null });
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("email code login", () => {
@@ -255,4 +260,51 @@ describe("email code login", () => {
     expect(query.gt).toHaveBeenCalledWith("expires_at", expect.any(String));
     expect(m.send.mock.calls[0][0].options.shouldCreateUser).toBe(true);
   });
+});
+
+it("permits a known family to request its own activation code while keeping the neutral response", async () => {
+  m.known.mockResolvedValue({ data: true, error: null });
+  const result = await call(
+    { email: "Parent@example.com", return_to_shop: true },
+    "auth/login",
+  );
+  expect(result.status).toBe(200);
+  expect(await result.json()).toEqual({ ok: true });
+  expect(m.known).toHaveBeenCalledWith("parent_self_activation_available", {
+    input_email: "parent@example.com",
+  });
+  expect(m.send).toHaveBeenCalledWith({
+    email: "parent@example.com",
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: "https://portal.example.com/auth/callback",
+    },
+  });
+  expect(m.set).toHaveBeenCalledWith(
+    "pa_product_return",
+    "1",
+    expect.objectContaining({ httpOnly: true, secure: true, sameSite: "lax" }),
+  );
+});
+it("does not proceed with an ambiguous verified family association", async () => {
+  m.rpc.mockResolvedValue({ error: { message: "ambiguous family" } });
+  const result = await call({ email: "parent@example.com", code: "123456" });
+  expect((await result.json()).redirect).toBe("/login?error=account");
+  expect(m.claim).not.toHaveBeenCalled();
+});
+it("can recover an expired invitation only through successful verified self-activation", async () => {
+  m.get.mockImplementation((key) =>
+    key === "pa_invitation" ? { value: "expired" } : undefined,
+  );
+  m.rpc.mockImplementation(async (name) =>
+    name === "accept_invitation"
+      ? { error: { message: "expired" } }
+      : { data: "parent-id", error: null },
+  );
+  expect(
+    (await (await call({ email: "parent@example.com", code: "123456" })).json())
+      .redirect,
+  ).toBe("/");
+  expect(m.rpc).toHaveBeenCalledWith("activate_verified_parent");
+  expect(m.remove).toHaveBeenCalledWith("pa_invitation");
 });

@@ -69,6 +69,7 @@ export const campSchema = z
       .max(30),
     early_bird_until: z.iso.datetime({ offset: true }).nullable(),
     booking_option: bookingOptionSchema.nullable().optional(),
+    member_benefits_enabled: z.boolean().optional(),
     main: offerSchema.optional(),
     early: offerSchema.optional(),
   })
@@ -99,6 +100,7 @@ export const campSchema = z
       });
   });
 export type Camp = {
+  member_benefits_enabled?: boolean;
   booking_option?: BookingOption | null;
   booking_option_version?: number;
   payment_mode: "test" | "live";

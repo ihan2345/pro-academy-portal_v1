@@ -51,6 +51,7 @@ export function productSchemaFiles() {
       "041-product-showcase-embed.sql",
       "042-camp-booking-option.sql",
       "043-central-camp-booking-option.sql",
+      "044-parent-activation-camp-benefits.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

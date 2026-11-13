@@ -117,6 +117,8 @@ export function NewCamp({
           const body = {
             id,
             booking_option: bookingOption,
+            member_benefits_enabled:
+              f.get("member_benefits_enabled") === "true",
             title: f.get("title"),
             location_id: f.get("location_id"),
             description: f.get("description"),
@@ -212,6 +214,13 @@ export function NewCamp({
         <label>
           Höchstalter
           <input type="number" name="max_age" defaultValue="16" required />
+        </label>
+        <label>
+          Gelten Abo-Vorteile?
+          <select name="member_benefits_enabled" defaultValue="false">
+            <option value="false">Nein</option>
+            <option value="true">Ja</option>
+          </select>
         </label>
         <label>
           Normalpreis in €
@@ -805,6 +814,13 @@ export function CampDashboard({
                             <BookingStatusButton
                               status={childBookingStatus(bookings, c.id)!}
                             />
+                          ) : camp.member_benefits_enabled !== true ? (
+                            <Link
+                              className="primary-button"
+                              href={`/camp/buchung/${camp.id}`}
+                            >
+                              Camp buchen
+                            </Link>
                           ) : c.percent ? (
                             <CampDiscountCopy
                               key={`${camp.id}:${c.id}`}

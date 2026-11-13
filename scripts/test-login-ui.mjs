@@ -87,6 +87,7 @@ try {
         assert.deepEqual(request.postDataJSON(), {
           email: "parent@example.com",
           player_id: player,
+          return_to_shop: true,
         });
         return route.fulfill({ json: { ok: true } });
       }
@@ -117,7 +118,7 @@ try {
       return route.continue();
     });
     await page.clock.install();
-    await page.goto(`${base}/?player=${player}`);
+    await page.goto(`${base}/?player=${player}&shop=1`);
     await page.getByLabel("Deine E-Mail-Adresse").fill("Parent@example.com");
     await page.getByRole("button", { name: "Anmeldecode anfordern" }).click();
     const code = page.getByLabel("Dein sechsstelliger E-Mail-Code");

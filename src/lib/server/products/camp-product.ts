@@ -20,7 +20,7 @@ export async function campProductSnapshots(products: Product[]) {
     await serviceDb()
       .from("camp_offers")
       .select(
-        "id,camps!inner(id,title,description,days,early_bird_until,payment_mode,booking_option,booking_option_version,camp_offers(*))",
+        "id,camps!inner(id,title,description,days,early_bird_until,payment_mode,member_benefits_enabled,booking_option,booking_option_version,camp_offers(*))",
       )
       .in("id", ids),
   );
@@ -42,6 +42,7 @@ export function withCampSnapshot(
     ...product,
     camp_offer_id: offer.id,
     booking_option: camp.booking_option ?? null,
+    member_benefits_enabled: camp.member_benefits_enabled === true,
     booking_option_version: camp.booking_option_version ?? 0,
     price: product.price
       ? {

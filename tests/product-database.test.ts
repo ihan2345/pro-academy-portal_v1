@@ -1927,3 +1927,325 @@ it("confirms direct Camp option quotes after later edits and rejects stale new q
     await db.exec("rollback");
   }
 });
+
+it("self-activates only a verified, unique Stripe family and preserves every old queue hold", async () => {
+  await db.exec("begin");
+  try {
+    const user = id(1950),
+      parent = id(1951),
+      job = id(1952);
+    await db.query(
+      "insert into auth.users(id,email,email_confirmed_at) values($1,'activation@example.invalid',null)",
+      [user],
+    );
+    await db.query(
+      "insert into parents(id,full_name,contact_email,notifications_held) values($1,'Bestandsfamilie','Activation@Example.invalid',true)",
+      [parent],
+    );
+    await db.query(
+      "insert into parent_stripe_customers(parent_id,stripe_customer_id) values($1,'cus_activation')",
+      [parent],
+    );
+    await db.query(
+      "insert into notification_jobs(id,idempotency_key,kind,recipient,payload,status) values($1,'activation-legacy','invitation','activation@example.invalid','{}','held')",
+      [job],
+    );
+    expect(
+      (
+        await db.query<any>(
+          "select parent_self_activation_available(' ACTIVATION@example.invalid ') available,parent_email_requires_login('activation@example.invalid') requires",
+        )
+      ).rows[0],
+    ).toEqual({ available: true, requires: true });
+    await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+      user,
+    ]);
+    await db.exec("savepoint unverified_activation");
+    await expect(db.query("select activate_verified_parent()")).rejects.toThrow(
+      /Bestätigte Anmeldung/,
+    );
+    await db.exec("rollback to unverified_activation");
+    await db.query(
+      "update auth.users set email_confirmed_at=now() where id=$1",
+      [user],
+    );
+    const before = (
+      await db.query<any>(
+        "select count(*) n from notification_jobs where status='held'",
+      )
+    ).rows[0].n;
+    expect(
+      (await db.query<any>("select activate_verified_parent() id")).rows[0].id,
+    ).toBe(parent);
+    expect(
+      (
+        await db.query<any>(
+          "select auth_user_id,notifications_held from parents where id=$1",
+          [parent],
+        )
+      ).rows[0],
+    ).toEqual({ auth_user_id: user, notifications_held: true });
+    expect(
+      (await db.query<any>("select role from profiles where id=$1", [user]))
+        .rows[0].role,
+    ).toBe("parent");
+    expect(
+      (
+        await db.query<any>(
+          "select status from notification_jobs where id=$1",
+          [job],
+        )
+      ).rows[0].status,
+    ).toBe("held");
+    expect(
+      (
+        await db.query<any>(
+          "select count(*) n from notification_jobs where status='held'",
+        )
+      ).rows[0].n,
+    ).toBe(before);
+    expect(
+      (await db.query<any>("select activate_verified_parent() id")).rows[0].id,
+    ).toBe(parent);
+    expect(
+      (
+        await db.query<any>(
+          "select count(*) n from audit_log where action='PARENT_SELF_ACTIVATED' and record_id=$1",
+          [parent],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  } finally {
+    await db.exec("rollback");
+  }
+});
+
+it("does not claim another email, an ambiguous family, a staff profile or an already differently bound family", async () => {
+  await db.exec("begin");
+  try {
+    const user = id(1960),
+      parent = id(1961),
+      other = id(1962);
+    await db.query(
+      "insert into auth.users values($1,'activation-owner-1960@example.invalid',now()),($2,'activation-other-1962@example.invalid',now())",
+      [user, other],
+    );
+    await db.query(
+      "insert into parents(id,full_name,contact_email,notifications_held) values($1,'Familie','activation-owner-1960@example.invalid',true)",
+      [parent],
+    );
+    await db.query(
+      "insert into parent_stripe_customers(parent_id,stripe_customer_id) values($1,'cus_owner')",
+      [parent],
+    );
+    await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+      other,
+    ]);
+    expect(
+      (await db.query<any>("select activate_verified_parent() id")).rows[0].id,
+    ).toBeNull();
+    await db.query("insert into profiles(id,role) values($1,'staff')", [other]);
+    expect(
+      (await db.query<any>("select activate_verified_parent() id")).rows[0].id,
+    ).toBeNull();
+    await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+      id(1),
+    ]);
+    await db.query(
+      "insert into parents(id,full_name,contact_email) values($1,'Mehrdeutig','activation-owner-1960@example.invalid')",
+      [id(1963)],
+    );
+    expect(
+      (
+        await db.query<any>(
+          "select parent_self_activation_available('activation-owner-1960@example.invalid') available",
+        )
+      ).rows[0].available,
+    ).toBe(false);
+    await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+      user,
+    ]);
+    await db.exec("savepoint ambiguous_activation");
+    await expect(db.query("select activate_verified_parent()")).rejects.toThrow(
+      /Familienzuordnung/,
+    );
+    await db.exec("rollback to ambiguous_activation");
+    await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+      id(1),
+    ]);
+    await db.query("update parents set archived_at=now() where id=$1", [
+      id(1963),
+    ]);
+    await db.query("update parents set auth_user_id=$2 where id=$1", [
+      parent,
+      other,
+    ]);
+    await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+      user,
+    ]);
+    await db.exec("savepoint bound_activation");
+    await expect(db.query("select activate_verified_parent()")).rejects.toThrow(
+      /Familienzuordnung/,
+    );
+    await db.exec("rollback to bound_activation");
+    expect(
+      (
+        await db.query<any>("select auth_user_id from parents where id=$1", [
+          parent,
+        ])
+      ).rows[0].auth_user_id,
+    ).toBe(other);
+    const access = (
+      await db.query<any>(
+        "select has_function_privilege('anon','public.activate_verified_parent()','execute') anon_activate,has_function_privilege('authenticated','public.parent_email_requires_login(text)','execute') public_lookup",
+      )
+    ).rows[0];
+    expect(access).toEqual({ anon_activate: false, public_lookup: false });
+  } finally {
+    await db.exec("rollback");
+  }
+});
+
+it("releases only prospective verified Camp mail, respecting opt-outs and leaving the old queue untouched", async () => {
+  await db.exec("begin");
+  try {
+    const booking = (
+      await db.query<any>(
+        "select b.*,p.auth_user_id,p.contact_email from camp_bookings b join parents p on p.id=b.parent_id where b.status='paid' and b.booking_origin='api_checkout' and p.auth_user_id is not null limit 1",
+      )
+    ).rows[0];
+    await db.query(
+      "update camps set payment_mode='live',status='open' where id=$1",
+      [booking.camp_id],
+    );
+    await db.query("update parents set notifications_held=true where id=$1", [
+      booking.parent_id,
+    ]);
+    await db.query(
+      "update system_settings set value='{\"enabled\":false}' where key='portal_delivery_release'",
+    );
+    await db.query(
+      "insert into system_settings(key,value) values('camp_mail_release',jsonb_build_object('enabled',true,'starts_after',now()-interval '1 year','booking_confirmation_enabled',true,'booking_confirmation_from',now()-interval '1 year')) on conflict(key) do update set value=excluded.value",
+    );
+    await db.query(
+      "update system_settings set value=jsonb_build_object('enabled',true,'starts_after',now()-interval '1 minute') where key='camp_portal_mail_release'",
+    );
+    await db.query(
+      "update camp_bookings set paid_at=now(),manual_notifications_held=false where id=$1",
+      [booking.id],
+    );
+    const payload = (
+      await db.query<any>(
+        "select jsonb_build_object('booking_id',$1::uuid,'starts_at',min((d->>'starts_at')::timestamptz),'ends_at',max((d->>'ends_at')::timestamptz)) payload from camps c cross join lateral jsonb_array_elements(c.days) d where c.id=$2",
+        [booking.id, booking.camp_id],
+      )
+    ).rows[0].payload;
+    const allowed = async () =>
+      (
+        await db.query<any>(
+          "select parent_delivery_allowed($1,'camp_booking_confirmation',$2) allowed",
+          [booking.contact_email, payload],
+        )
+      ).rows[0].allowed;
+    expect(await allowed()).toBe(true);
+    expect(
+      (
+        await db.query<any>(
+          "select parent_delivery_allowed($1,'invitation','{}') invitation,parent_delivery_allowed($1,'planning','{}') planning",
+          [booking.contact_email],
+        )
+      ).rows[0],
+    ).toEqual({ invitation: false, planning: false });
+    const heldBefore = (
+      await db.query<any>(
+        "select count(*) n from notification_jobs where status='held'",
+      )
+    ).rows[0].n;
+    await db.query("select camp_plan_notifications()");
+    expect(
+      (
+        await db.query<any>(
+          "select count(*) n from notification_jobs where status='held'",
+        )
+      ).rows[0].n,
+    ).toBe(heldBefore);
+    await db.query(
+      "update camp_bookings set paid_at=now()-interval '1 day' where id=$1",
+      [booking.id],
+    );
+    expect(await allowed()).toBe(false);
+    await db.query("update camp_bookings set paid_at=now() where id=$1", [
+      booking.id,
+    ]);
+    await db.query(
+      "insert into parent_email_preferences(parent_id,enabled) values($1,false) on conflict(parent_id) do update set enabled=false",
+      [booking.parent_id],
+    );
+    expect(await allowed()).toBe(false);
+    await db.query(
+      "update parent_email_preferences set enabled=true where parent_id=$1",
+      [booking.parent_id],
+    );
+    await db.query(
+      "update camp_bookings set manual_notifications_held=true where id=$1",
+      [booking.id],
+    );
+    expect(await allowed()).toBe(false);
+  } finally {
+    await db.exec("rollback");
+  }
+});
+
+it("starts Camps without benefits and rejects membership reductions in both reservation paths", async () => {
+  await db.exec("begin");
+  try {
+    const p = (
+      await db.query<any>(
+        "select * from catalog_products where published->>'kind'='camp' limit 1",
+      )
+    ).rows[0];
+    const offer = (
+      await db.query<any>("select * from camp_offers where id=$1", [
+        p.published.camp_offer_id,
+      ])
+    ).rows[0];
+    expect(
+      (
+        await db.query<any>(
+          "select member_benefits_enabled from camps where id=$1",
+          [offer.camp_id],
+        )
+      ).rows[0].member_benefits_enabled,
+    ).toBe(false);
+    for (const patch of [
+      { benefit_percent: 15 },
+      { benefit_percent: 0, discount: { source: "membership", amount: 0 } },
+    ]) {
+      await db.exec("savepoint forbidden_benefit");
+      await expect(
+        db.query("select reserve_product_purchase($1)", [
+          {
+            id: id(1980),
+            player_id: id(1981),
+            product_id: p.id,
+            revision: p.published_revision,
+            amount: offer.amount,
+            camp_offer_id: offer.id,
+            ...patch,
+          },
+        ]),
+      ).rejects.toThrow(/Rabatt für dieses Camp nicht verfügbar/);
+      await db.exec("rollback to forbidden_benefit");
+    }
+    await db.exec("savepoint forbidden_direct_benefit");
+    await expect(
+      db.query(
+        "insert into camp_bookings(camp_id,offer_id,booking_origin,browser_token_hash,parent_data,child_data,customer_group,benefit_percent,expected_amount,currency,stripe_price_id,stripe_payment_link_id)values($1,$2,'portal_checkout','test-disabled-benefit','{}','{}','subscriber',15,9900,'eur','price_camp_api',null)",
+        [offer.camp_id, offer.id],
+      ),
+    ).rejects.toThrow(/Rabatt für dieses Camp nicht verfügbar/);
+    await db.exec("rollback to forbidden_direct_benefit");
+  } finally {
+    await db.exec("rollback");
+  }
+});

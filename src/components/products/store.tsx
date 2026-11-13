@@ -348,7 +348,7 @@ export function ProductStore({
               </a>
             ) : (
               <Link
-                href="/login"
+                href="/login?shop=1"
                 className="product-shop-action product-shop-action-login"
               >
                 <UserRound size={16} aria-hidden="true" /> Anmelden{" "}
@@ -682,6 +682,14 @@ export function ProductStore({
             {error && (
               <p role="alert" className="error-message">
                 {error}
+                {!ctx?.auth_id && (
+                  <>
+                    <br />
+                    <Link href="/login?shop=1">
+                      Mit E-Mail-Code anmelden / Zugang aktivieren
+                    </Link>
+                  </>
+                )}
               </p>
             )}
             {preview ? (
@@ -830,7 +838,9 @@ export function ProductStore({
                         <p>
                           Buche direkt ohne vorherige Anmeldung. Deinen
                           Portalzugang bestätigst du nach dem Kauf per E-Mail.{" "}
-                          <Link href="/login">Bereits ein Konto? Anmelden</Link>
+                          <Link href="/login?shop=1">
+                            Bereits ein Konto? Anmelden
+                          </Link>
                         </p>
                         <div className="product-new-child">
                           <label>
@@ -1064,9 +1074,10 @@ export function ProductStore({
                         <small>
                           Der Code wird vor der Weiterleitung geprüft. Der
                           endgültige Betrag und die Rabattdauer werden bei
-                          Stripe angezeigt. Camp-Mitgliederrabatte werden
-                          automatisch berücksichtigt; Rabatte werden nicht
-                          kombiniert, der höhere Rabatt gilt.
+                          Stripe angezeigt.{" "}
+                          {chosen.kind === "camp" &&
+                            chosen.member_benefits_enabled === true &&
+                            "Camp-Mitgliederrabatte werden automatisch berücksichtigt; Rabatte werden nicht kombiniert, der höhere Rabatt gilt."}
                         </small>
                       </label>
                     )}
