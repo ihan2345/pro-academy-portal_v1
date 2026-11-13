@@ -30,6 +30,8 @@ import {
 import { trialCampChildren } from "./trial-children";
 import { campReviewEnabled } from "./processing-config";
 import { campAppOrigin, campPaymentMode, campLocalEnabled } from "./runtime";
+import { campRows, classifyCampCustomers } from "./customer-groups";
+import type { CampCustomer } from "./customers";
 
 function check<T>(r: {
   data: T;
@@ -774,13 +776,17 @@ export async function dashboard() {
   ) as Camp[];
   if (session.role !== "parent") {
     const [bookings, offers, plans, reports, locations] = await Promise.all([
-      db
-        .from("camp_bookings")
-        .select(
-          "id,camp_id,player_id,parent_id,parent_data,child_data,customer_group,status,attendance_status,attendance_confirmed_at,paid_amount,paid_at,review_reason,invitation_requested_at,stripe_session_id",
-        )
-        .in("status", ["paid", "review", "cancelled", "refunded"])
-        .order("created_at", { ascending: false }),
+      campRows<{ created_at: string; [key: string]: any }>((from, to) =>
+        db
+          .from("camp_bookings")
+          .select(
+            "id,camp_id,player_id,parent_id,product_intent_id,created_at,parent_data,child_data,customer_group,status,attendance_status,attendance_confirmed_at,paid_amount,paid_at,review_reason,invitation_requested_at,stripe_session_id",
+          )
+          .in("status", ["paid", "review", "cancelled", "refunded"])
+          .order("created_at", { ascending: false })
+          .order("id")
+          .range(from, to),
+      ),
       db.from("camp_offers").select("*"),
       db
         .from("plans")
@@ -793,6 +799,7 @@ export async function dashboard() {
         .eq("active", true)
         .order("name"),
     ]);
+    const classified = await classifyCampCustomers(bookings, db);
     return {
       role: session.role,
       local_stripe_review: campReviewEnabled(),
@@ -806,8 +813,8 @@ export async function dashboard() {
       ),
       bookings:
         session.role === "admin"
-          ? check(bookings)
-          : check(bookings).map(
+          ? classified
+          : classified.map(
               ({
                 paid_amount,
                 paid_at,
@@ -882,6 +889,63 @@ export async function dashboard() {
     locations: [],
   };
 }
+export async function campCustomers(campId: string) {
+  const session = await campSession(true);
+  const { camp } = await getCamp(campId);
+  const db = serviceDb();
+  type Row = {
+    id: string;
+    parent_id: string | null;
+    player_id: string | null;
+    product_intent_id: string | null;
+    created_at: string;
+    parent_data: { name?: string; email?: string; phone?: string };
+    child_data: {
+      first_name?: string;
+      last_name?: string;
+      birth_date?: string;
+      gender?: string;
+      clothing_size?: string;
+    };
+    attendance_status: string | null;
+    booking_option_snapshot: { option?: { title?: string } } | null;
+    currency: string;
+    paid_amount: number | null;
+  };
+  const bookings = await campRows<Row>((from, to) =>
+    db
+      .from("camp_bookings")
+      .select(
+        "id,parent_id,player_id,product_intent_id,created_at,parent_data,child_data,attendance_status,booking_option_snapshot,currency,paid_amount",
+      )
+      .eq("camp_id", campId)
+      .eq("status", "paid")
+      .order("id")
+      .range(from, to),
+  );
+  const classified = await classifyCampCustomers(bookings, db);
+  const rows: CampCustomer[] = classified.map((b) => ({
+    id: b.id,
+    first_name: b.child_data.first_name ?? "",
+    last_name: b.child_data.last_name ?? "",
+    birth_date: b.child_data.birth_date ?? "",
+    birth_year: b.child_data.birth_date?.slice(0, 4) ?? "",
+    gender: b.child_data.gender ?? "",
+    clothing_size: b.child_data.clothing_size ?? "",
+    parent_name: b.parent_data.name ?? "",
+    email: b.parent_data.email ?? "",
+    phone: b.parent_data.phone ?? "",
+    customer_group: b.customer_group,
+    booked_at: b.created_at,
+    option_title: b.booking_option_snapshot?.option?.title ?? b.option_title,
+    attendance:
+      b.attendance_status === "confirmed" ? "Teilnahme bestätigt" : "Gebucht",
+    currency: b.currency,
+    ...(session.role === "admin" ? { paid_amount: b.paid_amount } : {}),
+  }));
+  return { role: session.role, camp: { id: camp.id, title: camp.title }, rows };
+}
+
 export async function saveCamp(input: unknown, appUrl: string) {
   await campSession(true);
   await requireCampPayments();

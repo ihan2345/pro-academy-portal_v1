@@ -41,6 +41,7 @@ import {
   discount,
   publicCamp,
   dashboard,
+  campCustomers,
 } from "../src/lib/camps/service";
 const campId = "a0000000-0000-4000-8000-000000000001";
 const playerId = "b0000000-0000-4000-8000-000000000001";
@@ -157,11 +158,14 @@ beforeEach(() => {
         return q;
       },
       order: () => q,
+      range: () => q,
       lte: () => q,
       gt: () => q,
       eq: (key: string, value: any) => {
         call.filters.push([key, value]);
-        predicates.push((r) => r[key] === value);
+        predicates.push(
+          (r) => key.split(".").reduce((v, part) => v?.[part], r) === value,
+        );
         return q;
       },
       is: (key: string, value: any) => {
@@ -404,6 +408,105 @@ it("staff dashboard omits personal payment information while keeping participant
     "cs_secret",
   ])
     expect(serialized).not.toContain(key);
+});
+
+it("classifies existing subscribers without a discount in the dashboard and export", async () => {
+  f.session.mockResolvedValue({ role: "admin", user: { id: "admin" } });
+  f.rows.parents[0].created_at = "2020-01-01T00:00:00Z";
+  f.rows.camp_bookings = [
+    {
+      id: "booking",
+      camp_id: campId,
+      parent_id: parentId,
+      player_id: playerId,
+      status: "paid",
+      customer_group: "new",
+      benefit_percent: 0,
+      created_at: "2026-10-01T00:00:00Z",
+      child_data: input.child,
+      parent_data: input.parent,
+      paid_amount: 9900,
+      currency: "eur",
+    },
+  ];
+  expect((await dashboard()).bookings[0]).toMatchObject({
+    customer_group: "subscriber",
+  });
+  const result = await campCustomers(campId);
+  expect(result.rows[0]).toMatchObject({
+    customer_group: "subscriber",
+    birth_year: "2015",
+    paid_amount: 9900,
+  });
+});
+
+it("restricts the export to the requested camp, confirmed participants, and team access", async () => {
+  await expect(campCustomers(campId)).rejects.toMatchObject({ status: 403 });
+  f.session.mockResolvedValue(null);
+  await expect(campCustomers(campId)).rejects.toMatchObject({ status: 401 });
+  f.session.mockResolvedValue({ role: "staff", user: { id: "coach" } });
+  f.rows.camp_bookings = [
+    {
+      id: "paid",
+      camp_id: campId,
+      player_id: playerId,
+      status: "paid",
+      created_at: "2026-10-01",
+      child_data: input.child,
+      parent_data: input.parent,
+      currency: "eur",
+      paid_amount: 9900,
+    },
+    { id: "cancelled", camp_id: campId, status: "cancelled" },
+    { id: "foreign", camp_id: "other-camp", status: "paid" },
+  ];
+  const result = await campCustomers(campId);
+  expect(result.rows.map((b) => b.id)).toEqual(["paid"]);
+  expect(JSON.stringify(result)).not.toContain("paid_amount");
+  f.rows.camps[0].payment_mode = "live";
+  await expect(campCustomers(campId)).rejects.toMatchObject({ status: 404 });
+});
+
+it("recognizes the original guest booking but not returning camp families or a new sibling as new", async () => {
+  f.session.mockResolvedValue({ role: "admin", user: { id: "admin" } });
+  f.rows.parents[0].created_at = "2020-01-01T00:00:00Z";
+  f.rows.parents.push({
+    id: "guest-family",
+    created_at: "2026-10-01T12:05:00Z",
+  });
+  f.rows.product_purchase_intents = [
+    { id: "guest-intent", created_at: "2026-10-01T12:00:00Z", product: {} },
+  ];
+  f.rows.subscription_players = [
+    { player_id: siblingId, subscriptions: { status: "canceled" } },
+  ];
+  const base = {
+    camp_id: campId,
+    player_id: siblingId,
+    status: "paid",
+    created_at: "2026-10-02T12:00:00Z",
+    child_data: input.child,
+    parent_data: input.parent,
+    currency: "eur",
+  };
+  f.rows.camp_bookings = [
+    {
+      ...base,
+      id: "first",
+      parent_id: "guest-family",
+      product_intent_id: "guest-intent",
+      created_at: "2026-10-01T12:05:00Z",
+    },
+    { ...base, id: "returning", parent_id: "guest-family" },
+    { ...base, id: "sibling", parent_id: parentId },
+  ];
+  const result = await campCustomers(campId);
+  expect(result.rows.map((row) => [row.id, row.customer_group])).toEqual([
+    ["first", "new"],
+    ["returning", "none"],
+    ["sibling", "none"],
+  ]);
+  expect(f.update).not.toHaveBeenCalled();
 });
 
 it("offers a trial child to its authenticated parent without a second entry or subscription discount, and keeps old camp reports accessible", async () => {

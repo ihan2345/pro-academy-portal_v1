@@ -3,6 +3,147 @@
   background: #f5f6f8;
   color: #17202c;
 }
+.camp-customer-list {
+  min-width: 0;
+}
+.camp-customer-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  border: 0;
+  padding: 0;
+  margin: 0 0 24px;
+}
+.camp-customer-groups legend {
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.camp-panel .camp-customer-groups label {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.camp-panel .camp-customer-groups input {
+  width: 18px;
+  height: 18px;
+  accent-color: #70a200;
+}
+.camp-customer-groups label span {
+  color: #657286;
+}
+.camp-customer-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 1fr) minmax(160px, 0.7fr) minmax(200px, 1fr)
+    auto;
+  align-items: end;
+  gap: 16px;
+}
+.camp-customer-table {
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid #e0e4e8;
+  border-radius: 14px;
+  background: white;
+  margin: 24px 0;
+}
+.camp-customer-table table {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+}
+.camp-customer-table th,
+.camp-customer-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf0f3;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.camp-customer-table th {
+  background: #f5f7fa;
+}
+.camp-customer-table th button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.camp-customer-table th[aria-sort="ascending"],
+.camp-customer-table th[aria-sort="descending"] {
+  color: #527900;
+}
+.camp-customer-table tbody tr:hover {
+  background: #fafcf7;
+}
+.camp-customer-tag {
+  display: inline-block;
+  border-radius: 20px;
+  padding: 4px 9px;
+  background: #edf0f3;
+  font-size: 12px;
+}
+.camp-customer-tag.subscriber {
+  background: #e9f5dc;
+  color: #3e660e;
+}
+.camp-customer-tag.new {
+  background: #eee8ff;
+  color: #62409e;
+}
+@media (max-width: 1000px) {
+  .camp-customer-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .camp-customer-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media print {
+  body:has(.camp-customer-list) .sidebar,
+  body:has(.camp-customer-list) .topbar,
+  body:has(.camp-customer-list) footer {
+    display: none !important;
+  }
+  body:has(.camp-customer-list) .main-shell {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+  body:has(.camp-customer-list) .main-content {
+    padding: 0;
+  }
+  body:has(.camp-customer-list) .camp-customer-controls {
+    display: none !important;
+  }
+  body:has(.camp-customer-list) .camp-customer-table {
+    overflow: visible;
+    border: 0;
+  }
+  body:has(.camp-customer-list) .camp-customer-table table {
+    font-size: 8px;
+  }
+  body:has(.camp-customer-list) .camp-customer-table td,
+  body:has(.camp-customer-list) .camp-customer-table th {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    padding: 5px;
+  }
+  body:has(.camp-customer-list) .camp-customer-table tr {
+    break-inside: avoid;
+  }
+  body:has(.camp-customer-list) .camp-customer-table th svg {
+    display: none;
+  }
+}
 .camp-top {
   display: flex;
   align-items: center;

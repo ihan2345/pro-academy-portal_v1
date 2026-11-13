@@ -16,6 +16,7 @@ import {
   createBooking,
   confirmPayment,
   dashboard,
+  campCustomers,
   saveCamp,
   invitationWish,
   reconcileCamp,
@@ -73,6 +74,12 @@ async function handler(
           ),
         );
       if (path === "dashboard") return json(await dashboard());
+      if (path === "customers")
+        return json(
+          await campCustomers(
+            z.uuid().parse(req.nextUrl.searchParams.get("camp_id")),
+          ),
+        );
       if (path.startsWith("public/"))
         return json(
           await publicCamp(
