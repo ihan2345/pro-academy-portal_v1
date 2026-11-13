@@ -10,6 +10,7 @@ import {
   bestBenefit,
   bookingSchema,
   childBookingStatus,
+  campRegistrationClosedReason,
   campSchema,
   currentOffer,
   maximumSeats,
@@ -213,6 +214,15 @@ export async function discount(campId: string, playerId: string) {
   const bookingStatus = await existingChildBooking(campId, playerId);
   if (bookingStatus)
     return { percent: 0, code: null, booking_status: bookingStatus };
+  const closedReason = campRegistrationClosedReason(camp);
+  if (closedReason)
+    return {
+      percent: 0,
+      code: null,
+      automatic: false,
+      booking_status: null,
+      unavailable_reason: closedReason,
+    };
   if (camp.member_benefits_enabled !== true)
     return {
       percent: 0,
@@ -264,13 +274,12 @@ export async function createBooking(input: unknown) {
   const body = bookingSchema.parse(input),
     db = serviceDb();
   const { camp, offers, occupied } = await getCamp(body.camp_id);
-  if (camp.status !== "open" || occupied >= maximumSeats(camp))
-    throw new HttpError(409, "Die Anmeldung ist geschlossen.");
+  const closedReason = campRegistrationClosedReason(camp);
+  if (closedReason || occupied >= maximumSeats(camp))
+    throw new HttpError(409, closedReason ?? "Die Anmeldung ist geschlossen.");
   const first = [...camp.days].sort((a, b) =>
     a.starts_at.localeCompare(b.starts_at),
   )[0];
-  if (Date.parse(first.starts_at) <= Date.now())
-    throw new HttpError(409, "Dieses Camp hat bereits begonnen.");
   const age = ageAt(body.child.birth_date, first.starts_at);
   if (
     age < camp.min_age ||

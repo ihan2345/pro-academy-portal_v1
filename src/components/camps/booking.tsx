@@ -5,7 +5,12 @@ import Link from "next/link";
 import { ArrowRight, MapPin, CalendarDays } from "lucide-react";
 import { StoredYearBirthDate } from "./birth-date";
 import { DiscountCopy } from "./discount-copy";
-import { type Camp, type CampBookingStatus, money } from "@/lib/camps/domain";
+import {
+  type Camp,
+  type CampBookingStatus,
+  money,
+  campRegistrationClosedReason,
+} from "@/lib/camps/domain";
 import { BookingStatusButton } from "./booking-status";
 import { CampFrame, CampError, campApi, useCampLogin, date } from "./shared";
 type Child = {
@@ -86,6 +91,7 @@ export function BookingForm({ campId }: { campId: string }) {
   }, [campId]);
   const storedChild = data?.context.children.find((c) => c.id === player);
   const bookingStatus = storedChild?.booking_status || discount.booking_status;
+  const registrationClosed = !data || !!campRegistrationClosedReason(data.camp);
   function selectChild(id: string) {
     setError("");
     setPlayer(id);
@@ -113,7 +119,7 @@ export function BookingForm({ campId }: { campId: string }) {
       setDiscount({ percent: 0, code: null });
       return;
     }
-    if (!player || storedChild?.booking_status) return;
+    if (!player || storedChild?.booking_status || registrationClosed) return;
     let current = true;
     campApi(`discount?camp_id=${campId}&player_id=${player}`)
       .then((d) => {
@@ -130,15 +136,16 @@ export function BookingForm({ campId }: { campId: string }) {
     campId,
     storedChild?.booking_status,
     data?.camp.member_benefits_enabled,
+    registrationClosed,
   ]);
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (bookingStatus || busy) return;
+    if (bookingStatus || busy || registrationClosed) return;
     if (optionSelected && data?.camp.booking_option) setOptionAlert(true);
     else void book();
   }
   async function book() {
-    if (bookingStatus || busy) return;
+    if (bookingStatus || busy || registrationClosed) return;
     setBusy(true);
     setError("");
     try {
@@ -218,7 +225,7 @@ export function BookingForm({ campId }: { campId: string }) {
                 "Berechtigte Abo-Rabatte können zusätzlich eingelöst werden."}
             </p>
           )}
-          {data.camp.status !== "open" || data.occupied >= data.maximum ? (
+          {registrationClosed || data.occupied >= data.maximum ? (
             <div className="camp-panel">
               <h2>Anmeldung geschlossen</h2>
               <p>

@@ -129,6 +129,18 @@ export type Offer = {
   currency: string;
   codes: Record<string, string>;
 };
+export function campRegistrationClosedReason(
+  camp: Pick<Camp, "status" | "days">,
+  now = Date.now(),
+): string | null {
+  if (camp.status !== "open") return "Die Anmeldung ist geschlossen.";
+  if (
+    !camp.days.length ||
+    !camp.days.every((day) => Date.parse(day.starts_at) > now)
+  )
+    return "Dieses Camp hat bereits begonnen.";
+  return null;
+}
 export function currentOffer<T extends { kind: string }>(
   offers: T[],
   deadline: string | null,

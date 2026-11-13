@@ -15,6 +15,7 @@ import {
   maximumSeats,
   money,
   childBookingStatus,
+  campRegistrationClosedReason,
 } from "@/lib/camps/domain";
 import { CampError, campApi, date } from "./shared";
 import { CampDiscountCopy } from "./discount-copy";
@@ -788,7 +789,7 @@ export function CampDashboard({
                         }
                       />
                     ) : (
-                      camp.status === "open" && (
+                      !campRegistrationClosedReason(camp) && (
                         <Link
                           className="primary-button"
                           href={`/camp/buchung/${camp.id}`}
@@ -814,6 +815,15 @@ export function CampDashboard({
                             <BookingStatusButton
                               status={childBookingStatus(bookings, c.id)!}
                             />
+                          ) : campRegistrationClosedReason(camp) ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              disabled
+                              title={campRegistrationClosedReason(camp)!}
+                            >
+                              Anmeldung geschlossen
+                            </button>
                           ) : camp.member_benefits_enabled !== true ? (
                             <Link
                               className="primary-button"
@@ -826,6 +836,7 @@ export function CampDashboard({
                               key={`${camp.id}:${c.id}`}
                               campId={camp.id}
                               playerId={c.id}
+                              closedReason={campRegistrationClosedReason(camp)}
                             />
                           ) : (
                             <span>Kein aktiver Abo-Vorteil</span>

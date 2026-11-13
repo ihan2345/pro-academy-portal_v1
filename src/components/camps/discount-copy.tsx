@@ -55,9 +55,11 @@ export function DiscountCopy({
 export function CampDiscountCopy({
   campId,
   playerId,
+  closedReason,
 }: {
   campId: string;
   playerId: string;
+  closedReason: string | null;
 }) {
   const [discount, setDiscount] = useState<{
     code: string | null;
@@ -65,6 +67,7 @@ export function CampDiscountCopy({
     booking_status?: CampBookingStatus;
     automatic?: boolean;
     benefits_enabled?: boolean;
+    unavailable_reason?: string;
   } | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -72,6 +75,7 @@ export function CampDiscountCopy({
     let current = true;
     setDiscount(null);
     setError("");
+    if (closedReason) return;
     campApi(`discount?camp_id=${campId}&player_id=${playerId}`)
       .then((result) => {
         if (current) setDiscount(result);
@@ -82,7 +86,19 @@ export function CampDiscountCopy({
     return () => {
       current = false;
     };
-  }, [campId, playerId, attempt]);
+  }, [campId, playerId, attempt, closedReason]);
+  const unavailableReason = closedReason || discount?.unavailable_reason;
+  if (unavailableReason)
+    return (
+      <button
+        type="button"
+        className="secondary-button"
+        disabled
+        title={unavailableReason}
+      >
+        Rabatt nicht verfügbar · Anmeldung geschlossen
+      </button>
+    );
   if (error)
     return (
       <span role="status">

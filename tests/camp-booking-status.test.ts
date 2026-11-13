@@ -279,6 +279,59 @@ it("keeps siblings and a different camp bookable", async () => {
   await createBooking(input);
   expect(f.insert).toHaveBeenCalledTimes(1);
 });
+it.each(["draft", "closed", "archived"])(
+  "does not issue a discount or create Checkout for a %s camp",
+  async (status) => {
+    f.rows.camps[0].status = status;
+    expect(await discount(campId, playerId)).toMatchObject({
+      percent: 0,
+      code: null,
+      automatic: false,
+      unavailable_reason: "Die Anmeldung ist geschlossen.",
+    });
+    await expect(createBooking(input)).rejects.toMatchObject({ status: 409 });
+    expect(f.queries.some((q) => q.table === "subscription_players")).toBe(
+      false,
+    );
+    expect(f.verify).not.toHaveBeenCalled();
+    expect(f.insert).not.toHaveBeenCalled();
+  },
+);
+it.each(["2026-10-01T08:00:00Z", "2026-10-03T12:00:00Z"])(
+  "blocks discounts and Checkout after camp start (%s), even if still marked open",
+  async (starts_at) => {
+    // The later day must not make a multi-day camp bookable again.
+    f.rows.camps[0].days.unshift({ starts_at });
+    f.rows.camp_bookings = [
+      { camp_id: campId, player_id: playerId, status: "refunded" },
+    ];
+    expect(await discount(campId, playerId)).toMatchObject({
+      percent: 0,
+      code: null,
+      automatic: false,
+      unavailable_reason: "Dieses Camp hat bereits begonnen.",
+    });
+    await expect(createBooking(input)).rejects.toMatchObject({ status: 409 });
+    expect(f.verify).not.toHaveBeenCalled();
+    expect(f.insert).not.toHaveBeenCalled();
+  },
+);
+it.each(["paid", "review"])(
+  "preserves a historical %s booking without issuing its old discount",
+  async (status) => {
+    f.rows.camps[0].status = "archived";
+    f.rows.camps[0].days = [{ starts_at: "2026-09-01T08:00:00Z" }];
+    f.rows.camp_bookings = [{ camp_id: campId, player_id: playerId, status }];
+    expect(await discount(campId, playerId)).toEqual({
+      percent: 0,
+      code: null,
+      booking_status: status,
+    });
+    expect(f.queries.some((q) => q.table === "subscription_players")).toBe(
+      false,
+    );
+  },
+);
 it("rejects a foreign child before reading its booking status", async () => {
   await expect(discount(campId, "foreign-child")).rejects.toMatchObject({
     status: 403,
