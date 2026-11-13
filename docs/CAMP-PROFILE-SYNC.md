@@ -19,3 +19,11 @@ Die Ergänzung läuft für künftige Bestätigungen. Sie schreibt keine historis
 Migration: `supabase/release/045-camp-profile-sync.sql`, nach Release 044. Sie ergänzt den Trigger und die Telefonangabe im Shop-Buchungssnapshot; die bisherigen Zahlungs-, Kapazitäts-, Zuordnungs- und Rabattprüfungen bleiben bestehen.
 
 Geprüft mit 1.269 Tests, darunter 47 SQL-Integrationstests, TypeScript, Cloudflare-Build sowie Browserprüfungen auf Mobil-/Desktopbreite. Abgedeckt sind Anlage und Verknüpfung, allgemeines Geschlecht, Geburtstag/Geburtsjahr, Telefon, leere Angaben, fremde/geänderte Zuordnung, verspätete Bestätigung und wiederholte Zahlungsereignisse. Es wurden keine echten Testkäufe oder E-Mails ausgelöst.
+
+## Weiteres Kind für angemeldete Eltern
+
+„Kind auswählen“ enthält neben den aktiven zugeordneten Kindern die Auswahl „Neues Kind angeben“, sowohl im direkten Campformular als auch im Shop. Im direkten Formular öffnet sie die Eingabe von Namen und Geburtsdatum; Geschlecht und Kleidergröße werden ebenfalls erfasst. Das neue Kind bekommt keinen Rabatt aus einem anderen Kinderprofil. Beim Zurückwechseln zu einem vorhandenen Kind werden dessen gespeicherte Angaben wieder eingesetzt.
+
+Release 046 speichert beim direkten Checkout die serverseitig geprüfte Elternidentität als `new_child_auth_id` am Buchungsauftrag. Ein neuer Spieler samt Familienverknüpfung entsteht erst nach bestätigter Zahlung. Die Datenbank prüft die aktuelle Elternzuordnung nochmals; eine geänderte Zuordnung oder ein inzwischen vorhandenes gleiches Kind führt zur Prüfung. Bereits erkennbare Duplikate werden vor Checkout abgewiesen. Eine neue Kindangabe erfordert einen individuellen, an diese Buchung gebundenen Checkout. Wiederholte Zahlungsereignisse erzeugen keine weiteren Kinder. Vorhandene Gast-, Profil- und Versandregeln bleiben bestehen.
+
+Geprüft mit 1.276 Tests und Browserprüfungen auf 390/1.440 Pixeln, einschließlich Formularwechsel, neuer Kindangaben, Familienbindung, Duplikaten und verzögerter Zahlungsbestätigung.

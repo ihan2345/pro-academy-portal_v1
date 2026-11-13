@@ -135,7 +135,13 @@ export function BookingForm({ campId }: { campId: string }) {
       setDiscount({ percent: 0, code: null });
       return;
     }
-    if (!player || storedChild?.booking_status || registrationClosed) return;
+    if (
+      !player ||
+      player === "new" ||
+      storedChild?.booking_status ||
+      registrationClosed
+    )
+      return;
     let current = true;
     campApi(`discount?camp_id=${campId}&player_id=${player}`)
       .then((d) => {
@@ -173,7 +179,8 @@ export function BookingForm({ campId }: { campId: string }) {
         ...(optionSelected
           ? { booking_option_version: data?.camp.booking_option_version ?? 0 }
           : {}),
-        player_id: player || undefined,
+        player_id: player && player !== "new" ? player : undefined,
+        new_child: player === "new",
         parent,
         child,
       });
@@ -345,8 +352,15 @@ export function BookingForm({ campId }: { campId: string }) {
                                 : ""}
                           </option>
                         ))}
+                        <option value="new">Neues Kind angeben</option>
                       </select>
                     </label>
+                  )}
+                  {player === "new" && (
+                    <p>
+                      Das neue Kind wird nach bestätigter Buchung angelegt und
+                      deinem Elternprofil zugeordnet.
+                    </p>
                   )}
                   {bookingStatus ? (
                     <div role="status">
@@ -367,7 +381,7 @@ export function BookingForm({ campId }: { campId: string }) {
                           Vorname
                           <input
                             required
-                            readOnly={mode === "existing"}
+                            readOnly={mode === "existing" && player !== "new"}
                             value={child.first_name}
                             onChange={(e) =>
                               setChild({ ...child, first_name: e.target.value })
@@ -378,7 +392,7 @@ export function BookingForm({ campId }: { campId: string }) {
                           Nachname
                           <input
                             required
-                            readOnly={mode === "existing"}
+                            readOnly={mode === "existing" && player !== "new"}
                             value={child.last_name}
                             onChange={(e) =>
                               setChild({ ...child, last_name: e.target.value })

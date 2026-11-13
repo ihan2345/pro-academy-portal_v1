@@ -73,7 +73,7 @@ export async function campContext() {
   const parents = check(
     await serviceDb()
       .from("parents")
-      .select("id,full_name,contact_email,phone")
+      .select("id,auth_user_id,full_name,contact_email,phone")
       .eq("auth_user_id", s.user.id)
       .is("archived_at", null),
   );
@@ -308,6 +308,11 @@ export async function createBooking(input: unknown) {
   let parentId: string | null = null,
     playerId: string | null = null,
     benefit = { percent: 0, group: "new" };
+  if (body.new_child && body.player_id)
+    throw new HttpError(
+      400,
+      "Bitte ein vorhandenes oder ein neues Kind auswählen.",
+    );
   if (body.player_id) {
     if (
       !context.parent ||
@@ -350,8 +355,34 @@ export async function createBooking(input: unknown) {
           ? "Bitte das gespeicherte Geburtsdatum verwenden."
           : `Geburtsjahr ${child.birth_year} ist bereits gespeichert. Bitte nur Tag und Monat ergänzen.`,
       );
+  } else if (body.new_child) {
+    if (context.role !== "parent" || !context.parent?.auth_user_id)
+      throw new HttpError(403, "Bitte mit deinem Elternzugang anmelden.");
+    const normalized = (value: string) => value.trim().toLowerCase();
+    if (
+      context.children.some(
+        (existing: any) =>
+          normalized(existing.first_name) ===
+            normalized(body.child.first_name) &&
+          normalized(existing.last_name) === normalized(body.child.last_name) &&
+          (existing.camp_birth_date
+            ? existing.camp_birth_date === body.child.birth_date
+            : existing.birth_year ===
+              Number(body.child.birth_date.slice(0, 4))),
+      )
+    )
+      throw new HttpError(
+        409,
+        "Dieses Kind ist bereits deinem Profil zugeordnet. Bitte wähle es unter Kind auswählen aus.",
+      );
+    parentId = context.parent.id;
+    body.parent.name = context.parent.full_name;
+    body.parent.email = context.parent.contact_email;
   } else if (context.role === "parent")
-    throw new HttpError(400, "Bitte ein zugeordnetes Kind auswählen.");
+    throw new HttpError(
+      400,
+      "Bitte ein zugeordnetes Kind auswählen oder Neues Kind angeben wählen.",
+    );
   const hash = await browserHash(true);
   if (!parentId) {
     const previous = check(
@@ -404,7 +435,10 @@ export async function createBooking(input: unknown) {
     bookingCodes[String(benefit.percent)] = code;
   }
   if (body.booking_option_selected) offer = await campOptionOffer(camp, offer);
-  if (camp.member_benefits_enabled !== true && offer.stripe_payment_link_id)
+  if (
+    (camp.member_benefits_enabled !== true || body.new_child) &&
+    offer.stripe_payment_link_id
+  )
     offer = { ...offer, stripe_payment_link_id: null, payment_url: null };
   if (offer.stripe_payment_link_id)
     await verifyOffer(
@@ -420,6 +454,7 @@ export async function createBooking(input: unknown) {
       offer_id: offer.id,
       parent_id: parentId,
       player_id: playerId,
+      new_child_auth_id: body.new_child ? context.parent!.auth_user_id : null,
       browser_token_hash: hash,
       parent_data: body.parent,
       child_data: body.child,

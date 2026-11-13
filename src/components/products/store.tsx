@@ -971,7 +971,7 @@ export function ProductStore({
                               {c.name}
                             </option>
                           ))}
-                          <option value="new">Neues Kind</option>
+                          <option value="new">Neues Kind angeben</option>
                         </select>
                       </label>
                     )}

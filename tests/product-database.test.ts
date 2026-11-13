@@ -2269,6 +2269,7 @@ async function profileBookingFixture(
   linked: boolean,
   childPatch: Record<string, unknown> = {},
   parentPatch: Record<string, unknown> = {},
+  newRequest = false,
 ) {
   const camp = id(50),
     offer = id(51),
@@ -2308,17 +2309,31 @@ async function profileBookingFixture(
       [parent, player],
     );
   }
+  if (newRequest) {
+    await db.query(
+      "insert into auth.users(id,email,email_confirmed_at)values($1,$2,now())",
+      [id(n + 3), `profile-${n}@example.invalid`],
+    );
+    await db.query("insert into profiles(id,role)values($1,'parent')", [
+      id(n + 3),
+    ]);
+    await db.query("update parents set auth_user_id=$2 where id=$1", [
+      parent,
+      id(n + 3),
+    ]);
+  }
   await db.query(
-    "insert into camp_bookings(id,camp_id,offer_id,parent_id,player_id,booking_origin,browser_token_hash,parent_data,child_data,customer_group,expected_amount,currency,stripe_price_id,stripe_payment_link_id,checkout_session_id) values($1,$2,$3,$4,$5,'portal_checkout','profile-sync',$6,$7,'new',9900,'eur','price_camp_api',null,$8)",
+    "insert into camp_bookings(id,camp_id,offer_id,parent_id,player_id,booking_origin,browser_token_hash,parent_data,child_data,customer_group,expected_amount,currency,stripe_price_id,stripe_payment_link_id,checkout_session_id,new_child_auth_id) values($1,$2,$3,$4,$5,'portal_checkout','profile-sync',$6,$7,'new',9900,'eur','price_camp_api',null,$8,$9)",
     [
       booking,
       camp,
       offer,
       linked ? parent : null,
-      linked ? player : null,
+      linked && !newRequest ? player : null,
       parentData,
       childData,
       `cs_test_profile_${n}`,
+      newRequest ? id(n + 3) : null,
     ],
   );
   const proof = {
@@ -2567,3 +2582,142 @@ it.each([true, false])(
     }
   },
 );
+
+it("creates a newly requested child only after payment and links it to the authenticated parent", async () => {
+  await db.exec("begin");
+  try {
+    const f = await profileBookingFixture(
+      2400,
+      true,
+      { first_name: "Neueskind" },
+      {},
+      true,
+    );
+    const count = async () =>
+      Number(
+        (
+          await db.query<any>(
+            "select count(*) n from parent_players where parent_id=$1",
+            [f.parent],
+          )
+        ).rows[0].n,
+      );
+    expect(await count()).toBe(1);
+    const before = (
+      await db.query<any>("select player_id from camp_bookings where id=$1", [
+        f.booking,
+      ])
+    ).rows[0];
+    expect(before.player_id).toBeNull();
+    expect(
+      (await db.query<any>("select camp_confirm_payment($1) result", [f.proof]))
+        .rows[0].result.status,
+    ).toBe("paid");
+    const kid = (
+      await db.query<any>(
+        "select k.* from players k join camp_bookings b on b.player_id=k.id where b.id=$1",
+        [f.booking],
+      )
+    ).rows[0];
+    expect(kid.id).not.toBe(f.player);
+    expect(kid).toMatchObject({
+      first_name: "Neueskind",
+      birth_year: 2015,
+      gender: "weiblich",
+      camp_clothing_size: "152",
+    });
+    expect(await count()).toBe(2);
+    await db.query("select camp_confirm_payment($1)", [f.proof]);
+    expect(await count()).toBe(2);
+  } finally {
+    await db.exec("rollback");
+  }
+});
+it("routes a duplicate new child to review without creating another profile", async () => {
+  await db.exec("begin");
+  try {
+    const f = await profileBookingFixture(
+      2410,
+      true,
+      { first_name: " profilkind ", last_name: "TEST" },
+      {},
+      true,
+    );
+    expect(
+      (await db.query<any>("select camp_confirm_payment($1) result", [f.proof]))
+        .rows[0].result.status,
+    ).toBe("review");
+    expect(
+      Number(
+        (
+          await db.query<any>(
+            "select count(*) n from parent_players where parent_id=$1",
+            [f.parent],
+          )
+        ).rows[0].n,
+      ),
+    ).toBe(1);
+  } finally {
+    await db.exec("rollback");
+  }
+});
+it("does not create a child if the authenticated family association changes during payment", async () => {
+  await db.exec("begin");
+  try {
+    const f = await profileBookingFixture(
+      2420,
+      true,
+      { first_name: "Neueskind" },
+      {},
+      true,
+    );
+    await db.query("update parents set auth_user_id=null where id=$1", [
+      f.parent,
+    ]);
+    expect(
+      (await db.query<any>("select camp_confirm_payment($1) result", [f.proof]))
+        .rows[0].result.status,
+    ).toBe("review");
+    expect(
+      Number(
+        (
+          await db.query<any>(
+            "select count(*) n from parent_players where parent_id=$1",
+            [f.parent],
+          )
+        ).rows[0].n,
+      ),
+    ).toBe(1);
+  } finally {
+    await db.exec("rollback");
+  }
+});
+it("rejects a forged new-child family marker at reservation", async () => {
+  await db.exec("begin");
+  try {
+    const f = await profileBookingFixture(
+      2430,
+      true,
+      { first_name: "Neueskind" },
+      {},
+      true,
+    );
+    await db.exec("savepoint forged_marker");
+    await expect(
+      db.query(
+        "insert into camp_bookings select (jsonb_populate_record(null::camp_bookings,to_jsonb(b)||jsonb_build_object('id',$2::text,'checkout_session_id',null,'new_child_auth_id',$3::text))).* from camp_bookings b where b.id=$1",
+        [f.booking, id(2439), id(1)],
+      ),
+    ).rejects.toThrow(/bestätigten Elternzugang/);
+    await db.exec("rollback to forged_marker");
+    expect(
+      (
+        await db.query<any>(
+          "select has_function_privilege('authenticated','camp_check_new_child()','execute') allowed",
+        )
+      ).rows[0].allowed,
+    ).toBe(false);
+  } finally {
+    await db.exec("rollback");
+  }
+});

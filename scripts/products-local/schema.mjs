@@ -53,6 +53,7 @@ export function productSchemaFiles() {
       "043-central-camp-booking-option.sql",
       "044-parent-activation-camp-benefits.sql",
       "045-camp-profile-sync.sql",
+      "046-camp-parent-new-child.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

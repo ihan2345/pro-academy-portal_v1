@@ -573,3 +573,60 @@ it("checks a known family email before starting guest payment", async () => {
   expect(f.checkout).not.toHaveBeenCalled();
   expect(f.verify).not.toHaveBeenCalled();
 });
+
+it("reserves a new child for the authenticated family with an individually bound Checkout", async () => {
+  await createBooking({
+    ...input,
+    player_id: undefined,
+    new_child: true,
+    child: { ...input.child, first_name: "Neues Kind" },
+    parent: {
+      ...input.parent,
+      name: "Falscher Name",
+      email: "other@example.invalid",
+    },
+  });
+  expect(f.insert).toHaveBeenCalledWith(
+    expect.objectContaining({
+      parent_id: parentId,
+      player_id: null,
+      new_child_auth_id: "user",
+      booking_origin: "portal_checkout",
+      benefit_percent: 0,
+      parent_data: expect.objectContaining({
+        name: "Test Parent",
+        email: "test@example.invalid",
+      }),
+    }),
+  );
+  expect(f.checkout).toHaveBeenCalledTimes(1);
+  expect(f.verify).not.toHaveBeenCalled();
+  expect(f.queries.some((q) => q.table === "subscription_players")).toBe(false);
+  expect(f.queries.some((q) => q.table === "players")).toBe(false);
+});
+it("blocks duplicate new-child requests before payment", async () => {
+  await expect(
+    createBooking({
+      ...input,
+      player_id: undefined,
+      new_child: true,
+      child: { ...input.child, first_name: " test " },
+    }),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(f.insert).not.toHaveBeenCalled();
+  expect(f.checkout).not.toHaveBeenCalled();
+});
+it("requires an explicit new-child choice and rejects mixed and anonymous requests", async () => {
+  await expect(
+    createBooking({ ...input, new_child: true }),
+  ).rejects.toMatchObject({ status: 400 });
+  await expect(
+    createBooking({ ...input, player_id: undefined }),
+  ).rejects.toMatchObject({ status: 400 });
+  f.session.mockResolvedValue(null);
+  await expect(
+    createBooking({ ...input, player_id: undefined, new_child: true }),
+  ).rejects.toMatchObject({ status: 403 });
+  expect(f.insert).not.toHaveBeenCalled();
+  expect(f.checkout).not.toHaveBeenCalled();
+});

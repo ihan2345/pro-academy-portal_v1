@@ -31,6 +31,7 @@ export const bookingSchema = z.object({
   booking_option_selected: z.boolean().default(false),
   booking_option_version: z.number().int().nonnegative().optional(),
   player_id: z.uuid().optional(),
+  new_child: z.boolean().default(false),
   parent: z.object({
     name: z.string().trim().min(2).max(160),
     email: z.email(),

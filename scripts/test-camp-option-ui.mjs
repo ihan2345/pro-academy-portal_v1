@@ -662,6 +662,35 @@ try {
     await expect(page.getByLabel("Kleidergröße", { exact: false })).toHaveValue(
       "140",
     );
+    await page
+      .getByRole("combobox", { name: "Kind auswählen", exact: true })
+      .selectOption("new");
+    await expect(page.getByLabel("Vorname", { exact: true })).toBeEditable();
+    await expect(page.getByLabel("Vorname", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Nachname", { exact: true })).toBeEditable();
+    await expect(
+      page.getByLabel("Geburtsdatum", { exact: true }),
+    ).toBeEditable();
+    await page.getByLabel("Vorname", { exact: true }).fill("Neueskind");
+    await page.getByLabel("Nachname", { exact: true }).fill("Test");
+    await page.getByLabel("Geburtsdatum", { exact: true }).fill("2016-05-16");
+    await page.getByLabel("Kleidergröße", { exact: false }).selectOption("152");
+    await page
+      .getByRole("button", { name: "Weiter zur Zahlung", exact: false })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("Isolierter Test");
+    assert.equal(submitted.new_child, true);
+    assert.equal(submitted.player_id, undefined);
+    assert.equal(submitted.child.first_name, "Neueskind");
+    await page
+      .getByRole("combobox", { name: "Kind auswählen", exact: true })
+      .selectOption(profileContext.children[0].id);
+    await expect(page.getByLabel("Vorname", { exact: true })).toHaveValue(
+      "Profil",
+    );
+    await expect(
+      page.getByLabel("Vorname", { exact: true }),
+    ).not.toBeEditable();
     assert.deepEqual(errors, []);
     await page.close();
     console.log(
