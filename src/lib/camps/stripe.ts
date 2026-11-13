@@ -3,7 +3,8 @@ import Stripe from "stripe";
 import { serviceDb } from "@/lib/server/service-db";
 import { HttpError } from "@/lib/server/security";
 import { campPaymentMode, campLocalEnabled } from "./runtime";
-import type { Offer } from "./domain";
+import type { Camp, Offer } from "./domain";
+import { findCampOptionPrice } from "./option-price";
 
 export function campStripe() {
   const key = process.env.CAMP_STRIPE_SECRET_KEY ?? "";
@@ -327,4 +328,26 @@ export function checkoutUrl(offer: Offer, bookingId: string, email: string) {
   url.searchParams.set("locked_prefilled_email", email);
   url.searchParams.set("locale", "de");
   return url.href;
+}
+
+export async function campOptionOffer(
+  camp: Camp,
+  offer: Offer,
+): Promise<Offer> {
+  if (!camp.booking_option)
+    throw new HttpError(409, "Diese Camp-Buchungsoption ist nicht verfügbar.");
+  const price = await findCampOptionPrice(
+    campStripe(),
+    offer.stripe_product_id,
+    camp.booking_option.amount,
+    offer.currency,
+  );
+  const verified = await verifyCheckoutOffer(price.id, {});
+  if (
+    verified.amount !== camp.booking_option.amount ||
+    verified.currency !== offer.currency ||
+    verified.stripe_product_id !== offer.stripe_product_id
+  )
+    throw new HttpError(409, "Der Optionspreis konnte nicht bestätigt werden.");
+  return { ...offer, ...verified, codes: offer.codes };
 }

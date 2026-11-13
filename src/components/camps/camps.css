@@ -913,3 +913,41 @@
   a.camp-overview-card:not(.primary-button):not(.secondary-button) {
   text-decoration: none;
 }
+
+.camp-booking-option-fields {
+  border: 1px solid #b6a3e1;
+  border-radius: 12px;
+  padding: 18px;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.camp-option-toggle {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+}
+.camp-option-toggle input {
+  width: 20px !important;
+  height: 20px;
+  flex-shrink: 0;
+}
+.camp-booking-option-fields .camp-grid > p {
+  grid-column: 1/-1;
+}
+.camp-option-popup {
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+  overflow-wrap: anywhere;
+}
+.camp-option-popup .camp-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 480px) {
+  .camp-option-popup button {
+    width: 100%;
+  }
+}

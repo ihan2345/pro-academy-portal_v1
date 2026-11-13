@@ -1,4 +1,5 @@
 "use client";
+import { Modal } from "@/components/portal";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, MapPin, CalendarDays } from "lucide-react";
@@ -35,6 +36,8 @@ type Data = {
 };
 export function BookingForm({ campId }: { campId: string }) {
   const loginHref = useCampLogin();
+  const [optionSelected, setOptionSelected] = useState(false),
+    [optionAlert, setOptionAlert] = useState(false);
   const [data, setData] = useState<Data | null>(null),
     [error, setError] = useState(""),
     [mode, setMode] = useState(""),
@@ -119,14 +122,23 @@ export function BookingForm({ campId }: { campId: string }) {
       current = false;
     };
   }, [player, campId, storedChild?.booking_status]);
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (bookingStatus || busy) return;
+    if (optionSelected && data?.camp.booking_option) setOptionAlert(true);
+    else void book();
+  }
+  async function book() {
     if (bookingStatus || busy) return;
     setBusy(true);
     setError("");
     try {
       const result = await campApi("book", {
         camp_id: campId,
+        booking_option_selected: optionSelected,
+        ...(optionSelected
+          ? { booking_option_version: data?.camp.booking_option_version ?? 0 }
+          : {}),
         player_id: player || undefined,
         parent,
         child,
@@ -168,7 +180,12 @@ export function BookingForm({ campId }: { campId: string }) {
             </span>
             <strong>
               {data.offer
-                ? money(data.offer.amount, data.offer.currency)
+                ? money(
+                    optionSelected && data.camp.booking_option
+                      ? data.camp.booking_option.amount
+                      : data.offer.amount,
+                    data.offer.currency,
+                  )
                 : "Preis folgt"}
             </strong>
           </div>
@@ -410,7 +427,42 @@ export function BookingForm({ campId }: { campId: string }) {
                         </label>
                       </div>
                       <h2>3. Zur Zahlung</h2>
-                      {discount.code && data.offer?.automatic_benefit ? (
+                      {data.camp.booking_option && (
+                        <section className="camp-booking-option-fields">
+                          <label className="camp-option-toggle">
+                            <input
+                              type="checkbox"
+                              checked={optionSelected}
+                              onChange={(e) =>
+                                setOptionSelected(e.target.checked)
+                              }
+                            />
+                            {data.camp.booking_option.title}
+                          </label>
+                          <p style={{ whiteSpace: "pre-line" }}>
+                            {data.camp.booking_option.description}
+                          </p>
+                          <p>
+                            Mit Option:{" "}
+                            <strong>
+                              {money(
+                                data.camp.booking_option.amount,
+                                data.offer?.currency,
+                              )}
+                            </strong>{" "}
+                            statt{" "}
+                            {money(
+                              data.offer?.amount ?? 0,
+                              data.offer?.currency,
+                            )}
+                            . Bestehende Rabatte gelten auch auf den
+                            Optionspreis.
+                          </p>
+                        </section>
+                      )}
+
+                      {discount.code &&
+                      (data.offer?.automatic_benefit || optionSelected) ? (
                         <p className="camp-success">
                           Dein Abo-Vorteil von {discount.percent} % wird auf den
                           aktuellen Camppreis automatisch angewendet – auch
@@ -460,6 +512,46 @@ export function BookingForm({ campId }: { campId: string }) {
             </>
           )}
         </>
+      )}
+      {optionAlert && data?.camp.booking_option && (
+        <Modal
+          title={data.camp.booking_option.title}
+          close={() => setOptionAlert(false)}
+          dismissOnBackdropClick={false}
+        >
+          <div className="camp-option-popup">
+            <p style={{ whiteSpace: "pre-line" }}>
+              {data.camp.booking_option.alert}
+            </p>
+            <p>
+              Options-Preis:{" "}
+              <strong>
+                {money(data.camp.booking_option.amount, data.offer?.currency)}
+              </strong>{" "}
+              vor bestehenden Rabatten.
+            </p>
+            <div className="camp-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setOptionAlert(false)}
+              >
+                Zurück
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={busy}
+                onClick={() => {
+                  setOptionAlert(false);
+                  void book();
+                }}
+              >
+                Hinweis bestätigen und weiter
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </CampFrame>
   );

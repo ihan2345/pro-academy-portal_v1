@@ -18,6 +18,7 @@ import {
 } from "./domain";
 import {
   campStripe,
+  campOptionOffer,
   checkoutUrl,
   createCampOffer,
   createCampCheckout,
@@ -271,9 +272,18 @@ export async function createBooking(input: unknown) {
       400,
       `Das Camp ist für Kinder von ${camp.min_age} bis ${camp.max_age} Jahren.`,
     );
-  const offer = currentOffer(offers, camp.early_bird_until);
+  let offer = currentOffer(offers, camp.early_bird_until);
   if (!offer)
     throw new HttpError(409, "Kein gültiges Zahlungsangebot hinterlegt.");
+  if (
+    body.booking_option_selected &&
+    (!camp.booking_option ||
+      body.booking_option_version !== (camp.booking_option_version ?? 0))
+  )
+    throw new HttpError(
+      409,
+      "Die Camp-Buchungsoption wurde geändert. Bitte die Seite neu laden und den aktuellen Preis prüfen.",
+    );
   const context = await campContext();
   let parentId: string | null = null,
     playerId: string | null = null,
@@ -372,6 +382,7 @@ export async function createBooking(input: unknown) {
       );
     bookingCodes[String(benefit.percent)] = code;
   }
+  if (body.booking_option_selected) offer = await campOptionOffer(camp, offer);
   if (offer.stripe_payment_link_id)
     await verifyOffer(
       offer.stripe_price_id,
@@ -392,6 +403,12 @@ export async function createBooking(input: unknown) {
       customer_group: benefit.group,
       benefit_percent: benefit.percent,
       expected_amount: offer.amount,
+      booking_option_snapshot: body.booking_option_selected
+        ? {
+            option: camp.booking_option,
+            version: camp.booking_option_version ?? 0,
+          }
+        : null,
       currency: offer.currency,
       stripe_price_id: offer.stripe_price_id,
       stripe_payment_link_id: offer.stripe_payment_link_id,

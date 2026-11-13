@@ -356,6 +356,11 @@ export async function saveProduct(
     })
     .strict()
     .parse(raw);
+  if (input.data.booking_option)
+    throw new HttpError(
+      400,
+      "Bitte die Buchungsoption zentral beim Camp bearbeiten.",
+    );
   if (input.data.kind === "gift" && !giftsEnabled())
     throw new HttpError(404, "Geschenkkarten sind noch nicht freigegeben.");
   if (id) productIdSchema.parse(id);

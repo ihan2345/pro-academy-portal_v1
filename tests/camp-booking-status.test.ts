@@ -4,6 +4,9 @@ const f = vi.hoisted(() => ({
   session: vi.fn(),
   verify: vi.fn(),
   insert: vi.fn(),
+  optionOffer: vi.fn(),
+  checkout: vi.fn(),
+  update: vi.fn(),
   queries: [] as any[],
   rows: {} as Record<string, any[]>,
 }));
@@ -22,6 +25,8 @@ vi.mock("../src/lib/camps/runtime", () => ({
 }));
 vi.mock("../src/lib/camps/stripe", () => ({
   verifyOffer: f.verify,
+  campOptionOffer: f.optionOffer,
+  createCampCheckout: f.checkout,
   checkoutUrl: () => "https://checkout.example.invalid",
 }));
 vi.mock("next/headers", () => ({
@@ -130,6 +135,10 @@ beforeEach(() => {
       error: null,
     });
     const q: any = {
+      update: (patch: any) => {
+        f.update(patch);
+        return q;
+      },
       select: () => q,
       ilike: (key: string, value: string) => {
         predicates.push(
@@ -392,4 +401,72 @@ it("offers a trial child to its authenticated parent without a second entry or s
   } finally {
     vi.unstubAllEnvs();
   }
+});
+
+it("offers the central option on direct Camp bookings, preserving member discounts and a quote snapshot", async () => {
+  const option = {
+    amount: 7900,
+    title: "Tagesoption",
+    description: "Ein Tag",
+    alert: "Tag abstimmen",
+  };
+  Object.assign(f.rows.camps[0], {
+    booking_option: option,
+    booking_option_version: 2,
+  });
+  f.optionOffer.mockImplementation(async (_camp, offer) => ({
+    ...offer,
+    stripe_price_id: "price_option",
+    amount: 7900,
+    stripe_payment_link_id: null,
+    payment_url: null,
+  }));
+  f.checkout.mockResolvedValue({
+    id: "cs_test_option",
+    url: "https://checkout.stripe.com/test",
+  });
+  await createBooking({
+    ...input,
+    booking_option_selected: true,
+    booking_option_version: 2,
+  });
+  expect(f.optionOffer).toHaveBeenCalledOnce();
+  expect(f.insert).toHaveBeenCalledWith(
+    expect.objectContaining({
+      expected_amount: 7900,
+      stripe_price_id: "price_option",
+      booking_origin: "portal_checkout",
+      booking_option_snapshot: { option, version: 2 },
+      benefit_percent: 15,
+    }),
+  );
+  expect(f.checkout).toHaveBeenCalledWith(
+    expect.objectContaining({ amount: 7900, stripe_price_id: "price_option" }),
+    expect.any(String),
+    "test@example.invalid",
+    15,
+    "https://example.invalid",
+  );
+  expect(f.verify).not.toHaveBeenCalled();
+});
+it("rejects a stale or disabled central option before booking or creating Stripe resources", async () => {
+  for (const option of [
+    null,
+    { amount: 7900, title: "Tagesoption", description: "", alert: "Tag" },
+  ]) {
+    Object.assign(f.rows.camps[0], {
+      booking_option: option,
+      booking_option_version: 3,
+    });
+    await expect(
+      createBooking({
+        ...input,
+        booking_option_selected: true,
+        booking_option_version: 2,
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+  }
+  expect(f.insert).not.toHaveBeenCalled();
+  expect(f.optionOffer).not.toHaveBeenCalled();
+  expect(f.checkout).not.toHaveBeenCalled();
 });

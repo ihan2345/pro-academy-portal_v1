@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createCampOffer, createCampCheckout } from "../src/lib/camps/stripe";
+import {
+  createCampOffer,
+  createCampCheckout,
+  campOptionOffer,
+} from "../src/lib/camps/stripe";
 import { campTiming } from "../src/lib/camps/domain";
 vi.mock("../src/lib/server/service-db", () => ({
   serviceDb: () => ({
@@ -28,53 +32,61 @@ beforeEach(() => {
       };
       const data = url.pathname.endsWith("/products")
         ? product
-        : url.pathname.endsWith("/prices")
-          ? {
-              id:
-                body.get("unit_amount") === "20000"
-                  ? "price_early"
-                  : "price_main",
-              livemode: false,
-            }
-          : url.pathname.includes("/prices/")
+        : url.pathname.endsWith("/prices") && method === "GET"
+          ? { data: [] }
+          : url.pathname.endsWith("/prices")
             ? {
-                id: "price_early",
-                product,
-                active: true,
+                id:
+                  body.get("unit_amount") === "7900"
+                    ? "price_option"
+                    : body.get("unit_amount") === "20000"
+                      ? "price_early"
+                      : "price_main",
                 livemode: false,
-                type: "one_time",
-                unit_amount: 20000,
-                currency: "eur",
-                billing_scheme: "per_unit",
-                tax_behavior: "inclusive",
               }
-            : url.pathname.endsWith("/coupons")
-              ? { id: "coupon_" + body.get("percent_off") }
-              : url.pathname.endsWith("/promotion_codes")
-                ? method === "POST"
-                  ? { id: "promo_created", code: body.get("code") }
-                  : {
-                      data: [
-                        {
-                          id: "promo_member",
-                          code: "MEMBER10",
-                          active: true,
-                          coupon: {
-                            valid: true,
-                            percent_off: 10,
-                            applies_to: { products: ["prod_one"] },
+            : url.pathname.includes("/prices/")
+              ? {
+                  id: url.pathname.includes("price_option")
+                    ? "price_option"
+                    : "price_early",
+                  product,
+                  active: true,
+                  livemode: false,
+                  type: "one_time",
+                  unit_amount: url.pathname.includes("price_option")
+                    ? 7900
+                    : 20000,
+                  currency: "eur",
+                  billing_scheme: "per_unit",
+                  tax_behavior: "inclusive",
+                }
+              : url.pathname.endsWith("/coupons")
+                ? { id: "coupon_" + body.get("percent_off") }
+                : url.pathname.endsWith("/promotion_codes")
+                  ? method === "POST"
+                    ? { id: "promo_created", code: body.get("code") }
+                    : {
+                        data: [
+                          {
+                            id: "promo_member",
+                            code: "MEMBER10",
+                            active: true,
+                            coupon: {
+                              valid: true,
+                              percent_off: 10,
+                              applies_to: { products: ["prod_one"] },
+                            },
                           },
-                        },
-                      ],
-                      has_more: false,
-                    }
-                : url.pathname.endsWith("/checkout/sessions")
-                  ? {
-                      id: "cs_test_one",
-                      url: "https://checkout.stripe.com/c/pay/cs_test_one",
-                      livemode: false,
-                    }
-                  : null;
+                        ],
+                        has_more: false,
+                      }
+                  : url.pathname.endsWith("/checkout/sessions")
+                    ? {
+                        id: "cs_test_one",
+                        url: "https://checkout.stripe.com/c/pay/cs_test_one",
+                        livemode: false,
+                      }
+                    : null;
       if (!data) throw Error("Unexpected Stripe operation: " + url.pathname);
       return new Response(JSON.stringify(data), {
         headers: { "content-type": "application/json" },
@@ -152,4 +164,51 @@ it("classifies camps by the complete schedule, independently of day order", () =
   });
   expect(campTiming(c, Date.parse("2026-10-31T12:00Z")).phase).toBe("upcoming");
   expect(campTiming(c, Date.parse("2026-11-03T14:00Z")).phase).toBe("past");
+});
+
+it("creates a checked inclusive option price on the Camp product and carries existing member discounts into direct Checkout", async () => {
+  const offer = {
+    id: "offer_main",
+    camp_id: "camp",
+    stripe_price_id: "price_main",
+    stripe_product_id: "prod_one",
+    amount: 25000,
+    currency: "eur",
+    codes: { "10": "MEMBER10" },
+    stripe_payment_link_id: "plink_legacy",
+  } as any;
+  const option = await campOptionOffer(
+    {
+      booking_option: {
+        amount: 7900,
+        title: "Tagesoption",
+        description: "",
+        alert: "Tag abstimmen",
+      },
+    } as any,
+    offer,
+  );
+  expect(option).toMatchObject({
+    id: "offer_main",
+    amount: 7900,
+    stripe_price_id: "price_option",
+    stripe_product_id: "prod_one",
+    stripe_payment_link_id: null,
+    codes: { "10": "MEMBER10" },
+  });
+  const create = calls.find(
+    (c) => c.path === "/v1/prices" && c.method === "POST",
+  )!;
+  expect(create.body.get("tax_behavior")).toBe("inclusive");
+  expect(create.body.get("product")).toBe("prod_one");
+  await createCampCheckout(
+    option,
+    "booking",
+    "test@example.invalid",
+    10,
+    "https://portal.example",
+  );
+  const checkout = calls.find((c) => c.path === "/v1/checkout/sessions")!.body;
+  expect(checkout.get("line_items[0][price]")).toBe("price_option");
+  expect(checkout.get("discounts[0][promotion_code]")).toBe("promo_member");
 });

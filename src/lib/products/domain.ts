@@ -1,3 +1,4 @@
+import { bookingOptionSchema } from "../camps/booking-option";
 import { z } from "zod";
 
 export const productIdSchema = z
@@ -149,16 +150,8 @@ export const productSchema = z
     price: priceSchema.nullable(),
     plan_id: productIdSchema.nullable(),
     camp_offer_id: productIdSchema.nullable(),
-    booking_option: z
-      .object({
-        amount: z.number().int().min(50).max(10000000),
-        title: z.string().trim().min(2).max(160),
-        description: z.string().trim().max(3000),
-        alert: z.string().trim().min(1).max(3000),
-      })
-      .strict()
-      .nullable()
-      .optional(),
+    booking_option: bookingOptionSchema.nullable().optional(),
+    booking_option_version: z.number().int().nonnegative().optional(),
     repeatable: z.boolean(),
     training_content: z
       .object({

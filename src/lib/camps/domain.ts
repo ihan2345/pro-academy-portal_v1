@@ -1,3 +1,4 @@
+import { bookingOptionSchema, type BookingOption } from "./booking-option";
 import { z } from "zod";
 
 export type CampBookingStatus = "paid" | "review" | null;
@@ -27,6 +28,8 @@ export const childSchema = z.object({
 });
 export const bookingSchema = z.object({
   camp_id: z.uuid(),
+  booking_option_selected: z.boolean().default(false),
+  booking_option_version: z.number().int().nonnegative().optional(),
   player_id: z.uuid().optional(),
   parent: z.object({
     name: z.string().trim().min(2).max(160),
@@ -65,6 +68,7 @@ export const campSchema = z
       .min(1)
       .max(30),
     early_bird_until: z.iso.datetime({ offset: true }).nullable(),
+    booking_option: bookingOptionSchema.nullable().optional(),
     main: offerSchema.optional(),
     early: offerSchema.optional(),
   })
@@ -95,6 +99,8 @@ export const campSchema = z
       });
   });
 export type Camp = {
+  booking_option?: BookingOption | null;
+  booking_option_version?: number;
   payment_mode: "test" | "live";
   id: string;
   title: string;

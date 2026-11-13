@@ -295,6 +295,13 @@ it("uses the selected Camp price for Checkout and discounts while retaining the 
     early_bird_until: null,
     days: [{ starts_at: new Date(Date.now() + 86400000 * 30).toISOString() }],
     camp_offers: [offer],
+    booking_option: {
+      amount: 7900,
+      title: "Tagesoption",
+      description: "Ein Tag",
+      alert: "Tag abstimmen",
+    },
+    booking_option_version: 1,
   };
   state.tables.camp_offers = [{ ...offer, camps: camp }];
   state.tables.camps = [camp];
@@ -316,6 +323,7 @@ it("uses the selected Camp price for Checkout and discounts while retaining the 
       ...form,
       booking_option_selected: true,
       booking_option_revision: 1,
+      booking_option_version: 1,
       discount_code: "START",
       camp_details: {
         birth_date: form.new_child.birth_date,

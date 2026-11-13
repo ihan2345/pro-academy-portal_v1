@@ -43,7 +43,9 @@ await writeFile(
   `${output}/app.css`,
   css.css +
     "\n" +
-    (await readFile("src/components/products/products.css", "utf8")),
+    (await readFile("src/components/products/products.css", "utf8")) +
+    "\n" +
+    (await readFile("src/components/camps/camps.css", "utf8")),
 );
 const server = createServer(async (req, res) => {
   const path = req.url.split("?")[0];
@@ -77,6 +79,7 @@ const browser = await chromium.launch({ headless: true });
 const fixture = {
   id: "90000000-0000-4000-8000-000000000001",
   revision: 3,
+  booking_option_version: 2,
   name: "Camp Test",
   kind: "camp",
   description: "Campangebot",
@@ -117,6 +120,54 @@ try {
     await page.route("**/api/**", async (route) => {
       const req = route.request(),
         path = new URL(req.url()).pathname;
+      if (path.startsWith("/api/camp/public/"))
+        return route.fulfill({
+          json: {
+            camp: {
+              id: fixture.id,
+              title: fixture.name,
+              location: "Testplatz",
+              description: "Testcamp",
+              status: "open",
+              capacity: 30,
+              buffer_percent: 10,
+              min_age: 5,
+              max_age: 18,
+              days: [
+                {
+                  starts_at: "2027-04-01T09:00:00Z",
+                  ends_at: "2027-04-01T15:00:00Z",
+                },
+              ],
+              early_bird_until: null,
+              booking_option: fixture.booking_option,
+              booking_option_version: 2,
+            },
+            offer: {
+              amount: 9900,
+              currency: "eur",
+              kind: "main",
+              automatic_benefit: true,
+            },
+            occupied: 0,
+            maximum: 33,
+            context: visitor,
+          },
+        });
+      if (path === "/api/camp/save" || path === "/api/camp/booking-option") {
+        saved = req.postDataJSON();
+        return route.fulfill({
+          json: { ok: true, url: "/camp/buchung/" + fixture.id },
+        });
+      }
+      if (path === "/api/camp/book") {
+        calls++;
+        submitted = req.postDataJSON();
+        return route.fulfill({
+          status: 400,
+          json: { error: "Isolierter Test: keine Zahlung ausgelöst." },
+        });
+      }
       if (path.endsWith("/checkout")) {
         calls++;
         submitted = req.postDataJSON();
@@ -167,7 +218,7 @@ try {
     await page.getByLabel("Vorname", { exact: true }).fill("Kind");
     await page.getByLabel("Nachname", { exact: true }).fill("Test");
     await page.getByLabel("Geburtsdatum", { exact: true }).fill("2016-04-15");
-    await page.getByLabel("Kleidergröße", { exact: true }).fill("M");
+    await page.getByLabel("Kleidergröße", { exact: false }).fill("M");
     await buy.click();
     await expect(page.getByRole("alert")).toContainText("Isolierter Test");
     assert.equal(calls, 1);
@@ -202,6 +253,7 @@ try {
     assert.equal(calls, 2);
     assert.equal(submitted.booking_option_selected, true);
     assert.equal(submitted.booking_option_revision, 3);
+    assert.equal(submitted.booking_option_version, 2);
     assert.equal(submitted.discount_code, "START20");
     assert.equal(
       await page.evaluate(
@@ -218,9 +270,20 @@ try {
     await expect(
       page.getByLabel("Options-Preis in Euro", { exact: true }),
     ).toHaveCount(0);
+    await expect(
+      page.getByText("Buchungsoptionen werden zentral beim Camp", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await page.goto(base + "/camp/new");
     await page
-      .getByRole("switch", { name: "Buchungsoption aktivieren", exact: true })
-      .click();
+      .getByLabel("Campname", { exact: true })
+      .fill("Zentrales Testcamp");
+    await page
+      .getByLabel("Ort / Adresse", { exact: false })
+      .selectOption(fixture.id);
+    await page.getByLabel("Tag 1", { exact: true }).fill("2027-04-01");
+    await page.getByLabel("Buchungsoption aktivieren", { exact: true }).check();
     await page.getByLabel("Options-Preis in Euro", { exact: true }).fill("79");
     await page.getByLabel("Options-Titel", { exact: true }).fill("Tagesoption");
     await page
@@ -230,25 +293,76 @@ try {
       .getByLabel("Options-Alert", { exact: false })
       .fill("Bitte Tag abstimmen");
     await page
-      .getByRole("button", { name: "Entwurf speichern", exact: true })
+      .getByRole("button", { name: "Camp speichern", exact: true })
       .click();
     await expect.poll(() => saved?.booking_option?.amount).toBe(7900);
-    assert.deepEqual(saved.booking_option, {
-      amount: 7900,
-      title: "Tagesoption",
-      description: "Nur einen Tag",
-      alert: "Bitte Tag abstimmen",
-    });
-    await page
-      .getByRole("switch", { name: "Buchungsoption aktivieren", exact: true })
-      .click();
+    assert.equal(saved.booking_option.title, "Tagesoption");
+    await page.goto(base + "/camp/edit");
+    await page.getByText("Buchungsoption bearbeiten", { exact: true }).click();
     await expect(
       page.getByLabel("Options-Preis in Euro", { exact: true }),
-    ).toHaveCount(0);
+    ).toHaveValue("79");
+    await page.getByLabel("Options-Preis in Euro", { exact: true }).fill("89");
+    await page
+      .getByRole("button", { name: "Buchungsoption speichern", exact: true })
+      .click();
+    await expect.poll(() => saved?.booking_option?.amount).toBe(8900);
+    assert.equal(saved.expected_version, 2);
+    await page.goto(base + "/camp/buchung/" + fixture.id);
+    await page
+      .getByRole("button", { name: "Neu bei uns", exact: true })
+      .click();
+    await page.getByLabel("Name", { exact: true }).fill("Testfamilie");
+    await page
+      .getByLabel("E-Mail", { exact: true })
+      .fill("camp@example.invalid");
+    await page
+      .getByLabel("Telefon für Rückfragen", { exact: true })
+      .fill("123456");
+    await page.getByLabel("Vorname", { exact: true }).fill("Kind");
+    await page.getByLabel("Nachname", { exact: true }).fill("Test");
+    await page.getByLabel("Geburtsdatum", { exact: true }).fill("2016-04-15");
+    await page.getByLabel("Kleidergröße", { exact: false }).selectOption("140");
+    const directBuy = page.getByRole("button", {
+      name: "Weiter zur Zahlung",
+      exact: false,
+    });
+    await directBuy.click();
+    await expect(page.getByRole("alert")).toContainText("Isolierter Test");
+    assert.equal(submitted.booking_option_selected, false);
+    await page.getByLabel("Tagesoption", { exact: true }).check();
+    const before = calls;
+    await directBuy.click();
+    await expect(page.getByRole("dialog")).toContainText(
+      fixture.booking_option.alert,
+    );
+    assert.equal(calls, before);
+    await page.screenshot({ path: `${output}/direct-alert-${width}.png` });
+    await page.getByRole("button", { name: "Zurück", exact: true }).click();
+    await expect(page.getByLabel("Tagesoption", { exact: true })).toBeChecked();
+    await directBuy.click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await directBuy.click();
+    await page
+      .getByRole("button", {
+        name: "Hinweis bestätigen und weiter",
+        exact: true,
+      })
+      .click();
+    await expect.poll(() => calls).toBe(before + 1);
+    assert.equal(submitted.booking_option_selected, true);
+    assert.equal(submitted.booking_option_version, 2);
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+    );
     assert.deepEqual(errors, []);
     await page.close();
     console.log(
-      `Camp booking option UI passed: ${width}px, admin toggle/save, unchanged normal booking, selected total, popup, Escape/cancel, explicit confirmation and discount preservation.`,
+      `Camp booking option UI passed: ${width}px, central Camp creation/editing, product editor removal, shop/direct booking, popup confirmation, price version and discounts.`,
     );
   }
 } finally {

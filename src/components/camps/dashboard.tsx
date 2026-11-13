@@ -1,4 +1,9 @@
 "use client";
+import {
+  CampBookingOptionFields,
+  CampBookingOptionEditor,
+} from "./booking-option-editor";
+import type { BookingOption } from "@/lib/camps/booking-option";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -84,13 +89,16 @@ function berlin(value: string) {
     .toInstant()
     .toString();
 }
-function NewCamp({
+export function NewCamp({
   saved,
   locations,
 }: {
   saved: () => void;
   locations: Data["locations"];
 }) {
+  const [bookingOption, setBookingOption] = useState<BookingOption | null>(
+    null,
+  );
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [id] = useState(() => crypto.randomUUID()),
@@ -108,6 +116,7 @@ function NewCamp({
             early = f.get("early_until") as string;
           const body = {
             id,
+            booking_option: bookingOption,
             title: f.get("title"),
             location_id: f.get("location_id"),
             description: f.get("description"),
@@ -228,6 +237,11 @@ function NewCamp({
         Beschreibung
         <textarea name="description" rows={3} />
       </label>
+      <CampBookingOptionFields
+        value={bookingOption}
+        onChange={setBookingOption}
+        disabled={busy}
+      />
       <h3>Trainingstage · deutsche Ortszeit</h3>
       {days.map((d, i) => (
         <div className="camp-grid" key={i}>
@@ -599,6 +613,16 @@ export function CampDashboard({
                           Plätze als Puffer. Ein Platz ist nach erfolgreicher
                           Zahlung gebucht.
                         </p>
+                        <CampBookingOptionEditor
+                          key={`${camp.id}:${camp.booking_option_version ?? 0}`}
+                          camp={camp}
+                          onChanged={async () => {
+                            await load();
+                            setMessage(
+                              "Buchungsoption gespeichert. Shop und Camp-Buchungslink übernehmen die Einstellung automatisch.",
+                            );
+                          }}
+                        />
                         <CampManagementActions
                           camp={camp}
                           admin={data.role === "admin"}

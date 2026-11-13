@@ -45,6 +45,7 @@ const checkoutSchema = z
     request_id: productIdSchema,
     booking_option_selected: z.boolean().default(false),
     booking_option_revision: z.number().int().positive().optional(),
+    booking_option_version: z.number().int().nonnegative().optional(),
     guest_parent: guestParentSchema.optional(),
     discount_code: z.string().trim().max(80).optional(),
     use_gift_credit: z.boolean().default(false),
@@ -162,11 +163,6 @@ export async function checkoutProduct(
       409,
       "Die Buchungsoption wurde geändert. Bitte das Produkt neu öffnen und den aktuellen Preis prüfen.",
     );
-  if (
-    input.booking_option_selected &&
-    (p.published.kind !== "camp" || !p.published.booking_option)
-  )
-    throw new HttpError(400, "Diese Buchungsoption ist nicht verfügbar.");
   if (
     previous &&
     !!previous.product?.booking_option_selected !==
@@ -319,6 +315,20 @@ export async function checkoutProduct(
     }
   }
   p.published = await activeCampProduct(p.published);
+  if (
+    input.booking_option_selected &&
+    (p.published.kind !== "camp" || !p.published.booking_option)
+  )
+    throw new HttpError(400, "Diese Buchungsoption ist nicht verfügbar.");
+  if (
+    input.booking_option_selected &&
+    input.booking_option_version !== p.published.booking_option_version
+  )
+    throw new HttpError(
+      409,
+      "Die Camp-Buchungsoption wurde geändert. Bitte neu öffnen und den aktuellen Preis prüfen.",
+    );
+
   const decision = decideProduct(p.published, id, ctx, input.channel, playerId);
   if (!decision.purchasable || decision.mode === "change")
     throw new HttpError(
@@ -504,6 +514,7 @@ export async function checkoutProduct(
       amount,
       booking_option_selected: input.booking_option_selected,
       booking_option_price: optionPrice,
+      booking_option_version: input.booking_option_version,
       benefit_percent: benefit,
       camp_offer_id:
         p.published.kind === "camp" ? p.published.camp_offer_id : undefined,

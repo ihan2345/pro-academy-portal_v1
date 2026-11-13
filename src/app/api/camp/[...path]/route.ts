@@ -1,3 +1,4 @@
+import { saveCampBookingOption } from "@/lib/camps/management";
 import { limitCampRequest } from "@/lib/camps/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -124,6 +125,8 @@ async function handler(
         return json(
           await invitationWish(z.object({ id: z.uuid() }).parse(body).id),
         );
+      if (path === "booking-option")
+        return json(await saveCampBookingOption(body));
       if (path === "save") return json(await saveCamp(body, campAppOrigin()));
       if (path === "reconcile")
         return json(

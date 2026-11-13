@@ -260,7 +260,10 @@ export function ProductStore({
             ? {
                 booking_option_selected: optionSelected,
                 ...(optionSelected
-                  ? { booking_option_revision: chosen.revision }
+                  ? {
+                      booking_option_revision: chosen.revision,
+                      booking_option_version: chosen.booking_option_version,
+                    }
                   : {}),
               }
             : {}),

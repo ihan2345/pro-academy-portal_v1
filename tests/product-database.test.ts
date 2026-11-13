@@ -1613,8 +1613,8 @@ it.each([false, true])(
         alert: "Bitte den Tag mit uns abstimmen.",
       };
       await db.query(
-        "update catalog_products set published=published||jsonb_build_object('booking_option',$2::jsonb) where id=$1",
-        [p.id, option],
+        "update camps set booking_option=$2 where id=(select camp_id from camp_offers where id=$1)",
+        [p.published.camp_offer_id, option],
       );
       const optionPrice = {
         ...p.published.price,
@@ -1652,6 +1652,7 @@ it.each([false, true])(
           clothing_size: "M",
         },
         booking_option_selected: selected,
+        booking_option_version: 1,
         booking_option_price: selected ? optionPrice : null,
       };
       const reserved = (
@@ -1686,6 +1687,11 @@ it.each([false, true])(
         customer_id: request.customer_id,
         payment_id: "pi_option_test",
       };
+      // Updating the central option must not reprice an already reserved quote.
+      await db.query(
+        "update camps set booking_option=booking_option||'{\"amount\":8900}'::jsonb where id=(select camp_id from camp_offers where id=$1)",
+        [p.published.camp_offer_id],
+      );
       await db.query("select fulfill_product_purchase($1)", [
         { id: request.id, proof },
       ]);
@@ -1753,4 +1759,171 @@ it("rejects forged option amounts, mismatched Stripe products and unavailable op
     )
   ).rows[0];
   expect(access.allowed).toBe(false);
+});
+
+it("uses the Camp as the only option source, versions changes and blocks product-level editing", async () => {
+  await db.exec("begin");
+  try {
+    const p = (
+      await db.query<any>(
+        "select * from catalog_products where published->>'kind'='camp' limit 1",
+      )
+    ).rows[0];
+    const option = {
+      amount: 7900,
+      title: "Tagesoption",
+      description: "Ein Tag",
+      alert: "Abstimmen",
+    };
+    await db.query(
+      "update camps set booking_option=$2 where id=(select camp_id from camp_offers where id=$1)",
+      [p.published.camp_offer_id, option],
+    );
+    const one = (
+      await db.query<any>("select camp_product_snapshot($1) data", [
+        { ...p.published, booking_option: { ...option, amount: 1 } },
+      ])
+    ).rows[0].data;
+    expect(one.booking_option).toEqual(option);
+    expect(one.booking_option_version).toBe(1);
+    await db.query(
+      "update camps set booking_option=booking_option||'{\"amount\":8900}'::jsonb where id=(select camp_id from camp_offers where id=$1)",
+      [p.published.camp_offer_id],
+    );
+    const two = (
+      await db.query<any>("select camp_product_snapshot($1) data", [
+        p.published,
+      ])
+    ).rows[0].data;
+    expect(two.booking_option.amount).toBe(8900);
+    expect(two.booking_option_version).toBe(2);
+    await db.exec("savepoint option_stale");
+    await expect(
+      db.query("select camp_booking_option_snapshot($1,$2)", [
+        two,
+        {
+          booking_option_selected: true,
+          booking_option_version: 1,
+          booking_option_price: {
+            ...two.price,
+            id: "price_option",
+            amount: 8900,
+            source: "stripe",
+          },
+        },
+      ]),
+    ).rejects.toThrow(/ungültig/);
+    await db.exec("rollback to option_stale");
+    await db.exec("savepoint duplicate_editor");
+    await expect(
+      db.query("select save_catalog_product($1)", [
+        {
+          data: { ...p.published, booking_option: option },
+          id: p.id,
+          revision: p.revision,
+        },
+      ]),
+    ).rejects.toThrow(/zentral beim Camp/);
+    await db.exec("rollback to duplicate_editor");
+    await db.query(
+      "update camps set booking_option=null where id=(select camp_id from camp_offers where id=$1)",
+      [p.published.camp_offer_id],
+    );
+    const disabled = (
+      await db.query<any>("select camp_product_snapshot($1) data", [
+        p.published,
+      ])
+    ).rows[0].data;
+    expect(disabled.booking_option).toBeNull();
+    expect(disabled.booking_option_version).toBe(3);
+  } finally {
+    await db.exec("rollback");
+  }
+});
+
+it("confirms direct Camp option quotes after later edits and rejects stale new quotes", async () => {
+  await db.exec("begin");
+  try {
+    const p = (
+      await db.query<any>(
+        "select * from catalog_products where published->>'kind'='camp' limit 1",
+      )
+    ).rows[0];
+    const offer = (
+      await db.query<any>("select * from camp_offers where id=$1", [
+        p.published.camp_offer_id,
+      ])
+    ).rows[0];
+    const option = {
+      amount: 7900,
+      title: "Tagesoption",
+      description: "Ein Tag",
+      alert: "Tag abstimmen",
+    };
+    await db.query("update camps set booking_option=$2 where id=$1", [
+      offer.camp_id,
+      option,
+    ]);
+    const insert = `insert into camp_bookings(id,camp_id,offer_id,booking_origin,browser_token_hash,parent_data,child_data,customer_group,benefit_percent,expected_amount,currency,stripe_price_id,stripe_payment_link_id,checkout_session_id,booking_option_snapshot)values($1,$2,$3,'portal_checkout','test-option-browser',$4,$5,'new',0,7900,'eur','price_direct_option',null,$6,$7)`;
+    const args = [
+      id(1850),
+      offer.camp_id,
+      offer.id,
+      {
+        name: "Direkte Optionsfamilie",
+        email: "central-option@example.invalid",
+        phone: "123456",
+      },
+      {
+        first_name: "Kind",
+        last_name: "Option",
+        birth_date: "2016-04-15",
+        gender: "keine Angabe",
+        clothing_size: "140",
+      },
+      "cs_test_direct_option",
+      { option, version: 1 },
+    ];
+    await db.query(insert, args);
+    await db.query(
+      "update camps set booking_option=booking_option||'{\"amount\":8900}'::jsonb where id=$1",
+      [offer.camp_id],
+    );
+    await db.exec("savepoint stale_direct_option");
+    await expect(
+      db.query(insert, [
+        id(1851),
+        ...args.slice(1, 5),
+        "cs_test_stale_option",
+        args[6],
+      ]),
+    ).rejects.toThrow(/Buchungsoption wurde geändert/);
+    await db.exec("rollback to stale_direct_option");
+    const proof = {
+      booking_id: id(1850),
+      session_id: "cs_test_direct_option",
+      payment_id: "pi_direct_option",
+      payment_status: "paid",
+      livemode: false,
+      price_id: "price_direct_option",
+      product_id: offer.stripe_product_id,
+      payment_link_id: null,
+      currency: "eur",
+      subtotal: 7900,
+      total: 7900,
+      quantity: 1,
+      refunded: false,
+    };
+    const result = (
+      await db.query<any>("select camp_confirm_payment($1) data", [proof])
+    ).rows[0].data;
+    expect(result.status).toBe("paid");
+    const booking = (
+      await db.query<any>("select * from camp_bookings where id=$1", [id(1850)])
+    ).rows[0];
+    expect(booking.paid_amount).toBe(7900);
+    expect(booking.booking_option_snapshot).toEqual({ option, version: 1 });
+  } finally {
+    await db.exec("rollback");
+  }
 });
