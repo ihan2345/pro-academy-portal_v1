@@ -740,8 +740,8 @@ export function CampDashboard({
                           </div>
                           {[
                             ["subscriber", "Aktives Abo"],
-                            ["former", "Früheres Abo"],
-                            ["new", "Ohne Abo / Neukunde"],
+                            ["none", "Ohne Abo"],
+                            ["new", "Neukunde"],
                           ].map(([g, label]) => (
                             <div key={g}>
                               <b>
@@ -801,6 +801,14 @@ export function CampDashboard({
                         <details className="camp-details">
                           <summary>Buchungslink & Verwaltung</summary>
                           <div className="camp-actions">
+                            <a
+                              className="secondary-button"
+                              href={`/camps/${camp.id}/kundenliste`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Kundenliste exportieren ↗
+                            </a>
                             {camp.status !== "archived" && (
                               <>
                                 <Link
