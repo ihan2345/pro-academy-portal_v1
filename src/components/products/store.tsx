@@ -199,6 +199,12 @@ export function ProductStore({
     setCampEmailPrompt(false);
     setOptionSelected(false);
     setOptionAlert(false);
+    if (p.kind === "camp" && p.camp_booking_url) {
+      const target = new URL(p.camp_booking_url, window.location.origin);
+      if (channel !== "catalog") target.searchParams.set("channel", channel);
+      window.location.assign(target.pathname + target.search);
+      return;
+    }
     if (p.kind === "gift") {
       setGiftChosen(p);
       return;
@@ -1149,7 +1155,7 @@ export function ProductStore({
                           Stripe angezeigt.{" "}
                           {chosen.kind === "camp" &&
                             chosen.member_benefits_enabled === true &&
-                            "Camp-Mitgliederrabatte werden automatisch berücksichtigt; Rabatte werden nicht kombiniert, der höhere Rabatt gilt."}
+                            "Camp-Mitgliederrabatte werden zuerst angewendet, danach dein Rabattcode und zuletzt Geschenkguthaben."}
                         </small>
                       </label>
                     )}

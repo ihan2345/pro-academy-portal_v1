@@ -1,3 +1,4 @@
+import { campMemberPrice } from "./camp-member-price";
 import { requireGuestEmailAvailable } from "../parent-activation";
 import { bookingOptionPrice } from "./booking-option";
 import { giftCodeSchema } from "@/lib/gifts/domain";
@@ -344,7 +345,8 @@ export async function checkoutProduct(
   const optionPrice = input.booking_option_selected
     ? await bookingOptionPrice(p.published)
     : null;
-  const price = optionPrice ?? basePrice;
+  let price = optionPrice ?? basePrice;
+  let memberPrice: typeof price | undefined;
   const parent = guest
     ? { ...input.guest_parent!, contact_email: input.guest_parent!.email }
     : checked(
@@ -457,7 +459,8 @@ export async function checkoutProduct(
         price.amount - Math.round((price.amount * benefit) / 100)
       )
         throw new HttpError(400, "Camp-Rabatt ist nicht gültig.");
-      discount = automatic;
+      memberPrice = await campMemberPrice(price, benefit);
+      price = memberPrice;
     }
   }
 
@@ -486,10 +489,8 @@ export async function checkoutProduct(
       customerId,
       guest,
     );
-    if (!discount || entered.amount < discount.amount) {
-      discount = entered;
-      benefit = 0;
-    }
+    discount = entered;
+    if (!memberPrice) benefit = 0;
   }
   promotion = discount?.promotion_id;
   const amount = discount?.amount ?? price.amount;
@@ -521,6 +522,7 @@ export async function checkoutProduct(
       amount,
       booking_option_selected: input.booking_option_selected,
       booking_option_price: optionPrice,
+      camp_member_price: memberPrice,
       booking_option_version: input.booking_option_version,
       benefit_percent: benefit,
       camp_offer_id:
@@ -583,7 +585,9 @@ export async function checkoutProduct(
         client_reference_id: intent.id,
         metadata: { product_intent_id: intent.id },
         line_items: [{ price: price.id, quantity: 1 }],
-        ...(promotion ? { discounts: [{ promotion_code: promotion }] } : {}),
+        ...(promotion && !(intent.gift_credit_amount > 0)
+          ? { discounts: [{ promotion_code: promotion }] }
+          : {}),
         payment_method_types: ["card"],
         success_url: `${origin}/produkte?purchase=${intent.id}`,
         cancel_url: `${origin}/produkte?purchase=${intent.id}`,

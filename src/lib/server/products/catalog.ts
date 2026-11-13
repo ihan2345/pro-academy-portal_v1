@@ -208,6 +208,7 @@ export async function listProducts(
       .order("id", { ascending: false })
       .limit(size + 1);
     if (selectedProduct) query = query.eq("id", selectedProduct);
+    else query = query.is("camp_checkout_for", null);
     if (q && admin)
       query = query.textSearch("search_document", q, {
         type: "websearch",
@@ -325,6 +326,14 @@ export function publicProduct(
     revision: p.published_revision,
     name: v.name,
     kind: v.kind,
+    camp_booking_url:
+      v.kind === "camp" && v.camp_id
+        ? `/camp/buchung/${v.camp_id}?product=${p.id}`
+        : null,
+    booking_option_version:
+      v.kind === "camp" ? (v.booking_option_version ?? 0) : null,
+    member_benefits_enabled:
+      v.kind === "camp" && v.member_benefits_enabled === true,
     description: v.description,
     short_description: v.short_description,
     category: v.category,

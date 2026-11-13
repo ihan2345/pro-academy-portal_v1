@@ -41,6 +41,7 @@ export function withCampSnapshot(
   return {
     ...product,
     camp_offer_id: offer.id,
+    camp_id: camp.id,
     booking_option: camp.booking_option ?? null,
     member_benefits_enabled: camp.member_benefits_enabled === true,
     booking_option_version: camp.booking_option_version ?? 0,

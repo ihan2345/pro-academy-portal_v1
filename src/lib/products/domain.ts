@@ -239,7 +239,7 @@ export const productSchema = z
         path: ["camp_offer_id"],
       });
   });
-export type Product = z.infer<typeof productSchema>;
+export type Product = z.infer<typeof productSchema> & { camp_id?: string };
 export type ProductRecord = {
   id: string;
   revision: number;

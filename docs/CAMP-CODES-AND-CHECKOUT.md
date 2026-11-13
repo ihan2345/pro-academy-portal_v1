@@ -1,0 +1,17 @@
+# Einheitliche Campbuchung und kombinierbare Codes
+
+Der Kaufbutton eines veröffentlichten Camp-Shopprodukts führt zum Campformular mit der zugehörigen Produktreferenz. Die Anmeldung behält diese Referenz und den ursprünglichen Shopkanal. Das Formular prüft, dass Produkt und Camp zusammengehören. Aktive vorhandene Kinder und „Neues Kind angeben“ bleiben verfügbar.
+
+Im Campformular stehen unabhängig von den Abo-Vorteilen „Stripe-Rabattcode (optional)“ und, bei aktivierter Geschenkkartenfunktion, „PA-Geschenkcode (optional)“. Beide Eingaben erfolgen vor Stripe. Es gilt die Reihenfolge: persönlicher Abo-Vorteil, danach normaler Stripe-Code, danach PA-Guthaben. Beispiel: 200 € minus 20 % Abo-Vorteil = 160 €; minus 10 % Stripe-Code = 144 €; minus 50 € Guthaben = 94 € Restzahlung. Die bisherige Auswahl des höheren Rabatts wird damit ausschließlich für diese Campkombination ersetzt. Ohne aktivierte Abo-Vorteile wird kein Abo-Abzug berechnet oder beworben.
+
+Der persönliche Campbetrag verwendet einen geprüften einmaligen Preis desselben Stripeprodukts. Der Originalbetrag bleibt im Kaufnachweis als `camp_member_base_price` erhalten. Der normale Gutschein bleibt der originale Stripe-Promotion-Code mit seinen Produkt-, Kunden-, Ablauf- und Nutzungslimits. Es werden keine Ersatzcoupons erzeugt. Die Datenbank prüft den Mitgliedspreis in Cent sowie die Zuordnung zum ursprünglichen Camp-/Optionsangebot. Alte Reservierungen behalten ihren bisherigen Preisnachweis.
+
+PA-Guthaben nutzt den vorhandenen Reservierungs-, Rechnungs- und Erstattungsweg. Bei einer PA-Zuzahlung wird der normale Rabatt nur auf der Leistungsrechnung angewendet. Die Checkout-Restzahlung erhält diesen Rabatt nicht ein zweites Mal. Der bisherige Zahlungsnachweis für tatsächliche Stripezahlung, Gutscheinguthaben und Rechnung bleibt erforderlich, bevor Buchung oder Profilübernahme erfolgen.
+
+Auch ein direkter Camp-Link ohne veröffentlichte Shopkarte bietet die Codefelder. Erst beim ausdrücklich gestarteten Buchungsvorgang wird bei Bedarf ein einziges privates Checkout-Produkt für das Camp angelegt. Laden des Formulars schreibt keine Daten. Diese technischen Datensätze erscheinen nicht als zusätzliche Produkte im Shop oder in der normalen Produktverwaltung. Veröffentlichte Shopkarten behalten ihre bisherige Preis-Eindeutigkeit; der private Buchungsdatensatz darf denselben Camp-Preis verwenden.
+
+Die Meldung zur angeblich geänderten 199-€-Option wurde durch eine fehlende Versionskennung im öffentlichen Produktpayload verursacht. `booking_option_version` wird jetzt getrennt von der Produktrevision ausgeliefert. Die echte Erkennung zwischenzeitlich geänderter Optionen bleibt aktiv. Das konkrete Angebot „Ohne ProAcademy Trikot-Set“ mit 199 € ist mit und ohne Rabattcode als Regression abgedeckt.
+
+Migrationen: Release 047 ergänzt die Mitgliedspreis-Snapshots und die Prüfung gespeicherter Quotes. Release 048 ergänzt die private Camp-Buchungsreferenz und die idempotente Anlage des zugrunde liegenden Checkout-Produkts. Die Funktionen sind nur für den Server ausführbar. Historische Buchungen, Profile, Geschenkkartenbestände, Versandfreigaben und gehaltene Jobs werden beim Deployment nicht verändert.
+
+Validierung: 1.295 Tests, darunter SQL-Integration der vollständigen Kombination bis zur erfüllten Campbuchung, Prüfung der Stripe-Rechnungszuordnung und Browserprüfungen auf 390/1.440 Pixeln. TypeScript und Cloudflare-Produktionsbuild erfolgreich. Keine echten Käufe oder Anmeldemails zu Testzwecken ausgelöst.

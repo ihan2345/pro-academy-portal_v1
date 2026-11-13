@@ -50,7 +50,13 @@ createRoot(document.getElementById("root")!).render(
   ) : path === "/camp/edit" ? (
     <CampBookingOptionEditor camp={camp} onChanged={async () => {}} />
   ) : path.startsWith("/camp/buchung/") ? (
-    <BookingForm campId={camp.id} />
+    <BookingForm
+      campId={camp.id}
+      productId={
+        new URLSearchParams(location.search).get("product") ?? undefined
+      }
+      channel={new URLSearchParams(location.search).get("channel") ?? undefined}
+    />
   ) : path.startsWith("/admin") ? (
     <AdminProducts />
   ) : (

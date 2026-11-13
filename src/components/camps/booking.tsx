@@ -28,6 +28,16 @@ type Child = {
 };
 type Data = {
   camp: Camp;
+  shop_booking?: {
+    product: {
+      id: string;
+      revision: number;
+      booking_option_version: number;
+    } | null;
+    accounts?: string[];
+    gifts_enabled: boolean;
+    payments_enabled: boolean;
+  } | null;
   occupied: number;
   maximum: number;
   offer: {
@@ -46,11 +56,23 @@ type Data = {
     } | null;
   };
 };
-export function BookingForm({ campId }: { campId: string }) {
+export function BookingForm({
+  campId,
+  productId,
+  channel = "catalog",
+}: {
+  campId: string;
+  productId?: string;
+  channel?: string;
+}) {
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const [discountCode, setDiscountCode] = useState("");
+  const [giftCode, setGiftCode] = useState("");
+  const [customerId, setCustomerId] = useState("");
   const baseLoginHref = useCampLogin();
   const loginHref =
     baseLoginHref === "/login"
-      ? `/login?next=${encodeURIComponent(`/camp/buchung/${campId}`)}`
+      ? `/login?next=${encodeURIComponent(`/camp/buchung/${campId}${productId ? `?product=${productId}${channel !== "catalog" ? `&channel=${channel}` : ""}` : ""}`)}`
       : baseLoginHref;
   const [optionSelected, setOptionSelected] = useState(false),
     [optionAlert, setOptionAlert] = useState(false);
@@ -79,7 +101,9 @@ export function BookingForm({ campId }: { campId: string }) {
   });
   useEffect(() => {
     let current = true;
-    campApi(`public/${campId}`)
+    campApi(
+      `public/${campId}${productId ? `?product=${encodeURIComponent(productId)}&channel=${encodeURIComponent(channel)}` : ""}`,
+    )
       .then((d: Data) => {
         if (!current) return;
         setData(d);
@@ -104,12 +128,13 @@ export function BookingForm({ campId }: { campId: string }) {
     return () => {
       current = false;
     };
-  }, [campId]);
+  }, [campId, productId, channel]);
   const storedChild = data?.context.children.find((c) => c.id === player);
   const bookingStatus = storedChild?.booking_status || discount.booking_status;
   const registrationClosed = !data || !!campRegistrationClosedReason(data.camp);
   function selectChild(id: string) {
     setError("");
+    setRequestId(crypto.randomUUID());
     setPlayer(id);
     setDiscount({ percent: 0, code: null });
     const c = data?.context.children.find((c) => c.id === id);
@@ -173,17 +198,75 @@ export function BookingForm({ campId }: { campId: string }) {
     setBusy(true);
     setError("");
     try {
-      const result = await campApi("book", {
-        camp_id: campId,
-        booking_option_selected: optionSelected,
-        ...(optionSelected
-          ? { booking_option_version: data?.camp.booking_option_version ?? 0 }
-          : {}),
-        player_id: player && player !== "new" ? player : undefined,
-        new_child: player === "new",
-        parent,
-        child,
-      });
+      const shop = data?.shop_booking;
+      const result = shop
+        ? await (async () => {
+            const product =
+              shop.product ??
+              (await campApi("checkout-product", { camp_id: campId }));
+            const response = await fetch(
+              `/api/products/${product.id}/checkout`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  request_id: requestId,
+                  channel: shop.product ? channel : "catalog",
+                  ...(customerId ? { customer_id: customerId } : {}),
+                  booking_option_selected: optionSelected,
+                  ...(optionSelected
+                    ? {
+                        booking_option_revision: product.revision ?? 1,
+                        booking_option_version:
+                          data?.camp.booking_option_version ?? 0,
+                      }
+                    : {}),
+                  ...(mode === "new"
+                    ? {
+                        guest_parent: {
+                          full_name: parent.name,
+                          email: parent.email,
+                          phone: parent.phone,
+                        },
+                      }
+                    : {}),
+                  ...(mode === "new" || player === "new"
+                    ? { new_child: child }
+                    : { player_id: player }),
+                  camp_details: {
+                    birth_date: child.birth_date,
+                    gender: child.gender,
+                    clothing_size: child.clothing_size,
+                    phone: parent.phone,
+                  },
+                  ...(discountCode.trim()
+                    ? { discount_code: discountCode.trim() }
+                    : {}),
+                  ...(giftCode.trim() ? { gift_code: giftCode.trim() } : {}),
+                }),
+              },
+            );
+            const result = await response.json();
+            if (!response.ok)
+              throw new Error(
+                result.error ?? "Buchung konnte nicht begonnen werden.",
+              );
+            return result;
+          })()
+        : await campApi("book", {
+            camp_id: campId,
+            booking_option_selected: optionSelected,
+            ...(optionSelected
+              ? {
+                  booking_option_version:
+                    data?.camp.booking_option_version ?? 0,
+                }
+              : {}),
+            player_id: player && player !== "new" ? player : undefined,
+            new_child: player === "new",
+            parent,
+            child,
+          });
       try {
         sessionStorage.setItem("camp_parent", JSON.stringify(parent));
       } catch {
@@ -192,6 +275,7 @@ export function BookingForm({ campId }: { campId: string }) {
       location.assign(result.url);
     } catch (e) {
       setError((e as Error).message);
+      setRequestId(crypto.randomUUID());
       setBusy(false);
     }
   }
@@ -547,6 +631,66 @@ export function BookingForm({ campId }: { campId: string }) {
                               : "Ohne aktives Abo gilt der angezeigte Camp-Preis."}
                           </p>
                         ))}
+                      {(data.shop_booking?.accounts?.length ?? 0) > 1 && (
+                        <label>
+                          Zahlkonto
+                          <select
+                            required
+                            value={customerId}
+                            onChange={(event) => {
+                              setCustomerId(event.target.value);
+                              setRequestId(crypto.randomUUID());
+                            }}
+                          >
+                            <option value="">Bitte auswählen</option>
+                            {data.shop_booking!.accounts!.map((id) => (
+                              <option value={id} key={id}>
+                                {id}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {data.shop_booking && (
+                        <section
+                          className="camp-form"
+                          aria-label="Rabatte und Geschenkkarten"
+                        >
+                          <label>
+                            Stripe-Rabattcode (optional)
+                            <input
+                              value={discountCode}
+                              maxLength={80}
+                              autoComplete="off"
+                              onChange={(event) => {
+                                setDiscountCode(event.target.value);
+                                setRequestId(crypto.randomUUID());
+                              }}
+                            />
+                          </label>
+                          {data.shop_booking.gifts_enabled && (
+                            <label>
+                              PA-Geschenkcode (optional)
+                              <input
+                                value={giftCode}
+                                maxLength={80}
+                                autoComplete="off"
+                                placeholder="PA-…"
+                                onChange={(event) => {
+                                  setGiftCode(event.target.value);
+                                  setRequestId(crypto.randomUUID());
+                                }}
+                              />
+                            </label>
+                          )}
+                          <p>
+                            {data.camp.member_benefits_enabled === true
+                              ? "Abo-Vorteile werden zuerst berechnet, danach dein Stripe-Rabattcode und zuletzt das Geschenkguthaben."
+                              : "Dein Stripe-Rabattcode wird zuerst berechnet, danach das Geschenkguthaben."}{" "}
+                            Bei Stripe zahlst du den verbleibenden Betrag.
+                          </p>
+                        </section>
+                      )}
                       <p>
                         Dein Platz ist erst nach bestätigter Zahlung gebucht.
                         Das Formular reserviert keinen Platz. Telefonnummer und

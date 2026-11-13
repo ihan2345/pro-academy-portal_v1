@@ -165,7 +165,11 @@ export async function getCamp(id: string) {
   const occupancy = check(await db.rpc("camp_occupied_seats", { camp_id: id }));
   return { camp, offers, occupied: Number(occupancy) };
 }
-export async function publicCamp(id: string) {
+export async function publicCamp(
+  id: string,
+  productId?: string,
+  channel = "catalog",
+) {
   const { camp, offers, occupied } = await getCamp(id);
   const s = await sessionUser();
   if (camp.status === "draft" || camp.status === "archived")
@@ -173,6 +177,23 @@ export async function publicCamp(id: string) {
       throw new HttpError(404, "Camp ist noch nicht buchbar.");
   const offer = currentOffer(offers, camp.early_bird_until);
   const context = await campContext();
+  const { campShopBooking } = await import("./shop-booking");
+  const shopBooking = await campShopBooking(
+    id,
+    offers.map((o) => o.id),
+    s,
+    productId,
+    channel,
+  );
+  const accounts =
+    shopBooking && context.parent
+      ? check(
+          await serviceDb()
+            .from("parent_stripe_customers")
+            .select("stripe_customer_id")
+            .eq("parent_id", context.parent.id),
+        )
+      : [];
   const bookings = context.children.length
     ? check(
         await serviceDb()
@@ -188,6 +209,12 @@ export async function publicCamp(id: string) {
     : [];
   return {
     camp,
+    shop_booking: shopBooking
+      ? {
+          ...shopBooking,
+          accounts: [...new Set(accounts.map((a) => a.stripe_customer_id))],
+        }
+      : null,
     occupied,
     maximum: maximumSeats(camp),
     offer: offer

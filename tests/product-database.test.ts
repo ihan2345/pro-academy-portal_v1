@@ -2721,3 +2721,225 @@ it("rejects a forged new-child family marker at reservation", async () => {
     await db.exec("rollback");
   }
 });
+
+it("combines a Camp member price, an actual Stripe promotion and PA credit before fulfilling the correct child", async () => {
+  await db.exec("begin");
+  try {
+    const f = await profileBookingFixture(
+      2800,
+      true,
+      { first_name: "Neueskind" },
+      {},
+      true,
+    );
+    await db.query("delete from camp_bookings where id=$1", [f.booking]);
+    await db.query(
+      "update camps set status='open',member_benefits_enabled=true,days=$2 where id=$1",
+      [
+        id(50),
+        [
+          {
+            starts_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+            ends_at: new Date(
+              Date.now() + 30 * 86400000 + 3600000,
+            ).toISOString(),
+          },
+        ],
+      ],
+    );
+    await db.query("update camp_offers set amount=20000 where id=$1", [id(51)]);
+    const product = (
+      await db.query<any>("select camp_ensure_checkout_product($1) id", [
+        id(50),
+      ])
+    ).rows[0].id;
+    expect(
+      (
+        await db.query<any>("select camp_ensure_checkout_product($1) id", [
+          id(50),
+        ])
+      ).rows[0].id,
+    ).toBe(product);
+    const base = (
+      await db.query<any>(
+        "select published,camp_checkout_for from catalog_products where id=$1",
+        [product],
+      )
+    ).rows[0];
+    expect(base.camp_checkout_for).toBe(id(50));
+    const order = id(2810),
+      giftOrder = id(2811);
+    await db.query(
+      "insert into gift_orders(id,buyer,recipient,amount,livemode,access_hash,access_cipher,stripe_product_id,stripe_price_id,session_id,status)values($1,'{}','{}',5000,false,'hash-stack','cipher','prod_gift','price_gift','cs_test_gift_stack','checkout')",
+      [giftOrder],
+    );
+    await db.query("select gift_issue_paid_order($1)", [
+      {
+        id: giftOrder,
+        session_id: "cs_test_gift_stack",
+        amount: 5000,
+        livemode: false,
+        currency: "eur",
+        payment_id: "pi_gift_stack",
+        paid_at: new Date().toISOString(),
+        code_hash: "stack-gift-hash",
+        code_cipher: "cipher",
+      },
+    ]);
+    const request = {
+      id: order,
+      product_id: product,
+      revision: 1,
+      parent_id: f.parent,
+      auth_id: id(2803),
+      player_id: f.player,
+      customer_id: "cus_stack",
+      channel: "catalog",
+      camp_offer_id: id(51),
+      benefit_percent: 20,
+      amount: 14400,
+      camp_member_price: {
+        ...base.published.price,
+        id: "price_member_stack",
+        amount: 16000,
+      },
+      discount: {
+        source: "code",
+        promotion_id: "promo_real10",
+        coupon_id: "coupon_real10",
+        code: "NORMAL10",
+        amount: 14400,
+        duration: "once",
+        duration_in_months: null,
+      },
+      gift_code_hash: "stack-gift-hash",
+      gift_next_hash: "stack-next",
+      gift_next_cipher: "cipher-next",
+      gift_refund_hash: "stack-refund",
+      gift_refund_cipher: "cipher-refund",
+      camp_details: {
+        birth_date: "2015-04-15",
+        gender: "weiblich",
+        clothing_size: "140",
+        phone: "0123456789",
+      },
+    };
+    const i = (
+      await db.query<any>("select (reserve_product_purchase($1)).*", [request])
+    ).rows[0];
+    expect(i).toMatchObject({
+      expected_subtotal: 16000,
+      expected_amount: 9400,
+      gift_credit_amount: 5000,
+      benefit_percent: 20,
+    });
+    expect(i.product.camp_member_base_price.amount).toBe(20000);
+    expect(i.product.price.id).toBe("price_member_stack");
+    expect(i.discount.promotion_id).toBe("promo_real10");
+    await db.query(
+      "update product_purchase_intents set status='checkout',session_id='cs_test_stack' where id=$1",
+      [order],
+    );
+    await db.query(
+      "insert into gift_billings(intent_id,livemode,invoice_id,payment_record_id,state)values($1,false,'in_stack','pr_stack','settled')",
+      [order],
+    );
+    const proof = {
+      session_id: "cs_test_stack",
+      livemode: false,
+      payment_status: "paid",
+      price_id: "price_member_stack",
+      product_id: base.published.price.product_id,
+      currency: "eur",
+      subtotal: 16000,
+      total: 9400,
+      quantity: 1,
+      customer_id: "cus_stack",
+      payment_id: "in_stack",
+      gift_invoice_id: "in_stack",
+      gift_payment_record_id: "pr_stack",
+      gift_credit_amount: 5000,
+      gift_invoice_total: 14400,
+    };
+    const completed = (
+      await db.query<any>("select fulfill_product_purchase($1) result", [
+        {
+          id: order,
+          proof,
+          context_version: (
+            await db.query<any>("select product_family_version($1) v", [
+              f.parent,
+            ])
+          ).rows[0].v,
+        },
+      ])
+    ).rows[0].result;
+    expect(completed.status).toBe("fulfilled");
+    expect(
+      (
+        await db.query<any>(
+          "select b.status,b.parent_id,b.player_id from camp_bookings b join product_purchase_intents i on i.camp_booking_id=b.id where i.id=$1",
+          [order],
+        )
+      ).rows[0],
+    ).toEqual({ status: "paid", parent_id: f.parent, player_id: f.player });
+    expect(
+      (
+        await db.query<any>(
+          "select state from gift_code_uses where intent_id=$1",
+          [order],
+        )
+      ).rows[0].state,
+    ).toBe("spent");
+  } finally {
+    await db.exec("rollback");
+  }
+});
+it("keeps automatic Camp checkout creation private and rejects closed Camps and forged member prices", async () => {
+  await db.exec("begin");
+  try {
+    expect(
+      (
+        await db.query<any>(
+          "select has_function_privilege('anon','camp_ensure_checkout_product(uuid)','execute') a,has_function_privilege('authenticated','camp_ensure_checkout_product(uuid)','execute') b",
+        )
+      ).rows[0],
+    ).toEqual({ a: false, b: false });
+    await db.query("update camps set status='closed' where id=$1", [id(50)]);
+    await db.exec("savepoint closed_camp");
+    await expect(
+      db.query("select camp_ensure_checkout_product($1)", [id(50)]),
+    ).rejects.toThrow(/nicht buchbar/);
+    await db.exec("rollback to closed_camp");
+    const base = {
+      kind: "camp",
+      member_benefits_enabled: true,
+      price: {
+        id: "price_camp",
+        product_id: "prod_camp",
+        amount: 20000,
+        currency: "eur",
+        livemode: false,
+      },
+    };
+    await db.exec("savepoint forged_member");
+    await expect(
+      db.query("select camp_member_price_snapshot($1,$2)", [
+        base,
+        {
+          benefit_percent: 20,
+          camp_member_price: {
+            ...base.price,
+            id: "price_forged",
+            source: "stripe",
+            interval: null,
+            amount: 100,
+          },
+        },
+      ]),
+    ).rejects.toThrow(/Mitgliedspreis/);
+    await db.exec("rollback to forged_member");
+  } finally {
+    await db.exec("rollback");
+  }
+});

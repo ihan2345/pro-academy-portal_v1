@@ -357,3 +357,20 @@ it.each([
   ).toBe(400);
   expect(m.send).not.toHaveBeenCalled();
 });
+
+it("retains a Shop Camp selection through email-code login", async () => {
+  const target =
+    "/camp/buchung/90000000-0000-4000-8000-000000000001?product=90000000-0000-4000-8000-000000000002&channel=homepage";
+  const requested = await call(
+    { email: "parent@example.com", return_to: target },
+    "auth/login",
+  );
+  expect(requested.status).toBe(200);
+  m.get.mockImplementation((key) =>
+    key === "pa_booking_return" ? { value: target } : undefined,
+  );
+  expect(
+    (await (await call({ email: "parent@example.com", code: "123456" })).json())
+      .redirect,
+  ).toBe(target);
+});

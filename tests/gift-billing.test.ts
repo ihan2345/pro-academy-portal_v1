@@ -441,3 +441,63 @@ it("does not repeat an already completed return", async () => {
   expect(await reconcileGiftRefund(i, stripe, true)).toBe(true);
   expect(stripe.rawRequest).not.toHaveBeenCalled();
 });
+
+it("settles a member-priced Camp with its real Stripe promotion and additional PA credit", async () => {
+  i.product.kind = "camp";
+  i.product.camp_member_base_price = { ...i.product.price, amount: 20000 };
+  i.product.camp_member_percent = 20;
+  i.product.price = { ...i.product.price, id: "price_member", amount: 16000 };
+  i.expected_subtotal = 16000;
+  i.expected_amount = 9400;
+  i.discount = { ...i.discount, promotion_id: "promo_normal10", amount: 14400 };
+  session.amount_subtotal = 9400;
+  session.amount_total = 9400;
+  pi.amount_received = 9400;
+  pi.latest_charge.amount = 9400;
+  invoice.parent = null;
+  invoice.total = 14400;
+  invoice.amount_remaining = 14400;
+  allocations[1].amount_paid = 9400;
+  stripe.invoices.attachPayment.mockImplementation(async () => {
+    invoice = {
+      ...invoice,
+      status: "paid",
+      amount_paid: 14400,
+      amount_remaining: 0,
+    };
+    return invoice;
+  });
+  stripe.checkout.sessions.listLineItems.mockResolvedValue({
+    has_more: false,
+    data: [
+      {
+        quantity: 1,
+        price: {
+          unit_amount: 9400,
+          product: {
+            id: "prod_cash",
+            metadata: {
+              product_intent_id: i.id,
+              original_price_id: "price_member",
+            },
+          },
+        },
+      },
+    ],
+  });
+  const result = await nativeGiftPayment(i, stripe);
+  expect(result).toMatchObject({
+    proof: {
+      subtotal: 16000,
+      total: 9400,
+      gift_invoice_total: 14400,
+      gift_credit_amount: 5000,
+      price_id: "price_member",
+    },
+  });
+  expect(stripe.invoiceItems.create.mock.calls[0][0]).toMatchObject({
+    pricing: { price: "price_member" },
+    discounts: [{ promotion_code: "promo_normal10" }],
+  });
+  expect(stripe.subscriptions.create).not.toHaveBeenCalled();
+});

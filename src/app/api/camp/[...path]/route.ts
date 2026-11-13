@@ -1,3 +1,4 @@
+import { prepareCampShopBooking } from "@/lib/camps/shop-booking";
 import { guestEmailRequiresLogin } from "@/lib/server/parent-activation";
 import { updateCamp, saveCampBookingOption } from "@/lib/camps/management";
 import { limitCampRequest } from "@/lib/camps/rate-limit";
@@ -73,7 +74,17 @@ async function handler(
         );
       if (path === "dashboard") return json(await dashboard());
       if (path.startsWith("public/"))
-        return json(await publicCamp(z.uuid().parse(path.split("/")[1])));
+        return json(
+          await publicCamp(
+            z.uuid().parse(path.split("/")[1]),
+            req.nextUrl.searchParams.get("product")
+              ? z.uuid().parse(req.nextUrl.searchParams.get("product"))
+              : undefined,
+            z
+              .enum(["catalog", "homepage", "parents", "trials"])
+              .parse(req.nextUrl.searchParams.get("channel") ?? "catalog"),
+          ),
+        );
       if (path === "discount")
         return json(
           await discount(
@@ -98,7 +109,15 @@ async function handler(
       }
     }
     if (req.method === "POST") {
-      if (["book", "confirm", "invitation-wish", "email-check"].includes(path))
+      if (
+        [
+          "book",
+          "confirm",
+          "invitation-wish",
+          "email-check",
+          "checkout-product",
+        ].includes(path)
+      )
         await limitCampRequest(req, path);
       const raw = await req.text();
       if (raw.length > 32768) throw new HttpError(413, "Anfrage ist zu groß.");
@@ -108,6 +127,12 @@ async function handler(
       } catch {
         throw new HttpError(400, "Ungültige Anfrage.");
       }
+      if (path === "checkout-product")
+        return json(
+          await prepareCampShopBooking(
+            z.object({ camp_id: z.uuid() }).strict().parse(body).camp_id,
+          ),
+        );
       if (path === "email-check") {
         const { email } = z
           .object({ email: z.string().trim().toLowerCase().pipe(z.email()) })

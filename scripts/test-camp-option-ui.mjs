@@ -153,6 +153,10 @@ try {
       console.log("UI error", e.message);
     });
     let profileContext = null;
+    let unified = false,
+      routeCampToForm = false,
+      missingProduct = false,
+      prepared = 0;
     let calls = 0,
       submitted,
       saved;
@@ -171,9 +175,26 @@ try {
                   req.postDataJSON().email === "known@example.invalid",
               },
             });
+      if (path === "/api/camp/checkout-product") {
+        prepared++;
+        return route.fulfill({ json: { id: fixture.id } });
+      }
       if (path.startsWith("/api/camp/public/"))
         return route.fulfill({
           json: {
+            shop_booking: unified
+              ? {
+                  product: missingProduct
+                    ? null
+                    : {
+                        id: fixture.id,
+                        revision: 3,
+                        booking_option_version: 2,
+                      },
+                  gifts_enabled: true,
+                  payments_enabled: true,
+                }
+              : null,
             camp: {
               id: fixture.id,
               title: fixture.name,
@@ -236,7 +257,16 @@ try {
       const json =
         path === "/api/products"
           ? {
-              rows: [fixture],
+              rows: [
+                {
+                  ...fixture,
+                  ...(routeCampToForm
+                    ? {
+                        camp_booking_url: `/camp/buchung/${fixture.id}?product=${fixture.id}`,
+                      }
+                    : {}),
+                },
+              ],
               context: profileContext ?? visitor,
               next: null,
               payments_enabled: true,
@@ -691,6 +721,85 @@ try {
     await expect(
       page.getByLabel("Vorname", { exact: true }),
     ).not.toBeEditable();
+    assert.deepEqual(errors, []);
+    profileContext = null;
+    unified = true;
+    routeCampToForm = true;
+    await page.goto(base + "/produkte");
+    await page
+      .getByRole("button", { name: "Jetzt buchen", exact: true })
+      .first()
+      .click();
+    await expect(page).toHaveURL(
+      base + `/camp/buchung/${fixture.id}?product=${fixture.id}`,
+    );
+    await enterNewCampGuest(page, "camp-codes@example.invalid");
+    await page.getByLabel("Name", { exact: true }).fill("Code Familie");
+    await page
+      .getByLabel("Telefon für Rückfragen", { exact: true })
+      .fill("0123456789");
+    await page.getByLabel("Vorname", { exact: true }).fill("Codekind");
+    await page.getByLabel("Nachname", { exact: true }).fill("Test");
+    await page.getByLabel("Geburtsdatum", { exact: true }).fill("2016-04-15");
+    await page.getByLabel("Kleidergröße", { exact: false }).selectOption("140");
+    await expect(
+      page.getByLabel("Stripe-Rabattcode (optional)", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("PA-Geschenkcode (optional)", { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByLabel("Stripe-Rabattcode (optional)", { exact: true })
+      .fill("NORMAL10");
+    await page
+      .getByLabel("PA-Geschenkcode (optional)", { exact: true })
+      .fill("PA-" + "A".repeat(24));
+    await page
+      .getByRole("button", { name: "Weiter zur Zahlung", exact: false })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("Isolierter Test");
+    assert.equal(submitted.discount_code, "NORMAL10");
+    assert.equal(submitted.gift_code, "PA-" + "A".repeat(24));
+    assert.equal(submitted.guest_parent.full_name, "Code Familie");
+    assert.equal(submitted.new_child.first_name, "Codekind");
+    assert(
+      !/Abo-Vorteil|Abo-Rabatt|Mitgliederrabatt/.test(
+        await page.locator("body").innerText(),
+      ),
+    );
+    await page.screenshot({ path: `${output}/camp-codes-${width}.png` });
+    missingProduct = true;
+    await page.goto(base + `/camp/buchung/${fixture.id}`);
+    await enterNewCampGuest(page, "direct-codes@example.invalid");
+    await page.getByLabel("Name", { exact: true }).fill("Direkte Familie");
+    await page
+      .getByLabel("Telefon für Rückfragen", { exact: true })
+      .fill("0123456789");
+    await page.getByLabel("Vorname", { exact: true }).fill("Direktes Kind");
+    await page.getByLabel("Nachname", { exact: true }).fill("Test");
+    await page.getByLabel("Geburtsdatum", { exact: true }).fill("2016-04-15");
+    await page.getByLabel("Kleidergröße", { exact: false }).selectOption("140");
+    await page
+      .getByLabel("Stripe-Rabattcode (optional)", { exact: true })
+      .fill("NORMAL10");
+    await page
+      .getByRole("button", { name: "Weiter zur Zahlung", exact: false })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("Isolierter Test");
+    assert.equal(prepared, 1);
+    assert.equal(submitted.discount_code, "NORMAL10");
+    assert.equal(submitted.new_child.first_name, "Direktes Kind");
+    missingProduct = false;
+    await page.goto(base + `/camp/buchung/${fixture.id}?product=${fixture.id}`);
+    await page
+      .getByLabel("E-Mail", { exact: true })
+      .fill("known@example.invalid");
+    await page.getByLabel("E-Mail", { exact: true }).press("Tab");
+    await expect(page).toHaveURL(
+      base +
+        "/login?next=" +
+        encodeURIComponent(`/camp/buchung/${fixture.id}?product=${fixture.id}`),
+    );
     assert.deepEqual(errors, []);
     await page.close();
     console.log(

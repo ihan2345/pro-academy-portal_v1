@@ -29,6 +29,10 @@ vi.mock("../src/lib/server/service-db", () => ({
           filters.push((r) => val(r, k) === v);
           return query;
         },
+        is: (k: string, v: any) => {
+          filters.push((r) => (val(r, k) ?? null) === v);
+          return query;
+        },
         not: (k: string, _op: string, v: any) => {
           filters.push((r) => val(r, k) !== v);
           return query;
@@ -191,4 +195,13 @@ it("opens the selected product regardless of its catalogue page while retaining 
   await expect(
     listProducts(null, new URLSearchParams({ product: "bad" })),
   ).rejects.toThrow();
+});
+
+it("keeps automatic Camp checkout records out of normal catalogue searches", async () => {
+  state.rows = [{ ...row(900), camp_checkout_for: id(901) }, row(902)];
+  const result = await listProducts(
+    null,
+    new URLSearchParams({ channel: "catalog" }),
+  );
+  expect(result.rows.map((p) => p.id)).toEqual([id(902)]);
 });
