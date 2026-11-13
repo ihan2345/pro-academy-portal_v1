@@ -1,4 +1,5 @@
 "use client";
+import { GuestCampEmailEntry } from "./guest-email-entry";
 import { useGuestEmailCheck } from "./guest-email-check";
 import { Modal } from "@/components/portal";
 import { useEffect, useState } from "react";
@@ -89,7 +90,6 @@ export function BookingForm({ campId }: { campId: string }) {
             const p = sessionStorage.getItem("camp_parent");
             if (p) {
               setParent(JSON.parse(p));
-              setMode("new");
             }
           } catch {}
         }
@@ -248,24 +248,17 @@ export function BookingForm({ campId }: { campId: string }) {
             <>
               {!mode && (
                 <section className="camp-panel">
-                  <h2>Wie möchtest du buchen?</h2>
-                  <div className="camp-actions">
-                    <Link
-                      className="secondary-button"
-                      href={loginHref}
-                      onClick={() =>
-                        sessionStorage.setItem("camp_return", location.pathname)
-                      }
-                    >
-                      Bereits Kunde? Anmelden
-                    </Link>
-                    <button
-                      className="primary-button"
-                      onClick={() => setMode("new")}
-                    >
-                      Neu bei uns
-                    </button>
-                  </div>
+                  <GuestCampEmailEntry
+                    email={parent.email}
+                    onEmailChange={(email) =>
+                      setParent((p) => ({ ...p, email }))
+                    }
+                    loginHref={loginHref}
+                    onNewCustomer={(email) => {
+                      setParent((p) => ({ ...p, email }));
+                      setMode("new");
+                    }}
+                  />
                   <p>
                     Eine Buchung gilt für genau ein Kind. Weitere Kinder kannst
                     du anschließend buchen.
@@ -293,8 +286,7 @@ export function BookingForm({ campId }: { campId: string }) {
                         type="email"
                         required
                         value={parent.email}
-                        onBlur={() => void emailCheck.verify()}
-                        readOnly={mode === "existing"}
+                        readOnly
                         onInput={(e) =>
                           setParent({ ...parent, email: e.currentTarget.value })
                         }
@@ -317,6 +309,15 @@ export function BookingForm({ campId }: { campId: string }) {
                   )}
                   {emailCheck.message && (
                     <p role="status">{emailCheck.message}</p>
+                  )}
+                  {mode === "new" && (
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => setMode("")}
+                    >
+                      Andere E-Mail verwenden
+                    </button>
                   )}
                   <h2>2. Dein Kind</h2>
                   {mode === "existing" && (

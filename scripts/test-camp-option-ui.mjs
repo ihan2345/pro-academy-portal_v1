@@ -45,7 +45,9 @@ await writeFile(
     "\n" +
     (await readFile("src/components/products/products.css", "utf8")) +
     "\n" +
-    (await readFile("src/components/camps/camps.css", "utf8")),
+    (await readFile("src/components/camps/camps.css", "utf8")) +
+    "\n" +
+    (await readFile("src/components/camps/guest-email-entry.css", "utf8")),
 );
 const server = createServer(async (req, res) => {
   const path = req.url.split("?")[0];
@@ -107,6 +109,41 @@ const visitor = {
   grants: [],
   complete: true,
 };
+async function enterNewCampGuest(page, email, screenshot) {
+  await expect(
+    page.getByRole("button", { name: "Neu bei uns", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Bereits Kunde? Anmelden", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByLabel("Dein vollständiger Name", { exact: true }),
+  ).toHaveCount(0);
+  await page.getByLabel("E-Mail", { exact: true }).fill(email);
+  await page.getByLabel("E-Mail", { exact: true }).press("Tab");
+  const prompt = page.getByRole("dialog", {
+    name: "Hast du bereits ein aktives Abo bei uns?",
+    exact: true,
+  });
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toContainText("Kauf über Stripe");
+  if (screenshot) await page.screenshot({ path: screenshot });
+  await page.keyboard.press("Escape");
+  await expect(prompt).toHaveCount(0);
+  await expect(
+    page.getByLabel("Dein vollständiger Name", { exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Weiter", exact: true }).click();
+  await expect(prompt).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: "Nein, ich habe kein aktives Abo",
+      exact: true,
+    })
+    .click();
+  await expect(prompt).toHaveCount(0);
+}
 try {
   for (const width of [390, 1440]) {
     const page = await browser.newPage({ viewport: { width, height: 1000 } });
@@ -217,6 +254,11 @@ try {
       .getByRole("button", { name: "Jetzt buchen", exact: true })
       .first()
       .click();
+    await enterNewCampGuest(
+      page,
+      "camp@example.invalid",
+      `${output}/email-entry-shop-${width}.png`,
+    );
     const dialog = page.getByRole("dialog");
     const buy = page.getByRole("button", {
       name: "Weiter zur Buchung",
@@ -225,9 +267,12 @@ try {
     await page
       .getByLabel("Dein vollständiger Name", { exact: true })
       .fill("Testfamilie");
-    await page
-      .getByLabel("Deine E-Mail", { exact: true })
-      .fill("camp@example.invalid");
+    await expect(page.getByLabel("Deine E-Mail", { exact: true })).toHaveValue(
+      "camp@example.invalid",
+    );
+    await expect(
+      page.getByLabel("Deine E-Mail", { exact: true }),
+    ).toHaveAttribute("readonly", "");
     await page.getByLabel("Vorname", { exact: true }).fill("Kind");
     await page.getByLabel("Nachname", { exact: true }).fill("Test");
     await page.getByLabel("Geburtsdatum", { exact: true }).fill("2016-04-15");
@@ -395,13 +440,15 @@ try {
     assert.equal(saved.expected_version, 2);
     assert.equal(saved.member_benefits_enabled, true);
     await page.goto(base + "/camp/buchung/" + fixture.id);
-    await page
-      .getByRole("button", { name: "Neu bei uns", exact: true })
-      .click();
+    await enterNewCampGuest(
+      page,
+      "camp@example.invalid",
+      `${output}/email-entry-direct-${width}.png`,
+    );
     await page.getByLabel("Name", { exact: true }).fill("Testfamilie");
-    await page
-      .getByLabel("E-Mail", { exact: true })
-      .fill("camp@example.invalid");
+    await expect(page.getByLabel("E-Mail", { exact: true })).toHaveValue(
+      "camp@example.invalid",
+    );
     await page
       .getByLabel("Telefon für Rückfragen", { exact: true })
       .fill("123456");
@@ -452,9 +499,7 @@ try {
     );
     assert.deepEqual(errors, []);
     await page.goto(base + "/camp/buchung/" + fixture.id);
-    await page
-      .getByRole("button", { name: "Neu bei uns", exact: true })
-      .click();
+
     await page
       .getByLabel("E-Mail", { exact: true })
       .fill("failure@example.invalid");
@@ -481,9 +526,27 @@ try {
       .first()
       .click();
     await page
-      .getByLabel("Deine E-Mail", { exact: true })
+      .getByLabel("E-Mail", { exact: true })
+      .fill("unknown@example.invalid");
+    await page.getByLabel("E-Mail", { exact: true }).press("Tab");
+    await expect(
+      page.getByRole("dialog", {
+        name: "Hast du bereits ein aktives Abo bei uns?",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page
+      .getByLabel("E-Mail für erneute Prüfung", { exact: true })
       .fill("known@example.invalid");
-    await page.getByLabel("Deine E-Mail", { exact: true }).press("Tab");
+    await expect(
+      page.getByRole("button", {
+        name: "Nein, ich habe kein aktives Abo",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await page
+      .getByRole("button", { name: "Andere E-Mail prüfen", exact: true })
+      .click();
     await expect(page).toHaveURL(
       base +
         "/login?next=" +
@@ -492,6 +555,45 @@ try {
     await expect(
       page.getByLabel("Deine E-Mail-Adresse", { exact: true }),
     ).toHaveValue("known@example.invalid");
+    await page.goto(base + "/camp/buchung/" + fixture.id);
+    await page
+      .getByLabel("E-Mail", { exact: true })
+      .fill("first@example.invalid");
+    await page.getByLabel("E-Mail", { exact: true }).press("Tab");
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page
+      .getByLabel("E-Mail für erneute Prüfung", { exact: true })
+      .fill("second@example.invalid");
+    await expect(
+      page.getByRole("button", {
+        name: "Nein, ich habe kein aktives Abo",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await page
+      .getByRole("button", { name: "Andere E-Mail prüfen", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", {
+        name: "Nein, ich habe kein aktives Abo",
+        exact: true,
+      }),
+    ).toBeEnabled();
+    await page
+      .getByRole("button", {
+        name: "Nein, ich habe kein aktives Abo",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("E-Mail", { exact: true })).toHaveValue(
+      "second@example.invalid",
+    );
+    await page
+      .getByRole("button", { name: "Andere E-Mail verwenden", exact: true })
+      .click();
+    await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+    assert.deepEqual(errors, []);
     await page.close();
     console.log(
       `Camp booking option UI passed: ${width}px, central Camp creation/editing, product editor removal, shop/direct booking, popup confirmation, price version and discounts.`,

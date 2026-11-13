@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { campApi } from "./api-client";
 
 export function useGuestEmailCheck(
@@ -11,6 +11,12 @@ export function useGuestEmailCheck(
   current.current = email.trim().toLowerCase();
   const currentDestination = useRef(enabled ? loginHref : null);
   currentDestination.current = enabled ? loginHref : null;
+  useEffect(() => {
+    currentDestination.current = enabled ? loginHref : null;
+    return () => {
+      currentDestination.current = null;
+    };
+  }, [enabled, loginHref]);
   const available = useRef<string | null>(null);
   const pending = useRef<{ email: string; promise: Promise<boolean> } | null>(
     null,
@@ -22,7 +28,10 @@ export function useGuestEmailCheck(
     const normalized = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) return false;
     const requestKey = `${normalized}|${loginHref}`;
-    if (available.current === normalized) return true;
+    if (available.current === normalized) {
+      setMessage("");
+      return true;
+    }
     if (pending.current?.email === requestKey) return pending.current.promise;
     setChecking(true);
     setMessage("");

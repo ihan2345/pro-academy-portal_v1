@@ -1,4 +1,5 @@
 "use client";
+import { GuestCampEmailEntry } from "../camps/guest-email-entry";
 import { useGuestEmailCheck } from "../camps/guest-email-check";
 import { SiteFooter } from "../site-footer";
 import { GiftAccountMenu } from "./gift-account";
@@ -81,6 +82,8 @@ export function ProductStore({
     [accounts, setAccounts] = useState<string[]>([]),
     [customer, setCustomer] = useState(""),
     [purchase, setPurchase] = useState<any>(null);
+  const [campGuestEmail, setCampGuestEmail] = useState<string | null>(null);
+  const [campEmailPrompt, setCampEmailPrompt] = useState(false);
   const bookingLoginHref = chosen
     ? `/login?next=${encodeURIComponent(`/produkte?product=${chosen.id}`)}`
     : "/login?shop=1";
@@ -192,6 +195,8 @@ export function ProductStore({
   });
   const requestId = useRef(crypto.randomUUID());
   async function act(p: any) {
+    setCampGuestEmail(null);
+    setCampEmailPrompt(false);
     setOptionSelected(false);
     setOptionAlert(false);
     if (p.kind === "gift") {
@@ -681,7 +686,7 @@ export function ProductStore({
         <Modal
           title={preview ? "Tarifwechsel prüfen" : chosen.name}
           className="product-checkout-modal"
-          active={!optionAlert}
+          active={!optionAlert && !campEmailPrompt}
           close={() => {
             setChosen(null);
             setPreview(null);
@@ -828,6 +833,19 @@ export function ProductStore({
                   <p>
                     Bitte verwende für einen Kauf ein bestätigtes Elternkonto.
                   </p>
+                ) : chosen.kind === "camp" &&
+                  !ctx?.auth_id &&
+                  campGuestEmail !== email.trim().toLowerCase() ? (
+                  <GuestCampEmailEntry
+                    email={email}
+                    onEmailChange={setEmail}
+                    loginHref={bookingLoginHref}
+                    onNewCustomer={(checked) => {
+                      setEmail(checked);
+                      setCampGuestEmail(checked);
+                    }}
+                    onPromptChange={setCampEmailPrompt}
+                  />
                 ) : (
                   <form
                     className="product-purchase-form"
@@ -845,13 +863,15 @@ export function ProductStore({
                   >
                     {!ctx?.auth_id && (
                       <>
-                        <p>
-                          Buche direkt ohne vorherige Anmeldung. Deinen
-                          Portalzugang bestätigst du nach dem Kauf per E-Mail.{" "}
-                          <Link href="/login?shop=1">
-                            Bereits ein Konto? Anmelden
-                          </Link>
-                        </p>
+                        {chosen.kind !== "camp" && (
+                          <p>
+                            Buche direkt ohne vorherige Anmeldung. Deinen
+                            Portalzugang bestätigst du nach dem Kauf per E-Mail.{" "}
+                            <Link href="/login?shop=1">
+                              Bereits ein Konto? Anmelden
+                            </Link>
+                          </p>
+                        )}
                         <div className="product-new-child">
                           <label>
                             Dein vollständiger Name
@@ -872,7 +892,7 @@ export function ProductStore({
                               required
                               maxLength={254}
                               value={email}
-                              onBlur={() => void emailCheck.verify()}
+                              readOnly={chosen.kind === "camp"}
                               onChange={(e) => setEmail(e.target.value)}
                             />
                           </label>
@@ -888,6 +908,15 @@ export function ProductStore({
                           </label>
                         </div>
                       </>
+                    )}
+                    {chosen.kind === "camp" && !ctx?.auth_id && (
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => setCampGuestEmail(null)}
+                      >
+                        Andere E-Mail verwenden
+                      </button>
                     )}
                     {emailCheck.checking && (
                       <p role="status">E-Mail wird geprüft …</p>
