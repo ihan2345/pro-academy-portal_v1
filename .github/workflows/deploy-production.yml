@@ -1,0 +1,82 @@
+# Prüft jeden Pull Request und veröffentlicht das Portal nach jedem Merge in
+# `main` automatisch auf Cloudflare (wrangler `--env production`).
+#
+# Benötigte GitHub-Secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN           Cloudflare-Token, Vorlage „Edit Cloudflare Workers“
+#   NEXT_PUBLIC_SUPABASE_URL       URL des PRODUKTIONS-Supabase-Projekts
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY  Anon-/Publishable-Key des PRODUKTIONS-Projekts
+#
+# Die Account-ID steht bereits in wrangler.jsonc. Server-Secrets (Service Role,
+# Stripe, SMTP …) bleiben unverändert in Cloudflare und werden hier nicht berührt.
+# Anleitung: docs/AUTO-DEPLOY.md
+
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck und Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+
+  deploy:
+    name: Build und Deploy (Cloudflare production)
+    needs: check
+    # Nur aus main veröffentlichen, nie aus Pull Requests oder anderen Branches.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://portal.proacademy-ak.com
+    # Deploys nacheinander ausführen, laufende Deploys nicht abbrechen.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      NEXT_PUBLIC_APP_URL: https://portal.proacademy-ak.com
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Secrets vorhanden?
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::GitHub-Secret $name fehlt (siehe docs/AUTO-DEPLOY.md)."
+              missing=1
+            fi
+          done
+          exit $missing
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build (OpenNext)
+        run: npm run build:cloudflare -- --env production
+      - name: Deploy (Wrangler)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy --env production

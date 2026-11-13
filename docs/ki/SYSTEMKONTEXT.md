@@ -607,7 +607,7 @@ Geheimwerte gehören in lokale ignorierte Env-Dateien bzw. die jeweiligen Cloudf
 2. **Hintergrunddienst:** `workers/Dockerfile` bündelt den Node-Runner; `workers/cloudflare/wrangler.jsonc` veröffentlicht Gateway, Containerkonfiguration und Cron. Neue Flags müssen ausdrücklich durch `workers/cloudflare/index.ts` in den Container weitergereicht werden.
 3. **Datenbankschema/-daten:** SQL-Migrationen und gezielte Importe werden separat angewendet. Ein Code-Push migriert Supabase nicht automatisch.
 
-`npm run build:cloudflare` baut das Portal, veröffentlicht es nicht allein. `npm run build:jobs` baut ein Runner-Bundle, aktiviert ebenfalls keinen Cron. Im Repository ist keine GitHub-Actions-Workflowdatei vorhanden; eine automatische externe Git-Deployment-Verknüpfung ist hier nicht nachgewiesen. Die bestätigten Releases wurden mit Wrangler ausgeführt.
+`npm run build:cloudflare` baut das Portal, veröffentlicht es nicht allein. `npm run build:jobs` baut ein Runner-Bundle, aktiviert ebenfalls keinen Cron. Seit November 2026 veröffentlicht `.github/workflows/deploy-production.yml` das Portal automatisch nach jedem Merge in `main` (siehe `docs/AUTO-DEPLOY.md`); frühere Releases wurden manuell mit Wrangler ausgeführt.
 
 Für die Dokumentation wurden keine Deployments, Jobs oder Datenbankmutationen ausgeführt. Ein zukünftiger KI-Auftrag „System verstehen“ darf nicht als Deploy-/Versandauftrag behandelt werden.
 

@@ -10,7 +10,7 @@
 
 **Zukünftige Funktionen:** [V2.0 – dauerhafte Checkliste für die nächste Version](V2.0.md). Dort sammeln wir vorgemerkte Optimierungen getrennt von der aktuellen Veröffentlichung.
 
-**Deployment-Sperre (aktuelle Nutzeranweisung): Änderungen nur lokal umsetzen und prüfen. Kein Deployment ohne einen neuen ausdrücklichen Deploy-Befehl des Nutzers.**
+**Deployment (aktuelle Nutzeranweisung): Das Portal wird ausschließlich automatisch per GitHub Actions veröffentlicht, sobald ein Pull Request in `main` gemergt wird ([Auto-Deploy](docs/AUTO-DEPLOY.md)). Agenten arbeiten auf eigenen Branches (`claude/…`, `codex/…`), öffnen Pull Requests und führen kein manuelles `wrangler deploy` aus.**
 
 **Veröffentlichungsvorgabe vom 10.09.2026:** Vorerst ausschließlich unter `https://proacademy-portal.proacademy-by-ak.workers.dev` veröffentlichen. `portal.proacademy-ak.com` bleibt für dieses Portal deaktiviert, bis der Nutzer ausdrücklich anders anweist. Keine Custom-Domain-Route und keinen DNS-Eintrag dafür anlegen. Build-URL, Supabase-Weiterleitungen und Stripe-Webhook auf die Worker-Adresse ausrichten.
 
