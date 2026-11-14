@@ -600,7 +600,7 @@ export async function checkoutProduct(
         ...(promotion && !(intent.gift_credit_amount > 0)
           ? { discounts: [{ promotion_code: promotion }] }
           : {}),
-        payment_method_types: ["card"],
+        // Let Stripe use the payment methods configured in the account Dashboard.
         success_url: `${origin}/produkte?purchase=${intent.id}`,
         cancel_url: `${origin}/produkte?purchase=${intent.id}`,
         expires_at: Math.floor(Date.parse(intent.expires_at) / 1000),

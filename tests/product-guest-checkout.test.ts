@@ -238,6 +238,9 @@ it("reserves unregistered parent/child data and opens Checkout without creating 
     client_reference_id: requestId,
     mode: "payment",
   });
+  expect(
+    state.stripe.checkout.sessions.create.mock.calls[0][0],
+  ).not.toHaveProperty("payment_method_types");
 });
 it("reserves the discounted total and applies exactly the checked Stripe promotion", async () => {
   await checkoutProduct(

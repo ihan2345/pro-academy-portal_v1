@@ -148,6 +148,9 @@ it("creates a booking-specific Checkout with the current early price and an addi
   expect(body.get("client_reference_id")).toBe("booking");
   expect(body.has("allow_promotion_codes")).toBe(false);
   expect(
+    [...body.keys()].some((key) => key.startsWith("payment_method_types")),
+  ).toBe(false);
+  expect(
     Number(body.get("expires_at")) - Math.floor(Date.now() / 1000),
   ).toBeGreaterThan(1800);
 });
