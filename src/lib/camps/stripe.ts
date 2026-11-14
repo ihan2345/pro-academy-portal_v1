@@ -221,7 +221,7 @@ export async function createCampCheckout(
         : {}),
       customer_creation: "always",
       customer_email: email,
-      payment_method_types: ["card"],
+      // Use the account's enabled payment methods (including eligible PayPal/Klarna).
       locale: "de",
       automatic_tax: { enabled: campPaymentMode() === "live" },
       // Stripe requires at least 30 minutes from its creation time; allow transit time.

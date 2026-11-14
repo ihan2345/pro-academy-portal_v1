@@ -211,6 +211,30 @@ it("does not fulfill when Checkout completes before an asynchronous payment succ
   expect(state.calls).toEqual([]);
   expect(syncSubscription).not.toHaveBeenCalled();
 });
+it.each(["paypal", "klarna"])(
+  "waits for %s payment success and fulfills exactly once after confirmation",
+  async (method) => {
+    const paid = await state.stripe.checkout.sessions.retrieve();
+    state.stripe.checkout.sessions.retrieve.mockResolvedValue({
+      ...paid,
+      payment_method_types: [method],
+    });
+    state.stripe.checkout.sessions.retrieve.mockResolvedValueOnce({
+      ...paid,
+      payment_method_types: [method],
+      payment_status: "unpaid",
+    });
+    expect((await fulfillCheckout("intent-test")).status).toBe(
+      "pending_payment",
+    );
+    expect(state.calls).toEqual([]);
+    expect((await fulfillCheckout("intent-test")).status).toBe("fulfilled");
+    expect((await fulfillCheckout("intent-test")).status).toBe("fulfilled");
+    expect(
+      state.calls.filter((c) => c.name === "fulfill_product_purchase"),
+    ).toHaveLength(1);
+  },
+);
 it.each(["amount", "customer", "live", "line"] as const)(
   "rejects a mismatched %s payment before any rights or mappings are written",
   async (fault) => {
