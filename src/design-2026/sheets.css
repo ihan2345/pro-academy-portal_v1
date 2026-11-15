@@ -183,7 +183,10 @@
     border-radius: 16px;
     background: #fff;
     box-shadow: var(--d26-shadow);
-    overflow: hidden;
+    max-height: min(360px, 45dvh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
   & .child-option {
     transition: background 0.2s;
