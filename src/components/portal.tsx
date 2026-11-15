@@ -67,7 +67,10 @@ import { UserActivityHeartbeat } from "./user-activity";
 // Design 2026 (Vorschau): rein optische Ergänzungen, ohne Daten- oder Logikänderung.
 import { Spotlight } from "@/design-2026/spotlight";
 import { TabBar } from "@/design-2026/tab-bar";
-import { navGroup } from "@/design-2026/nav-groups";
+import { navGroup, designNavItems } from "@/design-2026/nav-groups";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { ParentExperience } from "@/design-2026/parent-experience";
+import { AdminHome } from "@/design-2026/admin-home";
 export function Brand() {
   return (
     <div className="brand">
@@ -295,8 +298,16 @@ export function Portal({
     activeNav.push({ href: "/pai", title: "pAi", icon: MessageCircle });
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
-  const isActiveNav = (href: string) => href.split("?")[0] === "/" + section;
-  const designNav = activeNav
+  const isActiveNav = (href: string) =>
+    href.split("?")[0] === "/" + section ||
+    (DESIGN_2026 &&
+      data.role === "parent" &&
+      href === "/stempelkarte" &&
+      section === "berichte");
+  const shownNav = DESIGN_2026
+    ? designNavItems(activeNav, data.role)
+    : activeNav;
+  const designNav = shownNav
     .filter((n) => n.href !== "#verwaltung")
     .map((n) => ({ ...n, group: navGroup(n.href, data.role) }));
   async function openBilling(customerId?: string) {
@@ -357,12 +368,11 @@ export function Portal({
           {admin ? "ADMINBEREICH" : team ? "MITARBEITERPORTAL" : "ELTERNPORTAL"}
         </div>
         <nav>
-          {activeNav.map((item, index) => {
+          {shownNav.map((item, index) => {
             const group = navGroup(item.href, data.role);
             const groupLabel =
               group &&
-              group !==
-                navGroup(activeNav[index - 1]?.href ?? "", data.role) ? (
+              group !== navGroup(shownNav[index - 1]?.href ?? "", data.role) ? (
                 <div className="d26-nav-group" key={`group-${group}`}>
                   {group}
                 </div>
@@ -455,7 +465,7 @@ export function Portal({
             </span>
             <ChevronRight size={14} />
             <b>
-              {activeNav.find((n) => isActiveNav(n.href))?.title ??
+              {shownNav.find((n) => isActiveNav(n.href))?.title ??
                 (section === "admin/pai"
                   ? "pAi verwalten"
                   : section.includes("/aktivitaeten")
@@ -490,6 +500,7 @@ export function Portal({
         </header>
         <main className="main-content">
           {data.role === "parent" &&
+            !DESIGN_2026 &&
             (section === "" || section === "camps") && (
               <Link className="panel profile-entry" href="/profil">
                 <UserRound size={24} />
@@ -542,8 +553,48 @@ export function Portal({
               update={(next) => update({ ...next, players: data.players })}
               notify={setToast}
             />
+          ) : admin && DESIGN_2026 && section === "admin" ? (
+            <AdminHome data={data} />
           ) : admin ? (
             <AdminView data={data} section={section} notify={setToast} />
+          ) : DESIGN_2026 &&
+            player &&
+            ["", "termine", "stempelkarte", "berichte"].includes(section) ? (
+            <ParentExperience
+              section={section}
+              data={data}
+              playerId={player.id}
+              selectPlayer={(id) => {
+                setSelected(id);
+                setSelectedPeriod("");
+                try {
+                  localStorage.setItem("proacademy-selected", id);
+                } catch {}
+              }}
+              periods={periods}
+              period={period}
+              selectPeriod={setSelectedPeriod}
+              stats={stats}
+              events={events}
+              upcoming={upcoming}
+              reports={reports}
+              openDetail={setDetail}
+              stampCard={
+                <>
+                  <Stamps
+                    period={period}
+                    completed={stats.completed}
+                    charged={stats.charged}
+                    retrospective={stats.retrospective}
+                    planned={stats.planned}
+                    splitStats={splitStats}
+                  />
+                  <StampLegend />
+                  <ExcusedNotes events={rows} />
+                  <BackfillNotes events={rows} />
+                </>
+              }
+            />
           ) : (
             <>
               <div className="page-heading">
@@ -1058,16 +1109,15 @@ export function Portal({
       </div>
       <TabBar
         items={[
-          ...["/", "/termine", "/camps", "/profil"]
+          ...["/", "/termine", "/stempelkarte", "/camps"]
             .map((href) => designNav.find((n) => n.href === href))
             .filter((n) => n !== undefined),
           ...designNav.filter(
-            (n) => !["/", "/termine", "/camps", "/profil"].includes(n.href),
+            (n) =>
+              !["/", "/termine", "/stempelkarte", "/camps"].includes(n.href),
           ),
         ]}
-        isActive={(href) =>
-          isActiveNav(href) || (href === "/profil" && section === "profil")
-        }
+        isActive={(href) => isActiveNav(href)}
         openMenu={() => setMobile(true)}
       />
       {detail && (

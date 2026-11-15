@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-// Design 2026 (Vorschau): ein Schalter. data-design entfernen = altes Design.
+// Design 2026 (Vorschau): Schalter in src/design-2026/flag.ts (false = altes Design).
 import "@/design-2026/design-2026.css";
+import "@/design-2026/experience.css";
+import { DESIGN_2026 } from "@/design-2026/flag";
 import { Inter } from "next/font/google";
 const design2026Font = Inter({
   subsets: ["latin"],
@@ -28,7 +30,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="de" data-design="2026" className={design2026Font.variable}>
+    <html
+      lang="de"
+      data-design={DESIGN_2026 ? "2026" : undefined}
+      className={design2026Font.variable}
+    >
       <body>
         <ProfileListStateProvider>{children}</ProfileListStateProvider>
       </body>

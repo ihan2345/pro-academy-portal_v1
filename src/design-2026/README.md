@@ -26,3 +26,13 @@ Ohne `DESIGN_PREVIEW=true` liefert `/design-vorschau` eine 404.
 
 - Ganz verwerfen: Branch `claude/design-preview-2026` löschen.
 - Nur ausschalten: in `src/app/layout.tsx` das Attribut `data-design="2026"` entfernen.
+
+## Neue Ansichten (Konzept iOS)
+
+- Eltern: „Heute“ (nächstes Training mit Kalender-Export und Route, Ringe für
+  Einheiten/Einplanung/Zeitraum, Widgets für Paket, Stempelkarte, Berichte),
+  „Kalender“ (Wochenleiste, Filter Anstehend/Vergangen/Alle, Suche, nach Tagen
+  gruppiert) und „Fortschritt“ (Stempelkarte und Berichte in einer Ansicht).
+- Admin: „Zentrale“ mit Kennzahlen, „Heute auf dem Platz“, Wochenauslastung,
+  Schnellzugriff und dem bestehenden Stripe-/Abo-Posteingang.
+- Schalter: `src/design-2026/flag.ts` (`DESIGN_2026 = false` stellt alles zurück).
