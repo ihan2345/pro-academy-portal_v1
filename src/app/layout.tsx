@@ -4,6 +4,7 @@ import "./globals.css";
 import "@/design-2026/design-2026.css";
 import "@/design-2026/experience.css";
 import "@/design-2026/interactions.css";
+import "@/design-2026/sheets.css";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { Inter } from "next/font/google";
 const design2026Font = Inter({

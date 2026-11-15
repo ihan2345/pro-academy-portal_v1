@@ -33,6 +33,7 @@ import { DESIGN_2026 } from "@/design-2026/flag";
 import {
   EventPulse,
   PlanningOverview,
+  QuickPicks,
   applyPlanning,
   initialPlanning,
   needsConfirmation,
@@ -1015,6 +1016,24 @@ function EventEditor({
             />
           </label>
         </div>
+        {DESIGN_2026 && (
+          <QuickPicks
+            day={day}
+            startTime={startTime}
+            endTime={endTime}
+            setDay={(value) => {
+              setDay(value);
+              setGraceConfirmations({});
+              setError("");
+            }}
+            setStart={(value) => {
+              setStartTime(value);
+              setGraceConfirmations({});
+              setError("");
+            }}
+            setEnd={setEndTime}
+          />
+        )}
         <div className="form-grid">
           <label>
             Standort

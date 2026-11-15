@@ -12,6 +12,7 @@ import type {
   PlayerProfilePage,
   PlayerProfileSort,
 } from "@/lib/player-profiles";
+import { DESIGN_2026 } from "@/design-2026/flag";
 
 export function PlayerProfiles({
   base,
@@ -50,23 +51,49 @@ export function PlayerProfiles({
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
-        <label className="player-directory-sort">
-          Sortierung
-          <select
-            aria-label="Spielerprofile sortieren"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as PlayerProfileSort)}
-          >
-            <option value="name">A–Z</option>
-            <option value="subscription">
-              Abo (Pro → Gamechanger → Firsttouch)
-            </option>
-            <option value="months">Platzierung (Gesamtmonate)</option>
-            {admin && <option value="revenue">Umsatz (höchster zuerst)</option>}
-            <option value="newest">Neu–Alt</option>
-            <option value="hours">Trainingsstunden (höchste zuerst)</option>
-          </select>
-        </label>
+        {DESIGN_2026 ? (
+          <div className="d26-chips" aria-label="Spielerprofile sortieren">
+            {(
+              [
+                ["name", "A–Z"],
+                ["subscription", "Abo"],
+                ["months", "Treue"],
+                ...(admin ? [["revenue", "Umsatz"]] : []),
+                ["newest", "Neueste"],
+                ["hours", "Trainingsstunden"],
+              ] as [PlayerProfileSort, string][]
+            ).map(([value, label]) => (
+              <button
+                type="button"
+                key={value}
+                className={`d26-chip ${sort === value ? "is-active" : ""}`}
+                onClick={() => setSort(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <label className="player-directory-sort">
+            Sortierung
+            <select
+              aria-label="Spielerprofile sortieren"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as PlayerProfileSort)}
+            >
+              <option value="name">A–Z</option>
+              <option value="subscription">
+                Abo (Pro → Gamechanger → Firsttouch)
+              </option>
+              <option value="months">Platzierung (Gesamtmonate)</option>
+              {admin && (
+                <option value="revenue">Umsatz (höchster zuerst)</option>
+              )}
+              <option value="newest">Neu–Alt</option>
+              <option value="hours">Trainingsstunden (höchste zuerst)</option>
+            </select>
+          </label>
+        )}
         <button
           className="secondary-button"
           onClick={() => setRevision((n) => n + 1)}

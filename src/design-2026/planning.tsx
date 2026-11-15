@@ -297,3 +297,80 @@ export function EventPulse({
     </div>
   );
 }
+
+/** Schnellauswahl im Terminformular: setzt nur die Formularfelder. */
+export function QuickPicks({
+  day,
+  startTime,
+  endTime,
+  setDay,
+  setStart,
+  setEnd,
+}: {
+  day: string;
+  startTime: string;
+  endTime: string;
+  setDay: (d: string) => void;
+  setStart: (t: string) => void;
+  setEnd: (t: string) => void;
+}) {
+  const today = calendarDate();
+  const toMin = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+  const fmt = (min: number) =>
+    `${String(Math.floor(min / 60) % 24).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  const duration = toMin(endTime) - toMin(startTime);
+  const days: [string, string][] = [
+    ["Heute", today],
+    ["Morgen", addDays(today, 1)],
+    ["+1 Woche", addDays(day || today, 7)],
+  ];
+  return (
+    <div className="d26-quickpicks">
+      <div>
+        <small>Datum</small>
+        {days.map(([label, value]) => (
+          <button
+            type="button"
+            key={label}
+            className={`d26-chip ${day === value && label !== "+1 Woche" ? "is-active" : ""}`}
+            onClick={() => setDay(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div>
+        <small>Beginn</small>
+        {["16:00", "17:00", "18:00"].map((t) => (
+          <button
+            type="button"
+            key={t}
+            className={`d26-chip ${startTime === t ? "is-active" : ""}`}
+            onClick={() => {
+              setStart(t);
+              if (duration > 0) setEnd(fmt(toMin(t) + duration));
+            }}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      <div>
+        <small>Dauer</small>
+        {[60, 90, 120].map((m) => (
+          <button
+            type="button"
+            key={m}
+            className={`d26-chip ${duration === m ? "is-active" : ""}`}
+            onClick={() => setEnd(fmt(toMin(startTime) + m))}
+          >
+            {m} Min.
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

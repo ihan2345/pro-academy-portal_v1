@@ -2,8 +2,8 @@
 // Design 2026: Schnellsuche im Stil von Spotlight (⌘K / Strg+K).
 // Rein für die Navigation: öffnet nur Seiten, die schon im Menü stehen.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Search, CornerDownLeft } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Search, CornerDownLeft, History } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type SpotlightItem = {
@@ -11,9 +11,39 @@ export type SpotlightItem = {
   title: string;
   icon: LucideIcon;
   group?: string;
+  hint?: string;
 };
 
-export function Spotlight({ items }: { items: SpotlightItem[] }) {
+const RECENT_KEY = "d26-recent-pages";
+function readRecent(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function Spotlight({
+  items,
+  extra = [],
+}: {
+  items: SpotlightItem[];
+  extra?: SpotlightItem[];
+}) {
+  const pathname = usePathname();
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => {
+    const next = [
+      pathname,
+      ...readRecent().filter((p) => p !== pathname),
+    ].slice(0, 5);
+    try {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+    } catch {
+      /* Kein Verlauf möglich. */
+    }
+    setRecent(next.slice(1));
+  }, [pathname]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -21,13 +51,22 @@ export function Spotlight({ items }: { items: SpotlightItem[] }) {
   const router = useRouter();
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter(
-      (i) =>
-        !q ||
-        i.title.toLowerCase().includes(q) ||
-        (i.group ?? "").toLowerCase().includes(q),
+    if (!q) {
+      const seen = recent
+        .map((href) => items.find((i) => i.href === href))
+        .filter((i): i is SpotlightItem => !!i)
+        .slice(0, 3)
+        .map((i) => ({ ...i, group: "Zuletzt besucht", icon: History }));
+      return [
+        ...seen,
+        ...extra.filter((i) => i.group === "Aktionen"),
+        ...items,
+      ];
+    }
+    return [...items, ...extra].filter((i) =>
+      [i.title, i.group, i.hint].join(" ").toLowerCase().includes(q),
     );
-  }, [items, query]);
+  }, [items, extra, query, recent]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -73,7 +112,7 @@ export function Spotlight({ items }: { items: SpotlightItem[] }) {
               <input
                 ref={input}
                 value={query}
-                placeholder="Wohin möchtest du?"
+                placeholder="Seite, Spieler, Training oder Aktion"
                 onChange={(e) => {
                   setQuery(e.target.value);
                   setActive(0);
@@ -92,7 +131,7 @@ export function Spotlight({ items }: { items: SpotlightItem[] }) {
             </label>
             <ul>
               {results.map((item, i) => (
-                <li key={item.href}>
+                <li key={`${item.group}-${item.href}-${i}`}>
                   <button
                     type="button"
                     className={i === active ? "is-active" : ""}
@@ -102,7 +141,10 @@ export function Spotlight({ items }: { items: SpotlightItem[] }) {
                     <span className="d26-spotlight-icon">
                       <item.icon size={17} />
                     </span>
-                    <span>{item.title}</span>
+                    <span>
+                      {item.title}
+                      {item.hint && <em>{item.hint}</em>}
+                    </span>
                     {item.group && <small>{item.group}</small>}
                     <CornerDownLeft size={14} className="d26-enter" />
                   </button>

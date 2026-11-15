@@ -72,6 +72,7 @@ import { DESIGN_2026 } from "@/design-2026/flag";
 import { ParentExperience } from "@/design-2026/parent-experience";
 import { AdminHome } from "@/design-2026/admin-home";
 import { AccountExperience } from "@/design-2026/account";
+import { spotlightExtra } from "@/design-2026/spotlight-extra";
 export function Brand() {
   return (
     <div className="brand">
@@ -514,7 +515,7 @@ export function Portal({
             </b>
           </div>
           <div className="topbar-right">
-            <Spotlight items={designNav} />
+            <Spotlight items={designNav} extra={spotlightExtra(data)} />
             <span className="topbar-date">
               {formatDate(now.toISOString(), {
                 day: "numeric",
