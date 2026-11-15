@@ -17,6 +17,8 @@ if (
           : input.url;
     const path = new URL(url, location.origin).pathname;
     if (path === "/api/camp/dashboard") return Response.json(previewCamps());
+    if (path === "/api/account/email-preference")
+      return Response.json({ enabled: true });
     const table = path.match(/^\/api\/admin\/([a-z_]+)$/)?.[1];
     if (table && (!init?.method || init.method === "GET"))
       return Response.json({ rows: previewAdminRows(table) });

@@ -20,6 +20,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Badge, Modal } from "./portal";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import {
+  DirectoryOverview,
+  Initials,
+  matchesFacet,
+} from "@/design-2026/directory";
 import { PlayerApiShare } from "./player-api-share";
 import { api } from "./team";
 import {
@@ -268,6 +274,7 @@ export function AdminView({
 }) {
   const router = useRouter();
   const [assignment, setAssignment] = useState<AssignmentFilter>("all");
+  const [facet, setFacet] = useState("");
   const slug = section.split("/")[1] ?? "",
     config = entities[slug];
   const [rows, setRows] = useState<RecordRow[]>([]),
@@ -283,8 +290,10 @@ export function AdminView({
           .filter(Boolean)
       : [],
   );
-  const matchingRows = rows.filter((r) =>
-    JSON.stringify(r).toLowerCase().includes(search.toLowerCase()),
+  const matchingRows = rows.filter(
+    (r) =>
+      JSON.stringify(r).toLowerCase().includes(search.toLowerCase()) &&
+      (!DESIGN_2026 || matchesFacet(slug, r, facet)),
   );
   const assignedCount = matchingRows.filter(
     (r) => (r.parent_players as unknown[] | undefined)?.length,
@@ -492,7 +501,17 @@ export function AdminView({
               <RefreshCw size={19} />
             </button>
           </div>
-          {["eltern", "spieler"].includes(slug) && (
+          {DESIGN_2026 && (
+            <DirectoryOverview
+              slug={slug}
+              rows={rows}
+              value={facet}
+              change={setFacet}
+              assignment={assignment}
+              setAssignment={setAssignment}
+            />
+          )}
+          {!DESIGN_2026 && ["eltern", "spieler"].includes(slug) && (
             <AssignmentFilters
               value={assignment}
               change={setAssignment}
@@ -572,6 +591,9 @@ export function AdminView({
                               href={`/admin/elternprofile/${r.id}`}
                               className="text-button"
                             >
+                              {DESIGN_2026 && (
+                                <Initials text={String(r[f.key] ?? "")} />
+                              )}
                               {String(r[f.key] ?? "Profil")}
                             </Link>
                           ) : slug === "spieler" &&
@@ -580,6 +602,11 @@ export function AdminView({
                               href={`/admin/spieler/${r.id}`}
                               className="text-button"
                             >
+                              {DESIGN_2026 && f.key === "first_name" && (
+                                <Initials
+                                  text={`${String(r.first_name ?? "")} ${String(r.last_name ?? "")}`}
+                                />
+                              )}
                               {String(r[f.key] ?? "Spielerprofil")}
                             </Link>
                           ) : f.key === "generation" ? (

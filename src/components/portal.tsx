@@ -71,6 +71,7 @@ import { navGroup, designNavItems } from "@/design-2026/nav-groups";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { ParentExperience } from "@/design-2026/parent-experience";
 import { AdminHome } from "@/design-2026/admin-home";
+import { AccountExperience } from "@/design-2026/account";
 export function Brand() {
   return (
     <div className="brand">
@@ -324,6 +325,39 @@ export function Portal({
       setToast(e instanceof Error ? e.message : "Portal nicht verfügbar");
     }
   }
+  const billingActions = (
+    <div className="billing-account-actions">
+      {(data.billing_customers?.length
+        ? data.billing_customers
+        : [{ stripe_customer_id: "" }]
+      ).map((account, index) => {
+        const customerId = account.stripe_customer_id;
+        const childIds = new Set(
+          data.periods
+            .filter((p) => p.stripe_customer_id === customerId)
+            .map((p) => p.player_id),
+        );
+        const names = data.players
+          .filter((p) => childIds.has(p.id))
+          .map((p) => p.first_name)
+          .join(" und ");
+        return (
+          <button
+            key={customerId || "billing"}
+            className="primary-button"
+            onClick={() => openBilling(customerId || undefined)}
+          >
+            {data.billing_customers && data.billing_customers.length > 1
+              ? names
+                ? `Abo für ${names} verwalten`
+                : `Abokonto ${index + 1} verwalten`
+              : "Stripe-Kundenportal öffnen"}{" "}
+            <ArrowUpRight size={17} />
+          </button>
+        );
+      })}
+    </div>
+  );
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <UserActivityHeartbeat />
@@ -980,7 +1014,16 @@ export function Portal({
                       </div>
                     </section>
                   )}
-                  {section === "konto" && (
+                  {section === "konto" && DESIGN_2026 && (
+                    <AccountExperience
+                      data={data}
+                      emailPreference={
+                        <EmailPreference email={data.email} notify={setToast} />
+                      }
+                      billing={billingActions}
+                    />
+                  )}
+                  {section === "konto" && !DESIGN_2026 && (
                     <div className="account-grid">
                       <EmailPreference email={data.email} notify={setToast} />
                       <section className="panel account-panel">
@@ -1031,42 +1074,7 @@ export function Portal({
                           Rechnungen, Rechnungsadresse und Zahlungsmethode
                           verwaltest du sicher über Stripe.
                         </p>
-                        <div className="billing-account-actions">
-                          {(data.billing_customers?.length
-                            ? data.billing_customers
-                            : [{ stripe_customer_id: "" }]
-                          ).map((account, index) => {
-                            const customerId = account.stripe_customer_id;
-                            const childIds = new Set(
-                              data.periods
-                                .filter(
-                                  (p) => p.stripe_customer_id === customerId,
-                                )
-                                .map((p) => p.player_id),
-                            );
-                            const names = data.players
-                              .filter((p) => childIds.has(p.id))
-                              .map((p) => p.first_name)
-                              .join(" und ");
-                            return (
-                              <button
-                                key={customerId || "billing"}
-                                className="primary-button"
-                                onClick={() =>
-                                  openBilling(customerId || undefined)
-                                }
-                              >
-                                {data.billing_customers &&
-                                data.billing_customers.length > 1
-                                  ? names
-                                    ? `Abo für ${names} verwalten`
-                                    : `Abokonto ${index + 1} verwalten`
-                                  : "Stripe-Kundenportal öffnen"}{" "}
-                                <ArrowUpRight size={17} />
-                              </button>
-                            );
-                          })}
-                        </div>
+                        {billingActions}
                       </section>
                     </div>
                   )}
