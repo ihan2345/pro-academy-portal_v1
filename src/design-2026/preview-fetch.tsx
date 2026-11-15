@@ -2,6 +2,7 @@
 // Design-Vorschau 2026: beantwortet Portal-Anfragen der Vorschau im Browser mit
 // Beispieldaten, damit ohne Login und ohne Supabase nichts geladen oder gespeichert wird.
 import { previewAdminRows, previewCamps } from "./mock-data";
+import { previewFamily, previewGifts, previewProducts } from "./mock-pages";
 
 if (
   typeof window !== "undefined" &&
@@ -19,6 +20,20 @@ if (
     if (path === "/api/camp/dashboard") return Response.json(previewCamps());
     if (path === "/api/account/email-preference")
       return Response.json({ enabled: true });
+    if (path === "/api/products" && (!init?.method || init.method === "GET"))
+      return Response.json(previewProducts());
+    if (path === "/api/products/gifts/mine")
+      return Response.json(previewGifts());
+    if (/^\/api\/parent-profiles\/[^/]+\/units$/.test(path))
+      return Response.json({
+        units: previewFamily("parent").units,
+        more: false,
+      });
+    if (/^\/api\/parent-profiles\/[^/]+\/finances$/.test(path))
+      return Response.json(
+        { error: "Finanzen sind in der Vorschau nicht verfügbar." },
+        { status: 404 },
+      );
     const table = path.match(/^\/api\/admin\/([a-z_]+)$/)?.[1];
     if (table && (!init?.method || init.method === "GET"))
       return Response.json({ rows: previewAdminRows(table) });
@@ -39,7 +54,7 @@ if (
 // Links im Menü führen in der Vorschau auf die passende Vorschau-Seite statt
 // auf die echte (die einen Login bräuchte).
 const previewable =
-  /^\/(termine|stempelkarte|berichte|konto|camps(\/[0-9a-f-]+)?|admin(\/(spieler|eltern|standorte|mitarbeiter|trainingsplanung))?)?$/;
+  /^\/(termine|stempelkarte|berichte|konto|profil|produkte|profil\/geschenkkarten|camps(\/[0-9a-f-]+)?|admin(\/(spieler|eltern|standorte|mitarbeiter|trainingsplanung))?)?$/;
 if (
   typeof window !== "undefined" &&
   location.pathname.startsWith("/design-vorschau")

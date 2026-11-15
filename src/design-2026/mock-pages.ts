@@ -1,0 +1,315 @@
+// Design-Vorschau 2026: erfundene Beispieldaten für Familienseite,
+// Spielerkarte, Shop und Geschenkkarten. Keine echten Personen.
+import type { ParentProfile } from "@/lib/parent-profile";
+import type { PlayerCardData } from "./player-card";
+
+const iso = (days: number, hour = 17) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+};
+const day = (days: number) => iso(days).slice(0, 10);
+
+export function previewFamily(role: "parent" | "admin"): ParentProfile {
+  const month = new Date().toISOString().slice(0, 7);
+  const calendar: ParentProfile["calendar"] = {};
+  for (const [d, a, p] of [
+    [-12, 1, 0],
+    [-9, 2, 0],
+    [-5, 1, 0],
+    [-2, 1, 0],
+    [2, 0, 1],
+    [5, 0, 2],
+  ] as const) {
+    const key = day(d);
+    if (key.startsWith(month)) calendar[key] = { attended: a, planned: p };
+  }
+  const unit = (
+    id: string,
+    d: number,
+    child: string,
+    title: string,
+    status: "attended_manual" | "planned",
+  ) => ({
+    id,
+    player_id: child === "Noah Becker" ? "c-1" : "c-2",
+    child_name: child,
+    title,
+    event_type: "Training",
+    starts_at: iso(d),
+    ends_at: iso(d, 18),
+    day: day(d),
+    status,
+    cancelled: false,
+    minutes: 60,
+    retrospective: false,
+    location: "Sportpark Nord",
+  });
+  return {
+    id: "f-1",
+    name: "Laura Becker",
+    email: "laura.becker@example.com",
+    phone: "+49 170 0000000",
+    city: "Musterstadt",
+    next_edit_at: null,
+    role,
+    portal_access:
+      role === "admin"
+        ? ({
+            activated: true,
+            last_seen_at: iso(-1),
+            invitation: {
+              status: "accepted",
+              sent_at: iso(-90),
+              accepted_at: iso(-89),
+            },
+          } as ParentProfile["portal_access"])
+        : undefined,
+    children: [
+      {
+        id: "c-1",
+        first_name: "Noah",
+        last_name: "Becker",
+        name: "Noah Becker",
+        age: "10 Jahre",
+        birth_year: 2016,
+        team: "U11",
+        archived: false,
+        products: ["Gamechanger"],
+        since: iso(-240),
+        months: 8,
+        camps: 2,
+        position: "Mittelfeld",
+        strong_foot: "rechts",
+        stats: {
+          month: { count: 5, minutes: 300 },
+          all: { count: 64, minutes: 3840 },
+        },
+      },
+      {
+        id: "c-2",
+        first_name: "Mia",
+        last_name: "Becker",
+        name: "Mia Becker",
+        age: "8 Jahre",
+        birth_year: 2018,
+        team: "U9",
+        archived: false,
+        products: ["First Touch"],
+        since: iso(-60),
+        months: 2,
+        camps: 0,
+        stats: {
+          month: { count: 3, minutes: 180 },
+          all: { count: 14, minutes: 840 },
+        },
+      },
+    ],
+    trial_children: [],
+    months: 8,
+    history_note: "Statusmonate zählen über alle Kinder der Familie.",
+    has_subscription_history: true,
+    earned_months: 8,
+    deducted_months: 0,
+    calendar,
+    units: [
+      unit("u-1", 5, "Noah Becker", "Techniktraining", "planned"),
+      unit("u-2", 2, "Mia Becker", "Ballgefühl", "planned"),
+      unit("u-3", -2, "Noah Becker", "Torschuss", "attended_manual"),
+      unit("u-4", -5, "Mia Becker", "Koordination", "attended_manual"),
+      unit("u-5", -9, "Noah Becker", "Dribbling", "attended_manual"),
+    ],
+    month,
+    backfills_available: true,
+    camps_available: true,
+  };
+}
+
+export function previewPlayer(): PlayerCardData {
+  return {
+    spielername: "Noah Becker",
+    elternteile: ["Laura Becker"],
+    geburtsjahr: 2016,
+    geschlecht: "männlich",
+    verein: "SV Musterstadt",
+    position: "Mittelfeld",
+    fuss: "rechts",
+    groesse_cm: 142,
+    entwicklungsziele:
+      "Schwächeren linken Fuß stärken.\nErster Kontakt unter Druck.\nMehr Abschlüsse aus der zweiten Reihe.",
+    archiviert: false,
+    abos: [{ art: "Gamechanger", von: iso(-12), bis: iso(18) }],
+    aktive_monate: 8,
+  };
+}
+
+const price = (amount: number, interval: "month" | null) => ({
+  id: "price_preview",
+  product_id: "prod_preview",
+  amount,
+  currency: "eur",
+  interval,
+  interval_count: 1 as const,
+  livemode: false,
+  checked_at: new Date().toISOString(),
+  product_name: "",
+  source: "fixture" as const,
+});
+const decision = {
+  visible: true,
+  purchasable: true,
+  usable: true,
+  mode: "checkout",
+  label: "Jetzt buchen",
+  reasons: [],
+  audiences: [],
+  player_id: "c-1",
+};
+
+export function previewProducts() {
+  const rows = [
+    {
+      id: "pr-1",
+      name: "Gamechanger",
+      kind: "subscription",
+      category: "Abo",
+      short_description: "4 Einheiten im Monat, persönliche Ziele.",
+      description: "",
+      price: price(8900, "month"),
+      featured: true,
+      popular: false,
+      effect_color: "#8B53FE",
+    },
+    {
+      id: "pr-2",
+      name: "Next Level Pro",
+      kind: "subscription",
+      category: "Abo",
+      short_description: "8 Einheiten im Monat und Videoanalyse.",
+      description: "",
+      price: price(15900, "month"),
+      featured: false,
+      popular: true,
+      effect_color: "#8EFF01",
+    },
+    {
+      id: "pr-3",
+      name: "First Touch",
+      kind: "subscription",
+      category: "Abo",
+      short_description: "Der Einstieg für die Kleinen.",
+      description: "",
+      price: price(4900, "month"),
+      featured: false,
+      popular: false,
+    },
+    {
+      id: "pr-4",
+      name: "Ostercamp",
+      kind: "camp",
+      category: "Camp",
+      short_description: "3 Tage Fußball, Verpflegung inklusive.",
+      description: "",
+      price: price(19900, null),
+      featured: false,
+      popular: false,
+    },
+    {
+      id: "pr-5",
+      name: "Geschenkkarte",
+      kind: "gift",
+      category: "Geschenk",
+      short_description: "Training verschenken.",
+      description: "",
+      price: null,
+      gift_amount: 2500,
+      gift_amounts: [2500, 5000, 10000],
+      featured: false,
+      popular: false,
+    },
+  ].map((p) => ({
+    asset_ids: [],
+    training_content: null,
+    sale_enabled: false,
+    sale_audiences: [],
+    decision,
+    ...p,
+  }));
+  return {
+    rows,
+    next: null,
+    payments_enabled: false,
+    gifts_enabled: true,
+    context: {
+      auth_id: null,
+      role: "parent",
+      parent_id: "f-1",
+      complete: true,
+      grants: [],
+      children: [
+        {
+          id: "c-1",
+          name: "Noah Becker",
+          first_name: "Noah",
+          last_name: "Becker",
+          birth_date: null,
+          trial: false,
+          former_trial: false,
+          memberships: [],
+          camp_ids: [],
+          purchases: [],
+        },
+        {
+          id: "c-2",
+          name: "Mia Becker",
+          first_name: "Mia",
+          last_name: "Becker",
+          birth_date: null,
+          trial: false,
+          former_trial: false,
+          memberships: [],
+          camp_ids: [],
+          purchases: [],
+        },
+      ],
+    },
+  };
+}
+
+export function previewGifts() {
+  const card = (
+    id: string,
+    roles: ("buyer" | "recipient")[],
+    initial: number,
+    remaining: number,
+    buyer: string,
+    recipient: string,
+    expires: number,
+  ) => ({
+    id,
+    roles,
+    initial_amount: initial,
+    remaining,
+    reserved: 0,
+    available: roles.includes("recipient") ? remaining : 0,
+    gift_status: remaining ? "active" : "spent",
+    expires_at: iso(expires),
+    buyer_name: buyer,
+    recipient_name: recipient,
+    code: roles.includes("recipient") && remaining ? "PA-DEMO-4821" : null,
+    status: "paid",
+  });
+  const cards = [
+    card("g-1", ["recipient"], 10000, 6500, "Oma Gisela", "Laura", 300),
+    card("g-2", ["recipient"], 5000, 5000, "Familie Kaya", "Laura", 120),
+    card("g-3", ["buyer"], 5000, 5000, "Laura", "Familie Yilmaz", 330),
+  ];
+  return {
+    cards,
+    available: cards.reduce((s, c) => s + c.available, 0),
+    has_cards: true,
+    welcome_key: "preview",
+    user_id: "preview",
+  };
+}

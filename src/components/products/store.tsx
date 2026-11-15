@@ -26,6 +26,8 @@ import {
   type ProductDisplay,
 } from "./shared";
 import { Modal } from "../portal";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { ShopFilters, applyShop, initialShop } from "@/design-2026/shop";
 const money = (n: number, currency: string) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(
     n / 100,
@@ -46,6 +48,7 @@ export function ProductStore({
     [cursor, setCursor] = useState<string | null>(null),
     [next, setNext] = useState<string | null>(null),
     [channel, setChannel] = useState("catalog");
+  const [shop, setShop] = useState(initialShop);
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     const update = () => {
@@ -339,6 +342,7 @@ export function ProductStore({
       }
     });
   }
+  const shown = DESIGN_2026 ? applyShop(rows, shop) : rows;
   const Content = embedded ? "div" : "main";
   const role = portalRole ?? ctx?.role ?? null;
   const overviewHref = role ? portalHome(role) : "/";
@@ -597,7 +601,21 @@ export function ProductStore({
               }}
             />
           </label>
-          {ctx?.role === "parent" && (
+          {DESIGN_2026 && ctx?.role === "parent" && (
+            <ShopFilters
+              rows={[]}
+              state={shop}
+              setState={setShop}
+              kids={ctx.children}
+              kid={newChild ? "new" : player}
+              pickKid={(value) => {
+                setNewChild(value === "new");
+                setPlayer(value === "new" ? "" : value);
+                setCursor(null);
+              }}
+            />
+          )}
+          {!DESIGN_2026 && ctx?.role === "parent" && (
             <label>
               Für welches Kind?
               <select
@@ -627,12 +645,15 @@ export function ProductStore({
         ) : rows.length ? (
           <>
             <ProductShowcase products={rows} onAction={(p) => void act(p)} />
+            {DESIGN_2026 && (
+              <ShopFilters rows={rows} state={shop} setState={setShop} />
+            )}
             <div className="product-catalog-heading">
               <h2>{search.trim() ? "Suchergebnisse" : "Alle Angebote"}</h2>
-              <span>{rows.length} Angebote auf dieser Seite</span>
+              <span>{shown.length} Angebote auf dieser Seite</span>
             </div>
             <div className="product-store-grid">
-              {rows.map((p) => (
+              {shown.map((p) => (
                 <ProductCard
                   key={p.id}
                   product={p}

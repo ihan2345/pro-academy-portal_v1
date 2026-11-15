@@ -6,6 +6,12 @@ import { CampDashboard } from "@/components/camps/dashboard";
 import "@/components/camps/camps.css";
 import { previewAdminPortal, previewPortal } from "@/design-2026/mock-data";
 import { PreviewFetch } from "@/design-2026/preview-fetch";
+import { previewFamily, previewPlayer } from "@/design-2026/mock-pages";
+import { ProfileView } from "@/components/parent-profile";
+import { PlayerCard } from "@/design-2026/player-card";
+import { ProductStore } from "@/components/products/store";
+import "@/components/products/products.css";
+import { GiftAccountOverview } from "@/components/products/gift-account";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -23,6 +29,46 @@ export default async function Page({
     "mitarbeiter",
     "trainingsplanung",
   ];
+  if (section === "admin" && view[1] === "elternprofil")
+    return (
+      <>
+        <PreviewFetch />
+        <Portal initial={previewAdminPortal()} section="admin/elternprofile">
+          <ProfileView
+            initial={previewFamily("admin")}
+            base="/design-vorschau/admin/eltern"
+          />
+        </Portal>
+      </>
+    );
+  if (section === "admin" && view[1] === "spielerkarte")
+    return (
+      <>
+        <PreviewFetch />
+        <Portal initial={previewAdminPortal()} section="admin/spielerprofile">
+          <PlayerCard
+            player={previewPlayer()}
+            team="U11"
+            back="/design-vorschau/admin"
+          />
+        </Portal>
+      </>
+    );
+  if (section === "profil" || section === "produkte")
+    return (
+      <>
+        <PreviewFetch />
+        <Portal initial={previewPortal()} section={section}>
+          {section === "produkte" ? (
+            <ProductStore embedded portalRole="parent" />
+          ) : view[1] === "geschenkkarten" ? (
+            <GiftAccountOverview />
+          ) : (
+            <ProfileView initial={previewFamily("parent")} base="/profil" />
+          )}
+        </Portal>
+      </>
+    );
   if (section === "admin") {
     const sub = view.slice(1).join("/");
     if (!adminSections.includes(sub)) notFound();
