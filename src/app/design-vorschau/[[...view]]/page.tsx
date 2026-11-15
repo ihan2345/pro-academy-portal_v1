@@ -1,0 +1,35 @@
+// Design-Vorschau 2026 mit Beispieldaten. Nur aktiv mit DESIGN_PREVIEW=true,
+// sonst 404. Nutzt dieselben Komponenten wie das echte Portal.
+import { notFound } from "next/navigation";
+import { Portal } from "@/components/portal";
+import { CampDashboard } from "@/components/camps/dashboard";
+import "@/components/camps/camps.css";
+import { previewPortal } from "@/design-2026/mock-data";
+import { PreviewFetch } from "@/design-2026/preview-fetch";
+export const dynamic = "force-dynamic";
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ view?: string[] }>;
+}) {
+  if (process.env.DESIGN_PREVIEW !== "true") notFound();
+  const [section = "", campId] = (await params).view ?? [];
+  if (
+    !["", "termine", "stempelkarte", "berichte", "konto", "camps"].includes(
+      section,
+    )
+  )
+    notFound();
+  return (
+    <>
+      <PreviewFetch />
+      {section === "camps" ? (
+        <Portal initial={previewPortal()} section="camps">
+          <CampDashboard campId={campId} view="overview" loginHref="/login" />
+        </Portal>
+      ) : (
+        <Portal initial={previewPortal()} section={section} />
+      )}
+    </>
+  );
+}

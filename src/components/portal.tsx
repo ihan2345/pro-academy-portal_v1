@@ -64,6 +64,10 @@ import { TeamView } from "./team";
 import { AdminView } from "./admin";
 import { StampCards } from "./stamp-cards";
 import { UserActivityHeartbeat } from "./user-activity";
+// Design 2026 (Vorschau): rein optische Ergänzungen, ohne Daten- oder Logikänderung.
+import { Spotlight } from "@/design-2026/spotlight";
+import { TabBar } from "@/design-2026/tab-bar";
+import { navGroup } from "@/design-2026/nav-groups";
 export function Brand() {
   return (
     <div className="brand">
@@ -292,6 +296,9 @@ export function Portal({
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
   const isActiveNav = (href: string) => href.split("?")[0] === "/" + section;
+  const designNav = activeNav
+    .filter((n) => n.href !== "#verwaltung")
+    .map((n) => ({ ...n, group: navGroup(n.href, data.role) }));
   async function openBilling(customerId?: string) {
     try {
       const response = await fetch("/api/stripe/portal", {
@@ -350,45 +357,57 @@ export function Portal({
           {admin ? "ADMINBEREICH" : team ? "MITARBEITERPORTAL" : "ELTERNPORTAL"}
         </div>
         <nav>
-          {activeNav.map((item) =>
-            item.href === "#verwaltung" ? (
-              <AdminNavigation
-                key="verwaltung"
-                role={admin ? "admin" : "staff"}
-                section={section}
-                collapsed={sidebarCollapsed && !mobile}
-                expandSidebar={() => {
-                  setSidebarCollapsed(false);
-                  try {
-                    localStorage.setItem(
-                      "proacademy-sidebar-collapsed",
-                      "false",
-                    );
-                  } catch {}
-                }}
-                navigate={() => setMobile(false)}
-              />
-            ) : (
-              <Link
-                className={`nav-link ${isActiveNav(item.href) ? "active" : ""}`}
-                key={item.href}
-                href={item.href}
-                aria-label={item.title}
-                aria-current={isActiveNav(item.href) ? "page" : undefined}
-                title={sidebarCollapsed ? item.title : undefined}
-                onClick={() => setMobile(false)}
-              >
-                <item.icon size={19} />
-                <span>{item.title}</span>
-                {item.title === "Probetraining" && <TrialMenuBadge />}
-                {"count" in item &&
-                  typeof item.count === "number" &&
-                  item.count > 0 && (
-                    <span className="nav-count">{item.count}</span>
-                  )}
-              </Link>
-            ),
-          )}
+          {activeNav.map((item, index) => {
+            const group = navGroup(item.href, data.role);
+            const groupLabel =
+              group &&
+              group !==
+                navGroup(activeNav[index - 1]?.href ?? "", data.role) ? (
+                <div className="d26-nav-group" key={`group-${group}`}>
+                  {group}
+                </div>
+              ) : null;
+            return [
+              groupLabel,
+              item.href === "#verwaltung" ? (
+                <AdminNavigation
+                  key="verwaltung"
+                  role={admin ? "admin" : "staff"}
+                  section={section}
+                  collapsed={sidebarCollapsed && !mobile}
+                  expandSidebar={() => {
+                    setSidebarCollapsed(false);
+                    try {
+                      localStorage.setItem(
+                        "proacademy-sidebar-collapsed",
+                        "false",
+                      );
+                    } catch {}
+                  }}
+                  navigate={() => setMobile(false)}
+                />
+              ) : (
+                <Link
+                  className={`nav-link ${isActiveNav(item.href) ? "active" : ""}`}
+                  key={item.href}
+                  href={item.href}
+                  aria-label={item.title}
+                  aria-current={isActiveNav(item.href) ? "page" : undefined}
+                  title={sidebarCollapsed ? item.title : undefined}
+                  onClick={() => setMobile(false)}
+                >
+                  <item.icon size={19} />
+                  <span>{item.title}</span>
+                  {item.title === "Probetraining" && <TrialMenuBadge />}
+                  {"count" in item &&
+                    typeof item.count === "number" &&
+                    item.count > 0 && (
+                      <span className="nav-count">{item.count}</span>
+                    )}
+                </Link>
+              ),
+            ];
+          })}
         </nav>
         <div className="sidebar-bottom">
           <div className="support-box">
@@ -451,6 +470,7 @@ export function Portal({
             </b>
           </div>
           <div className="topbar-right">
+            <Spotlight items={designNav} />
             <span className="topbar-date">
               {formatDate(now.toISOString(), {
                 day: "numeric",
@@ -1036,6 +1056,20 @@ export function Portal({
           <SiteFooter compact />
         </main>
       </div>
+      <TabBar
+        items={[
+          ...["/", "/termine", "/camps", "/profil"]
+            .map((href) => designNav.find((n) => n.href === href))
+            .filter((n) => n !== undefined),
+          ...designNav.filter(
+            (n) => !["/", "/termine", "/camps", "/profil"].includes(n.href),
+          ),
+        ]}
+        isActive={(href) =>
+          isActiveNav(href) || (href === "/profil" && section === "profil")
+        }
+        openMenu={() => setMobile(true)}
+      />
       {detail && (
         <EventDetail
           event={detail}
