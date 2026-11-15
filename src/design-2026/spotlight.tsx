@@ -2,7 +2,7 @@
 // Design 2026: Schnellsuche im Stil von Spotlight (⌘K / Strg+K).
 // Rein für die Navigation: öffnet nur Seiten, die schon im Menü stehen.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Search, CornerDownLeft, History } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -30,9 +30,11 @@ export function Spotlight({
   items: SpotlightItem[];
   extra?: SpotlightItem[];
 }) {
-  const pathname = usePathname();
   const [recent, setRecent] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
   useEffect(() => {
+    if (!open) return;
+    const pathname = window.location.pathname;
     const next = [
       pathname,
       ...readRecent().filter((p) => p !== pathname),
@@ -43,8 +45,7 @@ export function Spotlight({
       /* Kein Verlauf möglich. */
     }
     setRecent(next.slice(1));
-  }, [pathname]);
-  const [open, setOpen] = useState(false);
+  }, [open]);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
