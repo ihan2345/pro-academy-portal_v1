@@ -1,0 +1,125 @@
+.profile-access-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0;
+}
+.profile-access-status small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.profile-access-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #eff1f5;
+  color: #606979;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.profile-access-badge.active,
+.profile-access-badge.accepted {
+  background: #eaf6df;
+  color: #426b17;
+}
+.profile-access-badge.sent {
+  background: #eee8ff;
+  color: #6946ab;
+}
+.profile-access-badge.failed,
+.profile-access-badge.expired {
+  background: #fff0e5;
+  color: #935525;
+}
+.profile-finance-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.profile-finance-toolbar .segmented {
+  flex-wrap: wrap;
+}
+.profile-subscription-summary {
+  max-width: 480px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.profile-subscription-summary strong,
+.profile-subscription-summary span,
+.profile-subscription-summary small {
+  display: block;
+}
+.profile-subscription-summary > strong {
+  margin-bottom: 6px;
+}
+.profile-subscription-summary small {
+  color: var(--muted);
+  margin-top: 5px;
+}
+.profile-subscription-summary > div + div {
+  margin-top: 10px;
+}
+.profile-payment-table {
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.profile-payment-table table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+.profile-payment-table th,
+.profile-payment-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.profile-payment-table th {
+  background: var(--surface);
+  white-space: nowrap;
+}
+.profile-payment-table td:first-child,
+.profile-payment-table td:nth-child(4) {
+  white-space: nowrap;
+}
+.profile-payment-table small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+.profile-payment-status {
+  display: inline-block;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: #eff1f5;
+  white-space: nowrap;
+}
+.profile-payment-status.succeeded {
+  background: #eaf6df;
+  color: #426b17;
+}
+.profile-payment-status.failed,
+.profile-payment-status.disputed {
+  background: #fff0ea;
+  color: #a1402d;
+}
+@media (max-width: 760px) {
+  .profile-subscription-summary {
+    width: 100%;
+    max-width: none;
+  }
+  .profile-payment-table th,
+  .profile-payment-table td {
+    padding: 10px;
+  }
+}

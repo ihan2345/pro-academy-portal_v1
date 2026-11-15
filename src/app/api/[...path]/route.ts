@@ -359,6 +359,11 @@ async function handler(
             z
               .enum(["name", "months", "newest", "revenue"])
               .parse(request.nextUrl.searchParams.get("sort") ?? "name"),
+            z
+              .enum(["true", "false"])
+              .parse(
+                request.nextUrl.searchParams.get("campOnly") ?? "false",
+              ) === "true",
           ),
         );
       }

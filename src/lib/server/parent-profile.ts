@@ -23,6 +23,7 @@ import {
 import { profileActivePeriods } from "./profile-subscription-history";
 import { compareRevenue, readParentRevenue } from "./profile-revenue";
 import type { PortalData } from "../types";
+import { readProfileAccess } from "./profile-access";
 
 export type ProfileSession = NonNullable<
   Awaited<ReturnType<typeof sessionUser>>
@@ -127,6 +128,7 @@ export async function profileList(
   offset = 0,
   includeInactive = false,
   sort: "name" | "months" | "newest" | "revenue" = "name",
+  campOnly = false,
 ) {
   if (!s.role || !["staff", "admin"].includes(s.role))
     throw new HttpError(403, "Keine Berechtigung.");
@@ -135,8 +137,23 @@ export async function profileList(
   const db = serviceDb();
   let q = db
     .from("parents")
-    .select("id,full_name,contact_email,auth_user_id")
+    .select("id,full_name,contact_email,auth_user_id", { count: "exact" })
     .is("archived_at", null);
+  if (campOnly) {
+    const bookings = campEnabled()
+      ? await collect(() =>
+          db
+            .from("camp_bookings")
+            .select("id,parent_id,camps!inner(payment_mode)")
+            .eq("status", "paid")
+            .eq("camps.payment_mode", campPaymentMode()),
+        )
+      : [];
+    const ids = [...new Set(bookings.map((b) => b.parent_id).filter(Boolean))];
+    if (!ids.length)
+      return { rows: [] as ProfileListRow[], more: false, total: 0 };
+    q = q.in("id", ids);
+  }
   if (!includeInactive) {
     const active = await collect(() =>
       db
@@ -148,12 +165,14 @@ export async function profileList(
         .is("players.archived_at", null),
     );
     const players = [...new Set(active.map((a) => a.player_id))];
-    if (!players.length) return { rows: [] as ProfileListRow[], more: false };
+    if (!players.length)
+      return { rows: [] as ProfileListRow[], more: false, total: 0 };
     const owners = await collect(() =>
       db.from("parent_players").select("id,parent_id").in("player_id", players),
     );
     const parents = [...new Set(owners.map((o) => o.parent_id))];
-    if (!parents.length) return { rows: [] as ProfileListRow[], more: false };
+    if (!parents.length)
+      return { rows: [] as ProfileListRow[], more: false, total: 0 };
     q = q.in("id", parents);
   }
   // PostgREST filter grammar must never be accepted from search input.
@@ -168,7 +187,8 @@ export async function profileList(
     })
     .order("id");
   // Ranking needs every matching family before pagination.
-  let parents: any[] = [];
+  let parents: any[] = [],
+    total: number | null = null;
   if (sort === "months" || sort === "revenue") {
     for (let start = 0; ; start += 500) {
       if (start >= 10000)
@@ -176,11 +196,17 @@ export async function profileList(
           503,
           "Zu viele Profile für eine vollständige Rangliste.",
         );
-      const batch = checked(await q.range(start, start + 499));
+      const result = await q.range(start, start + 499);
+      total = result.count ?? total;
+      const batch = checked(result);
       parents.push(...batch);
       if (batch.length < 500) break;
     }
-  } else parents = checked(await q.range(offset, offset + 25));
+  } else {
+    const result = await q.range(offset, offset + 25);
+    total = result.count ?? null;
+    parents = checked(result);
+  }
   let revenue: Map<string, number | null> | undefined;
   if (sort === "revenue" && parents.length) {
     // Include other parents' mappings to detect shared/ambiguous customers.
@@ -203,7 +229,8 @@ export async function profileList(
           ? parents.slice(offset, offset + 25)
           : parents.slice(0, 25),
     ids = page.map((p) => p.id);
-  if (!ids.length) return { rows: [] as ProfileListRow[], more: false };
+  if (!ids.length)
+    return { rows: [] as ProfileListRow[], more: false, total: total ?? 0 };
   const links = await collect(() =>
     db
       .from("parent_players")
@@ -253,25 +280,19 @@ export async function profileList(
         a.id.localeCompare(b.id),
     );
   const selected = sort === "months" ? rows.slice(offset, offset + 25) : rows;
-  const userIds = parents
-    .filter((p) => selected.some((r) => r.id === p.id))
-    .map((p) => p.auth_user_id)
-    .filter(Boolean);
-  if (s.role === "admin" && userIds.length) {
-    const result = await db
-      .from("user_activity")
-      .select("user_id,last_seen_at")
-      .in("user_id", userIds);
-    if (result.error && !["42P01", "PGRST205"].includes(result.error.code))
-      checked(result);
-    for (const row of selected) {
-      const userId = parents.find((p) => p.id === row.id)?.auth_user_id;
-      row.last_seen_at =
-        result.data?.find((a) => a.user_id === userId)?.last_seen_at ?? null;
-    }
+  const access = await readProfileAccess(
+    parents.filter((p) => selected.some((r) => r.id === p.id)),
+    s.role,
+    db,
+  );
+  for (const row of selected) {
+    row.portal_access = access.get(row.id);
+    if (s.role === "admin")
+      row.last_seen_at = row.portal_access?.last_seen_at ?? null;
   }
   return {
     rows: selected,
+    total,
     more:
       sort === "months"
         ? rows.length > offset + 25
@@ -436,6 +457,13 @@ export async function loadParentProfile(
   const visibleUnits = units.filter((u) => visibleIds.has(u.player_id));
   return {
     id: parent.id,
+    ...(["admin", "staff"].includes(s.role!)
+      ? {
+          portal_access: (await readProfileAccess([parent], s.role!, db)).get(
+            parent.id,
+          ),
+        }
+      : {}),
     name: parent.full_name,
     email: parent.contact_email,
     phone: parent.phone,

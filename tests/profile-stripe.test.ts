@@ -18,6 +18,13 @@ it("allows finance and checkout GET requests and refuses writes, other hosts and
   await profileReadFetch("https://api.stripe.com/v1/subscriptions/sub_one", {
     method: "GET",
   });
+  await profileReadFetch(
+    "https://api.stripe.com/v1/subscriptions?customer=cus_one",
+    { method: "GET" },
+  );
+  await profileReadFetch("https://api.stripe.com/v1/products/prod_one", {
+    method: "GET",
+  });
   await profileReadFetch("https://api.stripe.com/v1/invoices/in_one/lines", {
     method: "GET",
   });

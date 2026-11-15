@@ -5,8 +5,31 @@ import { serviceDb } from "./service-db";
 import { authorizeProfile, type ProfileSession } from "./parent-profile";
 import { HttpError } from "./security";
 import { calendarDate } from "../calendar";
+import {
+  readProfileSubscriptions,
+  type ProfileSubscriptions,
+} from "./profile-subscription-summary";
+
+export interface ProfilePayment {
+  id: string;
+  amount: number;
+  refunded: number;
+  currency: string;
+  status:
+    | "succeeded"
+    | "pending"
+    | "failed"
+    | "refunded"
+    | "partial_refund"
+    | "disputed";
+  description: string;
+  created_at: string | null;
+  method: string | null;
+}
 
 export interface ProfileFinances {
+  payments?: ProfilePayment[];
+  subscriptions?: ProfileSubscriptions;
   checked_at: string;
   complete: boolean;
   notes: string[];
@@ -42,6 +65,8 @@ export async function readProfileFinances(
       complete: false,
       notes: ["Keine Stripe-Kundenzuordnung vorhanden."],
       currencies: [],
+      payments: [],
+      subscriptions: { complete: false, active: [], previous: null },
     };
   if (customerIds.length > 10)
     throw new HttpError(
@@ -99,6 +124,8 @@ export async function readProfileFinances(
   >();
   const notes = new Set<string>(),
     found = new Set<string>();
+  const payments = new Map<string, ProfilePayment>();
+  const paidSubscriptions = new Map<string, number>();
   let complete = true;
   for (const stripe of clients) {
     for (const customer of customerIds) {
@@ -134,9 +161,27 @@ export async function readProfileFinances(
       );
       const abo = new Map<string, number>(),
         ambiguous = new Set<string>();
+      const descriptions = new Map<string, string>();
       let unmappedSubscription = false;
       for (const inv of invoices) {
-        if (!inv.parent?.subscription_details?.subscription) continue;
+        const subscriptionId = id(
+          inv.parent?.subscription_details?.subscription,
+        );
+        if (!subscriptionId) continue;
+        if (
+          inv.lines.data.some(
+            (line) => !!line.parent?.subscription_item_details,
+          )
+        ) {
+          const end = Math.max(
+            0,
+            ...inv.lines.data.map((line) => line.period?.end ?? 0),
+          );
+          paidSubscriptions.set(
+            subscriptionId,
+            Math.max(paidSubscriptions.get(subscriptionId) ?? 0, end),
+          );
+        }
         let payments = inv.payments?.data;
         if (!payments || inv.payments?.has_more)
           payments = await pages<Stripe.InvoicePayment>((after) =>
@@ -161,6 +206,15 @@ export async function readProfileFinances(
           if (p.status === "paid") {
             const key = id(p.payment.payment_intent) ?? id(p.payment.charge);
             if (key) {
+              descriptions.set(
+                key,
+                inv.description ??
+                  (inv.billing_reason === "subscription_create"
+                    ? "Abonnement angelegt"
+                    : inv.billing_reason === "subscription_update"
+                      ? "Abonnement geändert"
+                      : "Abo-Zahlung"),
+              );
               if (pure && p.amount_paid != null)
                 abo.set(key, (abo.get(key) ?? 0) + p.amount_paid);
               else ambiguous.add(key);
@@ -168,6 +222,38 @@ export async function readProfileFinances(
           }
       }
       for (const c of charges) {
+        const timestamp =
+          c.created ||
+          (typeof c.balance_transaction === "object"
+            ? c.balance_transaction?.created
+            : null);
+        payments.set(c.id, {
+          id: c.id,
+          amount: c.amount ?? c.amount_captured ?? 0,
+          refunded: c.amount_refunded ?? 0,
+          currency: c.currency,
+          status: c.disputed
+            ? "disputed"
+            : c.amount_refunded && c.amount_refunded >= c.amount_captured
+              ? "refunded"
+              : c.amount_refunded
+                ? "partial_refund"
+                : c.status === "succeeded"
+                  ? c.paid && c.captured
+                    ? "succeeded"
+                    : "pending"
+                  : c.status === "failed"
+                    ? "failed"
+                    : "pending",
+          description:
+            c.description ??
+            descriptions.get(id(c.payment_intent) ?? c.id) ??
+            "Stripe-Zahlung",
+          created_at: timestamp
+            ? new Date(timestamp * 1000).toISOString()
+            : null,
+          method: c.payment_method_details?.type ?? null,
+        });
         if (c.status !== "succeeded" || !c.paid || !c.captured) continue;
         const key = id(c.payment_intent) ?? c.id;
         const row = sums.get(c.currency) ?? {
@@ -244,7 +330,19 @@ export async function readProfileFinances(
     complete = false;
     notes.add("Nicht alle zugeordneten Stripe-Konten konnten gefunden werden.");
   }
+  const subscriptions = await readProfileSubscriptions(
+    clients[0],
+    [...found],
+    paidSubscriptions,
+  );
+  if (found.size !== customerIds.length) subscriptions.complete = false;
   return {
+    payments: [...payments.values()].sort(
+      (a, b) =>
+        (b.created_at ?? "").localeCompare(a.created_at ?? "") ||
+        a.id.localeCompare(b.id),
+    ),
+    subscriptions,
     checked_at: now,
     complete,
     notes: [...notes],

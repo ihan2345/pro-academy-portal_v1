@@ -35,6 +35,41 @@ import {
 } from "@/lib/domain";
 import { calendarDate } from "@/lib/calendar";
 import type { ProfileFinances } from "@/lib/server/parent-profile-finances";
+import {
+  accessLabel,
+  invitationLabel,
+  type ProfileAccess,
+} from "@/lib/profile-access";
+import {
+  ProfileStripePayments,
+  ProfileSubscriptionStatus,
+} from "./profile-finance-details";
+import "./parent-profile-details.css";
+
+function ProfileAccessStatus({ access }: { access?: ProfileAccess }) {
+  if (!access) return null;
+  return (
+    <span className="profile-access-status">
+      <span
+        className={`profile-access-badge ${access.activated ? "active" : "inactive"}`}
+      >
+        {accessLabel(access)}
+      </span>
+      <span className={`profile-access-badge ${access.invitation.status}`}>
+        {invitationLabel(access)}
+      </span>
+      {access.invitation.sent_at && (
+        <small>Gesendet {formatDate(access.invitation.sent_at)}</small>
+      )}
+      {access.invitation.accepted_at && (
+        <small>Angenommen {formatDate(access.invitation.accepted_at)}</small>
+      )}
+      {access.last_seen_at && (
+        <small>Zuletzt im Portal aktiv {formatDate(access.last_seen_at)}</small>
+      )}
+    </span>
+  );
+}
 
 function money(amount: number, currency: string) {
   return currency.toLowerCase() === "eur"
@@ -68,10 +103,13 @@ export function ProfileList({ base }: { base: string }) {
     setSort,
     includeInactive,
     setIncludeInactive,
+    campOnly,
+    setCampOnly,
     offset,
     setOffset,
   } = useProfileListState();
   const [rows, setRows] = useState<ProfileListRow[]>([]),
+    [total, setTotal] = useState<number | null>(null),
     [more, setMore] = useState(false),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
@@ -81,12 +119,13 @@ export function ProfileList({ base }: { base: string }) {
     setError("");
     const timer = setTimeout(() => {
       request(
-        `list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=${sort}`,
+        `list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=${sort}&campOnly=${campOnly}`,
         undefined,
         abort.signal,
       )
         .then((d) => {
           setRows(d.rows);
+          setTotal(d.total ?? null);
           setMore(d.more);
         })
         .catch((e) => {
@@ -100,7 +139,7 @@ export function ProfileList({ base }: { base: string }) {
       clearTimeout(timer);
       abort.abort();
     };
-  }, [search, offset, includeInactive, sort]);
+  }, [search, offset, includeInactive, sort, campOnly]);
   return (
     <div className="parent-profile">
       <div className="page-heading">
@@ -125,6 +164,21 @@ export function ProfileList({ base }: { base: string }) {
         />
       </label>
       <div className="profile-filters">
+        <label>
+          Familien
+          <select
+            aria-label="Elternprofile nach Campteilnahme filtern"
+            value={campOnly ? "camp" : "all"}
+            onChange={(e) => {
+              setCampOnly(e.target.value === "camp");
+              if (e.target.value === "camp") setIncludeInactive(true);
+              setOffset(0);
+            }}
+          >
+            <option value="all">Alle Familien</option>
+            <option value="camp">Campfamilien</option>
+          </select>
+        </label>
         <label>
           Sortierung
           <select
@@ -161,6 +215,13 @@ export function ProfileList({ base }: { base: string }) {
         />
         Eltern ohne aktives Abo zusätzlich anzeigen
       </label>
+      <p className="profile-muted">
+        {total === null
+          ? "25 Profile pro Seite"
+          : `${total} passende Elternprofile · ${rows.length ? offset + 1 : 0}–${offset + rows.length} auf dieser Seite`}{" "}
+        · Konten ohne aktivierten Portalzugang sind bei dieser Auswahl
+        eingeschlossen.
+      </p>
       {error && (
         <p role="alert" className="profile-error">
           {error}
@@ -185,6 +246,7 @@ export function ProfileList({ base }: { base: string }) {
               <span>
                 <strong>{r.name}</strong>
                 <span className="profile-muted">{r.email}</span>
+                <ProfileAccessStatus access={r.portal_access} />
                 {sort === "revenue" && (
                   <span className="profile-muted">
                     Gesamtumsatz:{" "}
@@ -204,9 +266,6 @@ export function ProfileList({ base }: { base: string }) {
                 {familyStatus(r.months).label}
                 <small className="profile-muted">{r.months} Gesamtmonate</small>
               </span>
-              {r.last_seen_at && (
-                <small>Zuletzt aktiv {formatDate(r.last_seen_at)}</small>
-              )}
               <ArrowRight size={18} />
             </Link>
           ))
@@ -294,7 +353,9 @@ export function ProfileView({
     [financeBusy, setFinanceBusy] = useState(false),
     [financeError, setFinanceError] = useState(""),
     [financeAttempt, setFinanceAttempt] = useState(0),
-    [financeWindow, setFinanceWindow] = useState<"month" | "all">("month");
+    [financeWindow, setFinanceWindow] = useState<"month" | "all" | "payments">(
+      "month",
+    );
   const [child, setChild] = useState(""),
     [period, setPeriod] = useState("all"),
     [state, setState] = useState("all"),
@@ -505,6 +566,9 @@ export function ProfileView({
             <div className="profile-identity">
               <div className="eyebrow">DEINE ACADEMY-FAMILIE</div>
               <h1>{data.name}</h1>
+              {data.role !== "parent" && (
+                <ProfileAccessStatus access={data.portal_access} />
+              )}
               <div className="profile-contacts">
                 <span>
                   <Mail size={15} />
@@ -812,16 +876,27 @@ export function ProfileView({
               )}
               {finance && (
                 <>
-                  <div className="segmented">
-                    {(["month", "all"] as const).map((w) => (
+                  <div className="profile-finance-toolbar">
+                    <div className="segmented">
+                      {(["month", "all"] as const).map((w) => (
+                        <button
+                          key={w}
+                          className={financeWindow === w ? "selected" : ""}
+                          onClick={() => setFinanceWindow(w)}
+                        >
+                          {w === "month" ? "Aktueller Monat" : "Gesamt"}
+                        </button>
+                      ))}
                       <button
-                        key={w}
-                        className={financeWindow === w ? "selected" : ""}
-                        onClick={() => setFinanceWindow(w)}
+                        className={
+                          financeWindow === "payments" ? "selected" : ""
+                        }
+                        onClick={() => setFinanceWindow("payments")}
                       >
-                        {w === "month" ? "Aktueller Monat" : "Gesamt"}
+                        Stripe-Zahlungen
                       </button>
-                    ))}
+                    </div>
+                    <ProfileSubscriptionStatus data={finance.subscriptions} />
                   </div>
                   {!finance.complete && (
                     <p className="profile-error">
@@ -829,16 +904,22 @@ export function ProfileView({
                       verfügbar.
                     </p>
                   )}
-                  {finance.complete &&
+                  {financeWindow === "payments" && (
+                    <ProfileStripePayments data={finance} money={money} />
+                  )}
+                  {financeWindow !== "payments" &&
+                    finance.complete &&
                     finance.currencies.map((c) => (
                       <div className="profile-money" key={c.currency}>
                         <div>
                           <span>Aboausgaben</span>
                           <strong>
-                            {c[financeWindow].subscriptions === null
+                            {c[financeWindow === "month" ? "month" : "all"]
+                              .subscriptions === null
                               ? "Zuordnung offen"
                               : money(
-                                  c[financeWindow].subscriptions!,
+                                  c[financeWindow === "month" ? "month" : "all"]
+                                    .subscriptions!,
                                   c.currency,
                                 )}
                           </strong>
@@ -846,14 +927,20 @@ export function ProfileView({
                         <div>
                           <span>Gesamtausgaben</span>
                           <strong>
-                            {money(c[financeWindow].total, c.currency)}
+                            {money(
+                              c[financeWindow === "month" ? "month" : "all"]
+                                .total,
+                              c.currency,
+                            )}
                           </strong>
                         </div>
                       </div>
                     ))}
-                  {finance.complete && !finance.currencies.length && (
-                    <p>Keine vereinnahmten Stripe-Zahlungen gefunden.</p>
-                  )}
+                  {financeWindow !== "payments" &&
+                    finance.complete &&
+                    !finance.currencies.length && (
+                      <p>Keine vereinnahmten Stripe-Zahlungen gefunden.</p>
+                    )}
                   {finance.notes.map((n) => (
                     <p key={n} className="profile-muted">
                       {n}

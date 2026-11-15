@@ -51,6 +51,7 @@ beforeEach(() => {
     charges: { list: async () => ({ data: f.charges, has_more: false }) },
     invoices: { list: async () => ({ data: f.invoices, has_more: false }) },
     refunds: { list: async () => ({ data: f.refunds, has_more: false }) },
+    subscriptions: { list: async () => ({ data: [], has_more: false }) },
   });
 });
 it.each(["staff", "parent", undefined])(
@@ -116,6 +117,58 @@ it("counts captures once and places refunds of older charges into their refund m
     all: { total: 7500, subscriptions: 7500 },
     month: { total: -2500, subscriptions: -2500 },
   });
+});
+it("returns chronological payment rows, including failed attempts, without adding them to revenue", async () => {
+  f.charges = [
+    {
+      id: "ch_paid",
+      created: seconds("2026-11-01"),
+      amount: 17500,
+      amount_captured: 17500,
+      amount_refunded: 0,
+      currency: "eur",
+      status: "succeeded",
+      paid: true,
+      captured: true,
+      description: "Subscription update",
+      payment_method_details: { type: "paypal" },
+      balance_transaction: { created: seconds("2026-11-01") },
+    },
+    {
+      id: "ch_failed",
+      created: seconds("2026-11-02"),
+      amount: 17500,
+      amount_captured: 0,
+      amount_refunded: 0,
+      currency: "eur",
+      status: "failed",
+      paid: false,
+      captured: false,
+    },
+    {
+      id: "ch_authorized",
+      created: seconds("2026-11-03"),
+      amount: 17500,
+      amount_captured: 0,
+      amount_refunded: 0,
+      currency: "eur",
+      status: "succeeded",
+      paid: true,
+      captured: false,
+    },
+  ];
+  const result = await readProfileFinances(admin, "p");
+  expect(result.payments?.map((p) => [p.id, p.status])).toEqual([
+    ["ch_authorized", "pending"],
+    ["ch_failed", "failed"],
+    ["ch_paid", "succeeded"],
+  ]);
+  expect(result.payments?.[2]).toMatchObject({
+    amount: 17500,
+    description: "Subscription update",
+    method: "paypal",
+  });
+  expect(result.currencies[0].all.total).toBe(17500);
 });
 it("does not pretend mixed invoice money is all subscription spending", async () => {
   f.charges = [
