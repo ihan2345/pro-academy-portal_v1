@@ -186,3 +186,112 @@ export function previewCamps() {
     ],
   };
 }
+
+const firstNames = [
+  "Noah",
+  "Mia",
+  "Elias",
+  "Lina",
+  "Ben",
+  "Emma",
+  "Paul",
+  "Lea",
+  "Finn",
+  "Sofia",
+  "Leon",
+  "Hanna",
+];
+const lastNames = [
+  "Becker",
+  "Becker",
+  "Yilmaz",
+  "Schulz",
+  "Wagner",
+  "Hoffmann",
+  "Kaya",
+  "Klein",
+  "Wolf",
+  "Neumann",
+  "Demir",
+  "Krause",
+];
+
+export function previewAdminPortal(): PortalData {
+  const base = previewPortal();
+  const players = firstNames.map((first_name, i) => ({
+    id: `c-${i + 1}`,
+    first_name,
+    last_name: lastNames[i],
+    team: ["U9", "U11", "U13"][i % 3],
+  }));
+  const titles = [
+    "Technik & Ballkontrolle",
+    "Passspiel & Spielaufbau",
+    "Abschluss & Torschuss",
+    "1-gegen-1 & Dribbling",
+    "Athletik & Koordination",
+  ];
+  const events: Training[] = [];
+  for (let d = -10; d <= 12; d += 2)
+    players.slice(0, 6).forEach((p, i) => {
+      if ((d + i) % 3) return;
+      const t = training(
+        `ea-${d}-${i}`,
+        d,
+        15 + (i % 4),
+        titles[(i + d + 20) % titles.length],
+        d < 0 ? "attended_auto" : "planned",
+      );
+      t.participants = [
+        { ...t.participants[0], id: `${t.id}-pp`, player_id: p.id },
+      ];
+      events.push(t);
+    });
+  return {
+    ...base,
+    role: "admin",
+    user_name: "Kaan",
+    email: "admin@example.com",
+    camp_access: undefined,
+    players,
+    events,
+    reports: [
+      ...base.reports,
+      ...base.reports.map((r) => ({ ...r, id: "r-2" })),
+    ],
+    locations: [
+      { id: "l-1", name: "Sportpark Nord", address: "Am Sportpark 1" },
+      { id: "l-2", name: "Sporthalle Mitte", address: "Hallenweg 5" },
+    ],
+    trainers: [
+      { id: "t-1", name: "Coach Max" },
+      { id: "t-2", name: "Coach Ayşe" },
+    ],
+  };
+}
+
+export function previewAdminRows(table: string): Record<string, unknown>[] {
+  const admin = previewAdminPortal();
+  if (table === "players")
+    return admin.players.map((p, i) => ({
+      ...p,
+      birth_year: 2014 + (i % 5),
+      parent_players: i % 4 ? [{ parent_id: `pa-${i}` }] : [],
+    }));
+  if (table === "parents")
+    return admin.players.slice(0, 8).map((p, i) => ({
+      id: `pa-${i}`,
+      full_name: `${["Laura", "Sven", "Aylin", "Jana", "Murat", "Sarah", "Tim", "Nina"][i]} ${p.last_name}`,
+      contact_email: `eltern${i + 1}@example.com`,
+      billing_email: `eltern${i + 1}@example.com`,
+      parent_players: i % 3 ? [{ player_id: p.id }] : [],
+    }));
+  if (table === "locations")
+    return admin.locations.map((l) => ({ ...l, active: true }));
+  if (table === "staff_profiles")
+    return [
+      { id: "t-1", display_name: "Coach Max", active: true },
+      { id: "t-2", display_name: "Coach Ayşe", active: true },
+    ];
+  return [];
+}
