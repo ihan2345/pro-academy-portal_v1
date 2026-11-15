@@ -6,6 +6,7 @@ function useListState() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("name");
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [campOnly, setCampOnly] = useState(false);
   const [offset, setOffset] = useState(0);
   return {
     search,
@@ -14,6 +15,8 @@ function useListState() {
     setSort,
     includeInactive,
     setIncludeInactive,
+    campOnly,
+    setCampOnly,
     offset,
     setOffset,
   };
@@ -31,16 +34,18 @@ export function ProfileListStateProvider({
   const area =
     /^\/(admin|team)\/elternprofile(?:\/|$)/.exec(pathname ?? "")?.[1] ?? null;
   const previousArea = useRef(area);
-  const { setSearch, setSort, setIncludeInactive, setOffset } = state;
+  const { setSearch, setSort, setIncludeInactive, setOffset, setCampOnly } =
+    state;
   useEffect(() => {
     if (!area || previousArea.current !== area) {
       setSearch("");
       setSort("name");
       setIncludeInactive(false);
+      setCampOnly(false);
       setOffset(0);
     }
     previousArea.current = area;
-  }, [area, setSearch, setSort, setIncludeInactive, setOffset]);
+  }, [area, setSearch, setSort, setIncludeInactive, setOffset, setCampOnly]);
   return <ListState.Provider value={state}>{children}</ListState.Provider>;
 }
 export function useProfileListState() {

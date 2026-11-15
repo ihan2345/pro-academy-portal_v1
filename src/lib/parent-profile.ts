@@ -7,6 +7,7 @@ import {
   type Attendance,
 } from "./domain";
 import { calendarDate } from "./calendar";
+import type { ProfileAccess } from "./profile-access";
 
 export const PROFILE_WEEK = 7 * 24 * 60 * 60 * 1000;
 export type ProfileWindow = "month" | "all";
@@ -68,6 +69,7 @@ export interface ProfileTrialChild {
   confirmed: boolean;
 }
 export interface ParentProfile {
+  portal_access?: ProfileAccess;
   id: string;
   name: string;
   email: string;
@@ -89,6 +91,7 @@ export interface ParentProfile {
   camps_available: boolean;
 }
 export interface ProfileListRow {
+  portal_access?: ProfileAccess;
   id: string;
   name: string;
   email: string;

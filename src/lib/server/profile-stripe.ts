@@ -29,7 +29,9 @@ export const profileReadFetch: typeof fetch = async (input, init) => {
   if (
     method.toUpperCase() !== "GET" ||
     url.origin !== "https://api.stripe.com" ||
-    !/^\/v1\/(checkout\/sessions|account|customers\/cus_[A-Za-z0-9]+|charges|invoices|invoices\/in_[A-Za-z0-9]+\/lines|subscriptions\/sub_[A-Za-z0-9]+|invoice_payments|refunds)$/.test(
+    (url.pathname === "/v1/subscriptions" &&
+      !/^cus_[A-Za-z0-9]+$/.test(url.searchParams.get("customer") ?? "")) ||
+    !/^\/v1\/(checkout\/sessions|account|customers\/cus_[A-Za-z0-9]+|charges|invoices|invoices\/in_[A-Za-z0-9]+\/lines|subscriptions|subscriptions\/sub_[A-Za-z0-9]+|products\/prod_[A-Za-z0-9]+|invoice_payments|refunds)$/.test(
       url.pathname,
     )
   )
