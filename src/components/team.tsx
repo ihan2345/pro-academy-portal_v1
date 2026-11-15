@@ -29,6 +29,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Modal, Badge } from "./portal";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import {
+  EventPulse,
+  PlanningOverview,
+  applyPlanning,
+  initialPlanning,
+  needsConfirmation,
+} from "@/design-2026/planning";
 import type { PortalData, Training } from "@/lib/types";
 import {
   trainingPeriod,
@@ -103,6 +111,7 @@ export function TeamView({
     [mode, setMode] = useState("day"),
     [editor, setEditor] = useState<Training | "new" | null>(null),
     [exceptions, setExceptions] = useState<Training | null>(null);
+  const [planning, setPlanning] = useState(initialPlanning);
   const monday = weekStart(date);
   const counts = new Map<string, number>();
   for (const event of data.events) {
@@ -117,6 +126,10 @@ export function TeamView({
         : day >= monday && day < addDays(monday, 7);
     })
     .sort(compareTrainings);
+  // Design 2026: zusätzliche Filter nur in der Darstellung.
+  const shown = DESIGN_2026
+    ? applyPlanning(visible, data.events, planning, now)
+    : visible;
   function selectDate(day: string) {
     if (!day) return;
     setDate(day);
@@ -184,6 +197,20 @@ export function TeamView({
           {data.role === "admin" && <TrainingApiShare notify={notify} />}
         </div>
       </div>
+      {DESIGN_2026 && (
+        <PlanningOverview
+          data={data}
+          now={now}
+          today={today}
+          weekFrom={weekStart(today)}
+          state={planning}
+          setState={setPlanning}
+          jumpToday={() => {
+            setDate(today);
+            setMonth(monthStart(today));
+          }}
+        />
+      )}
       <section className="panel training-calendar-shell">
         <div className="calendar-toolbar">
           <div className="calendar-controls">
@@ -296,7 +323,7 @@ export function TeamView({
                 </h2>
               </div>
               <span className="agenda-count">
-                {visible.length} {visible.length === 1 ? "Termin" : "Termine"}
+                {shown.length} {shown.length === 1 ? "Termin" : "Termine"}
               </span>
             </div>
             <div
@@ -310,10 +337,10 @@ export function TeamView({
                   : "Termine der Woche"
               }
             >
-              {visible.length ? (
-                visible.map((e) => (
+              {shown.length ? (
+                shown.map((e) => (
                   <article
-                    className={`team-event${e.status === "cancelled" ? " team-event-cancelled" : ""}`}
+                    className={`team-event${e.status === "cancelled" ? " team-event-cancelled" : ""}${DESIGN_2026 && needsConfirmation(e, now) ? " d26-needs-confirm" : ""}`}
                     key={e.id}
                   >
                     <div className="team-event-time">
@@ -372,6 +399,9 @@ export function TeamView({
                           })
                           .join(", ") || "Noch keine Spieler hinzugefügt"}
                       </p>
+                      {DESIGN_2026 && (
+                        <EventPulse event={e} data={data} now={now} />
+                      )}
                       {data.trial_enabled &&
                         e.participants
                           .filter(
