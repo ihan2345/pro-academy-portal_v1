@@ -9,18 +9,26 @@ import {
   ArrowRight,
   ArrowUpRight,
   CalendarPlus,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
   Download,
   FileText,
+  Flame,
+  LayoutGrid,
+  List,
   MapPin,
   Navigation,
+  Percent,
   Search,
   Sparkles,
+  Timer,
+  TrendingUp,
   UserRound,
   Zap,
 } from "lucide-react";
+import { BreakdownBars, CountUp, Countdown, Sheet, glowFollow } from "./ui";
 import type { Period, PortalData, Report, Training } from "@/lib/types";
 import {
   STATUS_LABELS,
@@ -122,6 +130,78 @@ function icsFor(event: Training) {
     "END:VCALENDAR",
   ].join("\r\n");
   return URL.createObjectURL(new Blob([text], { type: "text/calendar" }));
+}
+
+function weekStart(d: Date) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+function mode(values: (string | undefined)[]) {
+  const counts = new Map<string, number>();
+  for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+}
+type Bucket = "planned" | "done" | "missed";
+function bucketOf(event: Training, playerId: string): Bucket {
+  const s = statusOf(event, playerId);
+  if (
+    event.status === "cancelled" ||
+    ["absent", "excused", "cancelled"].includes(s)
+  )
+    return "missed";
+  return isAttended(s) ? "done" : "planned";
+}
+const bucketTone: Record<Bucket, string> = {
+  planned: "purple",
+  done: "lime",
+  missed: "red",
+};
+
+/** Kennzahlen, die nur aus den vorhandenen Terminen im Browser berechnet werden. */
+function insightsFor(events: Training[], playerId: string) {
+  const now = Date.now();
+  const attended = events
+    .filter((e) => isAttended(statusOf(e, playerId)))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  const past = events.filter(
+    (e) => Date.parse(e.ends_at) < now && e.status !== "cancelled",
+  );
+  const missed = past.filter((e) =>
+    ["absent", "excused"].includes(statusOf(e, playerId)),
+  ).length;
+  const weeks = new Set(
+    attended.map((e) => weekStart(new Date(e.starts_at)).getTime()),
+  );
+  let streak = 0;
+  const cursor = weekStart(new Date());
+  if (!weeks.has(cursor.getTime())) cursor.setDate(cursor.getDate() - 7);
+  while (weeks.has(cursor.getTime())) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 7);
+  }
+  const first = attended[0] ? Date.parse(attended[0].starts_at) : now;
+  const spanWeeks = Math.max(1, Math.ceil((now - first) / (7 * 86400000)));
+  const lastWeeks = Array.from({ length: 8 }, (_, i) => {
+    const d = weekStart(new Date());
+    d.setDate(d.getDate() - (7 - i) * 7);
+    const count = attended.filter(
+      (e) => weekStart(new Date(e.starts_at)).getTime() === d.getTime(),
+    ).length;
+    return { d, count };
+  });
+  return {
+    attended,
+    streak,
+    perWeek: attended.length / spanWeeks,
+    rate:
+      attended.length + missed
+        ? attended.length / (attended.length + missed)
+        : 0,
+    locations: mode(attended.map((e) => e.location_name)),
+    coaches: mode(attended.map((e) => e.trainer_name)),
+    lastWeeks,
+  };
 }
 
 /* ---------- Bausteine ---------- */
@@ -353,6 +433,65 @@ function EventRow({
 
 /* ---------- Heute ---------- */
 
+type TodaySheet = "rings" | "plan" | "insights" | null;
+
+function MiniEvent({
+  event,
+  playerId,
+  index,
+  onOpen,
+}: {
+  event: Training;
+  playerId: string;
+  index?: number;
+  onOpen: (e: Training) => void;
+}) {
+  const bucket = bucketOf(event, playerId);
+  return (
+    <button
+      type="button"
+      className={`d26-mini-event tone-${bucketTone[bucket]}`}
+      onClick={() => onOpen(event)}
+    >
+      <span className="d26-mini-index">
+        {index !== undefined ? index : formatTime(event.starts_at)}
+      </span>
+      <span>
+        <b>{event.title}</b>
+        <small>
+          {formatDate(event.starts_at, {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          })}{" "}
+          · {formatTime(event.starts_at)} · {event.location_name}
+        </small>
+      </span>
+      <span className="d26-pill">
+        {event.status === "cancelled"
+          ? "Termin abgesagt"
+          : STATUS_LABELS[statusOf(event, playerId)]}
+      </span>
+    </button>
+  );
+}
+
+function WeekSpark({ weeks }: { weeks: { d: Date; count: number }[] }) {
+  const max = Math.max(1, ...weeks.map((w) => w.count));
+  return (
+    <div className="d26-spark">
+      {weeks.map(({ d, count }) => (
+        <span
+          key={d.getTime()}
+          data-tip={`KW ab ${formatDate(d.toISOString(), { day: "numeric", month: "short" })}: ${count} ${count === 1 ? "Einheit" : "Einheiten"}`}
+        >
+          <i style={{ height: `${Math.max(8, (count / max) * 100)}%` }} />
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function Today(props: ParentExperienceProps) {
   const {
     data,
@@ -364,6 +503,7 @@ function Today(props: ParentExperienceProps) {
     playerId,
     openDetail,
   } = props;
+  const [sheet, setSheet] = useState<TodaySheet>(null);
   const next = upcoming[0];
   const recent = events
     .filter((e) => Date.parse(e.starts_at) < Date.now())
@@ -390,6 +530,26 @@ function Today(props: ParentExperienceProps) {
         Math.ceil((Date.parse(period.ends_at) - Date.now()) / 86400000),
       )
     : 0;
+  const inPeriod = events
+    .filter((e) =>
+      e.participants.some(
+        (p) => p.player_id === playerId && p.period_id === period?.id,
+      ),
+    )
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  const counted = inPeriod.filter((e) => isAttended(statusOf(e, playerId)));
+  const plannedIn = inPeriod.filter(
+    (e) =>
+      statusOf(e, playerId) === "planned" &&
+      e.status !== "cancelled" &&
+      Date.parse(e.starts_at) > Date.now(),
+  );
+  const insight = insightsFor(events, playerId);
+  const openFromSheet = (e: Training) => {
+    setSheet(null);
+    openDetail(e);
+  };
+  const firstName = player?.first_name ?? "Dein Kind";
   return (
     <>
       <LargeTitle
@@ -405,7 +565,7 @@ function Today(props: ParentExperienceProps) {
       <p className="d26-greeting">
         {greeting()}, {data.user_name}.{" "}
         {next
-          ? `${player?.first_name ?? "Dein Kind"} trainiert ${relativeDay(next.starts_at).toLowerCase()}.`
+          ? `${firstName} trainiert ${relativeDay(next.starts_at).toLowerCase()}.`
           : "Gerade ist kein Training geplant."}
       </p>
 
@@ -424,6 +584,7 @@ function Today(props: ParentExperienceProps) {
                 <span> – {formatTime(next.ends_at)}</span>
               </h2>
               <p className="d26-hero-title">{next.title}</p>
+              <Countdown to={next.starts_at} />
               <div className="d26-hero-meta">
                 <span>
                   {formatDate(next.starts_at, {
@@ -432,11 +593,11 @@ function Today(props: ParentExperienceProps) {
                     month: "long",
                   })}
                 </span>
-                <span>
+                <span data-tip={next.address || undefined}>
                   <MapPin size={15} /> {next.location_name}
                 </span>
                 {next.trainer_name && (
-                  <span>
+                  <span data-tip="Dein Coach für diese Einheit">
                     <UserRound size={15} /> {next.trainer_name}
                   </span>
                 )}
@@ -452,6 +613,7 @@ function Today(props: ParentExperienceProps) {
                 <button
                   type="button"
                   className="d26-btn"
+                  data-tip="Als .ics für Apple, Google oder Outlook"
                   onClick={() => {
                     const a = document.createElement("a");
                     a.href = icsFor(next);
@@ -467,6 +629,7 @@ function Today(props: ParentExperienceProps) {
                     className="d26-btn"
                     target="_blank"
                     rel="noreferrer"
+                    data-tip="Öffnet Apple Karten"
                     href={`https://maps.apple.com/?q=${encodeURIComponent(
                       [next.location_name, next.address]
                         .filter(Boolean)
@@ -490,17 +653,25 @@ function Today(props: ParentExperienceProps) {
           )}
         </section>
 
-        <section className="d26-card d26-rings-card">
+        <button
+          type="button"
+          className="d26-card d26-rings-card is-tappable"
+          onClick={() => setSheet("rings")}
+        >
           <div className="d26-card-head">
             <h3>Dein Zeitraum</h3>
-            <Link href="/stempelkarte">
-              Fortschritt <ChevronRight size={15} />
-            </Link>
+            <span className="d26-more">
+              Details <ChevronRight size={15} />
+            </span>
           </div>
           <ProgressRings period={period} stats={stats} compact />
-        </section>
+        </button>
 
-        <Link href="/konto" className="d26-card d26-plan">
+        <button
+          type="button"
+          className="d26-card d26-plan is-tappable"
+          onClick={() => setSheet("plan")}
+        >
           <span className="d26-icon is-purple">
             <Zap size={18} fill="currentColor" />
           </span>
@@ -509,7 +680,10 @@ function Today(props: ParentExperienceProps) {
             {period?.product_name ?? "Kein aktives Paket"}
             <span className="d26-pill tone-lime">{status}</span>
           </h3>
-          <div className="d26-bar">
+          <div
+            className="d26-bar"
+            data-tip={`${Math.round(periodShare * 100)} % des Zeitraums vorbei`}
+          >
             <i style={{ width: `${periodShare * 100}%` }} />
           </div>
           <p>
@@ -517,28 +691,36 @@ function Today(props: ParentExperienceProps) {
               ? `${periodLabel(period.starts_at, period.ends_at)} · noch ${daysLeft} Tage`
               : "Noch nicht zugeordnet"}
           </p>
-        </Link>
+        </button>
 
         <Link href="/stempelkarte" className="d26-card d26-stamps-mini">
           <small>Stempelkarte</small>
           <h3>
-            {stats.completed}
+            <CountUp value={stats.completed} />
             <span> / {included}</span>
           </h3>
           <div className="d26-dots">
             {Array.from({ length: Math.max(included, stats.completed) }).map(
-              (_, i) => (
-                <i
-                  key={i}
-                  className={
-                    i < stats.completed
-                      ? "is-done"
-                      : i < stats.completed + stats.planned
-                        ? "is-planned"
-                        : ""
-                  }
-                />
-              ),
+              (_, i) => {
+                const e = counted[i] ?? plannedIn[i - counted.length];
+                return (
+                  <i
+                    key={i}
+                    data-tip={
+                      e
+                        ? `${i < counted.length ? "Angerechnet" : "Eingeplant"}: ${formatDate(e.starts_at, { day: "numeric", month: "short" })} · ${e.title}`
+                        : "Noch frei"
+                    }
+                    className={
+                      i < stats.completed
+                        ? "is-done"
+                        : i < stats.completed + stats.planned
+                          ? "is-planned"
+                          : ""
+                    }
+                  />
+                );
+              },
             )}
           </div>
           <p>{durationLabel(stats.minutes)} Training</p>
@@ -557,6 +739,66 @@ function Today(props: ParentExperienceProps) {
           </p>
         </Link>
       </div>
+
+      <section className="d26-list-section">
+        <div className="d26-section-head">
+          <h2>Insights</h2>
+          <button
+            type="button"
+            className="d26-link"
+            onClick={() => setSheet("insights")}
+          >
+            Alle Statistiken <ArrowRight size={15} />
+          </button>
+        </div>
+        <div className="d26-insights">
+          <button
+            type="button"
+            className="d26-card d26-insight is-tappable tone-orange"
+            data-tip="Wochen in Folge mit mindestens einem absolvierten Training"
+            onClick={() => setSheet("insights")}
+          >
+            <Flame size={18} />
+            <b>
+              <CountUp value={insight.streak} />
+            </b>
+            <span>{insight.streak === 1 ? "Woche" : "Wochen"} Serie</span>
+          </button>
+          <button
+            type="button"
+            className="d26-card d26-insight is-tappable tone-blue"
+            data-tip="Durchschnitt seit dem ersten Training"
+            onClick={() => setSheet("insights")}
+          >
+            <TrendingUp size={18} />
+            <b>{insight.perWeek.toFixed(1).replace(".", ",")}</b>
+            <span>Trainings pro Woche</span>
+          </button>
+          <button
+            type="button"
+            className="d26-card d26-insight is-tappable tone-lime"
+            data-tip="Absolviert im Verhältnis zu allen vergangenen Terminen"
+            onClick={() => setSheet("insights")}
+          >
+            <Percent size={18} />
+            <b>
+              <CountUp value={Math.round(insight.rate * 100)} />
+              <small>%</small>
+            </b>
+            <span>Anwesenheit</span>
+          </button>
+          <button
+            type="button"
+            className="d26-card d26-insight is-tappable tone-purple"
+            data-tip={insight.locations[0]?.[0] ?? "Noch kein Ort"}
+            onClick={() => setSheet("insights")}
+          >
+            <MapPin size={18} />
+            <b className="is-text">{insight.locations[0]?.[0] ?? "–"}</b>
+            <span>Lieblingsort</span>
+          </button>
+        </div>
+      </section>
 
       <section className="d26-list-section">
         <div className="d26-section-head">
@@ -580,18 +822,308 @@ function Today(props: ParentExperienceProps) {
           )}
         </div>
       </section>
+
+      <Sheet
+        open={sheet === "rings"}
+        onClose={() => setSheet(null)}
+        eyebrow={
+          period ? periodLabel(period.starts_at, period.ends_at) : undefined
+        }
+        title="Dein Zeitraum"
+        footer={
+          <Link href="/stempelkarte" className="d26-btn is-primary">
+            Zur Stempelkarte <ArrowRight size={16} />
+          </Link>
+        }
+      >
+        <ProgressRings period={period} stats={stats} />
+        <div className="d26-sheet-stats">
+          <div>
+            <b>{stats.completed}</b>
+            <span>angerechnet</span>
+          </div>
+          <div>
+            <b>{Math.max(included - stats.completed, 0)}</b>
+            <span>noch offen</span>
+          </div>
+          <div>
+            <b>{daysLeft}</b>
+            <span>Tage übrig</span>
+          </div>
+        </div>
+        <h4>Angerechnete Einheiten</h4>
+        <div className="d26-mini-list">
+          {counted.length ? (
+            counted.map((e, i) => (
+              <MiniEvent
+                key={e.id}
+                event={e}
+                playerId={playerId}
+                index={i + 1}
+                onOpen={openFromSheet}
+              />
+            ))
+          ) : (
+            <p className="d26-empty">Noch keine Einheit angerechnet.</p>
+          )}
+        </div>
+        <h4>Eingeplant</h4>
+        <div className="d26-mini-list">
+          {plannedIn.length ? (
+            plannedIn.map((e) => (
+              <MiniEvent
+                key={e.id}
+                event={e}
+                playerId={playerId}
+                onOpen={openFromSheet}
+              />
+            ))
+          ) : (
+            <p className="d26-empty">Gerade nichts eingeplant.</p>
+          )}
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={sheet === "plan"}
+        onClose={() => setSheet(null)}
+        eyebrow="Trainingspaket"
+        title={period?.product_name ?? "Kein aktives Paket"}
+        footer={
+          <Link href="/konto" className="d26-btn is-primary">
+            Konto & Abo verwalten <ArrowRight size={16} />
+          </Link>
+        }
+      >
+        <div className="d26-plan-hero">
+          <span className="d26-pill tone-lime">{status}</span>
+          <h3>
+            {period
+              ? periodLabel(period.starts_at, period.ends_at)
+              : "Noch nicht zugeordnet"}
+          </h3>
+          <div className="d26-bar is-large">
+            <i style={{ width: `${periodShare * 100}%` }} />
+          </div>
+          <p>
+            {Math.round(periodShare * 100)} % vorbei · noch {daysLeft} Tage
+          </p>
+        </div>
+        <dl className="d26-facts">
+          <div>
+            <dt>Enthaltene Einheiten</dt>
+            <dd>{included}</dd>
+          </div>
+          <div>
+            <dt>Angerechnet</dt>
+            <dd>{stats.completed}</dd>
+          </div>
+          <div>
+            <dt>Eingeplant</dt>
+            <dd>{stats.planned}</dd>
+          </div>
+          <div>
+            <dt>Trainingszeit</dt>
+            <dd>{durationLabel(stats.minutes)}</dd>
+          </div>
+          {period && (
+            <>
+              <div>
+                <dt>Beginn</dt>
+                <dd>{formatDate(period.starts_at)}</dd>
+              </div>
+              <div>
+                <dt>Ende</dt>
+                <dd>{formatDate(period.ends_at)}</dd>
+              </div>
+            </>
+          )}
+        </dl>
+      </Sheet>
+
+      <Sheet
+        open={sheet === "insights"}
+        onClose={() => setSheet(null)}
+        eyebrow={firstName}
+        title="Statistiken"
+      >
+        <div className="d26-sheet-stats">
+          <div>
+            <b>{insight.attended.length}</b>
+            <span>Trainings gesamt</span>
+          </div>
+          <div>
+            <b>{insight.streak}</b>
+            <span>Wochen Serie</span>
+          </div>
+          <div>
+            <b>{Math.round(insight.rate * 100)} %</b>
+            <span>Anwesenheit</span>
+          </div>
+        </div>
+        <h4>Letzte 8 Wochen</h4>
+        <WeekSpark weeks={insight.lastWeeks} />
+        <h4>Nach Ort</h4>
+        <BreakdownBars
+          rows={insight.locations.map(([label, value]) => ({
+            label,
+            value,
+            tone: "purple",
+          }))}
+        />
+        <h4>Nach Coach</h4>
+        <BreakdownBars
+          rows={insight.coaches.map(([label, value]) => ({
+            label,
+            value,
+            tone: "lime",
+          }))}
+        />
+        <h4>Verlauf</h4>
+        <div className="d26-mini-list">
+          {[...insight.attended].reverse().map((e) => (
+            <MiniEvent
+              key={e.id}
+              event={e}
+              playerId={playerId}
+              onOpen={openFromSheet}
+            />
+          ))}
+        </div>
+      </Sheet>
     </>
   );
 }
 
 /* ---------- Kalender ---------- */
 
+function MonthGrid({
+  events,
+  playerId,
+  monthOffset,
+  setMonthOffset,
+  bucket,
+  onDay,
+}: {
+  events: Training[];
+  playerId: string;
+  monthOffset: number;
+  setMonthOffset: (fn: (m: number) => number) => void;
+  bucket: Bucket | "all";
+  onDay: (key: string) => void;
+}) {
+  const base = new Date();
+  const first = new Date(base.getFullYear(), base.getMonth() + monthOffset, 1);
+  const startGrid = weekStart(first);
+  const cells = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(startGrid);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const byDay = new Map<string, Training[]>();
+  for (const e of events) {
+    if (bucket !== "all" && bucketOf(e, playerId) !== bucket) continue;
+    const k = dayKey(e.starts_at);
+    byDay.set(k, [...(byDay.get(k) ?? []), e]);
+  }
+  const todayKey = dayKey(new Date().toISOString());
+  const lastRowNeeded = cells[35].getMonth() === first.getMonth();
+  return (
+    <section className="d26-card d26-month">
+      <div className="d26-card-head">
+        <h3>
+          {first.toLocaleDateString("de-DE", {
+            month: "long",
+            year: "numeric",
+          })}
+        </h3>
+        <div className="d26-month-nav">
+          <button
+            type="button"
+            className="d26-round"
+            aria-label="Vorheriger Monat"
+            onClick={() => setMonthOffset((m) => m - 1)}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            type="button"
+            className="d26-chip"
+            onClick={() => setMonthOffset(() => 0)}
+          >
+            Heute
+          </button>
+          <button
+            type="button"
+            className="d26-round"
+            aria-label="Nächster Monat"
+            onClick={() => setMonthOffset((m) => m + 1)}
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
+      <div className="d26-month-grid" key={monthOffset}>
+        {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((w) => (
+          <small key={w}>{w}</small>
+        ))}
+        {cells.slice(0, lastRowNeeded ? 42 : 35).map((d) => {
+          const k = dayKey(d.toISOString());
+          const items = byDay.get(k) ?? [];
+          const outside = d.getMonth() !== first.getMonth();
+          return (
+            <button
+              type="button"
+              key={k}
+              disabled={!items.length}
+              data-tip={
+                items.length
+                  ? items
+                      .map((e) => `${formatTime(e.starts_at)} ${e.title}`)
+                      .join(" · ")
+                  : undefined
+              }
+              className={`${outside ? "is-outside" : ""} ${k === todayKey ? "is-today" : ""} ${items.length ? "has-events" : ""}`}
+              onClick={() => onDay(k)}
+            >
+              <b>{d.getDate()}</b>
+              <span>
+                {items.slice(0, 3).map((e) => (
+                  <i
+                    key={e.id}
+                    className={`tone-${bucketTone[bucketOf(e, playerId)]}`}
+                  />
+                ))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="d26-legend">
+        <span>
+          <i className="tone-purple" /> Geplant
+        </span>
+        <span>
+          <i className="tone-lime" /> Absolviert
+        </span>
+        <span>
+          <i className="tone-red" /> Abgesagt / gefehlt
+        </span>
+      </div>
+    </section>
+  );
+}
+
 function Calendar(props: ParentExperienceProps) {
   const { events, playerId, openDetail } = props;
+  const [view, setView] = useState<"list" | "month">("list");
   const [filter, setFilter] = useState<"upcoming" | "past" | "all">("upcoming");
+  const [bucket, setBucket] = useState<Bucket | "all">("all");
   const [query, setQuery] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
   const [day, setDay] = useState<string | null>(null);
+  const [sheetDay, setSheetDay] = useState<string | null>(null);
   const now = Date.now();
   const monday = useMemo(() => {
     const d = new Date();
@@ -604,7 +1136,14 @@ function Calendar(props: ParentExperienceProps) {
     d.setDate(d.getDate() + i);
     return d;
   });
-  const busy = new Set(events.map((e) => dayKey(e.starts_at)));
+  const titlesByDay = new Map<string, string[]>();
+  for (const e of events) {
+    const k = dayKey(e.starts_at);
+    titlesByDay.set(k, [
+      ...(titlesByDay.get(k) ?? []),
+      `${formatTime(e.starts_at)} ${e.title}`,
+    ]);
+  }
   const q = query.trim().toLowerCase();
   const list = events
     .filter((e) =>
@@ -615,6 +1154,7 @@ function Calendar(props: ParentExperienceProps) {
             ? Date.parse(e.ends_at) >= now
             : Date.parse(e.ends_at) < now),
     )
+    .filter((e) => bucket === "all" || bucketOf(e, playerId) === bucket)
     .filter(
       (e) =>
         !q ||
@@ -641,6 +1181,17 @@ function Calendar(props: ParentExperienceProps) {
     charged: events.filter((e) => isChargedAbsence(statusOf(e, playerId)))
       .length,
   };
+  const bucketCounts = {
+    all: events.length,
+    planned: events.filter((e) => bucketOf(e, playerId) === "planned").length,
+    done: events.filter((e) => bucketOf(e, playerId) === "done").length,
+    missed: events.filter((e) => bucketOf(e, playerId) === "missed").length,
+  };
+  const sheetItems = sheetDay
+    ? events
+        .filter((e) => dayKey(e.starts_at) === sheetDay)
+        .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    : [];
   return (
     <>
       <LargeTitle
@@ -653,144 +1204,345 @@ function Calendar(props: ParentExperienceProps) {
         <ChildSwitch {...props} />
       </LargeTitle>
       <div className="d26-summary">
-        <span>
+        <span data-tip="Alle Termine ab jetzt">
           <b>{counts.upcoming}</b> anstehend
         </span>
-        <span>
+        <span data-tip="Automatisch oder vom Coach bestätigt">
           <b>{counts.done}</b> absolviert
         </span>
-        <span>
+        <span data-tip="Kurzfristig abgesagt oder nicht erschienen, zählt als Einheit">
           <b>{counts.charged}</b> angerechnet abgesagt
         </span>
       </div>
-      <section className="d26-card d26-week">
-        <button
-          type="button"
-          className="d26-round"
-          aria-label="Vorherige Woche"
-          onClick={() => setWeekOffset((w) => w - 1)}
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <div className="d26-week-days">
-          {week.map((d) => {
-            const k = dayKey(d.toISOString());
-            const isToday = k === dayKey(new Date().toISOString());
-            return (
-              <button
-                type="button"
-                key={k}
-                className={`${day === k ? "is-selected" : ""} ${isToday ? "is-today" : ""}`}
-                onClick={() => setDay(day === k ? null : k)}
-              >
-                <small>
-                  {d.toLocaleDateString("de-DE", { weekday: "short" })}
-                </small>
-                <b>{d.getDate()}</b>
-                <i className={busy.has(k) ? "has-event" : ""} />
-              </button>
-            );
-          })}
-        </div>
-        <button
-          type="button"
-          className="d26-round"
-          aria-label="Nächste Woche"
-          onClick={() => setWeekOffset((w) => w + 1)}
-        >
-          <ChevronRight size={18} />
-        </button>
-      </section>
       <div className="d26-toolbar">
-        <div className="d26-segments" role="tablist">
+        <div className="d26-segments d26-view-switch" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "list"}
+            className={view === "list" ? "is-active" : ""}
+            onClick={() => setView("list")}
+          >
+            <List size={15} /> Liste
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "month"}
+            className={view === "month" ? "is-active" : ""}
+            onClick={() => setView("month")}
+          >
+            <LayoutGrid size={15} /> Monat
+          </button>
+        </div>
+        <div className="d26-chips d26-filter-chips" aria-label="Status">
           {(
             [
-              ["upcoming", "Anstehend"],
-              ["past", "Vergangen"],
               ["all", "Alle"],
+              ["planned", "Geplant"],
+              ["done", "Absolviert"],
+              ["missed", "Abgesagt"],
             ] as const
           ).map(([v, label]) => (
             <button
               key={v}
               type="button"
-              role="tab"
-              aria-selected={!day && filter === v}
-              className={!day && filter === v ? "is-active" : ""}
-              onClick={() => {
-                setDay(null);
-                setFilter(v);
-              }}
+              className={`d26-chip ${v !== "all" ? `has-dot tone-${bucketTone[v]}` : ""} ${bucket === v ? "is-active" : ""}`}
+              onClick={() => setBucket(v)}
             >
+              {v !== "all" && <i />}
               {label}
+              <em>{bucketCounts[v]}</em>
             </button>
           ))}
         </div>
-        <label className="d26-search">
-          <Search size={16} />
-          <input
-            placeholder="Training, Ort oder Coach"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
       </div>
-      {day && (
-        <button type="button" className="d26-chip" onClick={() => setDay(null)}>
-          Nur{" "}
-          {formatDate(list[0]?.starts_at ?? monday.toISOString(), {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-          })}{" "}
-          ✕
-        </button>
-      )}
-      {groups.length ? (
-        groups.map(([k, items]) => (
-          <section className="d26-list-section" key={k}>
-            <div className="d26-day-head">
-              <b>{relativeDay(items[0].starts_at)}</b>
-              <span>
-                {formatDate(items[0].starts_at, {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                })}
-              </span>
+      {view === "month" ? (
+        <MonthGrid
+          events={events}
+          playerId={playerId}
+          monthOffset={monthOffset}
+          setMonthOffset={setMonthOffset}
+          bucket={bucket}
+          onDay={setSheetDay}
+        />
+      ) : (
+        <>
+          <section className="d26-card d26-week">
+            <button
+              type="button"
+              className="d26-round"
+              aria-label="Vorherige Woche"
+              onClick={() => setWeekOffset((w) => w - 1)}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div className="d26-week-days" key={weekOffset}>
+              {week.map((d) => {
+                const k = dayKey(d.toISOString());
+                const isToday = k === dayKey(new Date().toISOString());
+                const titles = titlesByDay.get(k);
+                return (
+                  <button
+                    type="button"
+                    key={k}
+                    data-tip={titles?.join(" · ")}
+                    className={`${day === k ? "is-selected" : ""} ${isToday ? "is-today" : ""}`}
+                    onClick={() => setDay(day === k ? null : k)}
+                  >
+                    <small>
+                      {d.toLocaleDateString("de-DE", { weekday: "short" })}
+                    </small>
+                    <b>{d.getDate()}</b>
+                    <i className={titles ? "has-event" : ""} />
+                  </button>
+                );
+              })}
             </div>
-            <div className="d26-list">
-              {items.map((e) => (
-                <EventRow
-                  key={e.id}
-                  event={e}
-                  playerId={playerId}
-                  open={openDetail}
-                />
+            <button
+              type="button"
+              className="d26-round"
+              aria-label="Nächste Woche"
+              onClick={() => setWeekOffset((w) => w + 1)}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </section>
+          <div className="d26-toolbar">
+            <div className="d26-segments" role="tablist">
+              {(
+                [
+                  ["upcoming", "Anstehend"],
+                  ["past", "Vergangen"],
+                  ["all", "Alle"],
+                ] as const
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="tab"
+                  aria-selected={!day && filter === v}
+                  className={!day && filter === v ? "is-active" : ""}
+                  onClick={() => {
+                    setDay(null);
+                    setFilter(v);
+                  }}
+                >
+                  {label}
+                </button>
               ))}
             </div>
-          </section>
-        ))
-      ) : (
-        <div className="d26-card d26-empty-card">
-          <Clock size={28} />
-          <h3>Keine Termine</h3>
-          <p>
-            {q
-              ? "Für diese Suche gibt es keinen Treffer."
-              : "Für diese Auswahl ist nichts geplant."}
-          </p>
-        </div>
+            <label className="d26-search">
+              <Search size={16} />
+              <input
+                placeholder="Training, Ort oder Coach"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
+          </div>
+          {day && (
+            <button
+              type="button"
+              className="d26-chip"
+              onClick={() => setDay(null)}
+            >
+              Nur{" "}
+              {formatDate(list[0]?.starts_at ?? monday.toISOString(), {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })}{" "}
+              ✕
+            </button>
+          )}
+          {groups.length ? (
+            groups.map(([k, items]) => (
+              <section className="d26-list-section" key={k}>
+                <div className="d26-day-head">
+                  <b>{relativeDay(items[0].starts_at)}</b>
+                  <span>
+                    {formatDate(items[0].starts_at, {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}
+                  </span>
+                </div>
+                <div className="d26-list">
+                  {items.map((e) => (
+                    <EventRow
+                      key={e.id}
+                      event={e}
+                      playerId={playerId}
+                      open={openDetail}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))
+          ) : (
+            <div className="d26-card d26-empty-card">
+              <Clock size={28} />
+              <h3>Keine Termine</h3>
+              <p>
+                {q
+                  ? "Für diese Suche gibt es keinen Treffer."
+                  : "Für diese Auswahl ist nichts geplant."}
+              </p>
+            </div>
+          )}
+        </>
       )}
+      <Sheet
+        open={!!sheetItems.length}
+        onClose={() => setSheetDay(null)}
+        eyebrow={sheetItems[0] ? relativeDay(sheetItems[0].starts_at) : ""}
+        title={
+          sheetItems[0]
+            ? formatDate(sheetItems[0].starts_at, {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })
+            : ""
+        }
+      >
+        {sheetItems.map((e) => (
+          <article className="d26-day-card" key={e.id}>
+            <div>
+              <b>
+                {formatTime(e.starts_at)} – {formatTime(e.ends_at)}
+              </b>
+              <span
+                className={`d26-pill tone-${bucketTone[bucketOf(e, playerId)]}`}
+              >
+                {e.status === "cancelled"
+                  ? "Termin abgesagt"
+                  : STATUS_LABELS[statusOf(e, playerId)]}
+              </span>
+            </div>
+            <h3>{e.title}</h3>
+            <p>
+              <MapPin size={14} /> {e.location_name}
+              {e.trainer_name && (
+                <>
+                  {" "}
+                  · <UserRound size={14} /> {e.trainer_name}
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              className="d26-btn is-primary"
+              onClick={() => {
+                setSheetDay(null);
+                openDetail(e);
+              }}
+            >
+              Termindetails <ArrowUpRight size={16} />
+            </button>
+          </article>
+        ))}
+      </Sheet>
     </>
   );
 }
 
 /* ---------- Fortschritt ---------- */
 
+function History({
+  periods,
+  period,
+  events,
+  playerId,
+  selectPeriod,
+}: Pick<
+  ParentExperienceProps,
+  "periods" | "period" | "events" | "playerId" | "selectPeriod"
+>) {
+  const rows = [...periods]
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .map((p) => ({
+      p,
+      done: events.filter((e) =>
+        e.participants.some(
+          (x) =>
+            x.player_id === playerId &&
+            x.period_id === p.id &&
+            isAttended(x.status),
+        ),
+      ).length,
+    }));
+  const max = Math.max(
+    1,
+    ...rows.map((r) => Math.max(r.done, r.p.included_units)),
+  );
+  return (
+    <section className="d26-card d26-history">
+      <div className="d26-card-head">
+        <h3>Verlauf</h3>
+        <span>Angerechnet je Zeitraum</span>
+      </div>
+      <div className="d26-history-bars">
+        {rows.map(({ p, done }) => (
+          <button
+            type="button"
+            key={p.id}
+            className={p.id === period?.id ? "is-active" : ""}
+            data-tip={`${periodLabel(p.starts_at, p.ends_at)}: ${done} von ${p.included_units} Einheiten`}
+            onClick={() => selectPeriod(p.id)}
+          >
+            <span>
+              <i
+                className="is-goal"
+                style={{ height: `${(p.included_units / max) * 100}%` }}
+              />
+              <i
+                className="is-done"
+                style={{ height: `${(done / max) * 100}%` }}
+              />
+            </span>
+            <b>
+              {done}/{p.included_units}
+            </b>
+            <small>
+              {new Date(p.starts_at).toLocaleDateString("de-DE", {
+                month: "short",
+              })}
+            </small>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Progress(props: ParentExperienceProps) {
-  const { section, periods, period, selectPeriod, stats, reports, stampCard } =
-    props;
+  const {
+    section,
+    periods,
+    period,
+    selectPeriod,
+    stats,
+    reports,
+    stampCard,
+    events,
+    playerId,
+    openDetail,
+  } = props;
   const tab = section === "berichte" ? "berichte" : "stempelkarte";
+  const insight = insightsFor(events, playerId);
+  const counted = events
+    .filter((e) =>
+      e.participants.some(
+        (p) =>
+          p.player_id === playerId &&
+          p.period_id === period?.id &&
+          isAttended(p.status),
+      ),
+    )
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   return (
     <>
       <LargeTitle
@@ -844,10 +1596,13 @@ function Progress(props: ParentExperienceProps) {
               </div>
               <ProgressRings period={period} stats={stats} />
             </section>
-            <section className="d26-card d26-metric">
+            <section
+              className="d26-card d26-metric"
+              data-tip="Absolviert plus angerechnete Absagen"
+            >
               <small>Angerechnet</small>
               <h3>
-                {stats.completed}
+                <CountUp value={stats.completed} />
                 <span> / {period?.included_units ?? 0}</span>
               </h3>
               <p>Einheiten in diesem Zeitraum</p>
@@ -855,12 +1610,80 @@ function Progress(props: ParentExperienceProps) {
             <section className="d26-card d26-metric">
               <small>Trainingszeit</small>
               <h3>
-                {Math.floor(stats.minutes / 60)}
+                <CountUp value={Math.floor(stats.minutes / 60)} />
                 <span> Std. {stats.minutes % 60} Min.</span>
               </h3>
               <p>auf dem Platz verbracht</p>
             </section>
+            <section
+              className="d26-card d26-metric"
+              data-tip="Wochen in Folge mit mindestens einem Training"
+            >
+              <small>
+                <Flame size={13} /> Serie
+              </small>
+              <h3>
+                <CountUp value={insight.streak} />
+                <span> {insight.streak === 1 ? "Woche" : "Wochen"}</span>
+              </h3>
+              <p>ohne Pause trainiert</p>
+            </section>
+            <section className="d26-card d26-metric">
+              <small>
+                <Timer size={13} /> Anwesenheit
+              </small>
+              <h3>
+                <CountUp value={Math.round(insight.rate * 100)} />
+                <span> %</span>
+              </h3>
+              <p>aller vergangenen Termine</p>
+            </section>
           </div>
+          {periods.length > 0 && (
+            <History
+              periods={periods}
+              period={period}
+              events={events}
+              playerId={playerId}
+              selectPeriod={selectPeriod}
+            />
+          )}
+          <section className="d26-list-section">
+            <div className="d26-section-head">
+              <h2>Deine Einheiten</h2>
+              <span>
+                <CheckCircle2 size={14} /> {counted.length} angerechnet
+              </span>
+            </div>
+            <ol className="d26-unit-timeline">
+              {counted.length ? (
+                counted.map((e, i) => (
+                  <li key={e.id}>
+                    <button type="button" onClick={() => openDetail(e)}>
+                      <span className="d26-unit-stamp">{i + 1}</span>
+                      <span>
+                        <b>{e.title}</b>
+                        <small>
+                          {formatDate(e.starts_at, {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                          })}{" "}
+                          · {e.location_name}
+                          {e.trainer_name ? ` · ${e.trainer_name}` : ""}
+                        </small>
+                      </span>
+                      <ChevronRight size={16} className="d26-chevron" />
+                    </button>
+                  </li>
+                ))
+              ) : (
+                <li className="d26-empty">
+                  Noch keine Einheit in diesem Zeitraum angerechnet.
+                </li>
+              )}
+            </ol>
+          </section>
           <section className="d26-card d26-stamp-host">{stampCard}</section>
         </>
       ) : (
@@ -876,6 +1699,16 @@ function Progress(props: ParentExperienceProps) {
                   </div>
                   <div className="d26-report-body">
                     <h3>{r.product_name}</h3>
+                    <div
+                      className="d26-bar"
+                      data-tip={`${r.completed} von ${r.units} Einheiten`}
+                    >
+                      <i
+                        style={{
+                          width: `${Math.min(100, (r.completed / Math.max(1, r.units)) * 100)}%`,
+                        }}
+                      />
+                    </div>
                     <p>
                       {r.completed} von {r.units} Einheiten ·{" "}
                       {durationLabel(r.minutes)}
@@ -935,7 +1768,7 @@ export function ParentExperience(props: ParentExperienceProps) {
   const mounted = useMounted();
   if (!mounted) return <div className="d26-experience" aria-busy="true" />;
   return (
-    <div className="d26-experience">
+    <div className="d26-experience" onPointerMove={glowFollow}>
       {props.section === "termine" ? (
         <Calendar {...props} />
       ) : props.section === "stempelkarte" || props.section === "berichte" ? (

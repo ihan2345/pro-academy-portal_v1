@@ -3,6 +3,7 @@ import "./globals.css";
 // Design 2026 (Vorschau): Schalter in src/design-2026/flag.ts (false = altes Design).
 import "@/design-2026/design-2026.css";
 import "@/design-2026/experience.css";
+import "@/design-2026/interactions.css";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { Inter } from "next/font/google";
 const design2026Font = Inter({
