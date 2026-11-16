@@ -736,3 +736,76 @@
     min-width: 0;
   }
 }
+
+/* ---------- v9: Glocke mit Kontext-Aktionen, Camp-Kopf lesbar ---------- */
+:root[data-design="2026"] {
+  & .d26-note.is-link {
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      transform 0.25s var(--d26-ease);
+  }
+  & .d26-note.is-link:hover {
+    background: #faf8ff;
+    transform: translateY(-1px);
+  }
+  & .d26-note.tone-sos.is-link:hover {
+    background: linear-gradient(135deg, #ffe8e6, #fff);
+  }
+  & .d26-note-actions a.is-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 11px;
+    border-radius: 99px;
+    background: var(--purple);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.2s;
+  }
+  & .d26-note-actions a.is-open:hover {
+    transform: translateY(-1px);
+  }
+
+  /* Camp-Kopf ist dunkel: Kacheln, Hinweise und Knöpfe darin hell auf dunkel. */
+  & .camp-navigation + .camp-panel .camp-metrics > div {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    backdrop-filter: blur(8px);
+  }
+  & .camp-navigation + .camp-panel .camp-metrics b {
+    color: #fff;
+  }
+  & .camp-navigation + .camp-panel .camp-metrics span,
+  & .camp-navigation + .camp-panel .camp-muted,
+  & .camp-navigation + .camp-panel small {
+    color: rgba(255, 255, 255, 0.68);
+  }
+  & .camp-navigation + .camp-panel summary,
+  & .camp-navigation + .camp-panel details,
+  & .camp-navigation + .camp-panel label {
+    color: #fff;
+  }
+  & .camp-navigation + .camp-panel .secondary-button {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+  & .camp-navigation + .camp-panel .secondary-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.18);
+  }
+  & .camp-navigation + .camp-panel button:disabled {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.45);
+  }
+  & .camp-navigation + .camp-panel input,
+  & .camp-navigation + .camp-panel select,
+  & .camp-navigation + .camp-panel textarea {
+    color: var(--d26-ink);
+  }
+}
