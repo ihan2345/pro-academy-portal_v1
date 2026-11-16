@@ -549,7 +549,12 @@ export function Portal({
               className="avatar user-avatar"
               aria-label="Mein Konto"
             >
-              {data.user_name.charAt(0)}B
+              {data.user_name
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w.charAt(0).toUpperCase())
+                .join("") || "?"}
             </Link>
           </div>
         </header>
