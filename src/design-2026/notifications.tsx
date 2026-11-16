@@ -491,6 +491,14 @@ export function NotificationBell({
   const [showSnoozed, setShowSnoozed] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  // Sprungmarken (#reiter) brauchen eine echte Navigation, damit die Zielseite
+  // den Reiter auch dann wechselt, wenn sie schon offen ist.
+  const go = (href: string) => {
+    if (!href.includes("#")) return router.push(href);
+    if (href.split("#")[0] === window.location.pathname)
+      window.location.hash = href.split("#")[1];
+    else window.location.assign(href);
+  };
   const staff = data.role !== "parent";
 
   useEffect(() => {
@@ -629,7 +637,7 @@ export function NotificationBell({
       onClick={(e) => {
         if (!n.href || (e.target as HTMLElement).closest("a,button")) return;
         setOpen(false);
-        router.push(n.href);
+        go(n.href);
       }}
     >
       <span className="d26-note-icon">
@@ -659,7 +667,13 @@ export function NotificationBell({
               <Link
                 href={n.open.href}
                 className="is-open"
-                onClick={() => setOpen(false)}
+                onClick={(e) => {
+                  setOpen(false);
+                  if (n.open!.href.includes("#")) {
+                    e.preventDefault();
+                    go(n.open!.href);
+                  }
+                }}
               >
                 {n.open.label} <ArrowRight size={13} />
               </Link>

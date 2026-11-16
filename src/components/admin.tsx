@@ -1496,17 +1496,22 @@ function Logs({
   // Design 2026: Sprung aus der Glocke direkt in einen Reiter (#report_snapshots).
   useEffect(() => {
     if (!DESIGN_2026) return;
-    const hash = window.location.hash.slice(1);
-    if (
-      [
-        "notification_jobs",
-        "notification_deliveries",
-        "report_snapshots",
-        "audit_log",
-        "job_runs",
-      ].includes(hash)
-    )
-      setTab(hash);
+    const fromHash = () => {
+      const hash = window.location.hash.slice(1);
+      if (
+        [
+          "notification_jobs",
+          "notification_deliveries",
+          "report_snapshots",
+          "audit_log",
+          "job_runs",
+        ].includes(hash)
+      )
+        setTab(hash);
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
   }, []);
   useEffect(() => {
     let active = true;
