@@ -110,20 +110,12 @@ export function PailtonDock({
   }
   const showBubble =
     showSuggestions && !collapsed && (reduced || bubble) && !open;
+  // Sprechblase und Name teilen sich denselben Platz neben dem Maskottchen,
+  // damit nichts über die Menüpunkte rutscht und das Menü nicht springt.
   return (
     <div
       className={`d26-pailton${collapsed ? " is-collapsed" : ""}${showMascot ? "" : " is-plain"}`}
     >
-      {showBubble && (
-        <button
-          type="button"
-          className="d26-pailton-bubble"
-          onClick={() => openChat(question)}
-        >
-          <span>Frag PAiLTON zum Beispiel</span>
-          <strong>{question}</strong>
-        </button>
-      )}
       <button
         type="button"
         className="d26-pailton-mascot"
@@ -145,13 +137,27 @@ export function PailtonDock({
             <MessageCircle size={18} />
           </span>
         )}
-        {!collapsed && (
-          <span className="d26-pailton-name">
+      </button>
+      {!collapsed &&
+        (showBubble ? (
+          <button
+            type="button"
+            className="d26-pailton-bubble"
+            onClick={() => openChat(question)}
+          >
+            <span>Frag PAiLTON zum Beispiel</span>
+            <strong>{question}</strong>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="d26-pailton-name"
+            onClick={() => openChat("")}
+          >
             <strong>PAiLTON</strong>
             <small>Dein Academy-Assistent</small>
-          </span>
-        )}
-      </button>
+          </button>
+        ))}
       {open && (
         <Modal
           className="pai-popup"
@@ -165,32 +171,33 @@ export function PailtonDock({
   );
 }
 
-/** WhatsApp als kleines Symbol; beim Darüberfahren erscheint die bisherige Box. */
+/** WhatsApp als kleines Symbol; beim Darüberfahren erscheint die bisherige Box. Beides ist ein Link. */
 export function WhatsAppFab({ number }: { number: string }) {
   return (
-    <div className="d26-whatsapp">
-      <div className="d26-whatsapp-card" role="tooltip" id="d26-whatsapp-card">
+    <a
+      className="d26-whatsapp"
+      href={`https://wa.me/${number}`}
+      target="_blank"
+      rel="noreferrer"
+      aria-label="Wir sind für dich da. Per WhatsApp schreiben"
+    >
+      <span className="d26-whatsapp-card" aria-hidden="true">
         <strong>Wir sind für dich da.</strong>
-        <p>Fragen zum Training? Schreib unserem Team.</p>
-        <span>
+        <span className="d26-whatsapp-text">
+          Fragen zum Training? Schreib unserem Team.
+        </span>
+        <span className="d26-whatsapp-cta">
           WhatsApp öffnen <ArrowUpRight size={14} />
         </span>
-      </div>
-      <a
-        className="d26-whatsapp-button"
-        href={`https://wa.me/${number}`}
-        target="_blank"
-        rel="noreferrer"
-        aria-label="Per WhatsApp schreiben"
-        aria-describedby="d26-whatsapp-card"
-      >
+      </span>
+      <span className="d26-whatsapp-button">
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
           <path
             fill="currentColor"
             d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91A9.85 9.85 0 0 0 12.04 2Zm0 18.15h-.01a8.23 8.23 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24a8.2 8.2 0 0 1 8.24 8.25c0 4.54-3.7 8.23-8.24 8.23Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.23.25-.87.85-.87 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.75 2.67 4.24 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.14-1.18-.06-.1-.22-.16-.47-.29Z"
           />
         </svg>
-      </a>
-    </div>
+      </span>
+    </a>
   );
 }
