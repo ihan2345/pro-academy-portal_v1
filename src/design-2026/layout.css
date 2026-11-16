@@ -1008,3 +1008,26 @@
     transform: translateY(6px) scale(0.97);
   }
 }
+
+/* Handy: PAiLTON im Menü („Mehr“) kompakter, damit die Navigation sichtbar bleibt. */
+@media (max-width: 760px) {
+  :root[data-design="2026"] {
+    & .d26-pailton {
+      padding-top: 12px;
+    }
+    & .d26-pailton-mascot {
+      flex-direction: row;
+      justify-content: center;
+      gap: 10px;
+    }
+    & .d26-pailton-mascot img {
+      width: 52px;
+    }
+    & .d26-pailton-name {
+      text-align: left;
+    }
+    & .d26-pailton-bubble {
+      padding: 9px 11px;
+    }
+  }
+}
