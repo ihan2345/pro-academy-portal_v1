@@ -1124,3 +1124,13 @@
     cursor: pointer;
   }
 }
+:root[data-design="2026"] {
+  & .activity-decide-error {
+    margin: 6px 0 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: #fff4e5;
+    color: #9a4b00;
+    font-size: 13px;
+  }
+}

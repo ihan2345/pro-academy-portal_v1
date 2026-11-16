@@ -29,7 +29,7 @@ import type { StripeBillingConflictPage } from "@/lib/stripe-conflicts";
 import type { Activity, ActivitySummary } from "@/lib/activities";
 import { formatDate, formatTime } from "@/lib/domain";
 import { calendarDate } from "@/lib/calendar";
-import { useDecisions } from "./decisions";
+import { CHANGED, useDecisions } from "./decisions";
 
 type Tone = "sos" | "urgent" | "warn" | "info" | "good";
 type Action =
@@ -535,6 +535,12 @@ export function NotificationBell({
   const [now, setNow] = useState(0);
   const [remote, setRemote] = useState<Note[]>([]);
   const [showSnoozed, setShowSnoozed] = useState(false);
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    const bump = () => setReload((n) => n + 1);
+    window.addEventListener(CHANGED, bump);
+    return () => window.removeEventListener(CHANGED, bump);
+  }, []);
   const root = useRef<HTMLDivElement>(null);
   const router = useRouter();
   // Sprungmarken (#reiter) brauchen eine echte Navigation, damit die Zielseite
@@ -615,7 +621,7 @@ export function NotificationBell({
       alive = false;
       clearTimeout(timer);
     };
-  }, [staff, data.role, base]);
+  }, [staff, data.role, base, reload]);
 
   const all = useMemo(() => {
     if (!now) return [];
@@ -907,9 +913,10 @@ export function NotificationBell({
           </div>
           {staff && (
             <footer>
-              {decisions.available
-                ? "Erledigt, Ignorieren und Erinnern gelten für alle im Team. Gelesen gilt für dieses Gerät."
-                : "Markierungen gelten vorerst für dieses Gerät."}
+              {decisions.error ||
+                (decisions.available
+                  ? "Erledigt, Ignorieren und Erinnern gelten für alle im Team. Gelesen gilt für dieses Gerät."
+                  : "Markierungen gelten vorerst für dieses Gerät.")}
             </footer>
           )}
         </div>
