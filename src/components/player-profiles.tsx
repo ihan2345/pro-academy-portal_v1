@@ -41,6 +41,8 @@ export function PlayerProfiles({
           rows={feed.rows}
           total={feed.total}
           base={base.startsWith("/admin/") ? "/admin" : "/team"}
+          search={term}
+          revision={revision}
         />
       ) : (
         <div className="page-heading">

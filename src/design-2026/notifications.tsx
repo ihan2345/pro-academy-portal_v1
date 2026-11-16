@@ -103,27 +103,37 @@ async function cached<T>(
   url: string,
   ttl: number,
   shared = false,
-): Promise<T | null> {
+): Promise<{ ok: true; v: T } | { ok: false }> {
   const key = `d26-notify:${url}`;
   const box = () => (shared ? localStorage : sessionStorage);
+  const remember = (entry: { ok: boolean; v?: T }) => {
+    try {
+      box().setItem(key, JSON.stringify({ t: Date.now(), ...entry }));
+    } catch {
+      /* Egal. */
+    }
+  };
   try {
     const hit = JSON.parse(box().getItem(key) ?? "null");
-    if (hit && Date.now() - hit.t < ttl) return hit.v as T;
+    // Fehlschläge werden kürzer gemerkt (5 Min.), damit nicht jeder
+    // Seitenaufruf erneut anfragt.
+    if (hit && Date.now() - hit.t < (hit.ok === false ? 5 * 60000 : ttl))
+      return hit.ok === false ? { ok: false } : { ok: true, v: hit.v as T };
   } catch {
     /* Kein Zwischenspeicher. */
   }
   try {
     const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) return null;
-    const v = (await r.json()) as T;
-    try {
-      box().setItem(key, JSON.stringify({ t: Date.now(), v }));
-    } catch {
-      /* Egal. */
+    if (!r.ok) {
+      remember({ ok: false });
+      return { ok: false };
     }
-    return v;
+    const v = (await r.json()) as T;
+    remember({ ok: true, v });
+    return { ok: true, v };
   } catch {
-    return null;
+    remember({ ok: false });
+    return { ok: false };
   }
 }
 
@@ -435,7 +445,7 @@ export function NotificationBell({
       const [summary, list, conflicts] = await Promise.all([
         cached<ActivitySummary>("/api/activities/summary", 5 * 60000),
         cached<{ rows: Activity[] }>(
-          "/api/activities?window=0&limit=4",
+          "/api/activities?window=0&limit=3",
           5 * 60000,
         ),
         data.role === "admin"
@@ -448,9 +458,31 @@ export function NotificationBell({
       ]);
       if (!alive) return;
       const t = Date.now();
+      const unavailable: Note[] =
+        conflicts && !conflicts.ok
+          ? [
+              {
+                id: `pay-check:${Math.floor(t / DAY)}`,
+                key: "pay-check",
+                tone: "warn",
+                icon: CreditCard,
+                title: "Zahlungsprüfung gerade nicht verfügbar",
+                text: "Stripe war nicht erreichbar. Offene Zahlungen siehst du unter Stripe-Zuordnung, die Glocke versucht es in ein paar Minuten erneut.",
+                href: "/admin/stripe",
+                group: "now",
+              },
+            ]
+          : [];
       setRemote([
-        ...(conflicts?.rows ?? []).map((r) => paymentNote(r, t)),
-        ...activityNotes(summary, list?.rows ?? [], base),
+        ...unavailable,
+        ...(conflicts?.ok ? conflicts.v.rows : []).map((r) =>
+          paymentNote(r, t),
+        ),
+        ...activityNotes(
+          summary.ok ? summary.v : null,
+          list.ok ? list.v.rows : [],
+          base,
+        ),
       ]);
     }, 2500);
     return () => {

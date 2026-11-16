@@ -151,6 +151,9 @@ export function ProfileList({ base }: { base: string }) {
           total={total}
           loading={loading}
           base={base}
+          search={search}
+          includeInactive={includeInactive}
+          campOnly={campOnly}
         />
       ) : (
         <div className="page-heading">
