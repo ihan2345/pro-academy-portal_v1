@@ -1,7 +1,8 @@
 "use client";
 // Design 2026: Benachrichtigungszentrale (Glocke) im Kopfmenü. Rollenbasiert,
 // nach Dringlichkeit sortiert. Liest nur bestehende Daten (PortalData) und
-// bestehende, rein lesende Endpunkte. Gelesen, Zurückstellen und Erledigt
+// bestehende, rein lesende Endpunkte. Die Stripe-Prüfung höchstens alle
+// 30 Minuten je Browser. Gelesen, Zurückstellen und Erledigt
 // werden nur im Browser dieses Geräts gespeichert, nichts geht an den Server.
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -94,11 +95,19 @@ function save(s: Store) {
   }
 }
 
-/** Liest einen Endpunkt höchstens alle `ttl` Millisekunden (pro Tab). */
-async function cached<T>(url: string, ttl: number): Promise<T | null> {
+/**
+ * Liest einen Endpunkt höchstens alle `ttl` Millisekunden. `shared` merkt das
+ * Ergebnis für alle Tabs dieses Browsers (localStorage), sonst nur im Tab.
+ */
+async function cached<T>(
+  url: string,
+  ttl: number,
+  shared = false,
+): Promise<T | null> {
   const key = `d26-notify:${url}`;
+  const box = () => (shared ? localStorage : sessionStorage);
   try {
-    const hit = JSON.parse(sessionStorage.getItem(key) ?? "null");
+    const hit = JSON.parse(box().getItem(key) ?? "null");
     if (hit && Date.now() - hit.t < ttl) return hit.v as T;
   } catch {
     /* Kein Zwischenspeicher. */
@@ -108,7 +117,7 @@ async function cached<T>(url: string, ttl: number): Promise<T | null> {
     if (!r.ok) return null;
     const v = (await r.json()) as T;
     try {
-      sessionStorage.setItem(key, JSON.stringify({ t: Date.now(), v }));
+      box().setItem(key, JSON.stringify({ t: Date.now(), v }));
     } catch {
       /* Egal. */
     }
@@ -420,7 +429,8 @@ export function NotificationBell({
   useEffect(() => {
     if (!staff) return;
     let alive = true;
-    (async () => {
+    // Erst nach dem Seitenaufbau laden, damit die Seite selbst Vorrang hat.
+    const timer = setTimeout(async () => {
       const [summary, list, conflicts] = await Promise.all([
         cached<ActivitySummary>("/api/activities/summary", 5 * 60000),
         cached<{ rows: Activity[] }>(
@@ -431,6 +441,7 @@ export function NotificationBell({
           ? cached<StripeBillingConflictPage>(
               "/api/admin/stripe-conflicts",
               30 * 60000,
+              true,
             )
           : Promise.resolve(null),
       ]);
@@ -440,9 +451,10 @@ export function NotificationBell({
         ...(conflicts?.rows ?? []).map((r) => paymentNote(r, t)),
         ...activityNotes(summary, list?.rows ?? [], base),
       ]);
-    })();
+    }, 2500);
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [staff, data.role, base]);
 
