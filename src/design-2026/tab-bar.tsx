@@ -8,10 +8,9 @@ import type { SpotlightItem } from "./spotlight";
 const shortNames: Record<string, string> = {
   Trainingsplanung: "Planung",
   Stempelkarten: "Stempel",
-  Elternprofile: "Eltern",
+  Elternprofile: "Familien",
   Spielerprofil: "Spieler",
   Spielerprofile: "Spieler",
-  Mitarbeiter: "Team",
 };
 const short = (title: string) =>
   shortNames[title] ?? title.replace("Meine ", "").replace("Mein ", "");
