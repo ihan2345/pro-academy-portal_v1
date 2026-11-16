@@ -123,9 +123,9 @@ export function Portal({
   const router = useRouter();
   const { pai: paiVisible, mascot: mascotVisible } =
     usePaiAvailability(section);
-  // Design 2026 am Desktop: PAiLTON im Menü, WhatsApp als Symbol am Rand.
+  // Design 2026: PAiLTON immer im Menü (am Handy über „Mehr“). WhatsApp am Desktop als Symbol, am Handy bleibt die Box im Menü.
   const narrow = useNarrow();
-  const pailtonInMenu = DESIGN_2026 && paiVisible && !narrow;
+  const pailtonInMenu = DESIGN_2026 && paiVisible;
   useEffect(() => {
     try {
       setSidebarCollapsed(
@@ -470,7 +470,7 @@ export function Portal({
           />
         )}
         <div className="sidebar-bottom">
-          {!pailtonInMenu && (
+          {(!pailtonInMenu || narrow) && (
             <div className="support-box">
               <MessageCircle size={24} />
               <strong>Wir sind für dich da.</strong>
@@ -1159,7 +1159,7 @@ export function Portal({
               {"Sicher abmelden"}
             </button>
           )}
-          {pailtonInMenu && <WhatsAppFab number={data.whatsapp} />}
+          {pailtonInMenu && !narrow && <WhatsAppFab number={data.whatsapp} />}
           {paiVisible && !pailtonInMenu && (
             <PaiLauncher
               showMascot={mascotVisible}
