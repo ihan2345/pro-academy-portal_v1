@@ -27,6 +27,22 @@ if (
           : input.url;
     const path = new URL(url, location.origin).pathname;
     if (path === "/api/camp/dashboard") return Response.json(previewCamps());
+    if (path === "/api/pai/history") return Response.json({ messages: [] });
+    if (path === "/api/pai/status")
+      return Response.json({
+        enabled: true,
+        available: false,
+        reason: "PAiLTON antwortet in der Vorschau nicht.",
+        limit: 0,
+        used: 0,
+        reserved: 0,
+        remaining: 0,
+        reset: new Date().toISOString(),
+        override: false,
+        retentionDays: 30,
+      });
+    if (path === "/api/platform/availability")
+      return Response.json({ pai: true, mascot: true });
     if (path === "/api/account/email-preference")
       return Response.json({ enabled: true });
     if (path === "/api/products" && (!init?.method || init.method === "GET"))

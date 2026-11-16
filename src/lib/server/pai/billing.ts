@@ -73,7 +73,7 @@ export async function billing(s: ProfileSession, raw: unknown) {
     return {
       available: false,
       reason:
-        "Live-Zahlungen und Kündigungstermine sind in der isolierten lokalen pAi-Testumgebung nicht angebunden. Keine Werte schätzen.",
+        "Live-Zahlungen und Kündigungstermine sind in der isolierten lokalen PAiLTON-Testumgebung nicht angebunden. Keine Werte schätzen.",
     };
   const stripe = profileStripeClient();
   const started = Date.now();

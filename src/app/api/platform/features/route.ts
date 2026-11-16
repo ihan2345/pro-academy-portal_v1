@@ -29,7 +29,7 @@ async function handle(request: Request) {
         throw new HttpError(
           error.code === "42501" ? 403 : 409,
           error.message?.includes("PAI_DISABLED")
-            ? "Zuerst pAi aktivieren. Das Maskottchen bleibt deaktiviert."
+            ? "Zuerst PAiLTON aktivieren. Das Maskottchen bleibt deaktiviert."
             : "Änderung nicht gespeichert. Bitte neu laden und Berechtigung prüfen.",
         );
     }

@@ -96,7 +96,7 @@ const schemas = {
     fields: { player_id: { type: ["string", "null"] } },
   },
   get_pai_usage: {
-    description: "Eigenes pAi-Kontingent mit Berechnung und Reset.",
+    description: "Eigenes PAiLTON-Kontingent mit Berechnung und Reset.",
     fields: {},
   },
   get_camp_summary: {
@@ -148,7 +148,7 @@ export async function executeTool(
   name: string,
   raw: unknown,
 ): Promise<any> {
-  if (!(await enabled(s))) throw new HttpError(403, "pAi ist deaktiviert.");
+  if (!(await enabled(s))) throw new HttpError(403, "PAiLTON ist deaktiviert.");
   if (!toolDefinitions(s.role!).some((t) => t.name === name))
     throw new HttpError(403, "Werkzeug nicht erlaubt.");
   if (name === "get_training_participants") {

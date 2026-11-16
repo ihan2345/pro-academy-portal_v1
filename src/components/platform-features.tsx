@@ -69,9 +69,9 @@ export function PlatformFeatures({
             <div>
               <strong>
                 {feature.key === "pai"
-                  ? "pAi"
+                  ? "PAiLTON"
                   : feature.key === "pai_mascot"
-                    ? "pAi-Maskottchen"
+                    ? "PAiLTON-Maskottchen"
                     : feature.key === "trial_training"
                       ? "Probetraining"
                       : feature.key === "product_shop"
@@ -97,7 +97,7 @@ export function PlatformFeatures({
                 <p className="muted">
                   {paiActive
                     ? "Nur die Figuren. Chatleiste und Sprechblasen bleiben sichtbar."
-                    : "Zuerst pAi aktivieren."}
+                    : "Zuerst PAiLTON aktivieren."}
                 </p>
               )}
               <small>
@@ -154,8 +154,8 @@ export function PlatformFeatures({
         (!only || only === "product_shop") && <ShowcaseSettings />}
       {!only && features?.some((f) => f.key === "pai" && f.enabled) && (
         <p>
-          <Link href="/pai">pAi öffnen</Link> ·{" "}
-          <Link href="/admin/pai">pAi verwalten</Link>
+          <Link href="/pai">PAiLTON öffnen</Link> ·{" "}
+          <Link href="/admin/pai">PAiLTON verwalten</Link>
         </p>
       )}
     </section>

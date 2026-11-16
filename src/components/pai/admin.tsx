@@ -94,7 +94,7 @@ export function PaiAdmin() {
   }
   return (
     <div className="pai-admin">
-      <h1>pAi verwalten</h1>
+      <h1>PAiLTON verwalten</h1>
       <p>
         Fragen, Limits und geschätzte API-Kosten. Chat-Inhalte sind hier nicht
         sichtbar.
@@ -394,7 +394,7 @@ export function PaiAdmin() {
           )}
           <p className="pai-release-stop">
             STOPP: Vor Veröffentlichung den neuen offiziellen
-            pAi-Produktions-API-Schlüssel hinterlegen und bestätigen!
+            PAiLTON-Produktions-API-Schlüssel hinterlegen und bestätigen!
           </p>
         </>
       )}

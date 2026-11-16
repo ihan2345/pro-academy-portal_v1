@@ -131,7 +131,7 @@ export function MascotCycle({
           className="pai-speech"
           onClick={() => onQuestion(question)}
         >
-          <span>Frag pAi zum Beispiel</span>
+          <span>Frag PAiLTON zum Beispiel</span>
           <strong>{question}</strong>
           <small>Frage im Chat öffnen ↗</small>
         </button>
