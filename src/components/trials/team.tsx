@@ -9,6 +9,9 @@ import {
 } from "@/lib/domain";
 import type { TrialRow } from "@/lib/trials/domain";
 import { trialApi } from "./public";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { PageHead } from "@/design-2026/page-head";
+import { Archive, CalendarDays, Inbox, Star } from "lucide-react";
 export function TrialMenuBadge() {
   const [counts, setCounts] = useState<{ new: number; review: number } | null>(
     null,
@@ -216,40 +219,105 @@ export function TrialTeam() {
       );
   return (
     <section>
-      <div className="page-heading">
-        <h1>Probetraining</h1>
-        <p>Vom ersten Kontakt bis zum persönlichen Feedback.</p>
-        <a
-          className="secondary-button"
-          href="/probetraining"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Anfrageformular öffnen
-        </a>
-      </div>
-      <div className="trial-toolbar">
-        {[
-          ["new", `Neue Anfragen (${fresh.length})`],
-          ["planned", `Geplante Teilnehmer (${planned.length})`],
-          ["review", `Teilnehmer bewerten (${review.length})`],
-          ["all", "Alle Anfragen"],
-          ["archive", "Übernommen · Verlauf"],
-        ].map(([value, label]) => (
-          <button
-            className={
-              tab === value && !selected ? "primary-button" : "secondary-button"
+      {DESIGN_2026 ? (
+        <>
+          <PageHead
+            title="Probetraining"
+            greeting={`${fresh.length ? `${fresh.length} neue ${fresh.length === 1 ? "Anfrage wartet" : "Anfragen warten"} auf Kontakt` : "Keine neuen Anfragen"}, ${planned.length} ${planned.length === 1 ? "Kind ist" : "Kinder sind"} eingeplant und ${review.length} ${review.length === 1 ? "Bewertung steht" : "Bewertungen stehen"} aus.`}
+            actions={
+              <a
+                className="d26-btn is-ghost"
+                href="/probetraining"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Anfrageformular öffnen
+              </a>
             }
-            key={value}
-            onClick={() => {
-              setTab(value);
-              setSelected("");
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+            kpis={(
+              [
+                ["new", Inbox, fresh.length, "Neue Anfragen", fresh.length > 0],
+                ["planned", CalendarDays, planned.length, "Eingeplant", false],
+                [
+                  "review",
+                  Star,
+                  review.length,
+                  "Zu bewerten",
+                  review.length > 0,
+                ],
+                [
+                  "archive",
+                  Archive,
+                  data.rows.filter((r) => !!r.converted_at).length,
+                  "Übernommen",
+                  false,
+                ],
+              ] as const
+            ).map(([value, icon, count, label, alert]) => ({
+              icon,
+              value: count,
+              label,
+              alert,
+              active: tab === value && !selected,
+              onClick: () => {
+                setTab(value);
+                setSelected("");
+              },
+            }))}
+          />
+          <div className="d26-chips">
+            <button
+              type="button"
+              className={`d26-chip ${tab === "all" && !selected ? "is-active" : ""}`}
+              onClick={() => {
+                setTab("all");
+                setSelected("");
+              }}
+            >
+              Alle Anfragen <em>{activeRows.length}</em>
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="page-heading">
+            <h1>Probetraining</h1>
+            <p>Vom ersten Kontakt bis zum persönlichen Feedback.</p>
+            <a
+              className="secondary-button"
+              href="/probetraining"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Anfrageformular öffnen
+            </a>
+          </div>
+          <div className="trial-toolbar">
+            {[
+              ["new", `Neue Anfragen (${fresh.length})`],
+              ["planned", `Geplante Teilnehmer (${planned.length})`],
+              ["review", `Teilnehmer bewerten (${review.length})`],
+              ["all", "Alle Anfragen"],
+              ["archive", "Übernommen · Verlauf"],
+            ].map(([value, label]) => (
+              <button
+                className={
+                  tab === value && !selected
+                    ? "primary-button"
+                    : "secondary-button"
+                }
+                key={value}
+                onClick={() => {
+                  setTab(value);
+                  setSelected("");
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {error && <p role="alert">{error}</p>}
       <div className="trial-grid">
         {visible.map((r) => (

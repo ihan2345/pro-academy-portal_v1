@@ -26,6 +26,8 @@ import { CampArchive, CampManagementActions } from "./management";
 import { BookingStatusButton } from "./booking-status";
 import { StripeReview } from "./stripe-review";
 import { FreeCampReview } from "./free-review";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { CampHead } from "@/design-2026/camp-head";
 type Booking = {
   id: string;
   camp_id: string;
@@ -559,29 +561,48 @@ export function CampDashboard({
           ← Alle Camps
         </Link>
       )}
-      <div className="page-heading">
-        <div>
-          <div className="camp-eyebrow">GEMEINSAM AUF DEN PLATZ</div>
-          <h1>
-            {camp?.title ?? "Camps"}
-            <span className="greeting-dot">.</span>
-          </h1>
-          <p>
-            {team
-              ? "Planung, Buchungen und Berichte an einem Ort."
-              : "Deine Camp-Termine, Buchungen und Vorteile."}
-          </p>
+      {DESIGN_2026 && !campId ? (
+        <CampHead
+          team={team}
+          camps={data?.camps ?? []}
+          bookings={data?.bookings ?? []}
+          actions={
+            team && (
+              <button
+                className="d26-btn is-primary"
+                onClick={() => setCreating(!creating)}
+              >
+                <Plus size={17} />
+                {creating ? "Formular schließen" : "Camp erstellen"}
+              </button>
+            )
+          }
+        />
+      ) : (
+        <div className="page-heading">
+          <div>
+            <div className="camp-eyebrow">GEMEINSAM AUF DEN PLATZ</div>
+            <h1>
+              {camp?.title ?? "Camps"}
+              <span className="greeting-dot">.</span>
+            </h1>
+            <p>
+              {team
+                ? "Planung, Buchungen und Berichte an einem Ort."
+                : "Deine Camp-Termine, Buchungen und Vorteile."}
+            </p>
+          </div>
+          {team && (
+            <button
+              className="primary-button"
+              onClick={() => setCreating(!creating)}
+            >
+              <Plus size={17} />
+              {creating ? "Formular schließen" : "Camp erstellen"}
+            </button>
+          )}
         </div>
-        {team && (
-          <button
-            className="primary-button"
-            onClick={() => setCreating(!creating)}
-          >
-            <Plus size={17} />
-            {creating ? "Formular schließen" : "Camp erstellen"}
-          </button>
-        )}
-      </div>
+      )}
       <CampError message={error} />
       {message && (
         <p role="status" className="camp-success">

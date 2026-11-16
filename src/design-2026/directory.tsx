@@ -180,3 +180,34 @@ export function Initials({ text }: { text: string }) {
     </i>
   );
 }
+
+/** Ein Satz zur Lage für den Seitenkopf der Verwaltungsseiten. */
+export function adminGreeting(slug: string, rows: Row[], loading: boolean) {
+  if (loading && !rows.length) return "Daten werden geladen …";
+  const linked = rows.filter(
+    (r) => (r.parent_players as unknown[] | undefined)?.length,
+  ).length;
+  const active = rows.filter((r) => r.active !== false).length;
+  switch (slug) {
+    case "spieler":
+      return `${rows.length} Spieler in der Academy${rows.length - linked ? `, ${rows.length - linked} noch ohne Elternteil` : ", alle mit Elternteil verbunden"}.`;
+    case "eltern": {
+      const reg = rows.filter((r) => r.portal_status === "registered").length;
+      return `${rows.length} Eltern, davon ${reg} im Portal angemeldet${rows.length - linked ? ` und ${rows.length - linked} noch ohne Kind` : ""}.`;
+    }
+    case "mitarbeiter":
+      return `${active} von ${rows.length} Mitarbeitenden sind aktiv.`;
+    case "standorte":
+      return `${active} von ${rows.length} Standorten sind aktiv.`;
+    case "stripe":
+      return "Kunden prüfen, Familien zuordnen und sicher einladen.";
+    case "einladungen":
+      return "Wer eingeladen ist, wer schon dabei ist und wer noch fehlt.";
+    case "protokolle":
+      return "Versand, Berichte und jede Änderung nachvollziehbar.";
+    case "einstellungen":
+      return "Berichtszeit, Betriebsmodus und Funktionen der Plattform.";
+    default:
+      return "Organisation, Training und Entwicklung an einem Ort.";
+  }
+}

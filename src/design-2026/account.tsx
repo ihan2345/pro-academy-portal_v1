@@ -14,6 +14,7 @@ import {
 import type { PortalData } from "@/lib/types";
 import { formatDate, periodLabel } from "@/lib/domain";
 import { Sheet } from "./ui";
+import { PageHead } from "./page-head";
 import { useMounted } from "./parent-experience";
 
 const statusName: Record<string, [string, string]> = {
@@ -222,6 +223,54 @@ function AccountView({ data, emailPreference, billing }: AccountProps) {
           </p>
         )}
       </Sheet>
+    </div>
+  );
+}
+
+/** Konto für Admins und Mitarbeitende im gleichen Aufbau. */
+export function StaffAccount({
+  data,
+  admin,
+}: {
+  data: PortalData;
+  admin: boolean;
+}) {
+  return (
+    <div className="d26-experience d26-account">
+      <PageHead
+        title="Mein Konto"
+        greeting={`Dein Zugang zum ${admin ? "Adminbereich" : "Mitarbeiterportal"}.`}
+      />
+      <section className="d26-card d26-account-hero">
+        <span className="d26-account-avatar">{data.user_name.charAt(0)}</span>
+        <div>
+          <h2>{data.user_name}</h2>
+          <p>{data.email}</p>
+        </div>
+        <span className="d26-pill tone-lime">
+          <ShieldCheck size={13} /> {admin ? "Admin" : "Mitarbeiter"}
+        </span>
+      </section>
+      <div className="d26-settings-group">
+        <h4>Hilfe</h4>
+        <div className="d26-settings">
+          <a
+            className="d26-setting"
+            href={`https://wa.me/${data.whatsapp}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span className="d26-setting-icon tone-lime">
+              <MessageCircle size={17} />
+            </span>
+            <span className="d26-setting-main">
+              <b>Team kontaktieren</b>
+              <small>Zugang oder Rolle ändern lassen</small>
+            </span>
+            <ChevronRight size={17} className="d26-chevron" />
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

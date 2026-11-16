@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { Badge, Modal } from "./portal";
 import { DESIGN_2026 } from "@/design-2026/flag";
+import { PageHead } from "@/design-2026/page-head";
+import { adminGreeting } from "@/design-2026/directory";
 import {
   DirectoryOverview,
   Initials,
@@ -352,33 +354,60 @@ export function AdminView({
   }
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">PROACADEMY VERWALTUNG</div>
-          <h1>
-            {config?.title ??
-              {
-                stripe: "Stripe-Zuordnung",
-                einladungen: "Einladungen",
-                protokolle: "Protokolle & Berichte",
-                einstellungen: "Systemeinstellungen",
-                "produkte-berichte": "Produkte & Berichte",
-              }[slug] ??
-              "Alles im Blick"}
-            <span className="greeting-dot">.</span>
-          </h1>
-          <p>
-            {slug === "stripe"
-              ? "Kunden prüfen, Familien zuordnen und sicher einladen."
-              : "Organisation, Training und Entwicklung an einem Ort."}
-          </p>
+      {DESIGN_2026 ? (
+        <PageHead
+          title={
+            config?.title ??
+            {
+              stripe: "Stripe-Zuordnung",
+              einladungen: "Einladungen",
+              protokolle: "Protokolle & Berichte",
+              einstellungen: "Systemeinstellungen",
+              "produkte-berichte": "Produkte & Berichte",
+            }[slug] ??
+            "Verwaltung"
+          }
+          greeting={adminGreeting(slug, rows, loading)}
+          actions={
+            config && (
+              <button
+                className="d26-btn is-primary"
+                onClick={() => setEdit({})}
+              >
+                <Plus size={17} /> Neu anlegen
+              </button>
+            )
+          }
+        />
+      ) : (
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">PROACADEMY VERWALTUNG</div>
+            <h1>
+              {config?.title ??
+                {
+                  stripe: "Stripe-Zuordnung",
+                  einladungen: "Einladungen",
+                  protokolle: "Protokolle & Berichte",
+                  einstellungen: "Systemeinstellungen",
+                  "produkte-berichte": "Produkte & Berichte",
+                }[slug] ??
+                "Alles im Blick"}
+              <span className="greeting-dot">.</span>
+            </h1>
+            <p>
+              {slug === "stripe"
+                ? "Kunden prüfen, Familien zuordnen und sicher einladen."
+                : "Organisation, Training und Entwicklung an einem Ort."}
+            </p>
+          </div>
+          {config && (
+            <button className="primary-button" onClick={() => setEdit({})}>
+              <Plus size={17} /> Neu anlegen
+            </button>
+          )}
         </div>
-        {config && (
-          <button className="primary-button" onClick={() => setEdit({})}>
-            <Plus size={17} /> Neu anlegen
-          </button>
-        )}
-      </div>
+      )}
       {error && (
         <p className="error-message" role="alert">
           {error}

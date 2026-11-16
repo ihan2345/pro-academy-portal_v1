@@ -27,6 +27,8 @@ import {
 } from "./shared";
 import { Modal } from "../portal";
 import { DESIGN_2026 } from "@/design-2026/flag";
+import { PageHead } from "@/design-2026/page-head";
+import { Gift, Repeat, Tent } from "lucide-react";
 import { ShopFilters, applyShop, initialShop } from "@/design-2026/shop";
 const money = (n: number, currency: string) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(
@@ -394,7 +396,34 @@ export function ProductStore({
             <GiftAccountMenu welcomeAllowed={!chosen && !giftChosen} />
           </div>
         )}
-        {embedded ? (
+        {embedded && DESIGN_2026 ? (
+          <PageHead
+            title="Produkte"
+            greeting={
+              loading
+                ? "Angebote werden geladen …"
+                : `${rows.length} ${rows.length === 1 ? "Angebot passt" : "Angebote passen"} gerade zu euch. Tippe auf eine Kategorie, um direkt zu filtern.`
+            }
+            actions={
+              <Link className="d26-btn is-ghost" href={overviewHref}>
+                Überblick <ArrowRight size={16} />
+              </Link>
+            }
+            kpis={(["subscription", "camp", "gift"] as const).map((k) => ({
+              icon: k === "camp" ? Tent : k === "gift" ? Gift : Repeat,
+              value: rows.filter((r) => r.kind === k).length,
+              label:
+                k === "camp" ? "Camps" : k === "gift" ? "Geschenke" : "Abos",
+              active: shop.kind === k,
+              onClick: () => {
+                setShop({ ...shop, kind: shop.kind === k ? "" : k });
+                document
+                  .querySelector(".product-catalog-heading")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              },
+            }))}
+          />
+        ) : embedded ? (
           <section className="page-heading product-store-portal-heading">
             <div>
               <div className="eyebrow">TRAINING & CAMPS</div>

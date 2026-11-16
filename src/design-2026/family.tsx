@@ -16,6 +16,7 @@ import {
 import type { ParentProfile } from "@/lib/parent-profile";
 import { durationLabel, formatDate } from "@/lib/domain";
 import { CountUp } from "./ui";
+import { PageHead } from "./page-head";
 
 const tiers = [
   { key: "starter", label: "Start", at: 0 },
@@ -118,6 +119,10 @@ export function FamilyHero({
   const max = tiers[tiers.length - 1].at;
   return (
     <div className="d26-family">
+      <PageHead
+        title={data.role === "parent" ? "Familie" : "Elternprofil"}
+        greeting={`${childCount} ${childCount === 1 ? "Kind" : "Kinder"}, ${attended} ${attended === 1 ? "Einheit" : "Einheiten"} im ${monthName} und Status ${status.label}.`}
+      />
       <section className={`d26-card d26-family-hero tier-${status.tier}`}>
         <div className="d26-family-id">
           <span className="d26-family-avatar">

@@ -2,7 +2,15 @@
 // Design-Vorschau 2026: beantwortet Portal-Anfragen der Vorschau im Browser mit
 // Beispieldaten, damit ohne Login und ohne Supabase nichts geladen oder gespeichert wird.
 import { previewAdminRows, previewCamps } from "./mock-data";
-import { previewFamily, previewGifts, previewProducts } from "./mock-pages";
+import {
+  previewActivities,
+  previewFamily,
+  previewGifts,
+  previewParentList,
+  previewPlayerProfiles,
+  previewProducts,
+  previewTrials,
+} from "./mock-pages";
 
 if (
   typeof window !== "undefined" &&
@@ -22,6 +30,21 @@ if (
       return Response.json({ enabled: true });
     if (path === "/api/products" && (!init?.method || init.method === "GET"))
       return Response.json(previewProducts());
+    if (path === "/api/player-profiles")
+      return Response.json(previewPlayerProfiles());
+    if (path === "/api/parent-profiles/list")
+      return Response.json(previewParentList());
+    if (path.startsWith("/api/activities"))
+      return Response.json(previewActivities(path));
+    if (path === "/api/team/stamp-card")
+      return Response.json(
+        {
+          error: "Die Stempelkarte selbst ist in der Vorschau nicht verfügbar.",
+        },
+        { status: 404 },
+      );
+    if (path === "/api/probetraining/team")
+      return Response.json(previewTrials());
     if (path === "/api/products/gifts/mine")
       return Response.json(previewGifts());
     if (/^\/api\/parent-profiles\/[^/]+\/units$/.test(path))
@@ -54,7 +77,7 @@ if (
 // Links im Menü führen in der Vorschau auf die passende Vorschau-Seite statt
 // auf die echte (die einen Login bräuchte).
 const previewable =
-  /^\/(termine|stempelkarte|berichte|konto|profil|produkte|profil\/geschenkkarten|camps(\/[0-9a-f-]+)?|admin(\/(spieler|eltern|standorte|mitarbeiter|trainingsplanung))?)?$/;
+  /^\/(termine|stempelkarte|berichte|konto|profil|produkte|profil\/geschenkkarten|camps(\/[0-9a-f-]+)?|admin(\/(spieler|eltern|standorte|mitarbeiter|trainingsplanung|stempelkarten|einstellungen|einladungen|protokolle|stripe|produkte-berichte|elternprofile|spielerprofile|aktivitaeten|probetraining))?)?$/;
 if (
   typeof window !== "undefined" &&
   location.pathname.startsWith("/design-vorschau")

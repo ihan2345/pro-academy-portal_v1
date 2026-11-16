@@ -313,3 +313,132 @@ export function previewGifts() {
     user_id: "preview",
   };
 }
+
+const kidNames = [
+  ["Noah", "Becker", "U11", "Gamechanger", 8, 3840],
+  ["Mia", "Becker", "U9", "First Touch", 2, 840],
+  ["Elias", "Kaya", "U13", "Next Level Pro", 14, 6900],
+  ["Lea", "Yilmaz", "U11", "Gamechanger", 5, 2400],
+  ["Ben", "Schulz", "U10", "First Touch", 1, 300],
+  ["Emma", "Wagner", "U12", "Gamechanger", 11, 5100],
+] as const;
+
+export function previewPlayerProfiles() {
+  const rows = kidNames.map(
+    ([first, last, team, product, months, minutes], i) => ({
+      id: `c-${i + 1}`,
+      first_name: first,
+      last_name: last,
+      name: `${first} ${last}`,
+      age: `${9 + (i % 4)} Jahre`,
+      birth_year: 2016 - (i % 4),
+      team,
+      archived: false,
+      products: [product],
+      since: iso(-months * 30),
+      months,
+      camps: i % 3,
+      stats: {
+        month: { count: 2 + (i % 3), minutes: 120 + i * 30 },
+        all: { count: Math.round(minutes / 60), minutes },
+      },
+      parents: [{ id: `f-${i + 1}`, name: `Familie ${last}` }],
+      trainingAvailable: true,
+    }),
+  );
+  return { rows, next: null, total: rows.length };
+}
+
+export function previewParentList() {
+  const rows = kidNames.slice(0, 5).map(([, last, , product, months], i) => ({
+    id: `f-${i + 1}`,
+    name: `Familie ${last}`,
+    email: `${last.toLowerCase()}@example.com`,
+    children: last === "Becker" ? 2 : 1,
+    products: [product],
+    months,
+    portal_access: {
+      activated: i !== 3,
+      signed_in: i !== 3,
+      last_seen_at: i !== 3 ? iso(-i) : null,
+      invitation: {
+        status: i === 3 ? "sent" : "accepted",
+        sent_at: iso(-60),
+        accepted_at: i === 3 ? null : iso(-59),
+      },
+    },
+  }));
+  return { rows, total: rows.length, more: false };
+}
+
+export function previewActivities(path: string) {
+  if (path.endsWith("/summary"))
+    return { asOf: new Date().toISOString(), recent: 14, open: 2 };
+  const rows = [
+    ["Training bestätigt", "Techniktraining am Sportpark Nord", "success"],
+    ["Neue Buchung", "Ostercamp für Lea Yilmaz", "success"],
+    ["Zahlung offen", "Gamechanger für Ben Schulz", "problem"],
+    ["Bericht versendet", "Monatsbericht an Familie Kaya", "normal"],
+  ].map(([title, text, tone], i) => ({
+    id: `a-${i}`,
+    at: iso(-i / 4),
+    title,
+    text,
+    subject: null,
+    actor: "System",
+    tone,
+  }));
+  return { rows, next: null, total: rows.length };
+}
+
+export function previewTrials() {
+  const row = (
+    i: number,
+    first: string,
+    last: string,
+    status: string,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    id: `t-${i}`,
+    family_id: `tf-${i}`,
+    player_id: `tp-${i}`,
+    first_name: first,
+    last_name: last,
+    birth_date: "2016-05-01",
+    club: "SV Musterstadt",
+    status,
+    team_note: "",
+    event_id: null,
+    participant_id: null,
+    confirmed_at: null,
+    parent_name: `Familie ${last}`,
+    email: `${last.toLowerCase()}@example.com`,
+    phone: "+49 170 0000000",
+    preferred_location: "Sportpark Nord",
+    availability: "Nachmittags",
+    email_verified: true,
+    event_title: null,
+    starts_at: null,
+    ends_at: null,
+    event_status: null,
+    created_at: iso(-2),
+    ...extra,
+  });
+  return {
+    rows: [
+      row(1, "Luca", "Hoffmann", "new"),
+      row(2, "Sofia", "Klein", "new"),
+      row(3, "Jonas", "Wolf", "planned", {
+        event_title: "Techniktraining",
+        starts_at: iso(3),
+        ends_at: iso(3, 18),
+      }),
+      row(4, "Ida", "Neumann", "attended", {
+        confirmed_at: iso(-3),
+        academy_ready: false,
+      }),
+    ],
+    events: [{ id: "e-1", title: "Techniktraining", starts_at: iso(3) }],
+    staff: [{ id: "t-1", display_name: "Coach Max" }],
+  };
+}

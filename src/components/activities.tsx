@@ -10,6 +10,8 @@ import {
 import type { Activity, ActivityPage, ActivitySummary } from "@/lib/activities";
 import { calendarDate } from "@/lib/calendar";
 import { formatDate, formatTime } from "@/lib/domain";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { PageHead } from "@/design-2026/page-head";
 
 export function ActivityBadge() {
   const [count, setCount] = useState<number | null>(null);
@@ -78,22 +80,71 @@ export function Activities({
   }, [revision]);
   return (
     <div className="activities-page">
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">VERWALTUNG</div>
-          <h1>
-            {all ? "Alle Aktivitäten" : "Aktivitäten"}
-            <span className="greeting-dot">.</span>
-          </h1>
-          <p>Was in der Academy passiert – verständlich zusammengefasst.</p>
+      {DESIGN_2026 ? (
+        <PageHead
+          title={all ? "Alle Aktivitäten" : "Aktivitäten"}
+          greeting={
+            summary
+              ? `${summary.recent} Aktivitäten in den letzten 72 Stunden${summary.open ? `, ${summary.open} ${summary.open === 1 ? "Vorgang braucht" : "Vorgänge brauchen"} noch Aufmerksamkeit` : ", nichts ist offen"}.`
+              : "Was in der Academy passiert, verständlich zusammengefasst."
+          }
+          actions={
+            <button
+              className="d26-btn is-ghost"
+              onClick={() => setRevision((n) => n + 1)}
+            >
+              <RefreshCw size={16} /> Aktualisieren
+            </button>
+          }
+          kpis={
+            summary
+              ? [
+                  {
+                    icon: TriangleAlert,
+                    value: summary.open,
+                    label: "Offen",
+                    alert: summary.open > 0,
+                    onClick: () =>
+                      document
+                        .querySelector(".activity-open")
+                        ?.scrollIntoView({ behavior: "smooth" }),
+                  },
+                  {
+                    icon: ActivityIcon,
+                    value: summary.recent,
+                    label: "Letzte 72 Stunden",
+                  },
+                  {
+                    icon: Info,
+                    value: all ? "72 Std." : "Alle",
+                    label: all
+                      ? "Zurück zur Kurzansicht"
+                      : "Ganzen Verlauf zeigen",
+                    onClick: () =>
+                      window.location.assign(all ? base : `${base}/alle`),
+                  },
+                ]
+              : undefined
+          }
+        />
+      ) : (
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">VERWALTUNG</div>
+            <h1>
+              {all ? "Alle Aktivitäten" : "Aktivitäten"}
+              <span className="greeting-dot">.</span>
+            </h1>
+            <p>Was in der Academy passiert – verständlich zusammengefasst.</p>
+          </div>
+          <button
+            className="secondary-button"
+            onClick={() => setRevision((n) => n + 1)}
+          >
+            <RefreshCw size={16} /> Aktualisieren
+          </button>
         </div>
-        <button
-          className="secondary-button"
-          onClick={() => setRevision((n) => n + 1)}
-        >
-          <RefreshCw size={16} /> Aktualisieren
-        </button>
-      </div>
+      )}
       <div className="activities-links">
         <Link href={all ? base : `${base}/alle`}>
           {all ? "← Letzte 72 Stunden" : "Alle Aktivitäten →"}

@@ -374,3 +374,17 @@ export function QuickPicks({
     </div>
   );
 }
+
+/** Ein Satz zur Lage für den Seitenkopf. */
+export function planningGreeting(events: Training[], now: number) {
+  const day = calendarDate();
+  const week = addDays(day, 7);
+  const next = events.filter(
+    (e) =>
+      e.status !== "cancelled" &&
+      calendarDate(e.starts_at) >= day &&
+      calendarDate(e.starts_at) < week,
+  ).length;
+  const open = events.filter((e) => needsConfirmation(e, now)).length;
+  return `${next ? `In den nächsten 7 Tagen ${next === 1 ? "steht 1 Training" : `stehen ${next} Trainings`} an.` : "Die nächsten 7 Tage sind noch frei."}${open ? ` ${open} vergangene ${open === 1 ? "Termin wartet" : "Termine warten"} auf Bestätigung.` : " Alle Teilnahmen sind bestätigt."}`;
+}

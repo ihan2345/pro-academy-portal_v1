@@ -47,6 +47,7 @@ import {
 import "./parent-profile-details.css";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { FamilyHero } from "@/design-2026/family";
+import { ParentListFilters, ParentListHead } from "@/design-2026/people-heads";
 
 function ProfileAccessStatus({ access }: { access?: ProfileAccess }) {
   if (!access) return null;
@@ -144,15 +145,24 @@ export function ProfileList({ base }: { base: string }) {
   }, [search, offset, includeInactive, sort, campOnly]);
   return (
     <div className="parent-profile">
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">ACADEMY · FAMILIEN</div>
-          <h1>
-            Elternprofile<span className="greeting-dot">.</span>
-          </h1>
-          <p>Kontakte, Kinder und ihre Entwicklung an einem Ort.</p>
+      {DESIGN_2026 ? (
+        <ParentListHead
+          rows={rows}
+          total={total}
+          loading={loading}
+          base={base}
+        />
+      ) : (
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">ACADEMY · FAMILIEN</div>
+            <h1>
+              Elternprofile<span className="greeting-dot">.</span>
+            </h1>
+            <p>Kontakte, Kinder und ihre Entwicklung an einem Ort.</p>
+          </div>
         </div>
-      </div>
+      )}
       <label className="search-input profile-search">
         <Search size={18} />
         <input
@@ -165,58 +175,80 @@ export function ProfileList({ base }: { base: string }) {
           }}
         />
       </label>
-      <div className="profile-filters">
-        <label>
-          Familien
-          <select
-            aria-label="Elternprofile nach Campteilnahme filtern"
-            value={campOnly ? "camp" : "all"}
-            onChange={(e) => {
-              setCampOnly(e.target.value === "camp");
-              if (e.target.value === "camp") setIncludeInactive(true);
-              setOffset(0);
-            }}
-          >
-            <option value="all">Alle Familien</option>
-            <option value="camp">Campfamilien</option>
-          </select>
-        </label>
-        <label>
-          Sortierung
-          <select
-            aria-label="Elternprofile sortieren"
-            value={sort}
-            onChange={(e) => {
-              setSort(e.target.value);
-              setOffset(0);
-            }}
-          >
-            <option value="name">A–Z</option>
-            <option value="months">Platzierung (Gesamtmonate)</option>
-            {base.startsWith("/admin/") && (
-              <option value="revenue">Umsatz (höchster zuerst)</option>
-            )}
-            <option value="newest">Neu–Alt</option>
-          </select>
-        </label>
-      </div>
-      {sort === "revenue" && (
-        <p className="profile-muted">
-          Gesamtumsatz aus Stripe-Zahlungen inklusive Camps, abzüglich
-          Erstattungen. Nicht eindeutig belegbare Euro-Umsätze stehen am Ende.
-        </p>
-      )}
-      <label className="profile-inactive-filter">
-        <input
-          type="checkbox"
-          checked={includeInactive}
-          onChange={(e) => {
-            setIncludeInactive(e.target.checked);
+      {DESIGN_2026 ? (
+        <ParentListFilters
+          campOnly={campOnly}
+          sort={sort}
+          includeInactive={includeInactive}
+          revenue={base.startsWith("/admin/")}
+          set={(patch) => {
+            if (patch.campOnly !== undefined) {
+              setCampOnly(patch.campOnly);
+              if (patch.campOnly) setIncludeInactive(true);
+            }
+            if (patch.sort !== undefined) setSort(patch.sort);
+            if (patch.includeInactive !== undefined)
+              setIncludeInactive(patch.includeInactive);
             setOffset(0);
           }}
         />
-        Eltern ohne aktives Abo zusätzlich anzeigen
-      </label>
+      ) : (
+        <>
+          <div className="profile-filters">
+            <label>
+              Familien
+              <select
+                aria-label="Elternprofile nach Campteilnahme filtern"
+                value={campOnly ? "camp" : "all"}
+                onChange={(e) => {
+                  setCampOnly(e.target.value === "camp");
+                  if (e.target.value === "camp") setIncludeInactive(true);
+                  setOffset(0);
+                }}
+              >
+                <option value="all">Alle Familien</option>
+                <option value="camp">Campfamilien</option>
+              </select>
+            </label>
+            <label>
+              Sortierung
+              <select
+                aria-label="Elternprofile sortieren"
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                  setOffset(0);
+                }}
+              >
+                <option value="name">A–Z</option>
+                <option value="months">Platzierung (Gesamtmonate)</option>
+                {base.startsWith("/admin/") && (
+                  <option value="revenue">Umsatz (höchster zuerst)</option>
+                )}
+                <option value="newest">Neu–Alt</option>
+              </select>
+            </label>
+          </div>
+          {sort === "revenue" && (
+            <p className="profile-muted">
+              Gesamtumsatz aus Stripe-Zahlungen inklusive Camps, abzüglich
+              Erstattungen. Nicht eindeutig belegbare Euro-Umsätze stehen am
+              Ende.
+            </p>
+          )}
+          <label className="profile-inactive-filter">
+            <input
+              type="checkbox"
+              checked={includeInactive}
+              onChange={(e) => {
+                setIncludeInactive(e.target.checked);
+                setOffset(0);
+              }}
+            />
+            Eltern ohne aktives Abo zusätzlich anzeigen
+          </label>
+        </>
+      )}
       <p className="profile-muted">
         {total === null
           ? "25 Profile pro Seite"

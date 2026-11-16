@@ -12,6 +12,10 @@ import { PlayerCard } from "@/design-2026/player-card";
 import { ProductStore } from "@/components/products/store";
 import "@/components/products/products.css";
 import { GiftAccountOverview } from "@/components/products/gift-account";
+import { ProfileList } from "@/components/parent-profile";
+import { PlayerProfiles } from "@/components/player-profiles";
+import { Activities } from "@/components/activities";
+import { TrialTeam } from "@/components/trials/team";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -28,7 +32,20 @@ export default async function Page({
     "standorte",
     "mitarbeiter",
     "trainingsplanung",
+    "stempelkarten",
+    "einstellungen",
+    "einladungen",
+    "protokolle",
+    "stripe",
+    "produkte-berichte",
   ];
+  if (section === "admin" && view[1] === "konto")
+    return (
+      <>
+        <PreviewFetch />
+        <Portal initial={previewAdminPortal()} section="konto" />
+      </>
+    );
   if (section === "admin" && view[1] === "elternprofil")
     return (
       <>
@@ -38,6 +55,21 @@ export default async function Page({
             initial={previewFamily("admin")}
             base="/design-vorschau/admin/eltern"
           />
+        </Portal>
+      </>
+    );
+  const extra: Record<string, React.ReactNode> = {
+    elternprofile: <ProfileList base="/design-vorschau/admin/elternprofil" />,
+    spielerprofile: <PlayerProfiles base="/admin/elternprofile" admin />,
+    aktivitaeten: <Activities base="/design-vorschau/admin/aktivitaeten" />,
+    probetraining: <TrialTeam />,
+  };
+  if (section === "admin" && view[1] && extra[view[1]])
+    return (
+      <>
+        <PreviewFetch />
+        <Portal initial={previewAdminPortal()} section={`admin/${view[1]}`}>
+          {extra[view[1]]}
         </Portal>
       </>
     );

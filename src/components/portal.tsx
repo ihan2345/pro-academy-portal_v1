@@ -71,7 +71,8 @@ import { navGroup, designNavItems } from "@/design-2026/nav-groups";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { ParentExperience } from "@/design-2026/parent-experience";
 import { AdminHome } from "@/design-2026/admin-home";
-import { AccountExperience } from "@/design-2026/account";
+import { AccountExperience, StaffAccount } from "@/design-2026/account";
+import { PageHead } from "@/design-2026/page-head";
 import { spotlightExtra } from "@/design-2026/spotlight-extra";
 export function Brand() {
   return (
@@ -555,6 +556,8 @@ export function Portal({
           ) : (admin || team) &&
             ["admin/stempelkarten", "team/stempelkarten"].includes(section) ? (
             <StampCards data={data} notify={setToast} />
+          ) : section === "konto" && data.role !== "parent" && DESIGN_2026 ? (
+            <StaffAccount data={data} admin={!!admin} />
           ) : section === "konto" && data.role !== "parent" ? (
             <>
               <div className="page-heading">
@@ -632,63 +635,76 @@ export function Portal({
             />
           ) : (
             <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">DEIN SPIEL. DEINE ENTWICKLUNG.</div>
-                  <h1>
-                    {section === ""
-                      ? `Hallo ${data.user_name}`
-                      : section === "termine"
-                        ? "Meine Termine"
-                        : section === "stempelkarte"
-                          ? "Deine Stempelkarte"
-                          : section === "berichte"
-                            ? "Deine Trainingsberichte"
-                            : "Mein Konto"}
-                    {section === "" && <span className="greeting-dot">.</span>}
-                  </h1>
-                  <p>
-                    {section === ""
-                      ? "Schön, dass du da bist. Hier bleibt das Training im Blick."
-                      : section === "termine"
-                        ? "Alles, was ansteht. Und alles, was schon geschafft ist."
-                        : section === "stempelkarte"
-                          ? "Jede Einheit ist ein Schritt nach vorne."
-                          : section === "berichte"
-                            ? "Die Entwicklung deines Kindes, übersichtlich dokumentiert."
-                            : "Deine Familie und dein Abonnement an einem Ort."}
-                  </p>
-                </div>
-                {player && (
-                  <label className="child-switch">
-                    <span className="avatar child-avatar">
-                      {player.first_name.charAt(0)}
-                    </span>
-                    <span>
-                      <small>DEIN KIND</small>
-                      <select
-                        aria-label="Kind auswählen"
-                        value={player.id}
-                        onChange={(e) => {
-                          setSelected(e.target.value);
-                          setSelectedPeriod("");
-                          localStorage.setItem(
-                            "proacademy-selected",
-                            e.target.value,
-                          );
-                        }}
-                      >
-                        {data.players.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.first_name} {p.last_name}
-                          </option>
-                        ))}
-                      </select>
-                    </span>
-                    <ChevronDown size={17} />
-                  </label>
-                )}
-              </div>
+              {DESIGN_2026 && section === "konto" ? (
+                <PageHead
+                  title="Konto"
+                  greeting="Familie, Abos, Zahlungen und Mitteilungen an einem Ort."
+                />
+              ) : (
+                <>
+                  <div className="page-heading">
+                    <div>
+                      <div className="eyebrow">
+                        DEIN SPIEL. DEINE ENTWICKLUNG.
+                      </div>
+                      <h1>
+                        {section === ""
+                          ? `Hallo ${data.user_name}`
+                          : section === "termine"
+                            ? "Meine Termine"
+                            : section === "stempelkarte"
+                              ? "Deine Stempelkarte"
+                              : section === "berichte"
+                                ? "Deine Trainingsberichte"
+                                : "Mein Konto"}
+                        {section === "" && (
+                          <span className="greeting-dot">.</span>
+                        )}
+                      </h1>
+                      <p>
+                        {section === ""
+                          ? "Schön, dass du da bist. Hier bleibt das Training im Blick."
+                          : section === "termine"
+                            ? "Alles, was ansteht. Und alles, was schon geschafft ist."
+                            : section === "stempelkarte"
+                              ? "Jede Einheit ist ein Schritt nach vorne."
+                              : section === "berichte"
+                                ? "Die Entwicklung deines Kindes, übersichtlich dokumentiert."
+                                : "Deine Familie und dein Abonnement an einem Ort."}
+                      </p>
+                    </div>
+                    {player && (
+                      <label className="child-switch">
+                        <span className="avatar child-avatar">
+                          {player.first_name.charAt(0)}
+                        </span>
+                        <span>
+                          <small>DEIN KIND</small>
+                          <select
+                            aria-label="Kind auswählen"
+                            value={player.id}
+                            onChange={(e) => {
+                              setSelected(e.target.value);
+                              setSelectedPeriod("");
+                              localStorage.setItem(
+                                "proacademy-selected",
+                                e.target.value,
+                              );
+                            }}
+                          >
+                            {data.players.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.first_name} {p.last_name}
+                              </option>
+                            ))}
+                          </select>
+                        </span>
+                        <ChevronDown size={17} />
+                      </label>
+                    )}
+                  </div>
+                </>
+              )}
               {!player ? (
                 <div className="empty-state">
                   <Users />

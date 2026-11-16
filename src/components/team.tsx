@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import { Modal, Badge } from "./portal";
 import { DESIGN_2026 } from "@/design-2026/flag";
+import { PageHead } from "@/design-2026/page-head";
+import { planningGreeting } from "@/design-2026/planning";
 import {
   EventPulse,
   PlanningOverview,
@@ -183,21 +185,39 @@ export function TeamView({
   }
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">GEMEINSAM AUF DEM PLATZ</div>
-          <h1>
-            Trainingsplanung<span className="greeting-dot">.</span>
-          </h1>
-          <p>Deine Monate im Blick. Dein Training im Detail.</p>
+      {DESIGN_2026 ? (
+        <PageHead
+          title="Trainingsplanung"
+          greeting={planningGreeting(data.events, now)}
+          actions={
+            <>
+              <button
+                className="d26-btn is-primary"
+                onClick={() => setEditor("new")}
+              >
+                <Plus size={17} /> Termin erstellen
+              </button>
+              {data.role === "admin" && <TrainingApiShare notify={notify} />}
+            </>
+          }
+        />
+      ) : (
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">GEMEINSAM AUF DEM PLATZ</div>
+            <h1>
+              Trainingsplanung<span className="greeting-dot">.</span>
+            </h1>
+            <p>Deine Monate im Blick. Dein Training im Detail.</p>
+          </div>
+          <div className="training-heading-actions">
+            <button className="primary-button" onClick={() => setEditor("new")}>
+              <Plus size={18} /> Termin erstellen
+            </button>
+            {data.role === "admin" && <TrainingApiShare notify={notify} />}
+          </div>
         </div>
-        <div className="training-heading-actions">
-          <button className="primary-button" onClick={() => setEditor("new")}>
-            <Plus size={18} /> Termin erstellen
-          </button>
-          {data.role === "admin" && <TrainingApiShare notify={notify} />}
-        </div>
-      </div>
+      )}
       {DESIGN_2026 && (
         <PlanningOverview
           data={data}

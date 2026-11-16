@@ -13,6 +13,7 @@ import type {
   PlayerProfileSort,
 } from "@/lib/player-profiles";
 import { DESIGN_2026 } from "@/design-2026/flag";
+import { PlayerDirectoryHead } from "@/design-2026/people-heads";
 
 export function PlayerProfiles({
   base,
@@ -25,21 +26,33 @@ export function PlayerProfiles({
     [term, setTerm] = useState("");
   const [sort, setSort] = useState<PlayerProfileSort>("name"),
     [revision, setRevision] = useState(0);
+  const [feed, setFeed] = useState<{
+    rows: PlayerProfilePage["rows"];
+    total: number;
+  }>({ rows: [], total: 0 });
   useEffect(() => {
     const timer = setTimeout(() => setTerm(search.trim()), 250);
     return () => clearTimeout(timer);
   }, [search]);
   return (
     <div className="parent-profile player-directory">
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">ACADEMY · SPIELER</div>
-          <h1>
-            Spielerprofil<span className="greeting-dot">.</span>
-          </h1>
-          <p>Aktive Kinder mit Abo – ihre Entwicklung auf einen Blick.</p>
+      {DESIGN_2026 ? (
+        <PlayerDirectoryHead
+          rows={feed.rows}
+          total={feed.total}
+          base={base.startsWith("/admin/") ? "/admin" : "/team"}
+        />
+      ) : (
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">ACADEMY · SPIELER</div>
+            <h1>
+              Spielerprofil<span className="greeting-dot">.</span>
+            </h1>
+            <p>Aktive Kinder mit Abo – ihre Entwicklung auf einen Blick.</p>
+          </div>
         </div>
-      </div>
+      )}
       <div className="player-directory-controls">
         <label className="search-input">
           <Search size={18} />
@@ -113,6 +126,7 @@ export function PlayerProfiles({
         sort={sort}
         search={term}
         refresh={() => setRevision((n) => n + 1)}
+        onRows={(rows, total) => setFeed({ rows, total })}
       />
     </div>
   );
@@ -122,11 +136,13 @@ function PlayerFeed({
   sort,
   search,
   refresh,
+  onRows,
 }: {
   base: string;
   sort: PlayerProfileSort;
   search: string;
   refresh: () => void;
+  onRows?: (rows: PlayerProfilePage["rows"], total: number) => void;
 }) {
   const [rows, setRows] = useState<PlayerProfilePage["rows"]>([]),
     [next, setNext] = useState<string | null>(null),
@@ -134,6 +150,10 @@ function PlayerFeed({
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [expired, setExpired] = useState(false);
+  useEffect(() => {
+    onRows?.(rows, total);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, total]);
   const root = useRef<HTMLDivElement>(null),
     sentinel = useRef<HTMLDivElement>(null),
     pending = useRef(false),
