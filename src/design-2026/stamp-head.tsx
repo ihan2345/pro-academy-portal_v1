@@ -19,7 +19,10 @@ export function StampHead({
     return p ? `${p.first_name} ${p.last_name}` : "Spieler";
   };
   const running = data.periods.filter(
-    (p) => Date.parse(p.starts_at) <= now && Date.parse(p.ends_at) > now,
+    (p) =>
+      p.status === "active" &&
+      Date.parse(p.starts_at) <= now &&
+      Date.parse(p.ends_at) > now,
   );
   const ending = running
     .filter((p) => Date.parse(p.ends_at) - now < 7 * 86400000)
