@@ -1493,6 +1493,21 @@ function Logs({
 }) {
   const [tab, setTab] = useState("notification_jobs"),
     [rows, setRows] = useState<RecordRow[]>([]);
+  // Design 2026: Sprung aus der Glocke direkt in einen Reiter (#report_snapshots).
+  useEffect(() => {
+    if (!DESIGN_2026) return;
+    const hash = window.location.hash.slice(1);
+    if (
+      [
+        "notification_jobs",
+        "notification_deliveries",
+        "report_snapshots",
+        "audit_log",
+        "job_runs",
+      ].includes(hash)
+    )
+      setTab(hash);
+  }, []);
   useEffect(() => {
     let active = true;
     api(`admin/${tab}`, undefined, "GET")

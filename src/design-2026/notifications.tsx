@@ -5,9 +5,11 @@
 // 30 Minuten je Browser. Gelesen, Zurückstellen und Erledigt
 // werden nur im Browser dieses Geräts gespeichert, nichts geht an den Server.
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   Bell,
   CalendarClock,
   CalendarDays,
@@ -43,6 +45,8 @@ export type Note = {
   at?: string;
   href?: string;
   external?: string;
+  /** Hauptaktion: springt direkt in den passenden Kontext. */
+  open?: { label: string; href: string };
   actions?: Action[];
   group: "now" | "news";
 };
@@ -152,13 +156,17 @@ export function paymentNote(
   now: number,
 ): Note {
   const who = row.children.map((c) => c.name).join(", ") || row.customer;
+  const child = row.children[0];
   const base = {
     key: `pay:${row.subscriptionId || row.id}`,
     icon: CreditCard,
-    href: "/admin/stripe",
+    href: child ? `/admin/spieler/${child.id}` : "/admin/stripe",
     external: row.href,
     at: row.at,
     group: "now" as const,
+    open: child
+      ? { label: "Spielerkarte öffnen", href: `/admin/spieler/${child.id}` }
+      : { label: "Zur Stripe-Zuordnung", href: "/admin/stripe" },
   };
   const failedAt = Date.parse(row.at);
   const deadline = failedAt + PAYMENT_RETRY_DAYS * DAY;
@@ -167,17 +175,22 @@ export function paymentNote(
     !["past_due", "unpaid", "incomplete"].includes(row.status) ||
     !Number.isFinite(left) ||
     left <= 0
-  )
+  ) {
+    // Abo ist schon beendet oder gesperrt: kein Countdown mehr, sondern
+    // Familie kontaktieren. Nach 14 Tagen rutscht es aus "Jetzt wichtig".
+    const old = now - failedAt > PAYMENT_RETRY_DAYS * DAY;
     return {
       ...base,
       id: `${base.key}:ended`,
-      tone: "urgent",
+      tone: old ? "info" : "urgent",
+      group: old ? "news" : "now",
       title: row.blocked
         ? `Abo gesperrt · ${row.customer}`
-        : `Zahlung offen · ${row.customer}`,
-      text: `${row.reason || "Offene Rechnung"}. Betrifft ${who}.`,
+        : `Abo wegen Zahlung beendet · ${row.customer}`,
+      text: `${row.reason || "Offene Rechnung"} seit ${shortDate(failedAt)}. Betrifft ${who}. Familie kontaktieren und bei Bedarf neu buchen lassen.`,
       actions: [{ label: "Erledigt", kind: "done" }],
     };
+  }
   if (left <= 1)
     return {
       ...base,
@@ -255,6 +268,10 @@ export function portalNotes(data: PortalData, now: number, base: string) {
         text: `Zuletzt ${latest.title} am ${formatDate(latest.starts_at, { day: "numeric", month: "short" })}. Danach zählen die Einheiten auf den Stempelkarten.`,
         at: latest.ends_at,
         href: data.role === "admin" ? "/admin/trainingsplanung" : "/team",
+        open: {
+          label: "Jetzt bestätigen",
+          href: data.role === "admin" ? "/admin/trainingsplanung" : "/team",
+        },
         group: "now",
       });
     }
@@ -273,6 +290,10 @@ export function portalNotes(data: PortalData, now: number, base: string) {
           ? `Als Nächstes ${formatTime(next.starts_at)} ${next.title} · ${next.location_name}, ${active(next).length} Teilnehmer.`
           : "Alle Trainings für heute sind vorbei.",
         href: data.role === "admin" ? "/admin/trainingsplanung" : "/team",
+        open: {
+          label: "Tagesplan öffnen",
+          href: data.role === "admin" ? "/admin/trainingsplanung" : "/team",
+        },
         group: "news",
       });
   }
@@ -309,6 +330,10 @@ export function portalNotes(data: PortalData, now: number, base: string) {
           ? `Der Zeitraum für ${name(p.player_id)} läuft am ${shortDate(end)} aus. In Mein Konto kannst du verlängern.`
           : `${p.product_name} läuft am ${shortDate(end)} aus und verlängert sich nicht automatisch.`,
       href: data.role === "parent" ? "/konto" : `${base}/stempelkarten`,
+      open:
+        data.role === "parent"
+          ? { label: "Verlängern", href: "/konto" }
+          : { label: "Stempelkarte öffnen", href: `${base}/stempelkarten` },
       actions:
         data.role === "parent"
           ? undefined
@@ -336,6 +361,7 @@ export function portalNotes(data: PortalData, now: number, base: string) {
         title: "Zahlung offen",
         text: `Die letzte Zahlung für ${p.product_name} (${name(p.player_id)}) ist nicht durchgegangen. Bitte prüfe deine Zahlungsmethode in Mein Konto.`,
         href: "/konto",
+        open: { label: "Zahlungsmethode prüfen", href: "/konto" },
         group: "now",
       });
     const next = live
@@ -350,6 +376,7 @@ export function portalNotes(data: PortalData, now: number, base: string) {
         title: `${calendarDate(next.starts_at) === today ? "Heute" : "Morgen"} ${formatTime(next.starts_at)} · ${next.title}`,
         text: `${next.location_name}${next.trainer_name ? ` mit ${next.trainer_name}` : ""}. Bitte 10 Minuten vorher da sein.`,
         href: "/termine",
+        open: { label: "Termin ansehen", href: "/termine" },
         group: "news",
       });
     for (const r of data.reports.filter(
@@ -364,10 +391,44 @@ export function portalNotes(data: PortalData, now: number, base: string) {
         text: `${name(r.player_id)}: ${r.completed} von ${r.units} Einheiten absolviert. Als PDF unter Berichte.`,
         at: r.created_at,
         href: "/berichte",
+        open: { label: "Bericht öffnen", href: "/berichte" },
         group: "news",
       });
   }
   return notes;
+}
+
+/** Passender Ort für eine Aktivität, abgeleitet aus ihrem Titel. */
+function activityTarget(a: Activity, base: string): Note["open"] {
+  if (a.help) return { label: a.help.label, href: a.help.href };
+  const admin = base === "/admin";
+  const t = a.title.toLowerCase();
+  if (t.startsWith("spielerprofil"))
+    return { label: "Spielerprofile öffnen", href: `${base}/spielerprofile` };
+  if (t.startsWith("elternprofil"))
+    return { label: "Elternprofile öffnen", href: `${base}/elternprofile` };
+  if (t.includes("bericht"))
+    return admin
+      ? { label: "Berichte öffnen", href: "/admin/protokolle#report_snapshots" }
+      : { label: "Stempelkarten öffnen", href: `${base}/stempelkarten` };
+  if (t.includes("training") || t.includes("teilnahme"))
+    return {
+      label: "Trainingsplanung öffnen",
+      href: admin ? "/admin/trainingsplanung" : "/team",
+    };
+  if (t.includes("stempel"))
+    return { label: "Stempelkarten öffnen", href: `${base}/stempelkarten` };
+  if (admin && (t.includes("nachricht") || t.includes("mail")))
+    return {
+      label: "Versandhistorie öffnen",
+      href: "/admin/protokolle#notification_deliveries",
+    };
+  if (
+    admin &&
+    (t.includes("abo") || t.includes("zahlung") || t.includes("stripe"))
+  )
+    return { label: "Stripe-Zuordnung öffnen", href: "/admin/stripe" };
+  return { label: "In Aktivitäten ansehen", href: `${base}/aktivitaeten` };
 }
 
 function activityNotes(
@@ -385,6 +446,7 @@ function activityNotes(
       title: `${summary.open} ${summary.open === 1 ? "Aktivität braucht" : "Aktivitäten brauchen"} dich`,
       text: "Offene Vorgänge aus Buchungen, Zahlungen und Trainings.",
       href: `${base}/aktivitaeten`,
+      open: { label: "Offene Vorgänge ansehen", href: `${base}/aktivitaeten` },
       group: "now",
     });
   for (const a of rows.slice(0, 4))
@@ -395,9 +457,10 @@ function activityNotes(
         a.tone === "problem" ? "warn" : a.tone === "success" ? "good" : "info",
       icon: a.tone === "problem" ? AlertTriangle : Sparkles,
       title: a.title,
-      text: a.text,
+      text: a.subject ? `${a.subject}: ${a.text}` : a.text,
       at: a.at,
-      href: `${base}/aktivitaeten`,
+      href: activityTarget(a, base)!.href,
+      open: activityTarget(a, base),
       group: "news",
     });
   return notes;
@@ -427,6 +490,7 @@ export function NotificationBell({
   const [remote, setRemote] = useState<Note[]>([]);
   const [showSnoozed, setShowSnoozed] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const staff = data.role !== "parent";
 
   useEffect(() => {
@@ -469,6 +533,7 @@ export function NotificationBell({
                 title: "Zahlungsprüfung gerade nicht verfügbar",
                 text: "Stripe war nicht erreichbar. Offene Zahlungen siehst du unter Stripe-Zuordnung, die Glocke versucht es in ein paar Minuten erneut.",
                 href: "/admin/stripe",
+                open: { label: "Zur Stripe-Zuordnung", href: "/admin/stripe" },
                 group: "now",
               },
             ]
@@ -560,7 +625,12 @@ export function NotificationBell({
   const item = (n: Note) => (
     <li
       key={n.id}
-      className={`d26-note tone-${n.tone} ${store.seen[n.id] ? "" : "is-new"}`}
+      className={`d26-note tone-${n.tone} ${store.seen[n.id] ? "" : "is-new"} ${n.href ? "is-link" : ""}`}
+      onClick={(e) => {
+        if (!n.href || (e.target as HTMLElement).closest("a,button")) return;
+        setOpen(false);
+        router.push(n.href);
+      }}
     >
       <span className="d26-note-icon">
         <n.icon size={16} />
@@ -583,9 +653,18 @@ export function NotificationBell({
             </a>
           )}
         </div>
-        {!!n.actions?.length && (
+        {(!!n.actions?.length || n.open) && (
           <div className="d26-note-actions">
-            {n.actions.map((a) => (
+            {n.open && (
+              <Link
+                href={n.open.href}
+                className="is-open"
+                onClick={() => setOpen(false)}
+              >
+                {n.open.label} <ArrowRight size={13} />
+              </Link>
+            )}
+            {(n.actions ?? []).map((a) => (
               <button
                 key={a.label}
                 type="button"
