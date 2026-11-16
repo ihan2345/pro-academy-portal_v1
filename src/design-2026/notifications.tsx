@@ -399,8 +399,25 @@ export function portalNotes(data: PortalData, now: number, base: string) {
 }
 
 /** Passender Ort für eine Aktivität, abgeleitet aus ihrem Titel. */
-function activityTarget(a: Activity, base: string): Note["open"] {
+function activityTarget(
+  a: Activity,
+  base: string,
+  players: PortalData["players"] = [],
+): Note["open"] {
   if (a.help) return { label: a.help.label, href: a.help.href };
+  // Betrifft die Aktivität ein bekanntes Kind, direkt zu dessen Spielerkarte.
+  const subject = a.subject?.trim().toLowerCase();
+  const player = subject
+    ? players.find(
+        (p) =>
+          `${p.first_name} ${p.last_name}`.trim().toLowerCase() === subject,
+      )
+    : undefined;
+  if (player && !a.title.toLowerCase().startsWith("elternprofil"))
+    return {
+      label: "Spielerkarte öffnen",
+      href: `${base}/spieler/${player.id}`,
+    };
   const admin = base === "/admin";
   const t = a.title.toLowerCase();
   if (t.startsWith("spielerprofil"))
@@ -435,6 +452,7 @@ function activityNotes(
   summary: ActivitySummary | null,
   rows: Activity[],
   base: string,
+  players: PortalData["players"] = [],
 ): Note[] {
   const notes: Note[] = [];
   if (summary?.open)
@@ -459,8 +477,8 @@ function activityNotes(
       title: a.title,
       text: a.subject ? `${a.subject}: ${a.text}` : a.text,
       at: a.at,
-      href: activityTarget(a, base)!.href,
-      open: activityTarget(a, base),
+      href: activityTarget(a, base, players)!.href,
+      open: activityTarget(a, base, players),
       group: "news",
     });
   return notes;
@@ -555,6 +573,7 @@ export function NotificationBell({
           summary.ok ? summary.v : null,
           list.ok ? list.v.rows : [],
           base,
+          data.players,
         ),
       ]);
     }, 2500);
