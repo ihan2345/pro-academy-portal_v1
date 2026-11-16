@@ -206,7 +206,25 @@ export function FamilyHero({
                 </span>
               ))}
             </div>
+            <p className="d26-tier-note">
+              {data.earned_months !== undefined &&
+                `${data.earned_months} aktive Abo-Monate${data.deducted_months ? ` − ${data.deducted_months} Monate Inaktivitätsabzug` : " · kein Inaktivitätsabzug"}. `}
+              {data.history_note}
+            </p>
           </div>
+        )}
+        {locked && data.next_edit_at && (
+          <p className="d26-tier-note">
+            Kontaktdaten erneut bearbeitbar ab{" "}
+            {formatDate(data.next_edit_at, {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            .
+          </p>
         )}
       </section>
       <div className="d26-kpis">

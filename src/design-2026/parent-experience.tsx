@@ -1605,7 +1605,11 @@ function Progress(props: ParentExperienceProps) {
                 <CountUp value={stats.completed} />
                 <span> / {period?.included_units ?? 0}</span>
               </h3>
-              <p>Einheiten in diesem Zeitraum</p>
+              <p>
+                {stats.completed > (period?.included_units ?? 0)
+                  ? `Über dem Kontingent: ${stats.completed - (period?.included_units ?? 0)} Einheiten`
+                  : "Einheiten in diesem Zeitraum"}
+              </p>
             </section>
             <section className="d26-card d26-metric">
               <small>Trainingszeit</small>
