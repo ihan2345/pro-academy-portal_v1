@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import {
   CalendarRange,
   Clock3,
+  Radio,
   Crown,
   ShieldCheck,
   Trophy,
@@ -16,7 +17,31 @@ import {
 import type { PlayerProfilePage } from "@/lib/player-profiles";
 import type { ProfileListRow } from "@/lib/parent-profile";
 import { familyStatus } from "@/lib/parent-profile";
+import { activityStatus, ONLINE_WINDOW } from "@/lib/user-activity";
 import { PageHead, SheetRow } from "./page-head";
+
+/** Grün: gerade aktiv im Portal. Orange: in den letzten 30 Minuten da. */
+const IDLE_WINDOW = 30 * 60000;
+function presence(at: string | null | undefined, now: number) {
+  const t = at ? Date.parse(at) : NaN;
+  if (!Number.isFinite(t)) return "off" as const;
+  const age = now - t;
+  return age < ONLINE_WINDOW ? "live" : age < IDLE_WINDOW ? "idle" : "off";
+}
+function Led({ state }: { state: "live" | "idle" | "off" }) {
+  return (
+    <i
+      className={`d26-led is-${state}`}
+      aria-label={
+        state === "live"
+          ? "Gerade online"
+          : state === "idle"
+            ? "Vor Kurzem online"
+            : "Offline"
+      }
+    />
+  );
+}
 
 /** Lädt alle Seiten einer Liste (im Tab 5 Minuten gemerkt). */
 function useEverything<T extends { id: string }>(
@@ -99,6 +124,7 @@ export function PlayerDirectoryHead({
         const params = new URLSearchParams({
           sort: "name",
           search,
+          limit: "100",
           ...(cursor ? { cursor } : {}),
         });
         const d = (await json(
@@ -254,9 +280,9 @@ export function ParentListHead({
     `parents:${search}:${includeInactive}:${campOnly}`,
     async (signal) => {
       const out: ProfileListRow[] = [];
-      for (let offset = 0; offset < 5000; offset += 25) {
+      for (let offset = 0; offset < 5000; offset += 100) {
         const d = await json(
-          `/api/parent-profiles/list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=name&campOnly=${campOnly}`,
+          `/api/parent-profiles/list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=name&campOnly=${campOnly}&limit=100`,
           signal,
         );
         out.push(...(d.rows as ProfileListRow[]));
@@ -278,6 +304,16 @@ export function ParentListHead({
   const avg = rows?.length
     ? Math.round(rows.reduce((s, r) => s + r.months, 0) / rows.length)
     : 0;
+  const now = Date.now();
+  const seen = (r: ProfileListRow) =>
+    r.portal_access?.last_seen_at ?? r.last_seen_at ?? null;
+  const recent = (rows ?? [])
+    .filter((r) => seen(r))
+    .sort((a, b) => seen(b)!.localeCompare(seen(a)!))
+    .slice(0, 10);
+  const onlineNow = (rows ?? []).filter(
+    (r) => presence(seen(r), now) !== "off",
+  ).length;
   const list = (
     items: ProfileListRow[],
     pill: (r: ProfileListRow) => string,
@@ -343,13 +379,58 @@ export function ParentListHead({
               : "Alle aktiviert"
             : undefined,
           sheet: {
-            title: "Noch nicht im Portal",
-            eyebrow: ready
-              ? `${inactive.length} von ${families} Familien`
-              : undefined,
-            body: list(inactive, () => "Nicht aktiviert"),
+            title: "Portalzugang",
+            eyebrow: ready ? `${families} Familien` : undefined,
+            body: (
+              <PortalSwitch
+                active={list(active, (r) =>
+                  seen(r) ? activityStatus(seen(r), now).label : "Aktiviert",
+                )}
+                inactive={list(inactive, () => "Nicht aktiviert")}
+                counts={[active.length, inactive.length]}
+              />
+            ),
           },
         },
+        ...(/(^|\/)admin\//.test(base)
+          ? [
+              {
+                icon: Radio,
+                value: ready ? onlineNow : pending,
+                label: "Zuletzt online",
+                tip: "Grün: gerade im Portal. Orange: in den letzten 30 Minuten.",
+                sheet: {
+                  title: "Zuletzt online",
+                  eyebrow: "Letzte 10 Eltern",
+                  body: (
+                    <div className="d26-mini-list">
+                      {recent.map((r) => (
+                        <SheetRow
+                          key={r.id}
+                          title={
+                            <>
+                              <Led state={presence(seen(r), now)} />
+                              {r.name}
+                            </>
+                          }
+                          meta={`${r.children} ${r.children === 1 ? "Kind" : "Kinder"} · ${r.products.join(", ") || "Kein Abo"}`}
+                          pill={activityStatus(seen(r), now).label}
+                          href={`${base}/${r.id}`}
+                        />
+                      ))}
+                      {!recent.length && (
+                        <p className="d26-empty">
+                          {ready
+                            ? "Noch keine Anmeldung erfasst."
+                            : "Wird geladen …"}
+                        </p>
+                      )}
+                    </div>
+                  ),
+                },
+              },
+            ]
+          : []),
         {
           icon: CalendarRange,
           value: ready ? avg : pending,
@@ -366,6 +447,41 @@ export function ParentListHead({
         },
       ]}
     />
+  );
+}
+
+function PortalSwitch({
+  active,
+  inactive,
+  counts,
+}: {
+  active: React.ReactNode;
+  inactive: React.ReactNode;
+  counts: [number, number];
+}) {
+  const [show, setShow] = useState<"on" | "off">("on");
+  return (
+    <>
+      <div className="d26-chips d26-sheet-switch" aria-label="Portalstatus">
+        <button
+          type="button"
+          className={`d26-chip ${show === "on" ? "is-active" : ""}`}
+          aria-pressed={show === "on"}
+          onClick={() => setShow("on")}
+        >
+          Aktiv · {counts[0]}
+        </button>
+        <button
+          type="button"
+          className={`d26-chip ${show === "off" ? "is-active" : ""}`}
+          aria-pressed={show === "off"}
+          onClick={() => setShow("off")}
+        >
+          Noch nicht aktiv · {counts[1]}
+        </button>
+      </div>
+      {show === "on" ? active : inactive}
+    </>
   );
 }
 

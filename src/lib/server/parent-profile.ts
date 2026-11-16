@@ -100,26 +100,40 @@ async function collect(make: () => any): Promise<any[]> {
     "Diese Historie ist zu groß für einen vollständigen Profilabruf.",
   );
 }
+/** Splits long id lists so request URLs stay short when many families are read at once. */
+async function inChunks(
+  ids: string[],
+  read: (ids: string[]) => Promise<any[]>,
+) {
+  const out: any[] = [];
+  for (let start = 0; start < ids.length; start += 100)
+    out.push(...(await read(ids.slice(start, start + 100))));
+  return out;
+}
 async function periodsFor(ids: string[]) {
   if (!ids.length) return [];
-  return collect(() =>
-    serviceDb()
-      .from("entitlement_periods")
-      .select(
-        "id,player_id,subscription_id,product_name,starts_at,ends_at,status",
-      )
-      .in("player_id", ids),
+  return inChunks(ids, (chunk) =>
+    collect(() =>
+      serviceDb()
+        .from("entitlement_periods")
+        .select(
+          "id,player_id,subscription_id,product_name,starts_at,ends_at,status",
+        )
+        .in("player_id", chunk),
+    ),
   ) as Promise<ProfilePeriod[]>;
 }
 async function subscriptionsFor(ids: string[]) {
   if (!ids.length) return [];
-  return collect(() =>
-    serviceDb()
-      .from("subscription_players")
-      .select(
-        "id,player_id,stripe_item_id,subscriptions!inner(id,stripe_subscription_id,status,stripe_data)",
-      )
-      .in("player_id", ids),
+  return inChunks(ids, (chunk) =>
+    collect(() =>
+      serviceDb()
+        .from("subscription_players")
+        .select(
+          "id,player_id,stripe_item_id,subscriptions!inner(id,stripe_subscription_id,status,stripe_data)",
+        )
+        .in("player_id", chunk),
+    ),
   );
 }
 export async function profileList(
@@ -129,7 +143,11 @@ export async function profileList(
   includeInactive = false,
   sort: "name" | "months" | "newest" | "revenue" = "name",
   campOnly = false,
+  limit = 25,
 ) {
+  // Larger pages let overview figures load all families in a few requests.
+  const size = Math.min(Math.max(Math.floor(limit), 25), 200),
+    whole = size > 25;
   if (!s.role || !["staff", "admin"].includes(s.role))
     throw new HttpError(403, "Keine Berechtigung.");
   if (sort === "revenue" && s.role !== "admin")
@@ -189,7 +207,7 @@ export async function profileList(
   // Ranking needs every matching family before pagination.
   let parents: any[] = [],
     total: number | null = null;
-  if (sort === "months" || sort === "revenue") {
+  if (sort === "months" || sort === "revenue" || whole) {
     for (let start = 0; ; start += 500) {
       if (start >= 10000)
         throw new HttpError(
@@ -225,17 +243,19 @@ export async function profileList(
   const page =
       sort === "months"
         ? parents
-        : sort === "revenue"
-          ? parents.slice(offset, offset + 25)
+        : sort === "revenue" || whole
+          ? parents.slice(offset, offset + size)
           : parents.slice(0, 25),
     ids = page.map((p) => p.id);
   if (!ids.length)
     return { rows: [] as ProfileListRow[], more: false, total: total ?? 0 };
-  const links = await collect(() =>
-    db
-      .from("parent_players")
-      .select("id,parent_id,player_id,players!inner(archived_at)")
-      .in("parent_id", ids),
+  const links = await inChunks(ids, (chunk) =>
+    collect(() =>
+      db
+        .from("parent_players")
+        .select("id,parent_id,player_id,players!inner(archived_at)")
+        .in("parent_id", chunk),
+    ),
   );
   const periods = await periodsFor([...new Set(links.map((l) => l.player_id))]);
   const subscriptions = await subscriptionsFor([
@@ -279,7 +299,7 @@ export async function profileList(
         a.name.localeCompare(b.name, "de") ||
         a.id.localeCompare(b.id),
     );
-  const selected = sort === "months" ? rows.slice(offset, offset + 25) : rows;
+  const selected = sort === "months" ? rows.slice(offset, offset + size) : rows;
   const access = await readProfileAccess(
     parents.filter((p) => selected.some((r) => r.id === p.id)),
     s.role,
@@ -295,9 +315,9 @@ export async function profileList(
     total,
     more:
       sort === "months"
-        ? rows.length > offset + 25
-        : sort === "revenue"
-          ? parents.length > offset + 25
+        ? rows.length > offset + size
+        : sort === "revenue" || whole
+          ? parents.length > offset + size
           : parents.length > 25,
   };
 }

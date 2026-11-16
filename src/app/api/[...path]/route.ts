@@ -332,6 +332,7 @@ async function handler(
           search: request.nextUrl.searchParams.get("search") ?? "",
           sort: request.nextUrl.searchParams.get("sort") ?? "name",
           cursor: request.nextUrl.searchParams.get("cursor") ?? undefined,
+          limit: request.nextUrl.searchParams.get("limit") ?? undefined,
         }),
       );
     }
@@ -366,6 +367,12 @@ async function handler(
               .parse(
                 request.nextUrl.searchParams.get("campOnly") ?? "false",
               ) === "true",
+            z.coerce
+              .number()
+              .int()
+              .min(25)
+              .max(200)
+              .parse(request.nextUrl.searchParams.get("limit") ?? 25),
           ),
         );
       }

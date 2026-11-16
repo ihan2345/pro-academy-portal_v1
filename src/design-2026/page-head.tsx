@@ -59,7 +59,7 @@ export function PageHead({
       </header>
       {greeting && <p className="d26-greeting">{greeting}</p>}
       {!!kpis?.length && (
-        <div className={`d26-kpis is-${Math.min(kpis.length, 4)}`}>
+        <div className={`d26-kpis is-${Math.min(kpis.length, 5)}`}>
           {kpis.map((k, i) => {
             const tappable = !!(k.onClick || k.sheet);
             const body = (
