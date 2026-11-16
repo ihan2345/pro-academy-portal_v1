@@ -1,4 +1,6 @@
 "use client";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { LoginShowcase } from "@/design-2026/login-showcase";
 import { SiteFooter } from "./site-footer";
 import { useEffect, useState } from "react";
 import { Mail, ArrowRight, ShieldCheck } from "lucide-react";
@@ -69,6 +71,7 @@ export function LoginForm({
   }
   return (
     <main className="auth-page">
+      {DESIGN_2026 && <LoginShowcase />}
       <section className="auth-card">
         <Brand />
         <h1>Willkommen im Team.</h1>

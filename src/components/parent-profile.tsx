@@ -45,6 +45,9 @@ import {
   ProfileSubscriptionStatus,
 } from "./profile-finance-details";
 import "./parent-profile-details.css";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { FamilyHero } from "@/design-2026/family";
+import { ParentListFilters, ParentListHead } from "@/design-2026/people-heads";
 
 function ProfileAccessStatus({ access }: { access?: ProfileAccess }) {
   if (!access) return null;
@@ -142,15 +145,24 @@ export function ProfileList({ base }: { base: string }) {
   }, [search, offset, includeInactive, sort, campOnly]);
   return (
     <div className="parent-profile">
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">ACADEMY · FAMILIEN</div>
-          <h1>
-            Elternprofile<span className="greeting-dot">.</span>
-          </h1>
-          <p>Kontakte, Kinder und ihre Entwicklung an einem Ort.</p>
+      {DESIGN_2026 ? (
+        <ParentListHead
+          rows={rows}
+          total={total}
+          loading={loading}
+          base={base}
+        />
+      ) : (
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">ACADEMY · FAMILIEN</div>
+            <h1>
+              Elternprofile<span className="greeting-dot">.</span>
+            </h1>
+            <p>Kontakte, Kinder und ihre Entwicklung an einem Ort.</p>
+          </div>
         </div>
-      </div>
+      )}
       <label className="search-input profile-search">
         <Search size={18} />
         <input
@@ -163,58 +175,80 @@ export function ProfileList({ base }: { base: string }) {
           }}
         />
       </label>
-      <div className="profile-filters">
-        <label>
-          Familien
-          <select
-            aria-label="Elternprofile nach Campteilnahme filtern"
-            value={campOnly ? "camp" : "all"}
-            onChange={(e) => {
-              setCampOnly(e.target.value === "camp");
-              if (e.target.value === "camp") setIncludeInactive(true);
-              setOffset(0);
-            }}
-          >
-            <option value="all">Alle Familien</option>
-            <option value="camp">Campfamilien</option>
-          </select>
-        </label>
-        <label>
-          Sortierung
-          <select
-            aria-label="Elternprofile sortieren"
-            value={sort}
-            onChange={(e) => {
-              setSort(e.target.value);
-              setOffset(0);
-            }}
-          >
-            <option value="name">A–Z</option>
-            <option value="months">Platzierung (Gesamtmonate)</option>
-            {base.startsWith("/admin/") && (
-              <option value="revenue">Umsatz (höchster zuerst)</option>
-            )}
-            <option value="newest">Neu–Alt</option>
-          </select>
-        </label>
-      </div>
-      {sort === "revenue" && (
-        <p className="profile-muted">
-          Gesamtumsatz aus Stripe-Zahlungen inklusive Camps, abzüglich
-          Erstattungen. Nicht eindeutig belegbare Euro-Umsätze stehen am Ende.
-        </p>
-      )}
-      <label className="profile-inactive-filter">
-        <input
-          type="checkbox"
-          checked={includeInactive}
-          onChange={(e) => {
-            setIncludeInactive(e.target.checked);
+      {DESIGN_2026 ? (
+        <ParentListFilters
+          campOnly={campOnly}
+          sort={sort}
+          includeInactive={includeInactive}
+          revenue={base.startsWith("/admin/")}
+          set={(patch) => {
+            if (patch.campOnly !== undefined) {
+              setCampOnly(patch.campOnly);
+              if (patch.campOnly) setIncludeInactive(true);
+            }
+            if (patch.sort !== undefined) setSort(patch.sort);
+            if (patch.includeInactive !== undefined)
+              setIncludeInactive(patch.includeInactive);
             setOffset(0);
           }}
         />
-        Eltern ohne aktives Abo zusätzlich anzeigen
-      </label>
+      ) : (
+        <>
+          <div className="profile-filters">
+            <label>
+              Familien
+              <select
+                aria-label="Elternprofile nach Campteilnahme filtern"
+                value={campOnly ? "camp" : "all"}
+                onChange={(e) => {
+                  setCampOnly(e.target.value === "camp");
+                  if (e.target.value === "camp") setIncludeInactive(true);
+                  setOffset(0);
+                }}
+              >
+                <option value="all">Alle Familien</option>
+                <option value="camp">Campfamilien</option>
+              </select>
+            </label>
+            <label>
+              Sortierung
+              <select
+                aria-label="Elternprofile sortieren"
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                  setOffset(0);
+                }}
+              >
+                <option value="name">A–Z</option>
+                <option value="months">Platzierung (Gesamtmonate)</option>
+                {base.startsWith("/admin/") && (
+                  <option value="revenue">Umsatz (höchster zuerst)</option>
+                )}
+                <option value="newest">Neu–Alt</option>
+              </select>
+            </label>
+          </div>
+          {sort === "revenue" && (
+            <p className="profile-muted">
+              Gesamtumsatz aus Stripe-Zahlungen inklusive Camps, abzüglich
+              Erstattungen. Nicht eindeutig belegbare Euro-Umsätze stehen am
+              Ende.
+            </p>
+          )}
+          <label className="profile-inactive-filter">
+            <input
+              type="checkbox"
+              checked={includeInactive}
+              onChange={(e) => {
+                setIncludeInactive(e.target.checked);
+                setOffset(0);
+              }}
+            />
+            Eltern ohne aktives Abo zusätzlich anzeigen
+          </label>
+        </>
+      )}
       <p className="profile-muted">
         {total === null
           ? "25 Profile pro Seite"
@@ -557,102 +591,123 @@ export function ProfileView({
         </>
       ) : (
         <>
-          <section className="panel profile-hero">
-            <div className={`profile-avatar-ring ${status.tier}`}>
-              <span>
-                <UserRound size={38} />
-              </span>
-            </div>
-            <div className="profile-identity">
-              <div className="eyebrow">DEINE ACADEMY-FAMILIE</div>
-              <h1>{data.name}</h1>
-              {data.role !== "parent" && (
-                <ProfileAccessStatus access={data.portal_access} />
-              )}
-              <div className="profile-contacts">
-                <span>
-                  <Mail size={15} />
-                  {data.email}
-                </span>
-                <span>
-                  <Phone size={15} />
-                  {data.phone || "Telefon nicht hinterlegt"}
-                </span>
-                <span>
-                  <MapPin size={15} />
-                  {data.city || "Ort nicht hinterlegt"}
-                </span>
-                <span>
-                  <Users size={15} />
-                  {childCount} {childCount === 1 ? "Kind" : "Kinder"}
-                </span>
-              </div>
-            </div>
-            {canEdit && (
-              <div className="profile-edit">
-                <button
-                  className="secondary-button"
-                  disabled={locked}
-                  onClick={() => {
-                    setError("");
-                    setEditing(true);
-                  }}
-                >
-                  Kontaktdaten bearbeiten
-                </button>
-                {locked && (
-                  <small>
-                    Erneut bearbeitbar ab{" "}
-                    {formatDate(data.next_edit_at!, {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </small>
-                )}
-              </div>
-            )}
-          </section>
-          {data.has_subscription_history !== false && (
-            <section className={`panel profile-status ${status.tier}`}>
-              <div>
-                <span className="eyebrow">FAMILIENSTATUS</span>
-                <h2>{status.label}</h2>
-                <p>
-                  {status.tier === "ultimate"
-                    ? "Ultimativ Status erreicht"
-                    : `Noch ${status.remaining} Monate bis ${status.next}`}
-                </p>
-              </div>
-              <div className="profile-progress-area">
-                <strong>
-                  {status.tier === "ultimate"
-                    ? `${data.months} Statusmonate`
-                    : `${data.months} / ${status.target} Monate`}
-                </strong>
-                <div
-                  className="profile-progress"
-                  role="progressbar"
-                  aria-label="Familienstatus"
-                  aria-valuemin={0}
-                  aria-valuemax={status.target}
-                  aria-valuenow={Math.min(data.months, status.target)}
-                >
-                  <span style={{ width: `${status.progress}%` }} />
+          {DESIGN_2026 ? (
+            <FamilyHero
+              data={data}
+              status={status}
+              childCount={childCount}
+              canEdit={canEdit}
+              locked={locked}
+              onEdit={() => {
+                setError("");
+                setEditing(true);
+              }}
+              access={
+                data.role !== "parent" ? (
+                  <ProfileAccessStatus access={data.portal_access} />
+                ) : undefined
+              }
+            />
+          ) : (
+            <>
+              <section className="panel profile-hero">
+                <div className={`profile-avatar-ring ${status.tier}`}>
+                  <span>
+                    <UserRound size={38} />
+                  </span>
                 </div>
-                {data.earned_months !== undefined && (
-                  <p className="profile-muted">
-                    {data.earned_months} aktive Abo-Monate
-                    {data.deducted_months
-                      ? ` − ${data.deducted_months} Monate Inaktivitätsabzug`
-                      : " · kein Inaktivitätsabzug"}
-                  </p>
+                <div className="profile-identity">
+                  <div className="eyebrow">DEINE ACADEMY-FAMILIE</div>
+                  <h1>{data.name}</h1>
+                  {data.role !== "parent" && (
+                    <ProfileAccessStatus access={data.portal_access} />
+                  )}
+                  <div className="profile-contacts">
+                    <span>
+                      <Mail size={15} />
+                      {data.email}
+                    </span>
+                    <span>
+                      <Phone size={15} />
+                      {data.phone || "Telefon nicht hinterlegt"}
+                    </span>
+                    <span>
+                      <MapPin size={15} />
+                      {data.city || "Ort nicht hinterlegt"}
+                    </span>
+                    <span>
+                      <Users size={15} />
+                      {childCount} {childCount === 1 ? "Kind" : "Kinder"}
+                    </span>
+                  </div>
+                </div>
+                {canEdit && (
+                  <div className="profile-edit">
+                    <button
+                      className="secondary-button"
+                      disabled={locked}
+                      onClick={() => {
+                        setError("");
+                        setEditing(true);
+                      }}
+                    >
+                      Kontaktdaten bearbeiten
+                    </button>
+                    {locked && (
+                      <small>
+                        Erneut bearbeitbar ab{" "}
+                        {formatDate(data.next_edit_at!, {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </small>
+                    )}
+                  </div>
                 )}
-                <small>{data.history_note}</small>
-              </div>
-            </section>
+              </section>
+              {data.has_subscription_history !== false && (
+                <section className={`panel profile-status ${status.tier}`}>
+                  <div>
+                    <span className="eyebrow">FAMILIENSTATUS</span>
+                    <h2>{status.label}</h2>
+                    <p>
+                      {status.tier === "ultimate"
+                        ? "Ultimativ Status erreicht"
+                        : `Noch ${status.remaining} Monate bis ${status.next}`}
+                    </p>
+                  </div>
+                  <div className="profile-progress-area">
+                    <strong>
+                      {status.tier === "ultimate"
+                        ? `${data.months} Statusmonate`
+                        : `${data.months} / ${status.target} Monate`}
+                    </strong>
+                    <div
+                      className="profile-progress"
+                      role="progressbar"
+                      aria-label="Familienstatus"
+                      aria-valuemin={0}
+                      aria-valuemax={status.target}
+                      aria-valuenow={Math.min(data.months, status.target)}
+                    >
+                      <span style={{ width: `${status.progress}%` }} />
+                    </div>
+                    {data.earned_months !== undefined && (
+                      <p className="profile-muted">
+                        {data.earned_months} aktive Abo-Monate
+                        {data.deducted_months
+                          ? ` − ${data.deducted_months} Monate Inaktivitätsabzug`
+                          : " · kein Inaktivitätsabzug"}
+                      </p>
+                    )}
+                    <small>{data.history_note}</small>
+                  </div>
+                </section>
+              )}
+            </>
           )}
           <div className="profile-section-heading">
             <div>

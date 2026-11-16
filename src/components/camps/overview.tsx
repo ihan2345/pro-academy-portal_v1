@@ -16,6 +16,8 @@ import {
   money,
   campTiming,
 } from "@/lib/camps/domain";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { CampSpotlight } from "@/design-2026/camp-spotlight";
 
 type SummaryCamp = Camp & { occupied?: number };
 export function CampOverview({
@@ -49,6 +51,7 @@ export function CampOverview({
   });
   return (
     <section className="camp-overview" aria-label="Alle Camps">
+      {DESIGN_2026 && <CampSpotlight camps={camps} offers={offers} />}
       <div className="camp-overview-toolbar">
         <div>
           <h2>Deine Campübersicht</h2>

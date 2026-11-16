@@ -12,6 +12,8 @@ import type {
   PlayerProfilePage,
   PlayerProfileSort,
 } from "@/lib/player-profiles";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { PlayerDirectoryHead } from "@/design-2026/people-heads";
 
 export function PlayerProfiles({
   base,
@@ -24,21 +26,33 @@ export function PlayerProfiles({
     [term, setTerm] = useState("");
   const [sort, setSort] = useState<PlayerProfileSort>("name"),
     [revision, setRevision] = useState(0);
+  const [feed, setFeed] = useState<{
+    rows: PlayerProfilePage["rows"];
+    total: number;
+  }>({ rows: [], total: 0 });
   useEffect(() => {
     const timer = setTimeout(() => setTerm(search.trim()), 250);
     return () => clearTimeout(timer);
   }, [search]);
   return (
     <div className="parent-profile player-directory">
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">ACADEMY · SPIELER</div>
-          <h1>
-            Spielerprofil<span className="greeting-dot">.</span>
-          </h1>
-          <p>Aktive Kinder mit Abo – ihre Entwicklung auf einen Blick.</p>
+      {DESIGN_2026 ? (
+        <PlayerDirectoryHead
+          rows={feed.rows}
+          total={feed.total}
+          base={base.startsWith("/admin/") ? "/admin" : "/team"}
+        />
+      ) : (
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">ACADEMY · SPIELER</div>
+            <h1>
+              Spielerprofil<span className="greeting-dot">.</span>
+            </h1>
+            <p>Aktive Kinder mit Abo – ihre Entwicklung auf einen Blick.</p>
+          </div>
         </div>
-      </div>
+      )}
       <div className="player-directory-controls">
         <label className="search-input">
           <Search size={18} />
@@ -50,23 +64,49 @@ export function PlayerProfiles({
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
-        <label className="player-directory-sort">
-          Sortierung
-          <select
-            aria-label="Spielerprofile sortieren"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as PlayerProfileSort)}
-          >
-            <option value="name">A–Z</option>
-            <option value="subscription">
-              Abo (Pro → Gamechanger → Firsttouch)
-            </option>
-            <option value="months">Platzierung (Gesamtmonate)</option>
-            {admin && <option value="revenue">Umsatz (höchster zuerst)</option>}
-            <option value="newest">Neu–Alt</option>
-            <option value="hours">Trainingsstunden (höchste zuerst)</option>
-          </select>
-        </label>
+        {DESIGN_2026 ? (
+          <div className="d26-chips" aria-label="Spielerprofile sortieren">
+            {(
+              [
+                ["name", "A–Z"],
+                ["subscription", "Abo"],
+                ["months", "Treue"],
+                ...(admin ? [["revenue", "Umsatz"]] : []),
+                ["newest", "Neueste"],
+                ["hours", "Trainingsstunden"],
+              ] as [PlayerProfileSort, string][]
+            ).map(([value, label]) => (
+              <button
+                type="button"
+                key={value}
+                className={`d26-chip ${sort === value ? "is-active" : ""}`}
+                onClick={() => setSort(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <label className="player-directory-sort">
+            Sortierung
+            <select
+              aria-label="Spielerprofile sortieren"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as PlayerProfileSort)}
+            >
+              <option value="name">A–Z</option>
+              <option value="subscription">
+                Abo (Pro → Gamechanger → Firsttouch)
+              </option>
+              <option value="months">Platzierung (Gesamtmonate)</option>
+              {admin && (
+                <option value="revenue">Umsatz (höchster zuerst)</option>
+              )}
+              <option value="newest">Neu–Alt</option>
+              <option value="hours">Trainingsstunden (höchste zuerst)</option>
+            </select>
+          </label>
+        )}
         <button
           className="secondary-button"
           onClick={() => setRevision((n) => n + 1)}
@@ -86,6 +126,7 @@ export function PlayerProfiles({
         sort={sort}
         search={term}
         refresh={() => setRevision((n) => n + 1)}
+        onRows={(rows, total) => setFeed({ rows, total })}
       />
     </div>
   );
@@ -95,11 +136,13 @@ function PlayerFeed({
   sort,
   search,
   refresh,
+  onRows,
 }: {
   base: string;
   sort: PlayerProfileSort;
   search: string;
   refresh: () => void;
+  onRows?: (rows: PlayerProfilePage["rows"], total: number) => void;
 }) {
   const [rows, setRows] = useState<PlayerProfilePage["rows"]>([]),
     [next, setNext] = useState<string | null>(null),
@@ -107,6 +150,10 @@ function PlayerFeed({
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [expired, setExpired] = useState(false);
+  useEffect(() => {
+    onRows?.(rows, total);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, total]);
   const root = useRef<HTMLDivElement>(null),
     sentinel = useRef<HTMLDivElement>(null),
     pending = useRef(false),

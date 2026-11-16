@@ -6,6 +6,8 @@ import { HttpError } from "@/lib/server/security";
 import { Portal } from "@/components/portal";
 import { PlayerProfileEditor } from "@/components/player-profile-editor";
 import { formatDate } from "@/lib/domain";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { PlayerCard } from "@/design-2026/player-card";
 export async function PlayerProfilePage({
   area,
   params,
@@ -49,6 +51,28 @@ export async function PlayerProfilePage({
     ["Größe", player.groesse_cm ? `${player.groesse_cm} cm` : null],
     ["Aktive Monate insgesamt", player.aktive_monate],
   ];
+  if (DESIGN_2026)
+    return (
+      <Portal
+        initial={profileShell(session)}
+        section={`${area}/spielerprofile`}
+      >
+        <PlayerCard
+          player={player}
+          team={editable.data.team}
+          back={`/${area}/spielerprofile`}
+          editor={
+            session.role === "admin" ? (
+              <PlayerProfileEditor
+                key={`${id}:${edit}`}
+                player={editable.data}
+                initiallyOpen={edit}
+              />
+            ) : undefined
+          }
+        />
+      </Portal>
+    );
   return (
     <Portal initial={profileShell(session)} section={`${area}/spielerprofile`}>
       <section className="panel account-panel">

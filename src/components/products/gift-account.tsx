@@ -18,6 +18,8 @@ import { giftMoney } from "@/lib/gifts/domain";
 import { giftExpiry } from "@/lib/gifts/artwork";
 import { claimGiftWelcome } from "@/lib/gifts/welcome";
 import "./gift-account.css";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { GiftUsage, GiftWallet } from "@/design-2026/gift-wallet";
 type AccountCard = {
   id: string;
   roles: ("buyer" | "recipient")[];
@@ -438,6 +440,12 @@ function CardTile({ card }: { card: AccountCard }) {
         </strong>
         <span>{received ? "Restguthaben" : "Geschenkwert"}</span>
       </div>
+      {DESIGN_2026 && received && (
+        <GiftUsage
+          remaining={card.remaining ?? 0}
+          initial={card.initial_amount}
+        />
+      )}
       {card.code && (
         <div className="gift-account-current-code">
           <small>Aktueller Code</small>
@@ -557,6 +565,9 @@ export function GiftAccountOverview({
         </div>
       ) : (
         <>
+          {DESIGN_2026 && !compact && (
+            <GiftWallet cards={data.cards} available={data.available} />
+          )}
           {!compact && (
             <div
               className="gift-account-filters"
@@ -575,6 +586,15 @@ export function GiftAccountOverview({
                   onClick={() => setFilter(value)}
                 >
                   {label}
+                  {DESIGN_2026 && (
+                    <em className="d26-count">
+                      {value === "all"
+                        ? data.cards.length
+                        : data.cards.filter((c) =>
+                            c.roles.includes(value as "buyer" | "recipient"),
+                          ).length}
+                    </em>
+                  )}
                 </button>
               ))}
             </div>

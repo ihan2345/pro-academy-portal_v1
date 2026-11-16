@@ -1,0 +1,423 @@
+/*
+ * Design 2026: alle bestehenden Pop-ups (Modal) als iOS-Sheets und alle
+ * Formulare im iOS-Stil. Nur unter <html data-design="2026"> aktiv.
+ */
+:root[data-design="2026"] {
+  & .modal-backdrop {
+    background: rgba(10, 10, 20, 0.32);
+    backdrop-filter: blur(10px) saturate(1.3);
+    animation: d26-sheet-fade 0.3s ease both;
+  }
+  & .modal:not(:has(.pai-chat)) {
+    width: min(600px, 100%);
+    max-height: calc(100dvh - 48px);
+    border-radius: 28px;
+    background: #f2f2f7;
+    box-shadow:
+      0 40px 120px rgba(20, 10, 60, 0.35),
+      0 0 0 1px rgba(255, 255, 255, 0.7) inset;
+    animation: d26-sheet-pop 0.5s cubic-bezier(0.32, 0.72, 0, 1) both;
+    overscroll-behavior: contain;
+  }
+  & .modal-heading {
+    min-height: 0;
+    padding: 22px 24px 14px;
+    border-bottom: 0;
+    background: rgba(242, 242, 247, 0.86);
+    backdrop-filter: blur(20px);
+  }
+  & .modal-heading h2 {
+    font-size: 24px;
+    letter-spacing: -0.03em;
+    font-weight: 750;
+  }
+  & .modal-heading > .icon-button {
+    min-width: 32px;
+    min-height: 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 0;
+    background: rgba(118, 118, 128, 0.16);
+    color: var(--d26-muted);
+    transition: transform 0.25s var(--d26-ease);
+  }
+  & .modal-heading > .icon-button:hover {
+    transform: rotate(90deg);
+  }
+  & .modal .form-body,
+  & .modal .event-detail {
+    padding: 6px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  & .modal .form-body > *,
+  & .modal .event-detail > * {
+    animation: d26-rise 0.45s var(--d26-ease) backwards;
+  }
+  & .modal .form-body > :nth-child(n + 3) {
+    animation-delay: 60ms;
+  }
+  & .modal .form-body > :nth-child(n + 6) {
+    animation-delay: 120ms;
+  }
+
+  /* Felder */
+  & .form-body label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--d26-muted);
+    gap: 6px;
+  }
+  & .form-body input:not([type="checkbox"]):not([type="radio"]),
+  & .form-body select,
+  & .form-body textarea {
+    min-height: 46px;
+    border-radius: 12px;
+    border: 0;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(60, 60, 67, 0.1);
+    font-size: 16px;
+    color: var(--d26-ink);
+    transition: box-shadow 0.2s;
+  }
+  & .form-body input:not([type="checkbox"]):not([type="radio"]):focus,
+  & .form-body select:focus,
+  & .form-body textarea:focus {
+    outline: 0;
+    box-shadow:
+      0 0 0 1px var(--purple),
+      0 0 0 4px rgba(139, 83, 254, 0.18);
+  }
+  & .form-grid {
+    gap: 12px;
+  }
+
+  & .form-body .search-input {
+    border: 0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(60, 60, 67, 0.1);
+  }
+  & .form-body .search-input input:not([type="checkbox"]) {
+    box-shadow: none;
+    background: transparent;
+  }
+
+  /* Schalter statt Häkchen */
+  & .checkbox-label {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #fff;
+    color: var(--d26-ink);
+    font-size: 15px;
+    font-weight: 500;
+  }
+  & .checkbox-label input[type="checkbox"] {
+    order: 2;
+    flex-shrink: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    width: 50px;
+    height: 30px;
+    margin: 0;
+    border-radius: 99px;
+    background: rgba(120, 120, 128, 0.22);
+    cursor: pointer;
+    transition: background 0.25s;
+  }
+  & .checkbox-label input[type="checkbox"]::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  & .checkbox-label input[type="checkbox"]:checked {
+    background: #34c759;
+  }
+  & .checkbox-label input[type="checkbox"]:checked::before {
+    transform: translateX(20px);
+  }
+  & .checkbox-label input[type="checkbox"]:disabled {
+    opacity: 0.5;
+  }
+
+  /* Runde Auswahl in Listen */
+  & .form-body .child-option input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(60, 60, 67, 0.25);
+    background: #fff;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      border-color 0.2s;
+  }
+  & .form-body .child-option input[type="checkbox"]:checked {
+    border-color: var(--purple);
+    background: var(--purple)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E")
+      center / 15px no-repeat;
+  }
+  & .child-picker {
+    border: 0;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--d26-shadow);
+    max-height: min(360px, 45dvh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  & .child-option {
+    transition: background 0.2s;
+  }
+  & .child-option:hover {
+    background: rgba(139, 83, 254, 0.04);
+  }
+  & .child-option:has(input:checked) {
+    background: rgba(139, 83, 254, 0.08);
+  }
+
+  /* Aktionen */
+  & .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 4px -24px -24px;
+    padding: 14px 24px 20px;
+    background: rgba(242, 242, 247, 0.9);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(60, 60, 67, 0.08);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  & .form-actions .primary-button {
+    flex: 1;
+    justify-content: center;
+    min-height: 48px;
+  }
+  & .modal .info-note,
+  & .modal .confirm-box {
+    border-radius: 14px;
+  }
+
+  /* Schnellauswahl im Terminformular */
+  & .d26-quickpicks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: #fff;
+  }
+  & .d26-quickpicks > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  & .d26-quickpicks small {
+    width: 64px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--d26-muted);
+  }
+  & .d26-quickpicks .d26-chip {
+    padding: 6px 12px;
+    box-shadow: none;
+    background: rgba(118, 118, 128, 0.12);
+  }
+  & .d26-quickpicks .d26-chip.is-active {
+    background: var(--d26-ink);
+    color: #fff;
+  }
+
+  @media (max-width: 760px) {
+    & .modal-backdrop:not(:has(.pai-chat)) {
+      align-items: flex-end;
+      padding: 0;
+    }
+    & .modal:not(:has(.pai-chat)) {
+      width: 100%;
+      max-height: 92dvh;
+      border-radius: 28px 28px 0 0;
+      animation-name: d26-sheet-up;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    & .modal:not(:has(.pai-chat))::before {
+      content: "";
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: block;
+      width: 38px;
+      height: 5px;
+      margin: 8px auto -13px;
+      border-radius: 99px;
+      background: rgba(60, 60, 67, 0.25);
+    }
+    & .modal-heading h2 {
+      font-size: 21px;
+    }
+    & .modal .form-body,
+    & .modal .event-detail {
+      padding: 4px 16px 20px;
+    }
+    & .form-actions {
+      margin: 4px -16px -20px;
+      padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    & .modal,
+    & .modal-backdrop,
+    & .modal .form-body > * {
+      animation: none !important;
+    }
+  }
+}
+
+@keyframes d26-sheet-pop {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+}
+
+/* Camp-Hero */
+:root[data-design="2026"] {
+  & .d26-camp-hero {
+    margin-bottom: 22px;
+    min-height: 0;
+  }
+  & .d26-camp-title {
+    font-size: clamp(34px, 4vw, 52px);
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+  }
+  & .d26-camp-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+    margin: 6px 0 4px;
+  }
+  & .d26-camp-stats > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  & .d26-camp-stats small {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.65);
+  }
+  & .d26-camp-stats b {
+    font-size: 17px;
+  }
+  & .d26-camp-stats b span {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+  }
+  & .d26-camp-stats i {
+    display: block;
+    height: 6px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.14);
+    overflow: hidden;
+  }
+  & .d26-camp-stats em {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--lime), #22c3ff);
+    transform-origin: left;
+    animation: d26-grow 1s var(--d26-ease) backwards;
+  }
+}
+
+:root[data-design="2026"] .d26-hero a.d26-btn {
+  text-decoration: none;
+}
+
+/* Schnellsuche: Untertitel je Treffer */
+:root[data-design="2026"] {
+  & .d26-spotlight li button > span:nth-child(2) {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  & .d26-spotlight li button em {
+    font-style: normal;
+    font-size: 12px;
+    color: var(--d26-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  & .d26-spotlight li button.is-active em {
+    color: rgba(255, 255, 255, 0.75);
+  }
+}
+
+/* Termindetails als gruppierte Liste */
+:root[data-design="2026"] {
+  & .modal .event-detail {
+    gap: 0;
+  }
+  & .modal .event-detail > :first-child {
+    align-self: flex-start;
+  }
+  & .modal .event-detail h3 {
+    margin: 12px 0 16px;
+    font-size: 26px;
+    letter-spacing: -0.03em;
+  }
+  & .modal .event-detail .detail-row {
+    margin: 0;
+    padding: 13px 16px;
+    background: #fff;
+    color: var(--d26-ink);
+  }
+  & .modal .event-detail .detail-row svg {
+    color: var(--purple);
+    flex-shrink: 0;
+  }
+  & .modal .event-detail h3 + .detail-row,
+  & .modal .event-detail :not(.detail-row) + .detail-row {
+    border-radius: 16px 16px 0 0;
+  }
+  & .modal .event-detail .detail-row + .detail-row {
+    border-top: 1px solid rgba(60, 60, 67, 0.08);
+  }
+  & .modal .event-detail .detail-row:not(:has(+ .detail-row)) {
+    border-radius: 0 0 16px 16px;
+    margin-bottom: 16px;
+  }
+}

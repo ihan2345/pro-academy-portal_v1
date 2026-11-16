@@ -1,0 +1,623 @@
+/*
+ * Design 2026: Familienseite, Spielerkarte, Shop und Geschenkkarten.
+ * Nur unter <html data-design="2026"> aktiv.
+ */
+:root[data-design="2026"] {
+  & .d26-eyebrow {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--d26-muted);
+  }
+  & .d26-btn.is-ghost {
+    background: rgba(118, 118, 128, 0.12);
+    color: var(--d26-ink);
+    border: 0;
+    cursor: pointer;
+  }
+  & .d26-btn.is-ghost:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  & .d26-flash {
+    animation: d26-flash 1.2s var(--d26-ease);
+  }
+  & .d26-backlink {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: max-content;
+    color: var(--purple);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  & .d26-count {
+    margin-left: 6px;
+    font-style: normal;
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- Familienseite ---------- */
+  & .d26-family {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 8px;
+    animation: d26-rise 0.5s var(--d26-ease) both;
+  }
+  & .d26-family-hero {
+    gap: 18px;
+    padding: 26px;
+    overflow: hidden;
+    color: #fff;
+    background:
+      radial-gradient(
+        120% 140% at 100% 0%,
+        rgba(139, 83, 254, 0.55),
+        transparent 55%
+      ),
+      radial-gradient(
+        90% 120% at 0% 100%,
+        rgba(142, 255, 1, 0.18),
+        transparent 60%
+      ),
+      #111018;
+    border: 0;
+  }
+  & .d26-family-hero.tier-gold {
+    background:
+      radial-gradient(
+        120% 140% at 100% 0%,
+        rgba(255, 196, 0, 0.5),
+        transparent 55%
+      ),
+      #16120a;
+  }
+  & .d26-family-hero.tier-ultimate {
+    background:
+      radial-gradient(
+        120% 140% at 100% 0%,
+        rgba(142, 255, 1, 0.45),
+        transparent 55%
+      ),
+      radial-gradient(
+        100% 120% at 0% 100%,
+        rgba(139, 83, 254, 0.45),
+        transparent 60%
+      ),
+      #0b0b12;
+  }
+  & .d26-family-hero .d26-eyebrow {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  & .d26-family-id {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  & .d26-family-id > div {
+    flex: 1;
+    min-width: 0;
+  }
+  & .d26-family-id h1 {
+    margin: 2px 0 0;
+    font-size: clamp(26px, 4vw, 36px);
+    letter-spacing: -0.035em;
+    color: #fff;
+  }
+  & .d26-family-id .d26-btn.is-ghost {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+  }
+  & .d26-family-avatar,
+  & .d26-player-avatar {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    font-size: 26px;
+    font-weight: 800;
+    color: #1d3300;
+    background: radial-gradient(circle at 30% 25%, #c9ff7f, var(--lime) 65%);
+    box-shadow:
+      0 0 0 4px rgba(255, 255, 255, 0.12),
+      0 12px 30px rgba(142, 255, 1, 0.35);
+  }
+  & .d26-family-contacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  & .d26-family-contacts > * {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+  & .d26-family-contacts a:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  & .d26-family-hero .profile-access-status {
+    margin-top: 6px;
+  }
+  & .d26-family-hero .profile-access-status small {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  & .d26-tier {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: 18px;
+  }
+  & .d26-tier-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  & .d26-tier-head b {
+    font-size: 20px;
+    letter-spacing: -0.02em;
+  }
+  & .d26-tier-head small {
+    color: rgba(255, 255, 255, 0.65);
+  }
+  & .d26-tier-track {
+    position: relative;
+    height: 8px;
+    margin: 0 10px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  & .d26-tier-track > i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--purple), var(--lime));
+    animation: d26-grow 1.2s var(--d26-ease) backwards;
+    transform-origin: left;
+  }
+  & .d26-tier-track > span {
+    position: absolute;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border-radius: 50%;
+    background: #2a2833;
+    box-shadow: 0 0 0 3px #111018;
+    cursor: default;
+  }
+  & .d26-tier-track > span.is-reached {
+    background: var(--lime);
+  }
+  & .d26-tier-track > span em {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-style: normal;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  & .d26-tier-track > span.is-reached em {
+    color: #fff;
+  }
+  & .d26-jumpbar {
+    position: sticky;
+    top: 8px;
+    z-index: 5;
+    padding: 4px;
+    margin: 0 -4px;
+  }
+  & .d26-jumpbar .d26-chip {
+    backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  /* Bestehende Bereiche der Familienseite im iOS-Stil */
+  & .parent-profile {
+    gap: 18px;
+  }
+  & .parent-profile .profile-breadcrumb {
+    font-size: 14px;
+  }
+  & .parent-profile .profile-breadcrumb a {
+    color: var(--purple);
+    font-weight: 600;
+  }
+  & .parent-profile .panel {
+    border-radius: var(--d26-radius);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    box-shadow: var(--d26-shadow);
+  }
+  & .parent-profile .profile-section-heading h2 {
+    font-size: 22px;
+    letter-spacing: -0.03em;
+  }
+  & .parent-profile .profile-children {
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 4px;
+  }
+  & .parent-profile .profile-child {
+    scroll-snap-align: start;
+    border-radius: 26px;
+    transition:
+      transform 0.35s var(--d26-ease),
+      box-shadow 0.35s var(--d26-ease);
+  }
+  & .parent-profile .panel.premium-child {
+    background: var(--child-bg, #fff);
+    border: 1px solid var(--child-edge, #e1e3ea);
+    box-shadow: 0 12px 28px var(--child-shadow, #2020300d);
+  }
+  & .parent-profile .panel.premium-child.neon {
+    box-shadow:
+      0 0 22px #cfff0060,
+      0 14px 32px #b5e50035;
+  }
+  & .d26-kpi b.is-text {
+    font-size: 26px;
+    line-height: 1.25;
+  }
+  & .parent-profile .profile-child:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--d26-shadow-hover);
+  }
+  & .parent-profile .profile-metrics > div {
+    border-radius: 14px;
+  }
+  & .parent-profile .profile-unit {
+    border-radius: 14px;
+    transition: background 0.2s;
+  }
+  & .parent-profile .profile-unit:hover {
+    background: rgba(139, 83, 254, 0.05);
+  }
+  & .parent-profile .profile-filters select,
+  & .parent-profile .profile-finance-toolbar select {
+    border-radius: 99px;
+    border: 0;
+    box-shadow: var(--d26-shadow);
+    background-color: #fff;
+    min-height: 38px;
+    padding-inline: 14px 32px;
+    font-weight: 600;
+  }
+
+  /* Formulare in Profil-Dialogen wie die übrigen Sheets */
+  & .profile-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 6px 24px 24px;
+  }
+  & .profile-form label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--d26-muted);
+  }
+  & .profile-form input:not([type="checkbox"]):not([type="radio"]),
+  & .profile-form select,
+  & .profile-form textarea {
+    min-height: 46px;
+    border-radius: 12px;
+    border: 0;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(60, 60, 67, 0.1);
+    font-size: 16px;
+    color: var(--d26-ink);
+  }
+  & .profile-form input:focus,
+  & .profile-form select:focus,
+  & .profile-form textarea:focus {
+    outline: 0;
+    box-shadow:
+      0 0 0 1px var(--purple),
+      0 0 0 4px rgba(139, 83, 254, 0.18);
+  }
+
+  /* ---------- Spielerkarte ---------- */
+  & .d26-player-hero {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+    padding: 26px;
+    color: #fff;
+    background:
+      radial-gradient(
+        120% 140% at 100% 0%,
+        rgba(139, 83, 254, 0.6),
+        transparent 55%
+      ),
+      #111018;
+    border: 0;
+    overflow: hidden;
+  }
+  & .d26-player-hero > div:nth-child(2) {
+    flex: 1;
+    min-width: 0;
+  }
+  & .d26-player-hero .d26-eyebrow {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  & .d26-player-hero h1 {
+    margin: 2px 0 8px;
+    font-size: clamp(26px, 4vw, 38px);
+    letter-spacing: -0.035em;
+    color: #fff;
+  }
+  & .d26-player-hero p {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+  }
+  & .d26-player-hero .d26-pill:not([class*="tone-"]) {
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.85);
+  }
+  & .d26-player-edit button {
+    border-radius: 99px;
+  }
+  & .d26-player-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+  }
+  & .d26-player-grid .d26-settings-group > h4:not(:first-child) {
+    margin-top: 14px;
+  }
+  & .d26-player-card .d26-setting {
+    grid-template-columns: 34px 1fr;
+  }
+  & .d26-player-facts .d26-setting-main small {
+    order: -1;
+  }
+  & .d26-player-hero .d26-pill.tone-purple {
+    background: rgba(139, 83, 254, 0.35);
+    color: #fff;
+  }
+  & .d26-player-hero .d26-pill.tone-lime {
+    background: var(--lime);
+    color: #1d3300;
+  }
+  & .d26-player-hero .d26-pill.tone-amber {
+    background: #ffb340;
+    color: #3a2400;
+  }
+  & .d26-player-card .d26-setting-main b.is-missing {
+    color: var(--d26-muted);
+    font-weight: 500;
+  }
+  & .d26-player-card .d26-kpi b {
+    font-size: 28px;
+  }
+  & .d26-goals ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  & .d26-goals li {
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 8px;
+    align-items: start;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  & .d26-goals li svg {
+    margin-top: 3px;
+    color: var(--purple);
+  }
+
+  /* ---------- Shop ---------- */
+  & .d26-shop-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 4px 0 18px;
+  }
+  & .d26-shop-filters .d26-chips {
+    align-items: center;
+  }
+  & .d26-shop-filters small {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    min-width: 92px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--d26-muted);
+  }
+  & .d26-shop-filters .d26-chip em {
+    font-style: normal;
+    opacity: 0.6;
+  }
+  & .product-store-content .product-search {
+    border-radius: 14px;
+    border: 0;
+    background: #fff;
+    box-shadow: var(--d26-shadow);
+  }
+  & .product-store-grid > * {
+    border-radius: 26px;
+    transition:
+      transform 0.35s var(--d26-ease),
+      box-shadow 0.35s var(--d26-ease);
+    animation: d26-rise 0.5s var(--d26-ease) backwards;
+  }
+  & .product-store-grid > *:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--d26-shadow-hover);
+  }
+  & .product-store-grid > :nth-child(2) {
+    animation-delay: 60ms;
+  }
+  & .product-store-grid > :nth-child(3) {
+    animation-delay: 120ms;
+  }
+  & .product-store-grid > :nth-child(n + 4) {
+    animation-delay: 180ms;
+  }
+
+  /* ---------- Geschenkkarten ---------- */
+  & .d26-gift-wallet {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 2fr;
+    gap: 14px;
+    margin: 6px 0 16px;
+  }
+  & .d26-gift-balance {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 4px;
+    min-height: 130px;
+    padding: 20px;
+    border-radius: var(--d26-radius);
+    color: #fff;
+    background:
+      radial-gradient(
+        120% 140% at 100% 0%,
+        rgba(139, 83, 254, 0.7),
+        transparent 60%
+      ),
+      linear-gradient(135deg, #17151f, #2b2540);
+    box-shadow: 0 18px 40px rgba(40, 20, 90, 0.3);
+  }
+  & .d26-gift-balance svg {
+    margin-bottom: auto;
+    color: var(--lime);
+  }
+  & .d26-gift-balance small {
+    color: rgba(255, 255, 255, 0.65);
+    font-weight: 600;
+  }
+  & .d26-gift-balance b {
+    font-size: 34px;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  & .d26-gift-tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  & .d26-gift-usage {
+    display: block;
+    height: 6px;
+    margin: -4px 0 4px;
+    border-radius: 99px;
+    background: rgba(118, 118, 128, 0.16);
+    overflow: hidden;
+  }
+  & .d26-gift-usage em {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--purple), var(--lime));
+    transform-origin: left;
+    animation: d26-grow 1s var(--d26-ease) backwards;
+  }
+  & .gift-account-card {
+    border-radius: 24px;
+    transition:
+      transform 0.35s var(--d26-ease),
+      box-shadow 0.35s var(--d26-ease);
+  }
+  & .gift-account-card:hover {
+    transform: translateY(-4px) rotate(-0.4deg);
+    box-shadow: var(--d26-shadow-hover);
+  }
+  & .gift-account-filters button {
+    border-radius: 99px;
+  }
+
+  @media (max-width: 760px) {
+    & .d26-family-hero,
+    & .d26-player-hero {
+      padding: 20px;
+    }
+    & .d26-family-id {
+      flex-wrap: wrap;
+    }
+    & .d26-family-avatar,
+    & .d26-player-avatar {
+      width: 56px;
+      height: 56px;
+      font-size: 20px;
+    }
+    & .d26-player-hero {
+      flex-wrap: wrap;
+    }
+    & .d26-player-grid,
+    & .d26-gift-wallet {
+      grid-template-columns: 1fr;
+    }
+    & .d26-tier-track > span em {
+      font-size: 10px;
+    }
+    & .d26-shop-filters small {
+      min-width: 0;
+    }
+  }
+}
+
+@keyframes d26-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(139, 83, 254, 0.5);
+  }
+  40% {
+    box-shadow: 0 0 0 8px rgba(139, 83, 254, 0.18);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(139, 83, 254, 0);
+  }
+}
+
+:root[data-design="2026"] {
+  & .product-showcase + .d26-shop-filters {
+    margin-top: 22px;
+  }
+  & .product-store-controls .d26-shop-filters {
+    margin: 0;
+    justify-content: center;
+  }
+}
+
+:root[data-design="2026"] {
+  & .d26-family,
+  & .d26-family > *,
+  & .d26-player-card,
+  & .d26-player-card > * {
+    min-width: 0;
+  }
+  & .d26-family-contacts > * {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

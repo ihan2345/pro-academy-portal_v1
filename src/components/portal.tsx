@@ -64,6 +64,18 @@ import { TeamView } from "./team";
 import { AdminView } from "./admin";
 import { StampCards } from "./stamp-cards";
 import { UserActivityHeartbeat } from "./user-activity";
+// Design 2026 (Vorschau): rein optische Ergänzungen, ohne Daten- oder Logikänderung.
+import { Spotlight } from "@/design-2026/spotlight";
+import { NotificationBell } from "@/design-2026/notifications";
+import { GlowLayer } from "@/design-2026/ui";
+import { TabBar } from "@/design-2026/tab-bar";
+import { navGroup, designNavItems } from "@/design-2026/nav-groups";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { ParentExperience } from "@/design-2026/parent-experience";
+import { AdminHome } from "@/design-2026/admin-home";
+import { AccountExperience, StaffAccount } from "@/design-2026/account";
+import { PageHead } from "@/design-2026/page-head";
+import { spotlightExtra } from "@/design-2026/spotlight-extra";
 export function Brand() {
   return (
     <div className="brand">
@@ -291,7 +303,18 @@ export function Portal({
     activeNav.push({ href: "/pai", title: "pAi", icon: MessageCircle });
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
-  const isActiveNav = (href: string) => href.split("?")[0] === "/" + section;
+  const isActiveNav = (href: string) =>
+    href.split("?")[0] === "/" + section ||
+    (DESIGN_2026 &&
+      data.role === "parent" &&
+      href === "/stempelkarte" &&
+      section === "berichte");
+  const shownNav = DESIGN_2026
+    ? designNavItems(activeNav, data.role)
+    : activeNav;
+  const designNav = shownNav
+    .filter((n) => n.href !== "#verwaltung")
+    .map((n) => ({ ...n, group: navGroup(n.href, data.role) }));
   async function openBilling(customerId?: string) {
     try {
       const response = await fetch("/api/stripe/portal", {
@@ -306,6 +329,39 @@ export function Portal({
       setToast(e instanceof Error ? e.message : "Portal nicht verfügbar");
     }
   }
+  const billingActions = (
+    <div className="billing-account-actions">
+      {(data.billing_customers?.length
+        ? data.billing_customers
+        : [{ stripe_customer_id: "" }]
+      ).map((account, index) => {
+        const customerId = account.stripe_customer_id;
+        const childIds = new Set(
+          data.periods
+            .filter((p) => p.stripe_customer_id === customerId)
+            .map((p) => p.player_id),
+        );
+        const names = data.players
+          .filter((p) => childIds.has(p.id))
+          .map((p) => p.first_name)
+          .join(" und ");
+        return (
+          <button
+            key={customerId || "billing"}
+            className="primary-button"
+            onClick={() => openBilling(customerId || undefined)}
+          >
+            {data.billing_customers && data.billing_customers.length > 1
+              ? names
+                ? `Abo für ${names} verwalten`
+                : `Abokonto ${index + 1} verwalten`
+              : "Stripe-Kundenportal öffnen"}{" "}
+            <ArrowUpRight size={17} />
+          </button>
+        );
+      })}
+    </div>
+  );
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <UserActivityHeartbeat />
@@ -350,45 +406,56 @@ export function Portal({
           {admin ? "ADMINBEREICH" : team ? "MITARBEITERPORTAL" : "ELTERNPORTAL"}
         </div>
         <nav>
-          {activeNav.map((item) =>
-            item.href === "#verwaltung" ? (
-              <AdminNavigation
-                key="verwaltung"
-                role={admin ? "admin" : "staff"}
-                section={section}
-                collapsed={sidebarCollapsed && !mobile}
-                expandSidebar={() => {
-                  setSidebarCollapsed(false);
-                  try {
-                    localStorage.setItem(
-                      "proacademy-sidebar-collapsed",
-                      "false",
-                    );
-                  } catch {}
-                }}
-                navigate={() => setMobile(false)}
-              />
-            ) : (
-              <Link
-                className={`nav-link ${isActiveNav(item.href) ? "active" : ""}`}
-                key={item.href}
-                href={item.href}
-                aria-label={item.title}
-                aria-current={isActiveNav(item.href) ? "page" : undefined}
-                title={sidebarCollapsed ? item.title : undefined}
-                onClick={() => setMobile(false)}
-              >
-                <item.icon size={19} />
-                <span>{item.title}</span>
-                {item.title === "Probetraining" && <TrialMenuBadge />}
-                {"count" in item &&
-                  typeof item.count === "number" &&
-                  item.count > 0 && (
-                    <span className="nav-count">{item.count}</span>
-                  )}
-              </Link>
-            ),
-          )}
+          {shownNav.map((item, index) => {
+            const group = navGroup(item.href, data.role);
+            const groupLabel =
+              group &&
+              group !== navGroup(shownNav[index - 1]?.href ?? "", data.role) ? (
+                <div className="d26-nav-group" key={`group-${group}`}>
+                  {group}
+                </div>
+              ) : null;
+            return [
+              groupLabel,
+              item.href === "#verwaltung" ? (
+                <AdminNavigation
+                  key="verwaltung"
+                  role={admin ? "admin" : "staff"}
+                  section={section}
+                  collapsed={sidebarCollapsed && !mobile}
+                  expandSidebar={() => {
+                    setSidebarCollapsed(false);
+                    try {
+                      localStorage.setItem(
+                        "proacademy-sidebar-collapsed",
+                        "false",
+                      );
+                    } catch {}
+                  }}
+                  navigate={() => setMobile(false)}
+                />
+              ) : (
+                <Link
+                  className={`nav-link ${isActiveNav(item.href) ? "active" : ""}`}
+                  key={item.href}
+                  href={item.href}
+                  aria-label={item.title}
+                  aria-current={isActiveNav(item.href) ? "page" : undefined}
+                  title={sidebarCollapsed ? item.title : undefined}
+                  onClick={() => setMobile(false)}
+                >
+                  <item.icon size={19} />
+                  <span>{item.title}</span>
+                  {item.title === "Probetraining" && <TrialMenuBadge />}
+                  {"count" in item &&
+                    typeof item.count === "number" &&
+                    item.count > 0 && (
+                      <span className="nav-count">{item.count}</span>
+                    )}
+                </Link>
+              ),
+            ];
+          })}
         </nav>
         <div className="sidebar-bottom">
           <div className="support-box">
@@ -436,7 +503,7 @@ export function Portal({
             </span>
             <ChevronRight size={14} />
             <b>
-              {activeNav.find((n) => isActiveNav(n.href))?.title ??
+              {shownNav.find((n) => isActiveNav(n.href))?.title ??
                 (section === "admin/pai"
                   ? "pAi verwalten"
                   : section.includes("/aktivitaeten")
@@ -447,10 +514,28 @@ export function Portal({
                       ? "Mein Konto"
                       : section === "admin/eltern"
                         ? "Eltern"
-                        : "Übersicht")}
+                        : ({
+                            "admin/spieler": "Spieler",
+                            "admin/stripe": "Stripe-Zuordnung",
+                            "admin/einladungen": "Einladungen",
+                            "admin/protokolle": "Protokolle",
+                            "admin/produkte-berichte": "Produkte & Berichte",
+                            "admin/probetraining": "Probetraining",
+                            "team/probetraining": "Probetraining",
+                          }[section] ?? "Übersicht"))}
             </b>
           </div>
           <div className="topbar-right">
+            <Spotlight items={designNav} extra={spotlightExtra(data)} />
+            {DESIGN_2026 && (
+              <>
+                <NotificationBell
+                  data={data}
+                  base={admin ? "/admin" : team ? "/team" : ""}
+                />
+                <GlowLayer />
+              </>
+            )}
             <span className="topbar-date">
               {formatDate(now.toISOString(), {
                 day: "numeric",
@@ -470,6 +555,7 @@ export function Portal({
         </header>
         <main className="main-content">
           {data.role === "parent" &&
+            !DESIGN_2026 &&
             (section === "" || section === "camps") && (
               <Link className="panel profile-entry" href="/profil">
                 <UserRound size={24} />
@@ -489,6 +575,8 @@ export function Portal({
           ) : (admin || team) &&
             ["admin/stempelkarten", "team/stempelkarten"].includes(section) ? (
             <StampCards data={data} notify={setToast} />
+          ) : section === "konto" && data.role !== "parent" && DESIGN_2026 ? (
+            <StaffAccount data={data} admin={!!admin} />
           ) : section === "konto" && data.role !== "parent" ? (
             <>
               <div className="page-heading">
@@ -522,67 +610,120 @@ export function Portal({
               update={(next) => update({ ...next, players: data.players })}
               notify={setToast}
             />
+          ) : admin && DESIGN_2026 && section === "admin" ? (
+            <AdminHome data={data} />
           ) : admin ? (
             <AdminView data={data} section={section} notify={setToast} />
+          ) : DESIGN_2026 &&
+            player &&
+            ["", "termine", "stempelkarte", "berichte"].includes(section) ? (
+            <ParentExperience
+              section={section}
+              data={data}
+              playerId={player.id}
+              selectPlayer={(id) => {
+                setSelected(id);
+                setSelectedPeriod("");
+                try {
+                  localStorage.setItem("proacademy-selected", id);
+                } catch {}
+              }}
+              periods={periods}
+              period={period}
+              selectPeriod={setSelectedPeriod}
+              stats={stats}
+              events={events}
+              upcoming={upcoming}
+              reports={reports}
+              openDetail={setDetail}
+              stampCard={
+                <>
+                  <Stamps
+                    period={period}
+                    completed={stats.completed}
+                    charged={stats.charged}
+                    retrospective={stats.retrospective}
+                    planned={stats.planned}
+                    splitStats={splitStats}
+                  />
+                  <StampLegend />
+                  <ExcusedNotes events={rows} />
+                  <BackfillNotes events={rows} />
+                </>
+              }
+            />
           ) : (
             <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">DEIN SPIEL. DEINE ENTWICKLUNG.</div>
-                  <h1>
-                    {section === ""
-                      ? `Hallo ${data.user_name}`
-                      : section === "termine"
-                        ? "Meine Termine"
-                        : section === "stempelkarte"
-                          ? "Deine Stempelkarte"
-                          : section === "berichte"
-                            ? "Deine Trainingsberichte"
-                            : "Mein Konto"}
-                    {section === "" && <span className="greeting-dot">.</span>}
-                  </h1>
-                  <p>
-                    {section === ""
-                      ? "Schön, dass du da bist. Hier bleibt das Training im Blick."
-                      : section === "termine"
-                        ? "Alles, was ansteht. Und alles, was schon geschafft ist."
-                        : section === "stempelkarte"
-                          ? "Jede Einheit ist ein Schritt nach vorne."
-                          : section === "berichte"
-                            ? "Die Entwicklung deines Kindes, übersichtlich dokumentiert."
-                            : "Deine Familie und dein Abonnement an einem Ort."}
-                  </p>
-                </div>
-                {player && (
-                  <label className="child-switch">
-                    <span className="avatar child-avatar">
-                      {player.first_name.charAt(0)}
-                    </span>
-                    <span>
-                      <small>DEIN KIND</small>
-                      <select
-                        aria-label="Kind auswählen"
-                        value={player.id}
-                        onChange={(e) => {
-                          setSelected(e.target.value);
-                          setSelectedPeriod("");
-                          localStorage.setItem(
-                            "proacademy-selected",
-                            e.target.value,
-                          );
-                        }}
-                      >
-                        {data.players.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.first_name} {p.last_name}
-                          </option>
-                        ))}
-                      </select>
-                    </span>
-                    <ChevronDown size={17} />
-                  </label>
-                )}
-              </div>
+              {DESIGN_2026 && section === "konto" ? (
+                <PageHead
+                  title="Konto"
+                  greeting="Familie, Abos, Zahlungen und Mitteilungen an einem Ort."
+                />
+              ) : (
+                <>
+                  <div className="page-heading">
+                    <div>
+                      <div className="eyebrow">
+                        DEIN SPIEL. DEINE ENTWICKLUNG.
+                      </div>
+                      <h1>
+                        {section === ""
+                          ? `Hallo ${data.user_name}`
+                          : section === "termine"
+                            ? "Meine Termine"
+                            : section === "stempelkarte"
+                              ? "Deine Stempelkarte"
+                              : section === "berichte"
+                                ? "Deine Trainingsberichte"
+                                : "Mein Konto"}
+                        {section === "" && (
+                          <span className="greeting-dot">.</span>
+                        )}
+                      </h1>
+                      <p>
+                        {section === ""
+                          ? "Schön, dass du da bist. Hier bleibt das Training im Blick."
+                          : section === "termine"
+                            ? "Alles, was ansteht. Und alles, was schon geschafft ist."
+                            : section === "stempelkarte"
+                              ? "Jede Einheit ist ein Schritt nach vorne."
+                              : section === "berichte"
+                                ? "Die Entwicklung deines Kindes, übersichtlich dokumentiert."
+                                : "Deine Familie und dein Abonnement an einem Ort."}
+                      </p>
+                    </div>
+                    {player && (
+                      <label className="child-switch">
+                        <span className="avatar child-avatar">
+                          {player.first_name.charAt(0)}
+                        </span>
+                        <span>
+                          <small>DEIN KIND</small>
+                          <select
+                            aria-label="Kind auswählen"
+                            value={player.id}
+                            onChange={(e) => {
+                              setSelected(e.target.value);
+                              setSelectedPeriod("");
+                              localStorage.setItem(
+                                "proacademy-selected",
+                                e.target.value,
+                              );
+                            }}
+                          >
+                            {data.players.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.first_name} {p.last_name}
+                              </option>
+                            ))}
+                          </select>
+                        </span>
+                        <ChevronDown size={17} />
+                      </label>
+                    )}
+                  </div>
+                </>
+              )}
               {!player ? (
                 <div className="empty-state">
                   <Users />
@@ -909,7 +1050,16 @@ export function Portal({
                       </div>
                     </section>
                   )}
-                  {section === "konto" && (
+                  {section === "konto" && DESIGN_2026 && (
+                    <AccountExperience
+                      data={data}
+                      emailPreference={
+                        <EmailPreference email={data.email} notify={setToast} />
+                      }
+                      billing={billingActions}
+                    />
+                  )}
+                  {section === "konto" && !DESIGN_2026 && (
                     <div className="account-grid">
                       <EmailPreference email={data.email} notify={setToast} />
                       <section className="panel account-panel">
@@ -960,42 +1110,7 @@ export function Portal({
                           Rechnungen, Rechnungsadresse und Zahlungsmethode
                           verwaltest du sicher über Stripe.
                         </p>
-                        <div className="billing-account-actions">
-                          {(data.billing_customers?.length
-                            ? data.billing_customers
-                            : [{ stripe_customer_id: "" }]
-                          ).map((account, index) => {
-                            const customerId = account.stripe_customer_id;
-                            const childIds = new Set(
-                              data.periods
-                                .filter(
-                                  (p) => p.stripe_customer_id === customerId,
-                                )
-                                .map((p) => p.player_id),
-                            );
-                            const names = data.players
-                              .filter((p) => childIds.has(p.id))
-                              .map((p) => p.first_name)
-                              .join(" und ");
-                            return (
-                              <button
-                                key={customerId || "billing"}
-                                className="primary-button"
-                                onClick={() =>
-                                  openBilling(customerId || undefined)
-                                }
-                              >
-                                {data.billing_customers &&
-                                data.billing_customers.length > 1
-                                  ? names
-                                    ? `Abo für ${names} verwalten`
-                                    : `Abokonto ${index + 1} verwalten`
-                                  : "Stripe-Kundenportal öffnen"}{" "}
-                                <ArrowUpRight size={17} />
-                              </button>
-                            );
-                          })}
-                        </div>
+                        {billingActions}
                       </section>
                     </div>
                   )}
@@ -1036,6 +1151,19 @@ export function Portal({
           <SiteFooter compact />
         </main>
       </div>
+      <TabBar
+        items={[
+          ...["/", "/termine", "/stempelkarte", "/camps"]
+            .map((href) => designNav.find((n) => n.href === href))
+            .filter((n) => n !== undefined),
+          ...designNav.filter(
+            (n) =>
+              !["/", "/termine", "/stempelkarte", "/camps"].includes(n.href),
+          ),
+        ]}
+        isActive={(href) => isActiveNav(href)}
+        openMenu={() => setMobile(true)}
+      />
       {detail && (
         <EventDetail
           event={detail}

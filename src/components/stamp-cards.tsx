@@ -16,6 +16,8 @@ import {
 } from "@/lib/domain";
 import { BackfillNotes, ExcusedNotes } from "./attendance-notes";
 import { Stamps, StampLegend } from "./portal";
+import { DESIGN_2026 } from "@/design-2026/flag";
+import { StampHead } from "@/design-2026/stamp-head";
 
 type Card = {
   snapshot: ReportSnapshot;
@@ -191,18 +193,29 @@ export function StampCards({
           }}
         />
       )}
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">TRAININGSFORTSCHRITT</div>
-          <h1>
-            Stempelkarten<span className="greeting-dot">.</span>
-          </h1>
-          <p>
-            Einheiten aller Kinder prüfen, als PDF exportieren oder an eine
-            E-Mail-Adresse senden.
-          </p>
+      {DESIGN_2026 ? (
+        <StampHead
+          data={data}
+          pick={(player, period) => {
+            setSearch("");
+            setPlayerId(player);
+            setPeriodId(period);
+          }}
+        />
+      ) : (
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">TRAININGSFORTSCHRITT</div>
+            <h1>
+              Stempelkarten<span className="greeting-dot">.</span>
+            </h1>
+            <p>
+              Einheiten aller Kinder prüfen, als PDF exportieren oder an eine
+              E-Mail-Adresse senden.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
       <section className="panel stamp-card-filters">
         <label>
           Kind suchen
