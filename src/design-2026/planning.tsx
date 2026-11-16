@@ -13,19 +13,19 @@ import {
 import type { PortalData, Training } from "@/lib/types";
 import { formatDate, formatTime, isAttended } from "@/lib/domain";
 import { addDays, calendarDate } from "@/lib/calendar";
-import { CountUp } from "./ui";
+import { CountUp, glowFollow } from "./ui";
 
 export type PlanningFilter = "all" | "upcoming" | "confirm" | "cancelled";
 export type PlanningState = {
   filter: PlanningFilter;
   place: string;
-  coach: string;
+  coaches: string[];
   query: string;
 };
 export const initialPlanning: PlanningState = {
   filter: "all",
   place: "",
-  coach: "",
+  coaches: [],
   query: "",
 };
 
@@ -55,7 +55,7 @@ export function applyPlanning(
       (state.filter !== "upcoming" || Date.parse(e.ends_at) >= now) &&
       (state.filter !== "cancelled" || e.status === "cancelled") &&
       (!state.place || e.location_name === state.place) &&
-      (!state.coach || e.trainer_name === state.coach) &&
+      (!state.coaches.length || state.coaches.includes(e.trainer_name)) &&
       (!q ||
         [e.title, e.location_name, e.trainer_name, e.event_type]
           .join(" ")
@@ -155,7 +155,7 @@ export function PlanningOverview({
     },
   ];
   return (
-    <div className="d26-planning">
+    <div className="d26-planning" onPointerMove={glowFollow}>
       <div className="d26-kpis">
         {tiles.map((t) => (
           <button
@@ -207,8 +207,8 @@ export function PlanningOverview({
           <div className="d26-chips" aria-label="Coach">
             <button
               type="button"
-              className={`d26-chip ${!state.coach ? "is-active" : ""}`}
-              onClick={() => set({ coach: "" })}
+              className={`d26-chip ${!state.coaches.length ? "is-active" : ""}`}
+              onClick={() => set({ coaches: [] })}
             >
               Alle Coaches
             </button>
@@ -216,8 +216,16 @@ export function PlanningOverview({
               <button
                 type="button"
                 key={c}
-                className={`d26-chip ${state.coach === c ? "is-active" : ""}`}
-                onClick={() => set({ coach: state.coach === c ? "" : c })}
+                className={`d26-chip ${state.coaches.includes(c) ? "is-active" : ""}`}
+                aria-pressed={state.coaches.includes(c)}
+                data-tip="Mehrere Coaches gleichzeitig wählbar"
+                onClick={() =>
+                  set({
+                    coaches: state.coaches.includes(c)
+                      ? state.coaches.filter((x) => x !== c)
+                      : [...state.coaches, c],
+                  })
+                }
               >
                 {c}
               </button>

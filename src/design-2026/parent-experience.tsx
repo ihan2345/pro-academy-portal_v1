@@ -694,8 +694,21 @@ function Today(props: ParentExperienceProps) {
         </button>
 
         <Link href="/stempelkarte" className="d26-card d26-stamps-mini">
-          <small>Stempelkarte</small>
-          <h3>
+          <span className="d26-live">
+            <i /> Stempelkarte
+          </span>
+          <h3
+            data-tip={
+              [
+                counted.length &&
+                  `Angerechnet: ${counted.map((e) => formatDate(e.starts_at, { day: "numeric", month: "short" })).join(", ")}`,
+                plannedIn.length &&
+                  `Eingeplant: ${plannedIn.map((e) => formatDate(e.starts_at, { day: "numeric", month: "short" })).join(", ")}`,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Noch keine Einheiten eingetragen"
+            }
+          >
             <CountUp value={stats.completed} />
             <span> / {included}</span>
           </h3>

@@ -391,6 +391,36 @@ export function previewActivities(path: string) {
   return { rows, next: null, total: rows.length };
 }
 
+/** Drei offene Zahlungen in verschiedenen Eskalationsstufen (14, 3, 1 Tag). */
+export function previewConflicts() {
+  const row = (
+    i: number,
+    customer: string,
+    child: string,
+    daysAgo: number,
+  ) => ({
+    id: `conflict-${i}`,
+    at: new Date(Date.now() - daysAgo * 86400000).toISOString(),
+    customer,
+    customerId: `cus_preview_${i}`,
+    subscriptionId: `sub_preview_${i}`,
+    status: "past_due",
+    reason: "Zahlung fehlgeschlagen",
+    blocked: false,
+    children: [{ id: `p-${i}`, name: child }],
+    invoices: [],
+    href: "https://dashboard.stripe.com/test/subscriptions",
+  });
+  return {
+    checkedAt: new Date().toISOString(),
+    rows: [
+      row(1, "Familie Kaya", "Emir Kaya", 13.4),
+      row(2, "Familie Schulz", "Ben Schulz", 11.5),
+      row(3, "Familie Weber", "Mia Weber", 2),
+    ],
+  };
+}
+
 export function previewTrials() {
   const row = (
     i: number,

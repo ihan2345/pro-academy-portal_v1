@@ -4,6 +4,7 @@
 import { previewAdminRows, previewCamps } from "./mock-data";
 import {
   previewActivities,
+  previewConflicts,
   previewFamily,
   previewGifts,
   previewParentList,
@@ -43,6 +44,8 @@ if (
         },
         { status: 404 },
       );
+    if (path === "/api/admin/stripe-conflicts")
+      return Response.json(previewConflicts());
     if (path === "/api/probetraining/team")
       return Response.json(previewTrials());
     if (path === "/api/products/gifts/mine")

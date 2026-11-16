@@ -160,15 +160,29 @@ export function Countdown({ to }: { to: string }) {
 }
 
 /** Lichtschein folgt dem Mauszeiger auf Karten (setzt nur CSS-Variablen). */
-export function glowFollow(e: React.PointerEvent<HTMLElement>) {
+const GLOW = ".d26-card, .d26-hero, .team-event";
+export function glowFollow(e: {
+  pointerType: string;
+  target: EventTarget | null;
+  clientX: number;
+  clientY: number;
+}) {
   if (e.pointerType !== "mouse") return;
-  const card = (e.target as HTMLElement).closest<HTMLElement>(
-    ".d26-card, .d26-hero",
-  );
+  const card = (e.target as HTMLElement | null)?.closest?.<HTMLElement>(GLOW);
   if (!card) return;
   const r = card.getBoundingClientRect();
   card.style.setProperty("--mx", `${e.clientX - r.left}px`);
   card.style.setProperty("--my", `${e.clientY - r.top}px`);
+}
+
+/** Lichtschein für alle Karten im Portal, ein Listener für die ganze Seite. */
+export function GlowLayer() {
+  useEffect(() => {
+    const move = (e: PointerEvent) => glowFollow(e);
+    document.addEventListener("pointermove", move, { passive: true });
+    return () => document.removeEventListener("pointermove", move);
+  }, []);
+  return null;
 }
 
 /** Einfache horizontale Balkenliste für Aufschlüsselungen in Sheets. */

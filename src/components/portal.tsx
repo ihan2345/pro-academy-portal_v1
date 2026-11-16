@@ -66,6 +66,8 @@ import { StampCards } from "./stamp-cards";
 import { UserActivityHeartbeat } from "./user-activity";
 // Design 2026 (Vorschau): rein optische Ergänzungen, ohne Daten- oder Logikänderung.
 import { Spotlight } from "@/design-2026/spotlight";
+import { NotificationBell } from "@/design-2026/notifications";
+import { GlowLayer } from "@/design-2026/ui";
 import { TabBar } from "@/design-2026/tab-bar";
 import { navGroup, designNavItems } from "@/design-2026/nav-groups";
 import { DESIGN_2026 } from "@/design-2026/flag";
@@ -525,6 +527,15 @@ export function Portal({
           </div>
           <div className="topbar-right">
             <Spotlight items={designNav} extra={spotlightExtra(data)} />
+            {DESIGN_2026 && (
+              <>
+                <NotificationBell
+                  data={data}
+                  base={admin ? "/admin" : team ? "/team" : ""}
+                />
+                <GlowLayer />
+              </>
+            )}
             <span className="topbar-date">
               {formatDate(now.toISOString(), {
                 day: "numeric",
