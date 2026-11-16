@@ -5,6 +5,10 @@ import { assertLoginCodeSent } from "@/lib/server/login-delivery";
 import { stripeActivities } from "@/lib/server/stripe-activities";
 import { stripeOverview } from "@/lib/server/stripe-overview";
 import { decideStripeNotice } from "@/lib/server/stripe-notice-decisions";
+import {
+  decideNotice,
+  readNoticeDecisions,
+} from "@/lib/server/notice-decisions";
 import { stripeBillingConflicts } from "@/lib/server/stripe-conflicts";
 import { stripeParentInputs } from "@/lib/server/stripe-parent-inputs";
 import { activityList, activitySummary } from "@/lib/server/activities";
@@ -260,6 +264,13 @@ async function handler(
           page: request.nextUrl.searchParams.get("page") ?? 1,
         }),
       );
+    }
+    if (path === "notice-decisions") {
+      if (request.method === "GET")
+        return json(await readNoticeDecisions(session));
+      if (request.method === "POST")
+        return json(await decideNotice(session, await request.json()));
+      throw new HttpError(405, "Methode nicht erlaubt.");
     }
     if (path === "admin/stripe-notices") {
       if (request.method !== "POST")

@@ -1047,3 +1047,80 @@
     }
   }
 }
+
+/* ---------- Offene Vorgänge markieren (Glocke und Aktivitäten) ---------- */
+:root[data-design="2026"] {
+  & .d26-note-actions button.is-ignore {
+    background: transparent;
+    color: var(--d26-muted, #6b7280);
+  }
+  & .activity-decide {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  & .activity-decide button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 11px;
+    border: 0;
+    border-radius: 99px;
+    background: rgba(118, 118, 128, 0.12);
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  & .activity-decide button:first-child {
+    background: var(--lime);
+    color: #0b0f1a;
+  }
+  & .activity-decide button:hover {
+    transform: translateY(-1px);
+  }
+  & .activity-decided {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+  }
+  & .activity-decided summary {
+    cursor: pointer;
+    color: var(--d26-muted, #6b7280);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  & .activity-decided ul {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  & .activity-decided li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+  }
+  & .activity-decided li span {
+    display: grid;
+  }
+  & .activity-decided li small,
+  & .activity-decided li em {
+    color: var(--d26-muted, #6b7280);
+    font-style: normal;
+  }
+  & .activity-decided li button {
+    padding: 5px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 99px;
+    background: none;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+}

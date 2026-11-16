@@ -8,6 +8,7 @@ import {
   type ActivitySummary,
 } from "../activities";
 import type { ProfileSession } from "./parent-profile";
+import { hiddenNoticeKeys } from "./notice-decisions";
 const stamp = z.string().datetime({ offset: true });
 const cursorSchema = z
   .object({ at: stamp, id: z.string().regex(/^[aj]:[0-9a-f-]{36}$/) })
@@ -51,7 +52,28 @@ export async function activitySummary(
   ]);
   checked(recent);
   checked(open);
-  return { asOf, recent: recent.count ?? 0, open: open.count ?? 0 };
+  // Gemeinsam erledigte, ignorierte oder zurückgestellte Vorgänge zählen nicht
+  // als offen. Fehlt die Tabelle (Release 050), bleibt die Zahl wie bisher.
+  let hidden = 0;
+  if (open.count) {
+    const ids = await db
+      .from("activity_feed")
+      .select("id")
+      .eq("is_open", true)
+      .lte("occurred_at", asOf)
+      .limit(1000);
+    if (!ids.error && ids.data?.length)
+      hidden = (
+        await hiddenNoticeKeys(
+          ids.data.map((r: { id: string }) => `act:${r.id}`),
+        )
+      ).size;
+  }
+  return {
+    asOf,
+    recent: recent.count ?? 0,
+    open: Math.max(0, (open.count ?? 0) - hidden),
+  };
 }
 export async function activityList(
   session: ProfileSession,

@@ -27,6 +27,12 @@ if (
           : input.url;
     const path = new URL(url, location.origin).pathname;
     if (path === "/api/camp/dashboard") return Response.json(previewCamps());
+    // Vorschau: gemeinsames Merken ist "noch nicht eingerichtet", der
+    // Browser merkt Markierungen lokal.
+    if (path === "/api/notice-decisions")
+      return init?.method === "POST"
+        ? Response.json({ error: "Vorschau" }, { status: 503 })
+        : Response.json({ available: false, rows: [] });
     if (path === "/api/pai/history") return Response.json({ messages: [] });
     if (path === "/api/pai/status")
       return Response.json({
