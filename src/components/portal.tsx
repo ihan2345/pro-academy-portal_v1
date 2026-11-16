@@ -512,7 +512,15 @@ export function Portal({
                       ? "Mein Konto"
                       : section === "admin/eltern"
                         ? "Eltern"
-                        : "Übersicht")}
+                        : ({
+                            "admin/spieler": "Spieler",
+                            "admin/stripe": "Stripe-Zuordnung",
+                            "admin/einladungen": "Einladungen",
+                            "admin/protokolle": "Protokolle",
+                            "admin/produkte-berichte": "Produkte & Berichte",
+                            "admin/probetraining": "Probetraining",
+                            "team/probetraining": "Probetraining",
+                          }[section] ?? "Übersicht"))}
             </b>
           </div>
           <div className="topbar-right">

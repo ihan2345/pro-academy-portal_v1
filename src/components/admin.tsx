@@ -507,6 +507,16 @@ export function AdminView({
       )}
       {config && (
         <>
+          {DESIGN_2026 && (
+            <DirectoryOverview
+              slug={slug}
+              rows={rows}
+              value={facet}
+              change={setFacet}
+              assignment={assignment}
+              setAssignment={setAssignment}
+            />
+          )}
           <div className="admin-toolbar">
             <label className="search-input">
               <Search size={18} />
@@ -530,16 +540,6 @@ export function AdminView({
               <RefreshCw size={19} />
             </button>
           </div>
-          {DESIGN_2026 && (
-            <DirectoryOverview
-              slug={slug}
-              rows={rows}
-              value={facet}
-              change={setFacet}
-              assignment={assignment}
-              setAssignment={setAssignment}
-            />
-          )}
           {!DESIGN_2026 && ["eltern", "spieler"].includes(slug) && (
             <AssignmentFilters
               value={assignment}
