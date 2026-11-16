@@ -358,13 +358,21 @@ export function previewParentList() {
     products: [product],
     months,
     portal_access: {
-      activated: i !== 3,
-      signed_in: i !== 3,
-      last_seen_at: i !== 3 ? iso(-i) : null,
+      activated: i < 3,
+      signed_in: i < 3,
+      // Vorschau: eine Familie gerade online, eine vor 10 Minuten.
+      last_seen_at:
+        i === 0
+          ? new Date().toISOString()
+          : i === 1
+            ? new Date(Date.now() - 10 * 60000).toISOString()
+            : i === 2
+              ? iso(-2)
+              : null,
       invitation: {
-        status: i === 3 ? "sent" : "accepted",
-        sent_at: iso(-60),
-        accepted_at: i === 3 ? null : iso(-59),
+        status: i === 3 ? "sent" : i === 4 ? "none" : "accepted",
+        sent_at: i === 4 ? null : iso(-60),
+        accepted_at: i < 3 ? iso(-59) : null,
       },
     },
   }));

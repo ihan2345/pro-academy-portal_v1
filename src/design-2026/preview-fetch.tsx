@@ -56,10 +56,21 @@ if (
         more: false,
       });
     if (/^\/api\/parent-profiles\/[^/]+\/finances$/.test(path))
-      return Response.json(
-        { error: "Finanzen sind in der Vorschau nicht verfügbar." },
-        { status: 404 },
-      );
+      return Response.json({
+        checked_at: new Date().toISOString(),
+        complete: true,
+        notes: [],
+        currencies: [],
+        payments: [],
+        subscriptions: {
+          complete: true,
+          previous: null,
+          active: [
+            { id: "s-1", names: ["FirstTouch"], cancel_at: null },
+            { id: "s-2", names: ["Gamechanger"], cancel_at: null },
+          ],
+        },
+      });
     const table = path.match(/^\/api\/admin\/([a-z_]+)$/)?.[1];
     if (table && (!init?.method || init.method === "GET"))
       return Response.json({ rows: previewAdminRows(table) });

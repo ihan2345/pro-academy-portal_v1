@@ -621,3 +621,89 @@
     white-space: nowrap;
   }
 }
+
+/* Elternprofile: fünf Kennzahlen, Online-LED, Einladung und Abo-Karten. */
+:root[data-design="2026"] {
+  @media (min-width: 1200px) {
+    & .d26-kpis.is-5 {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+  }
+  & .d26-led {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 8px;
+    border-radius: 50%;
+    vertical-align: 1px;
+    background: #c3c6cf;
+  }
+  & .d26-led.is-live {
+    background: #22c55e;
+    box-shadow:
+      0 0 0 3px #22c55e33,
+      0 0 8px #22c55e;
+  }
+  & .d26-led.is-idle {
+    background: #f59e0b;
+    box-shadow: 0 0 0 3px #f59e0b33;
+  }
+  & .d26-sheet-switch {
+    margin-bottom: 12px;
+  }
+  & .profile-invite-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border: 1px solid var(--purple);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--purple);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  & .profile-invite-action:hover {
+    background: color-mix(in srgb, var(--purple) 10%, transparent);
+  }
+  & .profile-invite-action.is-confirm {
+    background: var(--purple);
+    color: #fff;
+  }
+  & .profile-invite-action:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  & .profile-access-status small.is-error {
+    color: #c2410c;
+  }
+  & .d26-family-hero .profile-invite-action {
+    border-color: rgba(255, 255, 255, 0.5);
+    color: #fff;
+  }
+  & .d26-family-hero .profile-invite-action.is-confirm {
+    background: #fff;
+    color: #17121f;
+  }
+  & .profile-subscription-cards {
+    display: grid;
+    gap: 12px;
+    max-width: 480px;
+  }
+  & .profile-subscription-card {
+    min-width: min(280px, 100%);
+    display: grid;
+    gap: 4px;
+    padding: 18px 22px;
+  }
+  & .profile-subscription-card .profile-product {
+    font-size: 22px;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+  }
+  & .profile-subscription-card.neutral {
+    --child-bg: linear-gradient(145deg, #ffffff, #f1f2f6);
+  }
+}

@@ -40,6 +40,8 @@ export const playerProfileQuery = z.object({
     .max(4096)
     .regex(/^v1\.[A-Za-z0-9_-]+$/)
     .optional(),
+  // Overview figures read larger pages; the card list keeps pages of 10.
+  limit: z.coerce.number().int().min(10).max(200).default(10),
 });
 // The cache only accelerates ranking. An authenticated cursor carries the last
 // ordering key so another worker (or an expired cache) can resume independently.
@@ -408,14 +410,16 @@ export async function playerProfileList(
           comparePlayerProfiles(entry, continuation.after, query.sort) > 0,
       )
     : snapshot.entries;
-  const batch = remaining.slice(0, 10);
-  const rows = await hydrate(batch, query.sort);
+  const batch = remaining.slice(0, query.limit);
+  const rows: PlayerProfilePage["rows"] = [];
+  for (let start = 0; start < batch.length; start += 100)
+    rows.push(...(await hydrate(batch.slice(start, start + 100), query.sort)));
   const last = batch.at(-1);
   return {
     rows,
     total: snapshot.entries.length,
     next:
-      remaining.length > 10 && last
+      remaining.length > query.limit && last
         ? writeCursor({
             owner,
             query: key,

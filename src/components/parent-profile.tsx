@@ -18,6 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { Modal, Badge } from "./portal";
+import { api } from "./team";
 import { MonthCalendar } from "./month-calendar";
 import {
   familyStatus,
@@ -49,7 +50,84 @@ import { DESIGN_2026 } from "@/design-2026/flag";
 import { FamilyHero } from "@/design-2026/family";
 import { ParentListFilters, ParentListHead } from "@/design-2026/people-heads";
 
-function ProfileAccessStatus({ access }: { access?: ProfileAccess }) {
+/**
+ * Design 2026: Einladung direkt am Elternprofil. Nutzt dieselbe Admin-Aktion
+ * wie die Elternliste der Zentrale (manuelle Freigabe, keine Automatik).
+ */
+function InviteAction({
+  parentId,
+  access,
+}: {
+  parentId: string;
+  access: ProfileAccess;
+}) {
+  const [state, setState] = useState<
+    "idle" | "confirm" | "busy" | "pending" | "held" | "error"
+  >("idle");
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    if (state !== "confirm") return;
+    const t = setTimeout(() => setState("idle"), 5000);
+    return () => clearTimeout(t);
+  }, [state]);
+  if (access.activated || access.invitation.status === "accepted") return null;
+  const again =
+    access.invitation.status !== "none" ||
+    state === "pending" ||
+    state === "held";
+  const stop = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  return (
+    <>
+      <button
+        type="button"
+        className={`profile-invite-action${state === "confirm" ? " is-confirm" : ""}`}
+        disabled={state === "busy"}
+        onClick={async (e) => {
+          stop(e);
+          if (state !== "confirm") return setState("confirm");
+          setState("busy");
+          try {
+            const result = await api("admin/invite", { parent_id: parentId });
+            setState(result.status === "pending" ? "pending" : "held");
+            setMessage(
+              result.status === "pending"
+                ? "Einladung zum Versand eingeplant."
+                : "Einladung vorgemerkt, der Versand ist gesperrt.",
+            );
+          } catch (error) {
+            setState("error");
+            setMessage((error as Error).message);
+          }
+        }}
+      >
+        <Mail size={13} />
+        {state === "busy"
+          ? "Wird gesendet …"
+          : state === "confirm"
+            ? "Wirklich senden?"
+            : again
+              ? "Erneut einladen"
+              : "Einladung senden"}
+      </button>
+      {message && (
+        <small role="status" className={state === "error" ? "is-error" : ""}>
+          {message}
+        </small>
+      )}
+    </>
+  );
+}
+
+function ProfileAccessStatus({
+  access,
+  parentId,
+}: {
+  access?: ProfileAccess;
+  parentId?: string;
+}) {
   if (!access) return null;
   return (
     <span className="profile-access-status">
@@ -61,6 +139,9 @@ function ProfileAccessStatus({ access }: { access?: ProfileAccess }) {
       <span className={`profile-access-badge ${access.invitation.status}`}>
         {invitationLabel(access)}
       </span>
+      {DESIGN_2026 && parentId && (
+        <InviteAction parentId={parentId} access={access} />
+      )}
       {access.invitation.sent_at && (
         <small>Gesendet {formatDate(access.invitation.sent_at)}</small>
       )}
@@ -283,7 +364,10 @@ export function ProfileList({ base }: { base: string }) {
               <span>
                 <strong>{r.name}</strong>
                 <span className="profile-muted">{r.email}</span>
-                <ProfileAccessStatus access={r.portal_access} />
+                <ProfileAccessStatus
+                  access={r.portal_access}
+                  parentId={/(^|\/)admin\//.test(base) ? r.id : undefined}
+                />
                 {sort === "revenue" && (
                   <span className="profile-muted">
                     Gesamtumsatz:{" "}
@@ -607,7 +691,10 @@ export function ProfileView({
               }}
               access={
                 data.role !== "parent" ? (
-                  <ProfileAccessStatus access={data.portal_access} />
+                  <ProfileAccessStatus
+                    access={data.portal_access}
+                    parentId={data.role === "admin" ? data.id : undefined}
+                  />
                 ) : undefined
               }
             />

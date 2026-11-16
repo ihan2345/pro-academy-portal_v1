@@ -1,6 +1,8 @@
 import type { ProfileFinances } from "@/lib/server/parent-profile-finances";
 import type { ProfileSubscriptions } from "@/lib/server/profile-subscription-summary";
 import { formatDate } from "@/lib/domain";
+import { childCardTheme } from "@/lib/parent-profile";
+import { DESIGN_2026 } from "@/design-2026/flag";
 
 const statuses = {
   succeeded: "Erfolgreich",
@@ -47,6 +49,28 @@ export function ProfileSubscriptionStatus({
         <strong>Abo-Status derzeit nicht vollständig verfügbar</strong>
         <span>Bitte die Finanzübersicht erneut aktualisieren.</span>
       </aside>
+    );
+  if (DESIGN_2026 && data.active.length)
+    // Design 2026: jedes aktive Abo als Karte in der Farbe der Spielerkarten.
+    return (
+      <div className="profile-subscription-cards" aria-label="Abo-Status">
+        {data.active.map((sub) => (
+          <aside
+            key={sub.id}
+            className={`premium-child profile-subscription-card ${childCardTheme(sub.names)}`}
+          >
+            <small className="profile-muted">Aktives Abo</small>
+            <strong className="profile-product">
+              {sub.names.join(" · ") || "Abo ohne Tarifname"}
+            </strong>
+            {sub.cancel_at && (
+              <small className="profile-muted">
+                Gekündigt zum {formatDate(sub.cancel_at)}
+              </small>
+            )}
+          </aside>
+        ))}
+      </div>
     );
   return (
     <aside className="profile-subscription-summary" aria-label="Abo-Status">
