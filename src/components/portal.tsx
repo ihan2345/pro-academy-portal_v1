@@ -319,6 +319,22 @@ export function Portal({
   const designNav = shownNav
     .filter((n) => n.href !== "#verwaltung")
     .map((n) => ({ ...n, group: navGroup(n.href, data.role) }));
+  // Handy-Tabs: die wichtigsten Seiten je Rolle zuerst, der Rest über „Mehr“.
+  const tabOrder = admin
+    ? [
+        "/admin",
+        "/admin/trainingsplanung",
+        "/admin/stempelkarten",
+        "/admin/elternprofile",
+      ]
+    : team
+      ? [
+          "/team",
+          "/team/stempelkarten",
+          "/team/elternprofile",
+          "/team/spielerprofile",
+        ]
+      : ["/", "/termine", "/stempelkarte", "/camps"];
   async function openBilling(customerId?: string) {
     try {
       const response = await fetch("/api/stripe/portal", {
@@ -1173,13 +1189,10 @@ export function Portal({
       </div>
       <TabBar
         items={[
-          ...["/", "/termine", "/stempelkarte", "/camps"]
+          ...tabOrder
             .map((href) => designNav.find((n) => n.href === href))
             .filter((n) => n !== undefined),
-          ...designNav.filter(
-            (n) =>
-              !["/", "/termine", "/stempelkarte", "/camps"].includes(n.href),
-          ),
+          ...designNav.filter((n) => !tabOrder.includes(n.href)),
         ]}
         isActive={(href) => isActiveNav(href)}
         openMenu={() => setMobile(true)}
