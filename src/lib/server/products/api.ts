@@ -31,6 +31,7 @@ import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { sessionDb, sessionUser } from "../supabase";
 import { serviceDb } from "../service-db";
+import { assertLoginCodeSent } from "../login-delivery";
 import { assertRole, HttpError, requireOrigin } from "../security";
 import { requireProducts, requireProductShop } from "./runtime";
 import {
@@ -363,13 +364,14 @@ export async function productApi(
           path: "/",
           maxAge: 3600,
         });
-        await db.auth.signInWithOtp({
+        const sent = await db.auth.signInWithOtp({
           email: v.email,
           options: {
             shouldCreateUser: true,
             emailRedirectTo: `${process.env.APP_URL}/auth/callback`,
           },
         });
+        assertLoginCodeSent(sent?.error ?? null);
         return json({
           ok: true,
           message:

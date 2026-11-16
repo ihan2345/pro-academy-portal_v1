@@ -1,6 +1,7 @@
 import { safeBookingReturn } from "@/lib/booking-return";
 import { parentCanActivate } from "@/lib/server/parent-activation";
 import { verifyLoginCode } from "@/lib/server/login-code";
+import { assertLoginCodeSent } from "@/lib/server/login-delivery";
 import { stripeActivities } from "@/lib/server/stripe-activities";
 import { stripeOverview } from "@/lib/server/stripe-overview";
 import { decideStripeNotice } from "@/lib/server/stripe-notice-decisions";
@@ -216,13 +217,14 @@ async function handler(
       else store.delete("pa_booking_return");
       const mayCreate = invitationValid || (await parentCanActivate(email));
       const db = await sessionDb();
-      await db.auth.signInWithOtp({
+      const sent = await db.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: mayCreate,
           emailRedirectTo: `${required("APP_URL")}/auth/callback`,
         },
       });
+      assertLoginCodeSent(sent?.error ?? null);
       return json({ ok: true });
     }
     if (path === "auth/verify" && request.method === "POST")

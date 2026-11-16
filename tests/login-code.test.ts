@@ -374,3 +374,40 @@ it("retains a Shop Camp selection through email-code login", async () => {
       .redirect,
   ).toBe(target);
 });
+
+describe("code delivery failures", () => {
+  it("keeps the neutral response when Supabase refuses an unknown address", async () => {
+    m.send.mockResolvedValue({
+      error: {
+        status: 422,
+        code: "otp_disabled",
+        message: "Signups not allowed for otp",
+      },
+    });
+    const r = await call({ email: "unknown@example.com" }, "auth/login");
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true });
+  });
+  it("shows an understandable message when the code could not be sent", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    m.known.mockResolvedValue({ data: true, error: null });
+    m.send.mockResolvedValue({
+      error: { status: 500, code: "unexpected_failure", message: "smtp" },
+    });
+    const r = await call({ email: "camp-parent@example.com" }, "auth/login");
+    expect(r.status).toBe(503);
+    expect((await r.json()).error).toMatch(
+      /Code konnte gerade nicht versendet werden/,
+    );
+    expect(JSON.stringify(log.mock.calls)).not.toContain("camp-parent");
+    log.mockRestore();
+  });
+  it("explains a provider rate limit", async () => {
+    m.send.mockResolvedValue({
+      error: { status: 429, code: "over_email_send_rate_limit" },
+    });
+    const r = await call({ email: "parent@example.com" }, "auth/login");
+    expect(r.status).toBe(429);
+    expect((await r.json()).error).toMatch(/zu viele Codes/);
+  });
+});

@@ -118,3 +118,17 @@ it("allows staff profile directories within the team area", () => {
   expect(html).toContain('href="/team/elternprofile"');
   expect(html).toContain('href="/team/spielerprofile"');
 });
+
+describe("Camp-only parents", () => {
+  it("keep account, Camp and profile areas but no training or stamp-card areas without a subscription", async () => {
+    const { campAccessRedirect } = await import("../src/lib/portal-access");
+    for (const section of ["", "stempelkarte", "termine"])
+      expect(campAccessRedirect("only", section)).toBe("/camps");
+    for (const section of ["camps", "konto", "profil", "produkte"])
+      expect(campAccessRedirect("only", section)).toBeNull();
+    expect(campAccessRedirect("past", "termine")).toBeNull();
+    expect(campAccessRedirect("past", "stempelkarte")).toBe("/camps");
+    for (const section of ["", "stempelkarte", "termine"])
+      expect(campAccessRedirect("active", section)).toBeNull();
+  });
+});
