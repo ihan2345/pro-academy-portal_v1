@@ -20,7 +20,10 @@ export async function paiSession() {
   const s = await sessionUser();
   if (!s?.role) throw new HttpError(401, "Bitte melde dich an.");
   if (s.customerStatus === "trial")
-    throw new HttpError(403, "pAi wird nach der Abo-Übernahme freigeschaltet.");
+    throw new HttpError(
+      403,
+      "PAiLTON wird nach der Abo-Übernahme freigeschaltet.",
+    );
   return s;
 }
 export function runtimeReady() {
@@ -49,7 +52,7 @@ export function providerKey() {
   if (!runtimeReady())
     throw new HttpError(
       503,
-      "pAi ist noch nicht für diese Umgebung eingerichtet.",
+      "PAiLTON ist noch nicht für diese Umgebung eingerichtet.",
     );
   return process.env.APP_MODE === "production"
     ? process.env.PAI_PRODUCTION_API_KEY!
@@ -62,7 +65,7 @@ export function checked<T>(result: {
   if (result.error || result.data === null)
     throw new HttpError(
       503,
-      "pAi-Daten sind nicht verfügbar. Bitte Einrichtung prüfen.",
+      "PAiLTON-Daten sind nicht verfügbar. Bitte Einrichtung prüfen.",
     );
   return result.data as NonNullable<T>;
 }

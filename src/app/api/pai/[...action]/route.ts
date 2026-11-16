@@ -118,7 +118,9 @@ async function handle(
     if (error instanceof z.ZodError || error instanceof SyntaxError)
       return json({ error: "Bitte Eingaben prüfen." }, 400);
     return json(
-      { error: "pAi ist derzeit nicht verfügbar. Bitte Einrichtung prüfen." },
+      {
+        error: "PAiLTON ist derzeit nicht verfügbar. Bitte Einrichtung prüfen.",
+      },
       503,
     );
   }

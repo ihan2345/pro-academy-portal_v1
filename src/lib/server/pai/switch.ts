@@ -15,7 +15,7 @@ export async function paiEnabled() {
   }
 }
 
-/** Read both flags together; the child is never effectively enabled without pAi. */
+/** Read both flags together; the child is never effectively enabled without PAiLTON. */
 export async function paiVisibility() {
   try {
     const { data, error } = await serviceDb()

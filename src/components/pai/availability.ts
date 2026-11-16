@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-/** UI follows the global switch; every pAi operation still checks it server-side. */
+/** UI follows the global switch; every PAiLTON operation still checks it server-side. */
 export function usePaiAvailability(section: string) {
   const [visible, setVisible] = useState({ pai: false, mascot: false });
   useEffect(() => {

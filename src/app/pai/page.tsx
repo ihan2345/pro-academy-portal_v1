@@ -15,10 +15,10 @@ export default async function Page() {
   return (
     <Portal initial={profileShell(s)} section="pai">
       <section className="panel pai-page">
-        <h1>pAi</h1>
+        <h1>PAiLTON</h1>
         <PaiChat role={s.role} />
         {s.role === "parent" && <PaiPreference />}
-        {s.role === "admin" && <Link href="/admin/pai">pAi verwalten</Link>}
+        {s.role === "admin" && <Link href="/admin/pai">PAiLTON verwalten</Link>}
       </section>
     </Portal>
   );

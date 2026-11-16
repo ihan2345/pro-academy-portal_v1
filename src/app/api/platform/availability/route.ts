@@ -6,7 +6,7 @@ const json = (visibility: { pai: boolean; mascot: boolean }, status = 200) =>
     status,
     headers: { "Cache-Control": "private, no-store" },
   });
-/** Visibility only: never exposes settings, permissions, user data or pAi tools. */
+/** Visibility only: never exposes settings, permissions, user data or PAiLTON tools. */
 export async function GET() {
   try {
     const s = await sessionUser();

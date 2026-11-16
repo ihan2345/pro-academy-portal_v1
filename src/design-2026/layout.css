@@ -809,3 +809,202 @@
     color: var(--d26-ink);
   }
 }
+
+/* ---------- PAiLTON im Menü, WhatsApp als Symbol ---------- */
+:root[data-design="2026"] {
+  /* Bleibt unten im Menü sichtbar, auch wenn die Navigation scrollt. */
+  & .d26-pailton {
+    position: sticky;
+    z-index: 2;
+    bottom: -16px;
+    margin: auto -14px -16px;
+    padding: 18px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: linear-gradient(
+      to bottom,
+      rgba(15, 19, 29, 0),
+      rgba(15, 19, 29, 0.96) 26px
+    );
+  }
+  & .d26-pailton + .sidebar-bottom {
+    margin-top: 16px;
+    padding-top: 6px;
+  }
+  & .d26-pailton + .sidebar-bottom .sidebar-motto {
+    display: none;
+  }
+  & .d26-pailton-bubble {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: calc(100% - 8px);
+    padding: 11px 13px;
+    border: 1px solid #d9c9f4;
+    border-radius: 14px 14px 14px 4px;
+    background: #fff;
+    color: #211b35;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+    animation: d26-bubble-in 0.35s var(--d26-ease) both;
+  }
+  & .d26-pailton-bubble::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -7px;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-right: 1px solid #d9c9f4;
+    border-bottom: 1px solid #d9c9f4;
+    transform: translateX(-50%) rotate(45deg);
+  }
+  & .d26-pailton-bubble span {
+    display: block;
+    margin-bottom: 4px;
+    color: #67439a;
+    font-size: 10px;
+    font-weight: 650;
+  }
+  & .d26-pailton-bubble strong {
+    display: block;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  & .d26-pailton-mascot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #fff;
+    cursor: pointer;
+  }
+  & .d26-pailton-mascot img {
+    display: block;
+    width: 86px;
+    height: auto;
+    aspect-ratio: 9 / 16;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35));
+    transition: transform 0.25s var(--d26-ease);
+  }
+  & .d26-pailton-mascot:hover img {
+    transform: translateY(-3px) scale(1.03);
+  }
+  & .d26-pailton-mascot:focus-visible,
+  & .d26-pailton-bubble:focus-visible {
+    outline: 3px solid #8b53fe;
+    outline-offset: 4px;
+    border-radius: 14px;
+  }
+  & .d26-pailton-name {
+    display: grid;
+    text-align: center;
+  }
+  & .d26-pailton-name strong {
+    font-size: 14px;
+    letter-spacing: 0.02em;
+  }
+  & .d26-pailton-name small {
+    color: #8a91a1;
+    font-size: 11px;
+  }
+  & .d26-pailton-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #b7fb73;
+    color: #18243b;
+  }
+  & .d26-pailton.is-collapsed {
+    margin: auto -8px -16px;
+    padding: 12px 8px 14px;
+  }
+  & .d26-pailton.is-collapsed .d26-pailton-mascot img {
+    width: 48px;
+  }
+
+  & .d26-whatsapp {
+    position: fixed;
+    z-index: 60;
+    right: max(22px, env(safe-area-inset-right));
+    bottom: calc(22px + env(safe-area-inset-bottom));
+  }
+  & .d26-whatsapp-button {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #25d366;
+    color: #fff;
+    box-shadow: 0 10px 26px rgba(37, 211, 102, 0.35);
+    transition: transform 0.2s var(--d26-ease);
+  }
+  & .d26-whatsapp-button:hover,
+  & .d26-whatsapp-button:focus-visible {
+    transform: scale(1.06);
+  }
+  & .d26-whatsapp-card {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 12px);
+    width: 230px;
+    padding: 16px;
+    border-radius: 18px;
+    color: #d7d9df;
+    background:
+      radial-gradient(
+        120% 120% at 100% 0%,
+        rgba(139, 83, 254, 0.35),
+        transparent 60%
+      ),
+      #161b26;
+    box-shadow: 0 18px 40px rgba(10, 14, 24, 0.35);
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition:
+      opacity 0.2s,
+      transform 0.2s var(--d26-ease);
+  }
+  & .d26-whatsapp:hover .d26-whatsapp-card,
+  & .d26-whatsapp:focus-within .d26-whatsapp-card {
+    opacity: 1;
+    transform: none;
+  }
+  & .d26-whatsapp-card strong {
+    display: block;
+    color: #fff;
+    font-size: 14px;
+  }
+  & .d26-whatsapp-card p {
+    margin: 6px 0 12px;
+    color: #9aa1b0;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  & .d26-whatsapp-card span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--lime, #8eff01);
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+@keyframes d26-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}

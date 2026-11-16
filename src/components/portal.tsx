@@ -71,6 +71,7 @@ import { GlowLayer } from "@/design-2026/ui";
 import { TabBar } from "@/design-2026/tab-bar";
 import { navGroup, designNavItems } from "@/design-2026/nav-groups";
 import { DESIGN_2026 } from "@/design-2026/flag";
+import { PailtonDock, WhatsAppFab, useNarrow } from "@/design-2026/pailton";
 import { ParentExperience } from "@/design-2026/parent-experience";
 import { AdminHome } from "@/design-2026/admin-home";
 import { AccountExperience, StaffAccount } from "@/design-2026/account";
@@ -122,6 +123,9 @@ export function Portal({
   const router = useRouter();
   const { pai: paiVisible, mascot: mascotVisible } =
     usePaiAvailability(section);
+  // Design 2026 am Desktop: PAiLTON im Menü, WhatsApp als Symbol am Rand.
+  const narrow = useNarrow();
+  const pailtonInMenu = DESIGN_2026 && paiVisible && !narrow;
   useEffect(() => {
     try {
       setSidebarCollapsed(
@@ -300,7 +304,7 @@ export function Portal({
       icon: ShoppingBag,
     });
   if (paiVisible)
-    activeNav.push({ href: "/pai", title: "pAi", icon: MessageCircle });
+    activeNav.push({ href: "/pai", title: "PAiLTON", icon: MessageCircle });
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
   const isActiveNav = (href: string) =>
@@ -457,23 +461,33 @@ export function Portal({
             ];
           })}
         </nav>
+        {pailtonInMenu && (
+          <PailtonDock
+            role={data.role}
+            collapsed={sidebarCollapsed && !mobile}
+            showMascot={mascotVisible}
+            showSuggestions={section !== "pai"}
+          />
+        )}
         <div className="sidebar-bottom">
-          <div className="support-box">
-            <MessageCircle size={24} />
-            <strong>Wir sind für dich da.</strong>
-            <p>
-              Fragen zum Training?
-              <br />
-              Schreib unserem Team.
-            </p>
-            <a
-              href={`https://wa.me/${data.whatsapp}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              WhatsApp öffnen <ArrowUpRight size={15} />
-            </a>
-          </div>
+          {!pailtonInMenu && (
+            <div className="support-box">
+              <MessageCircle size={24} />
+              <strong>Wir sind für dich da.</strong>
+              <p>
+                Fragen zum Training?
+                <br />
+                Schreib unserem Team.
+              </p>
+              <a
+                href={`https://wa.me/${data.whatsapp}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                WhatsApp öffnen <ArrowUpRight size={15} />
+              </a>
+            </div>
+          )}
           <div className="sidebar-motto">
             BUILT.
             <br />
@@ -505,7 +519,7 @@ export function Portal({
             <b>
               {shownNav.find((n) => isActiveNav(n.href))?.title ??
                 (section === "admin/pai"
-                  ? "pAi verwalten"
+                  ? "PAiLTON verwalten"
                   : section.includes("/aktivitaeten")
                     ? section.endsWith("/alle")
                       ? "Alle Aktivitäten"
@@ -1145,7 +1159,8 @@ export function Portal({
               {"Sicher abmelden"}
             </button>
           )}
-          {paiVisible && (
+          {pailtonInMenu && <WhatsAppFab number={data.whatsapp} />}
+          {paiVisible && !pailtonInMenu && (
             <PaiLauncher
               showMascot={mascotVisible}
               role={data.role}

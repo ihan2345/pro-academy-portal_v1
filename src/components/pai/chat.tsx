@@ -14,7 +14,7 @@ export async function paiApi(path: string, method = "GET", body?: unknown) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await r.json();
-  if (!r.ok) throw new Error(data.error ?? "pAi nicht verfügbar.");
+  if (!r.ok) throw new Error(data.error ?? "PAiLTON nicht verfügbar.");
   return data;
 }
 export function PaiPreference() {
@@ -28,7 +28,7 @@ export function PaiPreference() {
   }, []);
   return (
     <section className="panel account-panel">
-      <h2>Dein Assistent pAi</h2>
+      <h2>Dein Assistent PAiLTON</h2>
       <p>Hilfe zu Trainings, Stempelkarten, Abos und deinem Abzeichen.</p>
       <button
         type="button"
@@ -50,7 +50,7 @@ export function PaiPreference() {
           }
         }}
       >
-        pAi aktivieren:{" "}
+        PAiLTON aktivieren:{" "}
         {value === null ? "Wird geladen …" : value ? "Aktiv" : "Inaktiv"}
       </button>
       <p className="muted">
@@ -193,7 +193,7 @@ export function PaiChat({
     <section className="pai-chat">
       <div className="pai-welcome">
         <span className="pai-avatar" aria-hidden="true">
-          pAi
+          PAiLTON
         </span>
         <div>
           <strong>Deine Academy. Ein Gespräch.</strong>
@@ -247,7 +247,7 @@ export function PaiChat({
                 </div>
                 <div className="pai-answer">
                   <span className="pai-message-author">
-                    pAi <span>Academy-Assistent</span>
+                    PAiLTON <span>Academy-Assistent</span>
                   </span>
                   <AnswerText text={m.answer} />
                 </div>
@@ -260,7 +260,7 @@ export function PaiChat({
                   <p>{pending}</p>
                 </div>
                 <div className="pai-answer" role="status">
-                  pAi prüft deine Portaldaten …
+                  PAiLTON prüft deine Portaldaten …
                 </div>
               </article>
             )}
@@ -315,13 +315,13 @@ export function PaiChat({
                 !text.trim()
               }
             >
-              {busy ? "pAi schaut nach …" : "Frage senden"}
+              {busy ? "PAiLTON schaut nach …" : "Frage senden"}
             </button>
           </form>
           {status && !status.available && (
             <p>
-              pAi wartet auf die Freischaltung der Testumgebung oder wurde von
-              der Verwaltung pausiert.
+              PAiLTON wartet auf die Freischaltung der Testumgebung oder wurde
+              von der Verwaltung pausiert.
             </p>
           )}
           <small className="pai-footnote">
@@ -393,7 +393,7 @@ export function PaiLauncher({
   return (
     <>
       {!open && (
-        <aside className="pai-chat-dock" aria-label="pAi Chatleiste">
+        <aside className="pai-chat-dock" aria-label="PAiLTON Chatleiste">
           <MascotCycle
             showMascot={showMascot}
             role={role}
@@ -405,13 +405,13 @@ export function PaiLauncher({
               type="button"
               className="pai-chat-bar"
               onClick={() => openQuestion("")}
-              aria-label="pAi-Assistent öffnen"
+              aria-label="PAiLTON-Assistent öffnen"
             >
               <span className="pai-chat-bar-icon">
                 <MessageCircle size={16} />
               </span>
               <span>
-                <strong>pAi</strong>
+                <strong>PAiLTON</strong>
                 <small>Dein Academy-Assistent</small>
               </span>
               <ArrowUpRight size={15} aria-hidden="true" />
@@ -422,7 +422,7 @@ export function PaiLauncher({
       {open && (
         <Modal
           className="pai-popup"
-          title="pAi · Dein Academy-Assistent"
+          title="PAiLTON · Dein Academy-Assistent"
           close={() => setOpen(false)}
         >
           <PaiChat key={revision} role={role} initialQuestion={draft} />
