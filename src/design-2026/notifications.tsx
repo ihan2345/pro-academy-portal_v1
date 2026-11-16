@@ -127,6 +127,7 @@ async function cached<T>(
   }
 }
 
+const inDays = (n: number) => (n <= 1 ? "1 Tag" : `${Math.ceil(n)} Tagen`);
 const days = (n: number) => (n <= 1 ? "1 Tag" : `${Math.ceil(n)} Tage`);
 const shortDate = (ms: number) =>
   formatDate(new Date(ms).toISOString(), {
@@ -185,7 +186,7 @@ export function paymentNote(
       ...base,
       id: `${base.key}:3`,
       tone: "urgent",
-      title: `Kündigung in ${days(left)} · ${row.customer}`,
+      title: `Kündigung in ${inDays(left)} · ${row.customer}`,
       text: `Zahlung seit ${shortDate(failedAt)} offen, voraussichtliche Kündigung am ${shortDate(deadline)}. Betrifft ${who}.`,
       actions: [
         {
@@ -291,8 +292,8 @@ export function portalNotes(data: PortalData, now: number, base: string) {
       icon: CalendarClock,
       title:
         data.role === "parent"
-          ? `${p.product_name} endet in ${days(left)}`
-          : `Abo endet in ${days(left)} · ${name(p.player_id)}`,
+          ? `${p.product_name} endet in ${inDays(left)}`
+          : `Abo endet in ${inDays(left)} · ${name(p.player_id)}`,
       text:
         data.role === "parent"
           ? `Der Zeitraum für ${name(p.player_id)} läuft am ${shortDate(end)} aus. In Mein Konto kannst du verlängern.`

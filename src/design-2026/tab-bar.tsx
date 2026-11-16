@@ -5,6 +5,17 @@ import Link from "next/link";
 import { LayoutGrid } from "lucide-react";
 import type { SpotlightItem } from "./spotlight";
 
+const shortNames: Record<string, string> = {
+  Trainingsplanung: "Planung",
+  Stempelkarten: "Stempel",
+  Elternprofile: "Eltern",
+  Spielerprofil: "Spieler",
+  Spielerprofile: "Spieler",
+  Mitarbeiter: "Team",
+};
+const short = (title: string) =>
+  shortNames[title] ?? title.replace("Meine ", "").replace("Mein ", "");
+
 export function TabBar({
   items,
   isActive,
@@ -26,7 +37,7 @@ export function TabBar({
           <span className="d26-tab-icon">
             <item.icon size={20} />
           </span>
-          <span>{item.title.replace("Meine ", "").replace("Mein ", "")}</span>
+          <span>{short(item.title)}</span>
         </Link>
       ))}
       <button type="button" onClick={openMenu}>

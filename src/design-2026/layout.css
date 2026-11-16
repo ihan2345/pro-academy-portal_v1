@@ -677,6 +677,7 @@
       left: 12px;
       right: 12px;
       width: auto;
+      max-height: calc(100dvh - 64px - 108px - env(safe-area-inset-bottom));
     }
   }
 }
@@ -723,5 +724,15 @@
   :root[data-design="2026"] .d26-bell-badge,
   :root[data-design="2026"] .d26-note.tone-sos {
     animation: none !important;
+  }
+}
+
+/* Profil-Listen: Spalte darf auf dem Handy nicht breiter als der Bildschirm werden. */
+:root[data-design="2026"] {
+  & .parent-profile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  & .parent-profile > * {
+    min-width: 0;
   }
 }
