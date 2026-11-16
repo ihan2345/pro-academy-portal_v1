@@ -14,3 +14,15 @@ export function canOpenPortalSection(role: PortalRole, section: string) {
     return role === "staff";
   return role === "parent";
 }
+
+export type CampAccess = "active" | "past" | "only";
+/**
+ * Camp access never grants training or stamp-card rights. Those follow the
+ * actual subscriptions; account, Camp, profile and shop areas stay open.
+ */
+export function campAccessRedirect(access: CampAccess, section: string) {
+  if (access === "active") return null;
+  if (section === "" || section === "stempelkarte") return "/camps";
+  if (access === "only" && section === "termine") return "/camps";
+  return null;
+}

@@ -2120,6 +2120,158 @@ it("does not claim another email, an ambiguous family, a staff profile or an alr
   }
 });
 
+it("activates an existing Camp-only family through self-activation and invitation, without Stripe mapping", async () => {
+  await db.exec("begin");
+  try {
+    const camper = id(1970),
+      campFamily = id(1971),
+      invited = id(1972),
+      invitedFamily = id(1973),
+      noBasis = id(1974);
+    const camp_id = id(1975),
+      offer_id = id(1977);
+    await db.query(
+      "insert into camps(id,title,location,capacity,days,status,payment_mode) values($1,'Aktivierungscamp','Platz',10,jsonb_build_array(jsonb_build_object('starts_at',now()-interval '20 days','ends_at',now()-interval '20 days'+interval '5 hours')),'closed','live')",
+      [camp_id],
+    );
+    await db.query(
+      "insert into plans(id,name,included_units,generation,is_camp,camp_id)values($1,'Aktivierungscamp',0,'special',true,$2)",
+      [id(1976), camp_id],
+    );
+    await db.query(
+      "insert into camp_offers(id,camp_id,plan_id,kind,stripe_price_id,stripe_product_id,stripe_payment_link_id,payment_url,amount)values($1,$2,$3,'main','price_activation_camp','prod_activation_camp','plink_activation_camp','https://buy.stripe.com/activation',9900)",
+      [offer_id, camp_id, id(1976)],
+    );
+    await db.query(
+      "insert into auth.users values($1,'camp-only-1970@example.invalid',null),($2,'camp-invite-1972@example.invalid',now())",
+      [camper, invited],
+    );
+    await db.query(
+      "insert into parents(id,full_name,contact_email,notifications_held) values($1,'Campfamilie','Camp-Only-1970@example.invalid',true),($2,'Eingeladene Campfamilie','camp-invite-1972@example.invalid',true),($3,'Ohne Grundlage','no-basis-1974@example.invalid',true)",
+      [campFamily, invitedFamily, noBasis],
+    );
+    const book = (parent: string, status: string, paid: boolean) =>
+      db.query(
+        `insert into camp_bookings(id,camp_id,offer_id,parent_id,booking_origin,browser_token_hash,parent_data,child_data,customer_group,status,paid_at,expected_amount,currency,stripe_price_id,stripe_payment_link_id) values(gen_random_uuid(),$1,$2,$3,'portal_checkout','camp-only-activation','{}','{}','new',$4,${paid ? "now()-interval '30 days'" : "null"},9900,'eur','price_camp_api',null)`,
+        [camp_id, offer_id, parent, status],
+      );
+    const available = async (email: string) =>
+      (
+        await db.query<any>(
+          "select parent_self_activation_available($1) available",
+          [email],
+        )
+      ).rows[0].available;
+    // Neither an unpaid, refunded nor cancelled booking is an activation basis.
+    await book(campFamily, "draft", false);
+    await book(campFamily, "refunded", true);
+    await book(noBasis, "cancelled", true);
+    expect(await available("camp-only-1970@example.invalid")).toBe(false);
+    expect(await available("no-basis-1974@example.invalid")).toBe(false);
+    await book(campFamily, "paid", true);
+    await book(invitedFamily, "paid", true);
+    expect(await available(" CAMP-ONLY-1970@example.invalid ")).toBe(true);
+    expect(
+      (
+        await db.query<any>(
+          "select parent_activation_basis_kind($1) camp,parent_activation_basis_kind($2) none",
+          [campFamily, noBasis],
+        )
+      ).rows[0],
+    ).toEqual({ camp: "paid_camp", none: null });
+
+    // Linking only after a confirmed email login; old holds stay untouched.
+    await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+      camper,
+    ]);
+    await db.exec("savepoint camp_unverified");
+    await expect(db.query("select activate_verified_parent()")).rejects.toThrow(
+      /Bestätigte Anmeldung/,
+    );
+    await db.exec("rollback to camp_unverified");
+    await db.query(
+      "update auth.users set email_confirmed_at=now() where id=$1",
+      [camper],
+    );
+    expect(
+      (await db.query<any>("select activate_verified_parent() id")).rows[0].id,
+    ).toBe(campFamily);
+    expect(
+      (
+        await db.query<any>(
+          "select auth_user_id,notifications_held,(select count(*)::int from parents where lower(contact_email)='camp-only-1970@example.invalid') families from parents where id=$1",
+          [campFamily],
+        )
+      ).rows[0],
+    ).toEqual({ auth_user_id: camper, notifications_held: true, families: 1 });
+    expect(
+      (
+        await db.query<any>(
+          "select new_value->>'basis' basis from audit_log where action='PARENT_SELF_ACTIVATED' and record_id=$1",
+          [campFamily],
+        )
+      ).rows,
+    ).toEqual([{ basis: "paid_camp" }]);
+    expect(
+      (
+        await db.query<any>(
+          "select count(*)::int n from parent_stripe_customers where parent_id=$1",
+          [campFamily],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+
+    // Invitation acceptance supports the same Camp family.
+    await db.query(
+      "insert into parent_invitations(parent_id,email,token_hash,expires_at) values($1,'camp-invite-1972@example.invalid','camp-invite-hash',now()+interval '1 day')",
+      [invitedFamily],
+    );
+    await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+      invited,
+    ]);
+    expect(
+      (await db.query<any>("select accept_invitation('camp-invite-hash') id"))
+        .rows[0].id,
+    ).toBe(invitedFamily);
+    expect(
+      (
+        await db.query<any>("select auth_user_id from parents where id=$1", [
+          invitedFamily,
+        ])
+      ).rows[0].auth_user_id,
+    ).toBe(invited);
+
+    // Manual release checks the same basis and keeps its recipient gate.
+    await db.query("select set_config('request.jwt.claim.sub',$1,true)", [
+      id(1),
+    ]);
+    const release = (parent: string) =>
+      db.query("select release_parent_invitation($1)", [
+        {
+          parent_id: parent,
+          actor_id: id(1),
+          token_hash: "b".repeat(64),
+          url: "https://portal.proacademy-ak.com/einladung?token=x",
+        },
+      ]);
+    await db.exec("savepoint release_without_basis");
+    await expect(release(noBasis)).rejects.toThrow(/activation basis/);
+    await db.exec("rollback to release_without_basis");
+    await db.exec("savepoint release_camp");
+    await expect(release(campFamily)).rejects.toThrow(/Recipient not released/);
+    await db.exec("rollback to release_camp");
+    expect(
+      (
+        await db.query<any>(
+          "select has_function_privilege('authenticated','public.parent_activation_basis(uuid)','execute') a,has_function_privilege('anon','public.parent_activation_basis_kind(uuid)','execute') b",
+        )
+      ).rows[0],
+    ).toEqual({ a: false, b: false });
+  } finally {
+    await db.exec("rollback");
+  }
+});
+
 it("releases only prospective verified Camp mail, respecting opt-outs and leaving the old queue untouched", async () => {
   await db.exec("begin");
   try {

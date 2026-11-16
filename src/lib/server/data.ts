@@ -10,7 +10,11 @@ import { redirect } from "next/navigation";
 import type { PortalData, Training, Report } from "../types";
 import { sessionUser } from "./supabase";
 import { periodLabel, disciplineStats, isRemovedParticipant } from "../domain";
-import { canOpenPortalSection, portalHome } from "../portal-access";
+import {
+  campAccessRedirect,
+  canOpenPortalSection,
+  portalHome,
+} from "../portal-access";
 export async function loadPortal(section: string): Promise<PortalData> {
   const session = await sessionUser();
   if (!session?.role) redirect("/login");
@@ -32,13 +36,8 @@ export async function loadPortal(section: string): Promise<PortalData> {
       : benefits.some((b) => b.group === "former")
         ? "past"
         : "only";
-    if (
-      campAccess !== "active" &&
-      (section === "" ||
-        section === "stempelkarte" ||
-        (campAccess === "only" && section === "termine"))
-    )
-      redirect("/camps");
+    const target = campAccessRedirect(campAccess, section);
+    if (target) redirect(target);
   }
   const { db } = session;
   const results = await Promise.all([

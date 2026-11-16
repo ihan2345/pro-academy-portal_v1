@@ -5,6 +5,31 @@ import { SiteFooter } from "./site-footer";
 import { useEffect, useState } from "react";
 import { Mail, ArrowRight, ShieldCheck } from "lucide-react";
 import { Brand } from "./portal";
+const REQUEST_FAILED =
+  "Der Code konnte gerade nicht angefordert werden. Bitte prüfe deine Internetverbindung und versuche es in einigen Minuten erneut.";
+const VERIFY_FAILED =
+  "Der Code konnte gerade nicht geprüft werden. Bitte prüfe deine Internetverbindung und versuche es erneut.";
+/** Never show raw network or parser errors; the server message wins when present. */
+async function postJson(url: string, body: unknown, fallback: string) {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(fallback);
+  }
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result)
+    throw new Error(
+      typeof result?.error === "string" && result.error
+        ? result.error
+        : fallback,
+    );
+  return result;
+}
 export function LoginForm({
   initialError = "",
   playerId,
@@ -44,27 +69,22 @@ export function LoginForm({
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await postJson(
+        "/api/auth/login",
+        {
           email: email.trim().toLowerCase(),
           ...(playerId ? { player_id: playerId } : {}),
           ...(returnToShop ? { return_to_shop: true } : {}),
           ...(returnTo ? { return_to: returnTo } : {}),
-        }),
-      });
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Bitte versuche es erneut.");
+        },
+        REQUEST_FAILED,
+      );
       setCode("");
       setSent(true);
       setCooldown(60);
       setCooldownUntil(Date.now() + 60000);
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Bitte versuche es erneut.",
-      );
+      setMessage(error instanceof Error ? error.message : REQUEST_FAILED);
     } finally {
       setBusy(false);
     }
@@ -102,25 +122,15 @@ export function LoginForm({
                 setBusy(true);
                 setMessage("");
                 try {
-                  const response = await fetch("/api/auth/verify", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      email: email.trim().toLowerCase(),
-                      code,
-                    }),
-                  });
-                  const result = await response.json();
-                  if (!response.ok)
-                    throw new Error(
-                      result.error || "Bitte versuche es erneut.",
-                    );
+                  const result = await postJson(
+                    "/api/auth/verify",
+                    { email: email.trim().toLowerCase(), code },
+                    VERIFY_FAILED,
+                  );
                   window.location.assign(result.redirect);
                 } catch (error) {
                   setMessage(
-                    error instanceof Error
-                      ? error.message
-                      : "Bitte versuche es erneut.",
+                    error instanceof Error ? error.message : VERIFY_FAILED,
                   );
                   setBusy(false);
                 }
