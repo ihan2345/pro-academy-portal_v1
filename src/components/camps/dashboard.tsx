@@ -774,6 +774,15 @@ export function CampDashboard({
                               <span>{label}</span>
                             </div>
                           ))}
+                          {DESIGN_2026 &&
+                            (camp.occupied ?? paid.length) > paid.length && (
+                              <div>
+                                <b>
+                                  {(camp.occupied ?? paid.length) - paid.length}
+                                </b>
+                                <span>In Prüfung</span>
+                              </div>
+                            )}
                         </div>
                         <p className="camp-muted">
                           {camp.capacity} reguläre Plätze +{" "}

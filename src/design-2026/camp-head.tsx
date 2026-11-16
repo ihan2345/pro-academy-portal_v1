@@ -3,6 +3,7 @@
 // Rechnet nur mit den bereits geladenen Camp-Daten.
 import { CalendarDays, Euro, Ticket, Users } from "lucide-react";
 import { formatDate } from "@/lib/domain";
+import { maximumSeats } from "@/lib/camps/domain";
 import { PageHead, SheetRow } from "./page-head";
 
 type CampLite = {
@@ -10,6 +11,7 @@ type CampLite = {
   title: string;
   location: string;
   capacity: number;
+  buffer_percent: number;
   status: string;
   occupied?: number;
   days: { starts_at: string }[];
@@ -49,7 +51,7 @@ export function CampHead({
       s +
       Math.max(
         0,
-        c.capacity -
+        maximumSeats(c) -
           (c.occupied ?? paid.filter((b) => b.camp_id === c.id).length),
       ),
     0,
@@ -65,7 +67,7 @@ export function CampHead({
             key={c.id}
             title={c.title}
             meta={`${formatDate(c.days[0].starts_at)} · ${c.location}`}
-            pill={`${Math.max(0, c.capacity - taken)} frei`}
+            pill={`${Math.max(0, maximumSeats(c) - taken)} frei`}
             href={`/camps/${c.id}`}
           />
         );
@@ -122,7 +124,7 @@ export function CampHead({
           icon: Users,
           value: free,
           label: "Freie Plätze",
-          tip: "Über alle kommenden Camps",
+          tip: "Über alle kommenden Camps, inklusive Pufferplätzen und Buchungen in Prüfung, wie im Camp-Detail",
           sheet: { title: "Freie Plätze je Camp", body: campList },
         },
         ...(team

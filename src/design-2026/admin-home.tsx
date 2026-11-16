@@ -159,10 +159,10 @@ function AdminHomeView({ data }: { data: PortalData }) {
   const kpis = [
     {
       key: "players" as const,
-      label: "Spieler",
+      label: "Spieler gesamt",
       value: data.players.length,
       icon: Users,
-      tip: "Aufteilung nach Team ansehen",
+      tip: "Alle Spielerprofile, auch ohne aktives Abo. Spielerprofile zeigt nur Spieler mit aktivem Abo.",
     },
     {
       key: "week" as const,
