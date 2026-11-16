@@ -14,6 +14,19 @@ const EVENT = "d26-decisions";
 const DAY = 86400000;
 
 let shared: { map: Map; available: boolean; at: number } | null = null;
+/** Letzter Speicherfehler: die Markierung gilt dann nur in diesem Browser. */
+let failed = "";
+/** Glocke lädt offene Vorgänge nach jeder Markierung neu. */
+export const CHANGED = "d26-decisions-changed";
+function dropActivityCache() {
+  try {
+    for (const k of Object.keys(sessionStorage))
+      if (k.startsWith("d26-notify:/api/activities"))
+        sessionStorage.removeItem(k);
+  } catch {
+    /* Egal. */
+  }
+}
 let pending: Promise<void> | null = null;
 
 function readLocal(): Map {
@@ -103,6 +116,7 @@ export function useDecisions(enabled = true) {
           }),
         });
         if (!r.ok) throw Error(String(r.status));
+        failed = "";
         // Gemeinsam gespeichert: lokale Kopie dieses Schlüssels aufräumen.
         const local = readLocal();
         if (local[key]) {
@@ -110,18 +124,26 @@ export function useDecisions(enabled = true) {
           writeLocal(local);
         }
       } catch {
-        // Noch nicht eingerichtet oder offline: im Browser merken.
+        // Nicht gespeichert (offline, gesperrt oder nicht eingerichtet):
+        // im Browser merken und das deutlich sagen.
         const local = readLocal();
         if (state === "open") delete local[key];
         else local[key] = next[key];
         writeLocal(local);
+        failed =
+          "Konnte nicht für alle gespeichert werden. Die Markierung gilt vorerst nur auf diesem Gerät.";
+      } finally {
+        dropActivityCache();
+        window.dispatchEvent(new Event(EVENT));
+        window.dispatchEvent(new Event(CHANGED));
       }
     },
     [],
   );
   return {
     map,
-    available: shared?.available ?? false,
+    available: (shared?.available ?? false) && !failed,
+    error: failed,
     hidden: (key: string, now = Date.now()) => noticeHidden(map[key], now),
     decide,
   };

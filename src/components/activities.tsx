@@ -182,10 +182,16 @@ export function Activities({
               <p>
                 Aktueller Stand, unabhängig vom Alter des Eintrags.
                 {DESIGN_2026 &&
+                  !decisions.error &&
                   (decisions.available
                     ? " Erledigt, Ignorieren und Erinnern gelten für alle Admins."
                     : " Markierungen gelten vorerst nur in diesem Browser.")}
               </p>
+              {DESIGN_2026 && decisions.error && (
+                <p role="alert" className="activity-decide-error">
+                  {decisions.error}
+                </p>
+              )}
               <ActivityFeed
                 window="issues"
                 asOf={summary.asOf}
