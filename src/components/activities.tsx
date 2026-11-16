@@ -3,6 +3,9 @@ import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import {
   Activity as ActivityIcon,
+  Check,
+  Clock3,
+  EyeOff,
   Info,
   RefreshCw,
   TriangleAlert,
@@ -12,6 +15,11 @@ import { calendarDate } from "@/lib/calendar";
 import { formatDate, formatTime } from "@/lib/domain";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { PageHead } from "@/design-2026/page-head";
+import {
+  IN_7_DAYS,
+  decisionLabel,
+  useDecisions,
+} from "@/design-2026/decisions";
 
 export function ActivityBadge() {
   const [count, setCount] = useState<number | null>(null);
@@ -58,11 +66,17 @@ export function Activities({
 }) {
   const [summary, setSummary] = useState<ActivitySummary | null>(null),
     [error, setError] = useState(""),
-    [revision, setRevision] = useState(0);
+    [revision, setRevision] = useState(0),
+    [openCount, setOpenCount] = useState<number | null>(null);
+  const decisions = useDecisions(DESIGN_2026);
+  const anyDecided = Object.keys(decisions.map).some((k) =>
+    k.startsWith("act:"),
+  );
   useEffect(() => {
     const abort = new AbortController();
     setError("");
     setSummary(null);
+    setOpenCount(null);
     fetch("/api/activities/summary", {
       signal: abort.signal,
       cache: "no-store",
@@ -78,6 +92,7 @@ export function Activities({
       });
     return () => abort.abort();
   }, [revision]);
+  const open = openCount ?? summary?.open ?? 0;
   return (
     <div className="activities-page">
       {DESIGN_2026 ? (
@@ -85,7 +100,7 @@ export function Activities({
           title={all ? "Alle Aktivitäten" : "Aktivitäten"}
           greeting={
             summary
-              ? `${summary.recent} Aktivitäten in den letzten 72 Stunden${summary.open ? `, ${summary.open} ${summary.open === 1 ? "Vorgang braucht" : "Vorgänge brauchen"} noch Aufmerksamkeit` : ", nichts ist offen"}.`
+              ? `${summary.recent} Aktivitäten in den letzten 72 Stunden${open ? `, ${open} ${open === 1 ? "Vorgang braucht" : "Vorgänge brauchen"} noch Aufmerksamkeit` : ", nichts ist offen"}.`
               : "Was in der Academy passiert, verständlich zusammengefasst."
           }
           actions={
@@ -101,9 +116,9 @@ export function Activities({
               ? [
                   {
                     icon: TriangleAlert,
-                    value: summary.open,
+                    value: open,
                     label: "Offen",
-                    alert: summary.open > 0,
+                    alert: open > 0,
                     onClick: () =>
                       document
                         .querySelector(".activity-open")
@@ -161,11 +176,22 @@ export function Activities({
       {!summary && !error && <p role="status">Aktivitäten werden geladen …</p>}
       {summary && (
         <div key={`${summary.asOf}:${revision}`}>
-          {summary.open > 0 && (
+          {(summary.open > 0 || (DESIGN_2026 && anyDecided)) && (
             <section className="panel activity-open">
-              <h2>Noch offen · {summary.open}</h2>
-              <p>Aktueller Stand, unabhängig vom Alter des Eintrags.</p>
-              <ActivityFeed window="issues" asOf={summary.asOf} />
+              <h2>Noch offen · {open}</h2>
+              <p>
+                Aktueller Stand, unabhängig vom Alter des Eintrags.
+                {DESIGN_2026 &&
+                  (decisions.available
+                    ? " Erledigt, Ignorieren und Erinnern gelten für alle Admins."
+                    : " Markierungen gelten vorerst nur in diesem Browser.")}
+              </p>
+              <ActivityFeed
+                window="issues"
+                asOf={summary.asOf}
+                decisions={DESIGN_2026 ? decisions : undefined}
+                onOpenCount={setOpenCount}
+              />
             </section>
           )}
           {all ? (
@@ -234,10 +260,14 @@ function ActivityFeed({
   window,
   asOf,
   groupDates = false,
+  decisions,
+  onOpenCount,
 }: {
   window: string;
   asOf: string;
   groupDates?: boolean;
+  decisions?: ReturnType<typeof useDecisions>;
+  onOpenCount?: (n: number) => void;
 }) {
   const [rows, setRows] = useState<Activity[]>([]),
     [next, setNext] = useState<string | null>(null),
@@ -281,6 +311,16 @@ function ActivityFeed({
       });
     return () => abort.abort();
   }, [window, asOf, cursor, retry]);
+  const hiddenRows = decisions
+    ? rows.filter((r) => decisions.hidden(`act:${r.id}`))
+    : [];
+  const shownRows = decisions
+    ? rows.filter((r) => !decisions.hidden(`act:${r.id}`))
+    : rows;
+  const openNow = Math.max(0, total - hiddenRows.length);
+  useEffect(() => {
+    if (onOpenCount && !loading && !error) onOpenCount(openNow);
+  }, [onOpenCount, openNow, loading, error]);
   const groups = new Map<string, Activity[]>();
   for (const row of rows) {
     const day = calendarDate(row.at);
@@ -298,11 +338,72 @@ function ActivityFeed({
           />
         ))
       ) : (
-        <ActivityRows rows={rows} />
+        <ActivityRows
+          rows={shownRows}
+          actions={
+            decisions
+              ? (row) => {
+                  const key = `act:${row.id}`;
+                  return (
+                    <div className="activity-decide">
+                      <button
+                        type="button"
+                        onClick={() => decisions.decide(key, "done")}
+                      >
+                        <Check size={13} /> Erledigt
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          decisions.decide(key, "snoozed", IN_7_DAYS())
+                        }
+                      >
+                        <Clock3 size={13} /> In 7 Tagen erinnern
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => decisions.decide(key, "ignored")}
+                      >
+                        <EyeOff size={13} /> Ignorieren
+                      </button>
+                    </div>
+                  );
+                }
+              : undefined
+          }
+        />
       )}
       {loading && <p role="status">Wird geladen …</p>}
-      {!loading && !error && !rows.length && (
-        <p className="profile-muted">Keine Aktivitäten in diesem Zeitraum.</p>
+      {!loading && !error && !shownRows.length && (
+        <p className="profile-muted">
+          {decisions
+            ? "Nichts mehr offen."
+            : "Keine Aktivitäten in diesem Zeitraum."}
+        </p>
+      )}
+      {decisions && hiddenRows.length > 0 && (
+        <details className="activity-decided">
+          <summary>
+            {hiddenRows.length} erledigt, ignoriert oder zurückgestellt
+          </summary>
+          <ul>
+            {hiddenRows.map((r) => (
+              <li key={r.id}>
+                <span>
+                  <b>{r.title}</b>
+                  {r.subject && <small>{r.subject}</small>}
+                </span>
+                <em>{decisionLabel(decisions.map[`act:${r.id}`])}</em>
+                <button
+                  type="button"
+                  onClick={() => decisions.decide(`act:${r.id}`, "open")}
+                >
+                  Wieder öffnen
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {error && (
         <div role="alert">
@@ -351,7 +452,13 @@ function DateGroup({
     </details>
   );
 }
-export function ActivityRows({ rows }: { rows: Activity[] }) {
+export function ActivityRows({
+  rows,
+  actions,
+}: {
+  rows: Activity[];
+  actions?: (row: Activity) => React.ReactNode;
+}) {
   return (
     <ol className="activity-list">
       {rows.map((row) => (
@@ -378,6 +485,7 @@ export function ActivityRows({ rows }: { rows: Activity[] }) {
               · {row.actor}
             </small>
             {row.help && <ActivityHelp title={row.title} help={row.help} />}
+            {actions?.(row)}
           </div>
         </li>
       ))}

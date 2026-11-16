@@ -15,6 +15,7 @@ import {
   CalendarDays,
   Check,
   Clock3,
+  EyeOff,
   CreditCard,
   ExternalLink,
   FileText,
@@ -28,11 +29,13 @@ import type { StripeBillingConflictPage } from "@/lib/stripe-conflicts";
 import type { Activity, ActivitySummary } from "@/lib/activities";
 import { formatDate, formatTime } from "@/lib/domain";
 import { calendarDate } from "@/lib/calendar";
+import { useDecisions } from "./decisions";
 
 type Tone = "sos" | "urgent" | "warn" | "info" | "good";
 type Action =
   | { label: string; kind: "snooze"; until: number }
-  | { label: string; kind: "done" };
+  | { label: string; kind: "done" }
+  | { label: string; kind: "ignore" };
 export type Note = {
   /** Eindeutig je Stufe: eine neue Eskalationsstufe gilt wieder als ungelesen. */
   id: string;
@@ -453,21 +456,46 @@ function activityNotes(
   rows: Activity[],
   base: string,
   players: PortalData["players"] = [],
+  issues: Activity[] = [],
+  hidden: (key: string) => boolean = () => false,
 ): Note[] {
   const notes: Note[] = [];
-  if (summary?.open)
+  // Offene Vorgänge einzeln, damit jeder für sich erledigt, ignoriert oder
+  // zurückgestellt werden kann. Bei sehr vielen bleibt ein Sammelhinweis.
+  const shown = issues.filter((a) => !hidden(`act:${a.id}`));
+  for (const a of shown.slice(0, 20)) {
+    const target = activityTarget(a, base, players)!;
     notes.push({
-      id: `act-open:${summary.open}`,
+      id: `act-open:${a.id}`,
+      key: `act:${a.id}`,
+      tone: "warn",
+      icon: AlertTriangle,
+      title: a.title,
+      text: a.subject ? `${a.subject}: ${a.text}` : a.text,
+      at: a.at,
+      href: target.href,
+      open: target,
+      group: "now",
+    });
+  }
+  const rest = issues.length ? shown.length - 20 : (summary?.open ?? 0);
+  if (rest > 0)
+    notes.push({
+      id: `act-open:${rest}`,
       key: "act-open",
       tone: "warn",
       icon: Inbox,
-      title: `${summary.open} ${summary.open === 1 ? "Aktivität braucht" : "Aktivitäten brauchen"} dich`,
+      title: issues.length
+        ? `${rest} weitere offene ${rest === 1 ? "Vorgang" : "Vorgänge"}`
+        : `${rest} ${rest === 1 ? "Aktivität braucht" : "Aktivitäten brauchen"} dich`,
       text: "Offene Vorgänge aus Buchungen, Zahlungen und Trainings.",
       href: `${base}/aktivitaeten`,
       open: { label: "Offene Vorgänge ansehen", href: `${base}/aktivitaeten` },
       group: "now",
     });
-  for (const a of rows.slice(0, 4))
+  for (const a of rows
+    .filter((r) => !issues.some((i) => i.id === r.id))
+    .slice(0, 4))
     notes.push({
       id: `act:${a.id}`,
       key: `act:${a.id}`,
@@ -518,6 +546,7 @@ export function NotificationBell({
     else window.location.assign(href);
   };
   const staff = data.role !== "parent";
+  const decisions = useDecisions(staff);
 
   useEffect(() => {
     setStore(load());
@@ -532,10 +561,14 @@ export function NotificationBell({
     let alive = true;
     // Erst nach dem Seitenaufbau laden, damit die Seite selbst Vorrang hat.
     const timer = setTimeout(async () => {
-      const [summary, list, conflicts] = await Promise.all([
+      const [summary, list, issues, conflicts] = await Promise.all([
         cached<ActivitySummary>("/api/activities/summary", 5 * 60000),
         cached<{ rows: Activity[] }>(
           "/api/activities?window=0&limit=3",
+          5 * 60000,
+        ),
+        cached<{ rows: Activity[] }>(
+          "/api/activities?window=issues&limit=50",
           5 * 60000,
         ),
         data.role === "admin"
@@ -574,6 +607,7 @@ export function NotificationBell({
           list.ok ? list.v.rows : [],
           base,
           data.players,
+          issues.ok ? issues.v.rows : [],
         ),
       ]);
     }, 2500);
@@ -590,12 +624,19 @@ export function NotificationBell({
         rank[a.tone] - rank[b.tone] || (b.at ?? "").localeCompare(a.at ?? ""),
     );
   }, [remote, data, now, base]);
-  const visible = all.filter(
-    (n) => !store.done[n.key] && !((store.snooze[n.key] ?? 0) > now),
-  );
-  const snoozed = all.filter(
-    (n) => !store.done[n.key] && (store.snooze[n.key] ?? 0) > now,
-  );
+  // Markierungen: bei Mitarbeitern gemeinsam gespeichert (Release 050),
+  // ältere Markierungen aus diesem Browser gelten weiter.
+  const remindAt = (key: string) => {
+    const d = decisions.map[key];
+    return d?.state === "snoozed" && d.remind_at
+      ? Math.max(Date.parse(d.remind_at), store.snooze[key] ?? 0)
+      : (store.snooze[key] ?? 0);
+  };
+  const closed = (key: string) =>
+    !!store.done[key] ||
+    ["done", "ignored"].includes(decisions.map[key]?.state ?? "");
+  const visible = all.filter((n) => !closed(n.key) && !(remindAt(n.key) > now));
+  const snoozed = all.filter((n) => !closed(n.key) && remindAt(n.key) > now);
   const unseen = visible.filter((n) => !store.seen[n.id]);
   const sos = visible.some((n) => n.tone === "sos");
 
@@ -640,12 +681,39 @@ export function NotificationBell({
   }, [open]);
 
   function act(n: Note, a: Action) {
+    if (staff) {
+      void decisions.decide(
+        n.key,
+        a.kind === "done"
+          ? "done"
+          : a.kind === "ignore"
+            ? "ignored"
+            : "snoozed",
+        a.kind === "snooze" ? a.until : undefined,
+      );
+      return;
+    }
     update((s) =>
-      a.kind === "done"
-        ? { ...s, done: { ...s.done, [n.key]: Date.now() } }
-        : { ...s, snooze: { ...s.snooze, [n.key]: a.until } },
+      a.kind === "snooze"
+        ? { ...s, snooze: { ...s.snooze, [n.key]: a.until } }
+        : { ...s, done: { ...s.done, [n.key]: Date.now() } },
     );
   }
+  /** Jeder offene Hinweis für Mitarbeiter: Erinnern, Erledigt, Ignorieren. */
+  const actionsFor = (n: Note): Action[] | undefined => {
+    if (!staff || n.group !== "now") return n.actions;
+    const list = [...(n.actions ?? [])];
+    if (!list.some((a) => a.kind === "snooze"))
+      list.unshift({
+        label: "In 7 Tagen erinnern",
+        kind: "snooze",
+        until: now + 7 * DAY,
+      });
+    if (!list.some((a) => a.kind === "done"))
+      list.push({ label: "Erledigt", kind: "done" });
+    list.push({ label: "Ignorieren", kind: "ignore" });
+    return list;
+  };
 
   const now_ = visible.filter((n) => n.group === "now");
   const news = visible.filter((n) => n.group === "news");
@@ -680,7 +748,7 @@ export function NotificationBell({
             </a>
           )}
         </div>
-        {(!!n.actions?.length || n.open) && (
+        {(!!actionsFor(n)?.length || n.open) && (
           <div className="d26-note-actions">
             {n.open && (
               <Link
@@ -697,14 +765,26 @@ export function NotificationBell({
                 {n.open.label} <ArrowRight size={13} />
               </Link>
             )}
-            {(n.actions ?? []).map((a) => (
+            {(actionsFor(n) ?? []).map((a) => (
               <button
                 key={a.label}
                 type="button"
-                className={a.kind === "done" ? "is-done" : ""}
+                className={
+                  a.kind === "done"
+                    ? "is-done"
+                    : a.kind === "ignore"
+                      ? "is-ignore"
+                      : ""
+                }
                 onClick={() => act(n, a)}
               >
-                {a.kind === "done" ? <Check size={13} /> : <Clock3 size={13} />}
+                {a.kind === "done" ? (
+                  <Check size={13} />
+                ) : a.kind === "ignore" ? (
+                  <EyeOff size={13} />
+                ) : (
+                  <Clock3 size={13} />
+                )}
                 {a.label}
               </button>
             ))}
@@ -796,25 +876,23 @@ export function NotificationBell({
                         <div>
                           <span className="d26-note-title">{n.title}</span>
                           <p>
-                            Erinnert wieder{" "}
-                            {shortDate(store.snooze[n.key] ?? now)},{" "}
+                            Erinnert wieder {shortDate(remindAt(n.key) || now)},{" "}
                             {formatTime(
-                              new Date(
-                                store.snooze[n.key] ?? now,
-                              ).toISOString(),
+                              new Date(remindAt(n.key) || now).toISOString(),
                             )}
                             .
                           </p>
                           <div className="d26-note-actions">
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={() => {
                                 update((s) => {
                                   const snooze = { ...s.snooze };
                                   delete snooze[n.key];
                                   return { ...s, snooze };
-                                })
-                              }
+                                });
+                                if (staff) void decisions.decide(n.key, "open");
+                              }}
                             >
                               Jetzt wieder zeigen
                             </button>
@@ -828,7 +906,11 @@ export function NotificationBell({
             )}
           </div>
           {staff && (
-            <footer>Gelesen und Zurückstellen gelten für dieses Gerät.</footer>
+            <footer>
+              {decisions.available
+                ? "Erledigt, Ignorieren und Erinnern gelten für alle im Team. Gelesen gilt für dieses Gerät."
+                : "Markierungen gelten vorerst für dieses Gerät."}
+            </footer>
           )}
         </div>
       )}
