@@ -25,6 +25,9 @@ permissions:
 jobs:
   check:
     name: Typecheck und Tests
+    # Läuft in jedem Pull Request und bei manuellem Start. Nach dem Merge in
+    # main nicht noch einmal: Der PR hat dieselben Prüfungen schon bestanden.
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -41,7 +44,13 @@ jobs:
     name: Build und Deploy (Cloudflare production)
     needs: check
     # Nur aus main veröffentlichen, nie aus Pull Requests oder anderen Branches.
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # Nach einem Merge ist "check" übersprungen; bei manuellem Start muss er grün sein.
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name != 'pull_request' &&
+      (needs.check.result == 'success' ||
+      (needs.check.result == 'skipped' && github.event_name == 'push'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
