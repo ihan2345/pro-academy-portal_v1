@@ -14,6 +14,7 @@ import {
   MapPin,
   Phone,
   Search,
+  Stamp,
   UserRound,
   Users,
 } from "lucide-react";
@@ -867,9 +868,17 @@ export function ProfileView({
           >
             {regularChildren.map((c) => (
               <article
-                className={`panel profile-child premium-child ${childCardTheme(c.products)}`}
+                className={`panel profile-child premium-child ${childCardTheme(c.products)}${data.role === "parent" ? "" : " is-linked"}`}
                 key={c.id}
               >
+                {data.role !== "parent" && (
+                  <Link
+                    href={`/${data.role === "admin" ? "admin" : "team"}/spieler/${c.id}`}
+                    className="profile-child-card-link"
+                    aria-label={`Spielerprofil von ${c.name} öffnen`}
+                    prefetch={false}
+                  />
+                )}
                 <div className="profile-child-head">
                   <span className="child-avatar">
                     {childInitials(c.first_name, c.last_name)}
@@ -879,6 +888,17 @@ export function ProfileView({
                     <small>{c.age}</small>
                   </div>
                   {c.archived && <Badge>Archiviert</Badge>}
+                  {!c.archived && (
+                    <Link
+                      className="profile-child-stamp-link"
+                      href={`${data.role === "parent" ? "/stempelkarte" : data.role === "admin" ? "/admin/stempelkarten" : "/team/stempelkarten"}?child=${encodeURIComponent(c.id)}`}
+                      aria-label={`Stempelkarte von ${c.name} öffnen`}
+                      title="Stempelkarte öffnen"
+                      prefetch={false}
+                    >
+                      <Stamp size={18} aria-hidden="true" />
+                    </Link>
+                  )}
                 </div>
                 <p className="profile-product">
                   {c.products.join(" · ") || "Kein aktuelles Abo"}

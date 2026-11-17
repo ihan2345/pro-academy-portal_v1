@@ -5884,3 +5884,45 @@ label {
     grid-column: auto;
   }
 }
+
+/* Kinderkarten im Elternprofil: ganze Karte öffnet das Spielerprofil
+   (Verwaltung/Team), Stempel-Symbol öffnet die Stempelkarte. */
+.profile-child > .profile-child-card-link {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+}
+.profile-child-card-link:focus-visible {
+  outline: 3px solid var(--child-accent, var(--purple));
+  outline-offset: -5px;
+}
+.profile-child.is-linked .profile-child-actions,
+.profile-child .profile-child-stamp-link {
+  position: relative;
+  z-index: 3;
+}
+.profile-child-head .profile-child-stamp-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  margin-left: auto;
+  border-radius: 10px;
+  color: inherit;
+}
+.profile-child-stamp-link:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.profile-child-stamp-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .profile-child.is-linked:has(.profile-child-card-link:hover) {
+    border-color: var(--child-accent, var(--purple));
+    cursor: pointer;
+  }
+}
