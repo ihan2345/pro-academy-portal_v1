@@ -4,13 +4,13 @@ Workflow: [`.github/workflows/deploy-production.yml`](../.github/workflows/deplo
 
 ## Was passiert
 
-| Ereignis                            | Ablauf                                                                                                                                       |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pull Request gegen `main`           | `npm run typecheck` und `npm test`. Kein Deployment.                                                                                         |
-| Merge/Push in `main`                | Prüfungen, danach `npm run build:cloudflare -- --env production` und `wrangler deploy --env production` → `https://portal.proacademy-ak.com` |
-| Manuell („Run workflow“ auf `main`) | Wie ein Push in `main`, z. B. für ein erneutes Deployment ohne Codeänderung.                                                                 |
+| Ereignis                            | Ablauf                                                                                                                            |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Pull Request gegen `main`           | `npm run typecheck` und `npm test`. Kein Deployment.                                                                              |
+| Merge/Push in `main`                | Direkt `npm run build:cloudflare -- --env production` und `wrangler deploy --env production` → `https://portal.proacademy-ak.com` |
+| Manuell („Run workflow“ auf `main`) | Prüfungen, danach Build und Deploy, z. B. für ein erneutes Deployment ohne Codeänderung.                                          |
 
-Schlägt ein Test fehl, wird nicht deployt. Deploys laufen nacheinander, nie parallel.
+Typecheck und Tests laufen in jedem Pull Request; ein PR mit rotem Test sollte nicht gemergt werden. Nach dem Merge in `main` laufen sie nicht noch einmal, damit der Deploy schneller ist (etwa 1,5 statt 3,5 Minuten). Beim manuellen Start („Run workflow“) laufen sie vor dem Deploy, und ein roter Test verhindert ihn. Deploys laufen nacheinander, nie parallel.
 
 Nicht Teil dieses Workflows: der Hintergrunddienst `proacademy-jobs` (`workers/cloudflare/wrangler.jsonc`), Supabase-Migrationen und Cloudflare-Server-Secrets. Diese werden weiterhin separat und bewusst ausgeführt.
 
