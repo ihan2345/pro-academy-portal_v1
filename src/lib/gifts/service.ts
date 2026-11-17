@@ -208,7 +208,7 @@ export async function createGiftCheckout(
             "Die Umsatzsteuer wird beim Erwerb des Einzweckgutscheins berücksichtigt. Spätere Einlösungen verrechnen den bereits bezahlten und versteuerten Wert.",
         },
       },
-      payment_method_types: ["card"],
+      // Wie bei Shop und Camps: alle im Stripe-Dashboard aktiven Zahlungsarten.
       locale: "de",
       expires_at: Math.floor(Date.parse(row.checkout_expires_at) / 1000),
       success_url: `${origin}/bestellstatus?order=${row.id}&key=${access}&confirmed=1`,
