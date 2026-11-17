@@ -103,7 +103,11 @@ export function giftCheckoutParams(
     client_reference_id: i.id,
     metadata: { product_intent_id: i.id, gift_payment: "invoice_v1" },
     ...(setup
-      ? { setup_intent_data: { metadata: { product_intent_id: i.id } } }
+      ? {
+          // Ohne feste Zahlungsart verlangt Stripe im Setup-Modus die Währung.
+          currency: i.currency,
+          setup_intent_data: { metadata: { product_intent_id: i.id } },
+        }
       : {
           adaptive_pricing: { enabled: false },
           line_items: [
@@ -138,12 +142,13 @@ export function giftCheckoutParams(
         message:
           description +
           (i.product.kind === "subscription"
-            ? " Die hinterlegte Karte wird für die folgenden regulären Abo-Rechnungen verwendet."
+            ? " Das hinterlegte Zahlungsmittel wird für die folgenden regulären Abo-Rechnungen verwendet."
             : ""),
       },
     },
     billing_address_collection: "required",
-    payment_method_types: ["card"],
+    // Alle im Stripe-Dashboard aktiven Zahlungsarten; bei Abos zeigt Stripe nur
+    // solche, die für spätere Abbuchungen gespeichert werden können.
     success_url: `${origin}/produkte?purchase=${i.id}`,
     cancel_url: `${origin}/produkte?purchase=${i.id}`,
     expires_at: Math.floor(Date.parse(i.expires_at) / 1000),
@@ -323,7 +328,6 @@ export async function nativeGiftPayment(
           add_invoice_items: adjustments,
           default_payment_method: method,
           payment_settings: {
-            payment_method_types: ["card"],
             save_default_payment_method: "on_subscription",
           },
           metadata: { ...metadata, pa_gift_pending: "1" },
