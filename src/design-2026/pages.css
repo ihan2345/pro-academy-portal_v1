@@ -360,6 +360,8 @@
     font-size: clamp(26px, 4vw, 38px);
     letter-spacing: -0.035em;
     color: #fff;
+    width: fit-content;
+    max-width: 100%;
   }
   & .d26-player-hero p {
     display: flex;
