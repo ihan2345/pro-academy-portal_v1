@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { formatDate } from "@/lib/domain";
+import { childCardTheme } from "@/lib/parent-profile";
 
 export type PlayerCardData = {
   spielername: string;
@@ -48,6 +49,10 @@ export function PlayerCard({
     .slice(0, 2)
     .map((w) => w.charAt(0).toUpperCase())
     .join("");
+  // Farbwelt wie auf der Spielerkarte im Elternprofil: FirstTouch schwarz,
+  // GameChanger lila, Pro-Player/NEXT LEVEL neon.
+  const plans = [...new Set(player.abos.map((a) => a.art).filter(Boolean))];
+  const avatarTheme = player.archiviert ? "neutral" : childCardTheme(plans);
   const age = player.geburtsjahr
     ? new Date(now).getFullYear() - player.geburtsjahr
     : null;
@@ -97,7 +102,9 @@ export function PlayerCard({
         <ArrowLeft size={16} /> Spielerprofile
       </Link>
       <section className="d26-card d26-player-hero">
-        <span className="d26-player-avatar">{initials || "?"}</span>
+        <span className={`d26-player-avatar plan-${avatarTheme}`}>
+          {initials || "?"}
+        </span>
         <div>
           <span className="d26-eyebrow">Spielerkarte</span>
           <h1>{player.spielername}</h1>
@@ -106,7 +113,17 @@ export function PlayerCard({
             {player.archiviert ? (
               <span className="d26-pill tone-amber">Archiviert</span>
             ) : player.abos.length ? (
-              <span className="d26-pill tone-lime">Aktiv</span>
+              <>
+                <span className="d26-pill tone-lime">Aktiv</span>
+                {plans.map((plan) => (
+                  <span
+                    key={plan}
+                    className={`d26-pill d26-plan-pill plan-${childCardTheme([plan])}`}
+                  >
+                    {plan}
+                  </span>
+                ))}
+              </>
             ) : (
               <span className="d26-pill">Kein laufendes Abo</span>
             )}

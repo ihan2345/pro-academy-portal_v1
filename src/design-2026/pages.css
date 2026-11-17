@@ -367,7 +367,7 @@
     gap: 6px;
     margin: 0;
   }
-  & .d26-player-hero .d26-pill:not([class*="tone-"]) {
+  & .d26-player-hero .d26-pill:not([class*="tone-"]):not(.d26-plan-pill) {
     background: rgba(255, 255, 255, 0.12);
     color: rgba(255, 255, 255, 0.85);
   }
@@ -399,7 +399,9 @@
     & .d26-player-hero:hover .d26-eyebrow {
       color: var(--d26-muted);
     }
-    & .d26-player-hero:hover .d26-pill:not([class*="tone-"]) {
+    &
+      .d26-player-hero:hover
+      .d26-pill:not([class*="tone-"]):not(.d26-plan-pill) {
       background: rgba(0, 0, 0, 0.06);
       color: var(--d26-ink);
     }
@@ -430,6 +432,67 @@
   & .d26-player-hero .d26-pill.tone-lime {
     background: var(--lime);
     color: #1d3300;
+  }
+  /* Abo-Art: Farben wie die Spielerkarten im Elternprofil */
+  & .d26-player-hero .d26-pill.d26-plan-pill {
+    border: 1px solid transparent;
+    font-weight: 700;
+  }
+  & .d26-player-hero .d26-pill.d26-plan-pill.plan-black {
+    background: linear-gradient(145deg, #303238, #090a0d 70%);
+    border-color: #585b62;
+    color: #f1dfb3;
+  }
+  & .d26-player-hero .d26-pill.d26-plan-pill.plan-purple {
+    background: linear-gradient(145deg, #7041b7, #321359 75%);
+    border-color: #a985e1;
+    color: #fff;
+  }
+  & .d26-player-hero .d26-pill.d26-plan-pill.plan-neon {
+    background: linear-gradient(
+      135deg,
+      #f5ffb0 0%,
+      #dfff00 22%,
+      #c9ff00 65%,
+      #eaff56 100%
+    );
+    border-color: #dbff29;
+    color: #162000;
+    box-shadow: 0 0 12px #cfff0060;
+  }
+  & .d26-player-hero .d26-pill.d26-plan-pill.plan-neutral {
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.85);
+  }
+  & .d26-player-avatar.plan-black {
+    color: #f1dfb3;
+    background: linear-gradient(145deg, #303238, #090a0d 70%);
+    box-shadow:
+      0 0 0 1px #585b62,
+      0 0 0 5px rgba(255, 255, 255, 0.12),
+      0 12px 30px rgba(9, 10, 13, 0.45);
+  }
+  & .d26-player-avatar.plan-purple {
+    color: #fff;
+    background: linear-gradient(145deg, #7041b7, #321359 75%);
+    box-shadow:
+      0 0 0 1px #a985e1,
+      0 0 0 5px rgba(255, 255, 255, 0.12),
+      0 12px 30px rgba(102, 57, 165, 0.45);
+  }
+  & .d26-player-avatar.plan-neon {
+    color: #162000;
+    background: linear-gradient(
+      135deg,
+      #f5ffb0 0%,
+      #dfff00 22%,
+      #c9ff00 65%,
+      #eaff56 100%
+    );
+    box-shadow:
+      0 0 0 4px rgba(255, 255, 255, 0.12),
+      0 0 22px #cfff0060,
+      0 12px 30px rgba(181, 229, 0, 0.35);
   }
   & .d26-player-hero .d26-pill.tone-amber {
     background: #ffb340;
