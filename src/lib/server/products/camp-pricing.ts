@@ -3,6 +3,7 @@ import type { ProductContext } from "@/lib/products/domain";
 import type { CampPricing } from "@/lib/products/camp-pricing";
 import { personalCampAmount } from "@/lib/products/camp-pricing";
 import { childBenefit } from "@/lib/camps/service";
+import { campSeats, campSeatsScarce, maximumSeats } from "@/lib/camps/domain";
 import { serviceDb } from "../service-db";
 import { checked } from "./context";
 
@@ -31,7 +32,7 @@ export async function campPricingForCatalog(
     await db
       .from("camp_offers")
       .select(
-        "id,kind,stripe_price_id,amount,codes,camps!inner(early_bird_until,member_benefits_enabled)",
+        "id,kind,stripe_price_id,amount,codes,camps!inner(id,capacity,buffer_percent,early_bird_until,member_benefits_enabled)",
       )
       .in("id", [...new Set(offerIds)]),
   );
@@ -51,6 +52,21 @@ export async function campPricingForCatalog(
       ])
     : [{ data: [], error: null }, { percent: 0 }];
   const available = checked(plans).length > 0;
+  // Belegung je Camp einmal lesen; nach außen nur bei hoher Auslastung zeigen.
+  const campIds = [...new Set(offers.map((offer) => offer.camps.id as string))];
+  const occupancy = new Map(
+    await Promise.all(
+      campIds.map(
+        async (id) =>
+          [
+            id,
+            Number(
+              checked(await db.rpc("camp_occupied_seats", { camp_id: id })),
+            ),
+          ] as const,
+      ),
+    ),
+  );
   for (const offer of offers) {
     const deadline = offer.camps.early_bird_until;
     const currentKind =
@@ -79,6 +95,13 @@ export async function campPricingForCatalog(
         ? personalCampAmount(offer.amount, percent)
         : null,
       child_name: child?.first_name ?? null,
+      seats: (() => {
+        const occupied = occupancy.get(offer.camps.id) ?? 0;
+        const maximum = maximumSeats(offer.camps);
+        return campSeatsScarce(occupied, maximum)
+          ? campSeats(occupied, maximum)
+          : null;
+      })(),
     });
   }
   return result;
