@@ -266,8 +266,13 @@ it("collects only the explicit top-up and obtains a future payment method for a 
   expect(partial.payment_intent_data?.setup_future_usage).toBe("off_session");
   expect(partial.discounts).toBeUndefined();
   expect(partial.line_items?.[0].price_data?.unit_amount).toBe(4000);
+  // Alle im Stripe-Dashboard aktiven Zahlungsarten, nicht nur Karte.
+  expect(partial).not.toHaveProperty("payment_method_types");
   i.expected_amount = 0;
-  expect(giftCheckoutParams(i, "cus_own").mode).toBe("setup");
+  const setup = giftCheckoutParams(i, "cus_own");
+  expect(setup.mode).toBe("setup");
+  expect(setup).not.toHaveProperty("payment_method_types");
+  expect(setup.currency).toBe("eur");
   i.product.kind = "camp";
   expect(giftCheckoutParams(i, "cus_own").mode).toBe("payment");
 });
