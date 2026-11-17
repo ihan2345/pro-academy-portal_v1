@@ -374,6 +374,40 @@
   & .d26-player-edit button {
     border-radius: 99px;
   }
+  /* Bearbeiten-Knopf dauerhaft im Neongrün wie das Aktiv-Badge */
+  & .d26-player-edit > .secondary-button,
+  & .d26-player-edit > .secondary-button:hover {
+    background: var(--lime);
+    border-color: transparent;
+    color: #1d3300;
+    font-weight: 700;
+    box-shadow: 0 6px 18px rgba(142, 255, 1, 0.35);
+  }
+  & .d26-player-edit > .secondary-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 26px rgba(142, 255, 1, 0.5);
+  }
+  /* Beim Hover wird die Karte weiß: Name als Schwarz-Lila-Verlauf, Rest dunkel */
+  @media (hover: hover) {
+    & .d26-player-hero:hover h1 {
+      background: linear-gradient(90deg, #111018 0%, #8b53fe 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: #111018;
+    }
+    & .d26-player-hero:hover .d26-eyebrow {
+      color: var(--d26-muted);
+    }
+    & .d26-player-hero:hover .d26-pill:not([class*="tone-"]) {
+      background: rgba(0, 0, 0, 0.06);
+      color: var(--d26-ink);
+    }
+    & .d26-player-hero:hover .d26-pill.tone-purple {
+      background: rgba(139, 83, 254, 0.14);
+      color: #6b2fe0;
+    }
+  }
   & .d26-player-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
