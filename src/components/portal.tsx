@@ -10,8 +10,10 @@ import { AdminNavigation } from "./admin-navigation";
 import { EmailPreference, flushEmailPreference } from "./email-preference";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { giftBuyHref, useGiftNav } from "./products/gift-nav";
 import {
   ShoppingBag,
+  Gift,
   ArrowUpRight,
   ArrowRight,
   ChevronDown,
@@ -121,6 +123,15 @@ export function Portal({
     [detail, setDetail] = useState<Training | null>(null),
     [toast, setToast] = useState("");
   const router = useRouter();
+  const giftNav = useGiftNav(data.role === "parent");
+  const [onGiftPage, setOnGiftPage] = useState(false);
+  useEffect(
+    () =>
+      setOnGiftPage(
+        window.location.pathname.startsWith("/profil/geschenkkarten"),
+      ),
+    [section],
+  );
   const { pai: paiVisible, mascot: mascotVisible } =
     usePaiAvailability(section);
   // Design 2026: PAiLTON immer im Menü (am Handy über „Mehr“). WhatsApp am Desktop als Symbol, am Handy bleibt die Box im Menü.
@@ -233,6 +244,17 @@ export function Portal({
     { href: "/berichte", title: "Berichte", icon: FileText },
     { href: "/profil", title: "Mein Profil", icon: UserRound },
     { href: "/konto", title: "Mein Konto", icon: Settings },
+    ...(giftNav?.credit
+      ? [
+          {
+            href: "/profil/geschenkkarten",
+            title: "Geschenkkarten",
+            icon: Gift,
+          },
+        ]
+      : giftNav && data.products_enabled
+        ? [{ href: giftBuyHref, title: "Geschenkkarte kaufen", icon: Gift }]
+        : []),
   ];
   const adminNav = [
     { href: "/admin", title: "Übersicht", icon: LayoutDashboard },
@@ -287,6 +309,8 @@ export function Portal({
             (n) =>
               n.href === "/konto" ||
               n.href === "/profil" ||
+              n.href === "/profil/geschenkkarten" ||
+              n.href === giftBuyHref ||
               n.href === "/berichte" ||
               (data.camp_access === "past" && n.href === "/termine"),
           )
@@ -308,7 +332,10 @@ export function Portal({
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
   const isActiveNav = (href: string) =>
-    href.split("?")[0] === "/" + section ||
+    (href === "/profil/geschenkkarten" && onGiftPage) ||
+    (href.split("?")[0] === "/" + section &&
+      href !== giftBuyHref &&
+      !(href === "/profil" && onGiftPage)) ||
     (DESIGN_2026 &&
       data.role === "parent" &&
       href === "/stempelkarte" &&

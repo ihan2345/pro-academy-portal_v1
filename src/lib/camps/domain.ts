@@ -166,6 +166,21 @@ export function maximumSeats(camp: Pick<Camp, "capacity" | "buffer_percent">) {
     camp.capacity + Math.floor((camp.capacity * camp.buffer_percent) / 100)
   );
 }
+// Freie Plätze sehen Eltern und Besucher erst ab dieser Auslastung (Knappheit).
+// Das Academy-Team sieht die Belegung immer.
+export const CAMP_SCARCITY_SHARE = 0.8;
+export type CampSeats = { left: number; maximum: number; share: number };
+export function campSeats(occupied: number, maximum: number): CampSeats {
+  const taken = Math.min(Math.max(occupied, 0), maximum);
+  return {
+    left: Math.max(maximum - taken, 0),
+    maximum,
+    share: maximum > 0 ? taken / maximum : 1,
+  };
+}
+export function campSeatsScarce(occupied: number, maximum: number) {
+  return campSeats(occupied, maximum).share >= CAMP_SCARCITY_SHARE;
+}
 export function money(amount: number, currency = "eur") {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(
     amount / 100,

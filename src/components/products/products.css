@@ -3297,3 +3297,86 @@
     width: 100%;
   }
 }
+
+/* Knappe Campplätze (ab 80 % Auslastung) – PAbyAK: Dunkel, Lime, Lila. */
+.product-camp-seats {
+  display: grid;
+  gap: 7px;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 11px 13px;
+  border-radius: 16px;
+  background: #0b0f1a;
+  border: 1px solid #8eff0159;
+  box-shadow: 0 0 0 4px #8eff0114;
+  color: #fff;
+}
+.product-camp-seats.is-stage {
+  max-width: 340px;
+  margin: 22px 0 0;
+  padding: 14px 16px;
+  background: #0b0f1acc;
+  backdrop-filter: blur(10px);
+}
+.product-camp-seats-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #8eff01;
+}
+.product-camp-seats.is-stage .product-camp-seats-label {
+  font-size: 15px;
+}
+.product-camp-seats-label i {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #8eff01;
+  box-shadow: 0 0 0 0 #8eff0199;
+  animation: product-seats-pulse 1.6s ease-out infinite;
+}
+.product-camp-seats-bar {
+  display: block;
+  height: 6px;
+  border-radius: 6px;
+  background: #ffffff1f;
+  overflow: hidden;
+}
+.product-camp-seats-bar em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8b53fe, #8eff01);
+}
+.product-camp-seats small {
+  font-size: 10px;
+  color: #ffffffb3;
+}
+.product-camp-seats.is-full {
+  border-color: #ffffff33;
+  box-shadow: none;
+}
+.product-camp-seats.is-full .product-camp-seats-label {
+  color: #fff;
+}
+.product-camp-seats.is-full .product-camp-seats-label i {
+  background: #ff5a5f;
+  animation: none;
+}
+@keyframes product-seats-pulse {
+  70% {
+    box-shadow: 0 0 0 8px #8eff0100;
+  }
+  100% {
+    box-shadow: 0 0 0 0 #8eff0100;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-camp-seats-label i {
+    animation: none;
+  }
+}

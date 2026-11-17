@@ -234,7 +234,7 @@ export function previewCamps() {
     status,
     payment_mode: "live" as const,
     early_bird_until: at(start - 20, 0),
-    occupied: 17,
+    occupied: 22,
     days: Array.from({ length: days }, (_, i) => ({
       starts_at: at(start + i, 10),
       ends_at: at(start + i, 15),

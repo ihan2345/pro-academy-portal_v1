@@ -9,6 +9,7 @@ import {
   campTiming,
   currentOffer,
   maximumSeats,
+  campSeatsScarce,
   money,
 } from "@/lib/camps/domain";
 import { Countdown } from "./ui";
@@ -30,6 +31,8 @@ export function CampSpotlight({
   if (!next) return null;
   const t = campTiming(next, now);
   const seats = maximumSeats(next);
+  // Belegung liefert der Server nur an das Team oder ab 80 % Auslastung.
+  const known = next.occupied != null;
   const taken = Math.min(next.occupied ?? 0, seats);
   const free = Math.max(seats - taken, 0);
   const own = offers.filter((o) => o.camp_id === next.id);
@@ -57,15 +60,23 @@ export function CampSpotlight({
       <p className="d26-hero-title">{next.description}</p>
       <Countdown to={new Date(t.start).toISOString()} />
       <div className="d26-camp-stats">
-        <div data-tip={`${taken} von ${seats} Plätzen vergeben`}>
-          <small>
-            <Users size={14} /> Plätze
-          </small>
-          <b>{free} frei</b>
-          <i>
-            <em style={{ width: `${(taken / seats) * 100}%` }} />
-          </i>
-        </div>
+        {known && (
+          <div data-tip={`${taken} von ${seats} Plätzen vergeben`}>
+            <small>
+              <Users size={14} /> Plätze
+            </small>
+            <b>
+              {!free
+                ? "Ausgebucht"
+                : campSeatsScarce(taken, seats)
+                  ? `Nur noch ${free} frei`
+                  : `${free} frei`}
+            </b>
+            <i>
+              <em style={{ width: `${(taken / seats) * 100}%` }} />
+            </i>
+          </div>
+        )}
         <div>
           <small>
             <MapPin size={14} /> Ort

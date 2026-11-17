@@ -238,6 +238,39 @@ export type ProductDisplay = Pick<
     gift_variants?: { id: string; amount: number; name: string }[];
   };
 
+export function CampSeatsBadge({
+  product,
+  stage = false,
+}: {
+  product: ProductDisplay;
+  stage?: boolean;
+}) {
+  const seats = product.kind === "camp" ? product.camp_pricing?.seats : null;
+  if (!seats) return null;
+  const percent = Math.round(seats.share * 100);
+  return (
+    <div
+      className={`product-camp-seats${stage ? " is-stage" : ""}${seats.left ? "" : " is-full"}`}
+      role="status"
+    >
+      <span className="product-camp-seats-label">
+        <i aria-hidden="true" />
+        {seats.left
+          ? `Nur noch ${seats.left} ${seats.left === 1 ? "Platz" : "Plätze"} frei`
+          : "Ausgebucht"}
+      </span>
+      <span className="product-camp-seats-bar" aria-hidden="true">
+        <em style={{ width: `${percent}%` }} />
+      </span>
+      <small>
+        {seats.left
+          ? `${percent} % ausgebucht · Schnell sein lohnt sich`
+          : "Alle Plätze sind vergeben."}
+      </small>
+    </div>
+  );
+}
+
 export function CampPriceNote({ product }: { product: ProductDisplay }) {
   const info = product.camp_pricing;
   const benefits =
@@ -597,6 +630,7 @@ export function ProductCard({
               {trainingContentLabel(product)}
             </p>
           )}
+          <CampSeatsBadge product={product} stage />
           {action}
           {decision?.reasons[0] && <small>{decision.reasons[0]}</small>}
         </div>
@@ -729,6 +763,7 @@ export function ProductCard({
           </span>
         </div>
         <div className="product-card-benefits">
+          <CampSeatsBadge product={product} />
           <CampPriceNote product={product} />
         </div>
         {action}

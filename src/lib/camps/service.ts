@@ -15,6 +15,7 @@ import {
   campSchema,
   currentOffer,
   maximumSeats,
+  campSeatsScarce,
   type Camp,
   type Offer,
 } from "./domain";
@@ -878,9 +879,20 @@ export async function dashboard() {
           ),
       )
     : [];
+  // Eltern sehen die Belegung nur bei vergleichsweise voll gebuchten Camps.
+  const campsWithSeats = await Promise.all(
+    visibleCamps.map(async (c) => {
+      const occupied = Number(
+        check(await db.rpc("camp_occupied_seats", { camp_id: c.id })),
+      );
+      return campSeatsScarce(occupied, maximumSeats(c))
+        ? { ...c, occupied }
+        : c;
+    }),
+  );
   return {
     role: session.role,
-    camps: visibleCamps,
+    camps: campsWithSeats,
     offers: publicOffers,
     bookings,
     reports,

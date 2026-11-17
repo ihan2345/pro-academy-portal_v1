@@ -239,6 +239,20 @@ export function ProductStore({
     }
     if (!player && ctx.children.length === 1) setPlayer(ctx.children[0].id);
   }
+  // Menüpunkt "Geschenkkarte kaufen": öffnet das Geschenkkartenprodukt direkt.
+  const openedGift = useRef(false);
+  useEffect(() => {
+    if (openedGift.current || !rows.length) return;
+    if (
+      new URLSearchParams(window.location.search).get("kaufen") !==
+      "geschenkkarte"
+    )
+      return;
+    const gift = rows.find((r) => r.kind === "gift");
+    if (!gift) return;
+    openedGift.current = true;
+    void act(gift);
+  }, [rows]);
   const openedProduct = useRef<string | null>(null);
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("product");

@@ -46,32 +46,31 @@ export function CampHead({
     .sort((a, b) => a.days[0].starts_at.localeCompare(b.days[0].starts_at));
   const paid = bookings.filter((b) => b.status === "paid");
   const title = (id: string) => camps.find((c) => c.id === id)?.title ?? "Camp";
-  const free = upcoming.reduce(
-    (s, c) =>
-      s +
-      Math.max(
-        0,
-        maximumSeats(c) -
-          (c.occupied ?? paid.filter((b) => b.camp_id === c.id).length),
-      ),
-    0,
-  );
+  // Belegung kommt nur vom Server: für das Team immer, für Eltern erst ab 80 %
+  // Auslastung. Eigene Buchungen sind keine Belegung des ganzen Camps.
+  const withSeats = upcoming.filter((c) => c.occupied != null);
+  const left = (c: CampLite) => Math.max(0, maximumSeats(c) - c.occupied!);
+  const free = withSeats.reduce((s, c) => s + left(c), 0);
   const revenue = paid.reduce((s, b) => s + (b.paid_amount ?? 0), 0);
   const campList = (
     <div className="d26-mini-list">
-      {upcoming.map((c) => {
-        const taken =
-          c.occupied ?? paid.filter((b) => b.camp_id === c.id).length;
-        return (
-          <SheetRow
-            key={c.id}
-            title={c.title}
-            meta={`${formatDate(c.days[0].starts_at)} · ${c.location}`}
-            pill={`${Math.max(0, maximumSeats(c) - taken)} frei`}
-            href={`/camps/${c.id}`}
-          />
-        );
-      })}
+      {upcoming.map((c) => (
+        <SheetRow
+          key={c.id}
+          title={c.title}
+          meta={`${formatDate(c.days[0].starts_at)} · ${c.location}`}
+          pill={
+            c.occupied == null
+              ? undefined
+              : !left(c)
+                ? "Ausgebucht"
+                : team
+                  ? `${left(c)} frei`
+                  : `Nur noch ${left(c)} frei`
+          }
+          href={`/camps/${c.id}`}
+        />
+      ))}
       {!upcoming.length && <p className="d26-empty">Kein Camp geplant.</p>}
     </div>
   );
@@ -120,13 +119,19 @@ export function CampHead({
             body: bookingList,
           },
         },
-        {
-          icon: Users,
-          value: free,
-          label: "Freie Plätze",
-          tip: "Über alle kommenden Camps, inklusive Pufferplätzen und Buchungen in Prüfung, wie im Camp-Detail",
-          sheet: { title: "Freie Plätze je Camp", body: campList },
-        },
+        ...(team || withSeats.length
+          ? [
+              {
+                icon: Users,
+                value: free,
+                label: team ? "Freie Plätze" : "Nur noch frei",
+                tip: team
+                  ? "Über alle kommenden Camps, inklusive Pufferplätzen und Buchungen in Prüfung, wie im Camp-Detail"
+                  : "Diese Camps sind schon zu über 80 % ausgebucht",
+                sheet: { title: "Freie Plätze je Camp", body: campList },
+              },
+            ]
+          : []),
         ...(team
           ? [
               {

@@ -6,7 +6,9 @@ export function navGroup(href: string, role: string): string | undefined {
   if (role === "parent") {
     if (["/", "/termine", "/stempelkarte", "/berichte"].includes(path))
       return "Training";
-    if (["/profil", "/konto"].includes(path)) return "Familie";
+    if (["/profil", "/konto", "/profil/geschenkkarten"].includes(path))
+      return "Familie";
+    if (href.includes("kaufen=geschenkkarte")) return "Familie";
     return "Entdecken";
   }
   const sub = path.replace(/^\/(admin|team)\/?/, "");

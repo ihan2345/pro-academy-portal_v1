@@ -7,11 +7,13 @@ import {
 import { campPricingForCatalog } from "../src/lib/server/products/camp-pricing";
 const mock = vi.hoisted(() => ({
   tables: {} as Record<string, any[]>,
+  occupied: 0,
   benefit: vi.fn(),
 }));
 vi.mock("../src/lib/camps/service", () => ({ childBenefit: mock.benefit }));
 vi.mock("../src/lib/server/service-db", () => ({
   serviceDb: () => ({
+    rpc: async () => ({ data: mock.occupied, error: null }),
     from: (table: string) => {
       const q: any = {
         select: () => q,
@@ -27,6 +29,7 @@ vi.mock("../src/lib/server/service-db", () => ({
   }),
 }));
 afterEach(() => {
+  mock.occupied = 0;
   vi.useRealTimers();
   vi.clearAllMocks();
 });
@@ -150,4 +153,24 @@ it("hides all membership price hints and skips benefit calculation when the Camp
       personal_amount: null,
     });
   expect(mock.benefit).not.toHaveBeenCalled();
+});
+
+it("shows free Camp seats on the product stage only from 80 % occupancy, also for visitors", async () => {
+  fixture();
+  for (const offer of mock.tables.camp_offers)
+    Object.assign(offer.camps, {
+      id: "camp1",
+      capacity: 50,
+      buffer_percent: 0,
+    });
+  mock.occupied = 39;
+  let prices = await campPricingForCatalog(["offer1"], visitorContext());
+  expect(prices.get("offer1")?.seats).toBeNull();
+  mock.occupied = 46;
+  prices = await campPricingForCatalog(["offer1"], visitorContext());
+  expect(prices.get("offer1")?.seats).toEqual({
+    left: 4,
+    maximum: 50,
+    share: 0.92,
+  });
 });

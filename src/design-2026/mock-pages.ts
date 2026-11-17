@@ -214,6 +214,14 @@ export function previewProducts() {
       price: price(19900, null),
       featured: false,
       popular: false,
+      camp_pricing: {
+        early_until: null,
+        benefit_available: false,
+        percent: 0,
+        personal_amount: null,
+        child_name: null,
+        seats: { left: 4, maximum: 26, share: 22 / 26 },
+      },
     },
     {
       id: "pr-5",
