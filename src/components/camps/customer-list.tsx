@@ -14,6 +14,18 @@ import {
   type CustomerSort,
 } from "@/lib/camps/customers";
 
+// Kurze Spaltentitel nur für Druck / PDF, damit jede Zeile auf A4 quer passt.
+const printLabels: Partial<Record<CustomerSort, string>> = {
+  birth_date: "Geb.-Datum",
+  birth_year: "Jahrg.",
+  clothing_size: "Größe",
+  gender: "Geschl.",
+  customer_group: "Gruppe",
+  parent_name: "Eltern",
+  booked_at: "Gebucht am",
+  option_title: "Option",
+  attendance: "Status",
+};
 type Data = {
   role: string;
   camp: { id: string; title: string };
@@ -198,14 +210,14 @@ export function CampCustomerList({ campId }: { campId: string }) {
               </button>
             </div>
           </div>
-          <p aria-live="polite">
+          <p aria-live="polite" className="camp-customer-count">
             <strong>
               {rows.length} von {data.rows.length}
             </strong>{" "}
             bestätigten Teilnehmern · Export und Druck übernehmen diese Auswahl
             und Sortierung.
           </p>
-          <p className="camp-muted">
+          <p className="camp-muted camp-customer-legend">
             Aktives Abo: aktueller Abo-Status des Kindes. Neukunde: Familie
             erstmals durch diese Campbuchung angelegt. Ohne Abo: bestehende
             Kunden ohne aktives Abo, einschließlich früherer Campkunden.
@@ -226,6 +238,7 @@ export function CampCustomerList({ campId }: { campId: string }) {
                     {columns.map((key) => (
                       <th
                         key={key}
+                        className={`col-${key}`}
                         scope="col"
                         aria-sort={
                           sort === key
@@ -245,7 +258,15 @@ export function CampCustomerList({ campId }: { campId: string }) {
                             );
                           }}
                         >
-                          {customerColumns[key]}
+                          <span className="camp-customer-screen-label">
+                            {customerColumns[key]}
+                          </span>
+                          <span
+                            className="camp-customer-print-label"
+                            aria-hidden="true"
+                          >
+                            {printLabels[key] ?? customerColumns[key]}
+                          </span>
                           <ArrowUpDown size={13} aria-hidden="true" />
                         </button>
                       </th>
@@ -256,7 +277,7 @@ export function CampCustomerList({ campId }: { campId: string }) {
                   {rows.map((row) => (
                     <tr key={row.id}>
                       {columns.map((key) => (
-                        <td key={key}>
+                        <td key={key} className={`col-${key}`}>
                           {key === "customer_group" ? (
                             <span
                               className={`camp-customer-tag ${row.customer_group}`}
