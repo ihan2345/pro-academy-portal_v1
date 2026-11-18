@@ -3,6 +3,8 @@ import { serviceDb } from "@/lib/server/service-db";
 import { formatDate, formatTime } from "@/lib/domain";
 import { htmlEmail, safeRecipient, type Email } from "@/lib/mail";
 import { campProcessingEnabled } from "./processing-config";
+import { greet, type MailLook } from "@/lib/mail-2026/from-text";
+import { mailCalendar } from "@/lib/mail-2026/ics-link";
 export const CAMP_MAIL_KINDS = [
   "camp_booking_confirmation",
   "camp_reminder_7d",
@@ -128,7 +130,7 @@ export async function composeCampMail(
   const b = await db
     .from("camp_bookings")
     .select(
-      "id,camp_id,offer_id,child_data,expected_amount,paid_amount,currency",
+      "id,camp_id,offer_id,parent_data,child_data,expected_amount,paid_amount,currency",
     )
     .eq("id", payload.booking_id)
     .single();
@@ -175,14 +177,64 @@ export async function composeCampMail(
     process.env.WHATSAPP_NUMBER ?? "",
   );
   const url = `${process.env.APP_URL}/camps/${b.data.camp_id}`;
+  const text = greet(content.text, b.data.parent_data?.name);
+  const days = [...(c.data.days as CampMailData["days"])].sort((x, y) =>
+    x.starts_at.localeCompare(y.starts_at),
+  );
+  const kind = String(job.kind);
+  const child = b.data.child_data.first_name as string;
+  const look: MailLook = {
+    area: "Camps",
+    eyebrow:
+      kind === "camp_booking_confirmation"
+        ? "Camp gebucht"
+        : kind === "camp_reminder_7d"
+          ? "Camp-Erinnerung"
+          : kind === "camp_reminder_24h"
+            ? "Morgen geht's los"
+            : "Camp abgeschlossen",
+    title: c.data.title,
+    subtitle:
+      kind === "camp_completion"
+        ? `Danke fürs Mitmachen, ${child}!`
+        : `${content.subject.split(": ")[0]} für ${b.data.child_data.first_name} ${b.data.child_data.last_name}`,
+    chips: [
+      days.length > 1
+        ? `${formatDate(days[0].starts_at)} – ${formatDate(days[days.length - 1].starts_at)}`
+        : formatDate(days[0].starts_at),
+      c.data.location,
+      `${days.length} ${days.length === 1 ? "Tag" : "Tage"}`,
+    ],
+    primaryLabel: "Camp im Portal",
+  };
+  let attachments: Email["attachments"];
+  if (kind !== "camp_completion") {
+    const calendar = await mailCalendar({
+      uid: `camp-${b.data.id}`,
+      title: `${c.data.title}: ${child}`,
+      slots: days,
+      location: c.data.location,
+      url,
+    });
+    attachments = [calendar.attachment];
+    if (calendar.links)
+      look.calendar = {
+        links: calendar.links,
+        note:
+          days.length > 1
+            ? `Alle ${days.length} Camp-Tage mit Erinnerung 1 Tag und 2 Stunden vorher. Outlook übernimmt nur den ersten Tag.`
+            : undefined,
+      };
+  }
   return {
     to:
       process.env.MAIL_PROVIDER === "capture"
         ? String(job.recipient)
         : safeRecipient(String(job.recipient)),
     subject: content.subject,
-    text: `${content.text}\n${content.actions.map((a) => `${a.label}: ${a.url}`).join("\n")}\nZum Elternportal: ${url}`,
-    html: htmlEmail(content.subject, content.text, url, content.actions),
+    text: `${text}\n${content.actions.map((a) => `${a.label}: ${a.url}`).join("\n")}\nZum Elternportal: ${url}`,
+    html: htmlEmail(content.subject, text, url, content.actions, look),
+    attachments,
     replyTo: "mail@proacademy-ak.com",
     messageId: `<${job.id}@proacademy-portal.local>`,
   };

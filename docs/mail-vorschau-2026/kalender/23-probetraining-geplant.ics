@@ -1,0 +1,28 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//ProAcademy by Ayhan & Karaman//Portal//DE
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:23-probetraining-geplant-1@proacademy-ak.com
+DTSTAMP:20261118T070000Z
+DTSTART:20261121T090000Z
+DTEND:20261121T103000Z
+SUMMARY:ProAcademy Probetraining: Noah
+LOCATION:Sportpark Nord\, Nordring 12\, 44135 Dortmund
+DESCRIPTION:Coach Max. Bitte Sportsachen\, passende Schuhe und etwas zu tri
+ nken mitbringen.\n\nhttps://portal.proacademy-ak.com/probetraining/willkom
+ men
+URL:https://portal.proacademy-ak.com/probetraining/willkommen
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:ProAcademy Probetraining: Noah
+TRIGGER:-PT1440M
+END:VALARM
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:ProAcademy Probetraining: Noah
+TRIGGER:-PT120M
+END:VALARM
+END:VEVENT
+END:VCALENDAR

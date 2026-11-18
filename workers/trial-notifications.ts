@@ -5,6 +5,8 @@ import { trialLoginLink } from "../src/lib/trials/links";
 import { safeRecipient, type Email } from "../src/lib/mail";
 import { formatDate, formatTime } from "../src/lib/domain";
 import { trialEmailDesign } from "../src/lib/trials/mail-design";
+import { firstName, type MailLook } from "../src/lib/mail-2026/from-text";
+import { mailCalendar } from "../src/lib/mail-2026/ics-link";
 export { TRIAL_MAIL_KINDS };
 export async function planTrialNotifications(): Promise<number> {
   if (process.env.TRIAL_TRAINING_ENABLED !== "true") return 0;
@@ -66,8 +68,10 @@ export async function composeTrialMail(
     : job.kind;
   let ratingLinks: string[] | undefined;
   let subject = "Willkommen bei der ProAcademy",
-    text = `Hallo ${family.parent_name},\nvielen Dank für eure kostenlose Probetraining-Anfrage! Bitte bestätigt eure E-Mail und öffnet euer Willkommensportal:\n${access}\nWir melden uns telefonisch, um einen passenden Trainingstermin abzustimmen. Ihr benötigt dafür kein Abo und keine Zahlungsdaten.`;
+    text = `Hallo ${firstName(family.parent_name) || family.parent_name},\nvielen Dank für eure kostenlose Probetraining-Anfrage! Bitte bestätigt eure E-Mail und öffnet euer Willkommensportal:\n${access}\nWir melden uns telefonisch, um einen passenden Trainingstermin abzustimmen. Ihr benötigt dafür kein Abo und keine Zahlungsdaten.`;
   const actions: { label: string; url: string }[] = [];
+  let look: MailLook = {};
+  let attachments: Email["attachments"];
   if (["trial_day7", "trial_day14"].includes(job.kind)) {
     const { data: children, error } = await db
       .from("trial_team_overview")
@@ -84,7 +88,7 @@ export async function composeTrialMail(
       job.kind === "trial_day7"
         ? "Euer nächster Schritt mit der ProAcademy"
         : "Academy und Vereinstraining: gemeinsam weiterentwickeln";
-    text = `Hallo ${family.parent_name},\n${job.kind === "trial_day7" ? `nach dem Probetraining von ${names} möchten wir mit euch den nächsten Schritt planen. Regelmäßiges Training gibt Raum, Technik, Spielverständnis und Selbstvertrauen weiterzuentwickeln. Unser Portal unterstützt euch mit einer gemeinsamen Terminübersicht, transparenten Einheiten und persönlichem Feedback.` : `wie geht es ${names} seit dem Probetraining? Unsere Academy ergänzt das Vereinstraining mit persönlichen Schwerpunkten, Freude am Fußball und klaren nächsten Schritten. Wir besprechen gern passende Trainingszeiten und Angebote mit euch. Dies ist die letzte Nachricht unserer Probetraining-Angebotsfolge.`}`;
+    text = `Hallo ${firstName(family.parent_name) || family.parent_name},\n${job.kind === "trial_day7" ? `nach dem Probetraining von ${names} möchten wir mit euch den nächsten Schritt planen. Regelmäßiges Training gibt Raum, Technik, Spielverständnis und Selbstvertrauen weiterzuentwickeln. Unser Portal unterstützt euch mit einer gemeinsamen Terminübersicht, transparenten Einheiten und persönlichem Feedback.` : `wie geht es ${names} seit dem Probetraining? Unsere Academy ergänzt das Vereinstraining mit persönlichen Schwerpunkten, Freude am Fußball und klaren nächsten Schritten. Wir besprechen gern passende Trainingszeiten und Angebote mit euch. Dies ist die letzte Nachricht unserer Probetraining-Angebotsfolge.`}`;
     actions.push({
       label: "Academy-Angebote ansehen",
       url: "https://proacademy-ak.com/",
@@ -102,17 +106,37 @@ export async function composeTrialMail(
     const details = `${formatDate(r.starts_at)} · ${formatTime(r.starts_at)}–${formatTime(r.ends_at)} Uhr\n${r.location_name}, ${r.address}\nCoach: ${r.coach_name}`;
     if (["trial_planning", "trial_reminder"].includes(noticeKind)) {
       subject = `${noticeKind === "trial_reminder" ? "Erinnerung an euer Probetraining" : "Probetraining geplant"}: ${child}`;
-      text = `Hallo ${family.parent_name},\nwir freuen uns auf ${child}!\n${details}\nBitte Sportsachen, passende Schuhe und etwas zu trinken mitbringen. Wenn ihr den Termin ändern müsst, meldet euch bitte beim Team.\nEuer Termin im Portal: ${access}`;
+      const event = {
+        uid: `trial-${job.payload.request_id}`,
+        title: `${customerNotice ? "ProAcademy Training" : "ProAcademy Probetraining"}: ${r.first_name}`,
+        slots: [{ starts_at: r.starts_at, ends_at: r.ends_at }],
+        location: [r.location_name, r.address].filter(Boolean).join(", "),
+        description: `Coach: ${r.coach_name}. Bitte Sportsachen, passende Schuhe und etwas zu trinken mitbringen.`,
+        url: access,
+      };
+      const calendar = await mailCalendar(event);
+      attachments = [calendar.attachment];
+      look = {
+        title: `Wir freuen uns auf ${r.first_name}!`,
+        heroTime: {
+          start: formatTime(r.starts_at),
+          end: formatTime(r.ends_at),
+          caption: r.event_title ?? undefined,
+        },
+        chips: [formatDate(r.starts_at), r.location_name, r.coach_name].filter(Boolean),
+        calendar: calendar.links ? { links: calendar.links } : undefined,
+      };
+      text = `Hallo ${firstName(family.parent_name) || family.parent_name},\nwir freuen uns auf ${child}!\n${details}\nBitte Sportsachen, passende Schuhe und etwas zu trinken mitbringen. Wenn ihr den Termin ändern müsst, meldet euch bitte beim Team.\nEuer Termin im Portal: ${access}`;
     } else if (noticeKind === "trial_cancelled") {
       const missed =
         r.attendance === "absent" && r.event_status !== "cancelled";
       const excused =
         r.attendance === "excused" && r.event_status !== "cancelled";
       subject = `${missed ? "Probetraining verpasst" : excused ? "Probetraining entschuldigt" : "Probetraining abgesagt"}: ${child}`;
-      text = `Hallo ${family.parent_name},\n${missed ? `wir haben ${child} beim Probetraining am ${formatDate(r.starts_at)} vermisst.` : excused ? `die Teilnahme von ${child} am ${formatDate(r.starts_at)} wurde als entschuldigt eingetragen.` : `das Probetraining von ${child} am ${formatDate(r.starts_at)} findet nicht wie geplant statt.`} Bitte meldet euch beim Team, damit wir einen passenden Ersatztermin persönlich abstimmen können.`;
+      text = `Hallo ${firstName(family.parent_name) || family.parent_name},\n${missed ? `wir haben ${child} beim Probetraining am ${formatDate(r.starts_at)} vermisst.` : excused ? `die Teilnahme von ${child} am ${formatDate(r.starts_at)} wurde als entschuldigt eingetragen.` : `das Probetraining von ${child} am ${formatDate(r.starts_at)} findet nicht wie geplant statt.`} Bitte meldet euch beim Team, damit wir einen passenden Ersatztermin persönlich abstimmen können.`;
     } else if (job.kind === "trial_feedback") {
       subject = `Euer Probetraining: Feedback für ${r.first_name}`;
-      text = `Hallo ${family.parent_name},\nschön, dass ${child} bei uns war!\nHier ist das persönliche Feedback vom Coach:\nBewertung: ${r.academy_rating} von 5\n${r.academy_feedback}\n\nWie hat es euch gefallen? Im Willkommensportal könnt ihr mit einem Klick eine Bewertung abgeben und optional eine Nachricht hinterlassen:\n${access}`;
+      text = `Hallo ${firstName(family.parent_name) || family.parent_name},\nschön, dass ${child} bei uns war!\nHier ist das persönliche Feedback vom Coach:\nBewertung: ${r.academy_rating} von 5\n${r.academy_feedback}\n\nWie hat es euch gefallen? Im Willkommensportal könnt ihr mit einem Klick eine Bewertung abgeben und optional eine Nachricht hinterlassen:\n${access}`;
       ratingLinks = [1, 2, 3, 4, 5].map((rating) => {
         const token = scopedTrialToken(
           {
@@ -161,7 +185,9 @@ export async function composeTrialMail(
       actions,
       ratingLinks,
       customerNotice,
+      look,
     }),
     messageId: `<${job.id}@proacademy-portal.local>`,
+    attachments,
   };
 }

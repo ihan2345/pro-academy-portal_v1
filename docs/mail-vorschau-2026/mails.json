@@ -1,0 +1,170 @@
+[
+  {
+    "slug": "01-anmeldecode",
+    "group": "Anmeldung · Supabase",
+    "subject": "Dein Anmeldecode für ProAcademy",
+    "trigger": "Login mit E-Mail-Code / Magic Link"
+  },
+  {
+    "slug": "02-registrierung-bestaetigen",
+    "group": "Anmeldung · Supabase",
+    "subject": "Bestätige deine E-Mail-Adresse für ProAcademy",
+    "trigger": "Erste Registrierung"
+  },
+  {
+    "slug": "03-einladung",
+    "group": "Elternportal",
+    "subject": "Deine Einladung zur ProAcademy",
+    "trigger": "Admin lädt Eltern ein (aktuell deaktiviert)"
+  },
+  {
+    "slug": "04-training-geplant",
+    "group": "Training",
+    "subject": "Trainingsplanung: Noah am 18.11.2026",
+    "trigger": "Team plant ein Training ein"
+  },
+  {
+    "slug": "05-trainingserinnerung",
+    "group": "Training",
+    "subject": "Trainingserinnerung: Noah am 18.11.2026",
+    "trigger": "Erinnerung vor dem Training"
+  },
+  {
+    "slug": "06-trainingsplanung-aktualisiert",
+    "group": "Training",
+    "subject": "Trainingsplanung aktualisiert: Noah am 18.11.2026",
+    "trigger": "Termin, Ort oder Coach geändert"
+  },
+  {
+    "slug": "07-teilnahme-aufgehoben",
+    "group": "Training",
+    "subject": "Teilnahme am Training aufgehoben: Noah am 18.11.2026",
+    "trigger": "Kind aus einem Training entfernt"
+  },
+  {
+    "slug": "08-training-absolviert",
+    "group": "Training",
+    "subject": "Training absolviert: Noah",
+    "trigger": "Coach trägt Teilnahme ein"
+  },
+  {
+    "slug": "09-training-korrigiert",
+    "group": "Training",
+    "subject": "Training aktualisiert: Noah",
+    "trigger": "Team korrigiert Teilnahme"
+  },
+  {
+    "slug": "10-training-absolviert-team",
+    "group": "Training",
+    "subject": "Training absolviert: Abschluss & Torschuss",
+    "trigger": "Bestätigung an Coach/Team"
+  },
+  {
+    "slug": "11-trainingsbericht",
+    "group": "Berichte",
+    "subject": "Dein Trainingsbericht für Noah",
+    "trigger": "Neuer Monatsbericht"
+  },
+  {
+    "slug": "12-stempelkarte",
+    "group": "Berichte",
+    "subject": "Stempelkarte für Noah Becker",
+    "trigger": "Automatisch oder manuell durch Admin"
+  },
+  {
+    "slug": "13-camp-buchung",
+    "group": "Camps",
+    "subject": "Buchungsbestätigung: Herbstcamp 2026 für Max Mustermann",
+    "trigger": "Zahlung für Camp bestätigt"
+  },
+  {
+    "slug": "14-camp-erinnerung-7-tage",
+    "group": "Camps",
+    "subject": "Camp-Erinnerung: Herbstcamp 2026 für Max Mustermann",
+    "trigger": "7 Tage vor Campstart"
+  },
+  {
+    "slug": "15-camp-erinnerung-24h",
+    "group": "Camps",
+    "subject": "Letzte Camp-Erinnerung: Herbstcamp 2026 für Max Mustermann",
+    "trigger": "24 Stunden vor Campstart"
+  },
+  {
+    "slug": "16-camp-teilnahme",
+    "group": "Camps",
+    "subject": "Camp-Teilnahme bestätigt: Max Mustermann",
+    "trigger": "Nach dem Camp, mit Bericht"
+  },
+  {
+    "slug": "17-shop-kauf-zugang",
+    "group": "Shop",
+    "subject": "Deine Buchung: FirstTouch – Portalzugang bestätigen",
+    "trigger": "Gastkauf im Shop abgeschlossen"
+  },
+  {
+    "slug": "18-geschenkkarte-kauf",
+    "group": "Geschenkkarten",
+    "subject": "Deine ProAcademy Geschenkkarte – Kauf bestätigt",
+    "trigger": "Käufer:in nach Zahlung"
+  },
+  {
+    "slug": "19-geschenkkarte-empfang",
+    "group": "Geschenkkarten",
+    "subject": "Laura Becker schenkt dir ProAcademy",
+    "trigger": "Beschenkte Person"
+  },
+  {
+    "slug": "20-geschenkkarte-guthaben",
+    "group": "Geschenkkarten",
+    "subject": "Dein ProAcademy Geschenkguthaben: noch 51,00 €",
+    "trigger": "Nach Einlösung mit Restbetrag"
+  },
+  {
+    "slug": "21-geschenkkarte-statuslink",
+    "group": "Geschenkkarten",
+    "subject": "Dein persönlicher ProAcademy Bestellstatus",
+    "trigger": "Statuslink erneut angefordert"
+  },
+  {
+    "slug": "22-probetraining-willkommen",
+    "group": "Probetraining",
+    "subject": "Willkommen bei der ProAcademy",
+    "trigger": "Nach Probetraining-Anfrage"
+  },
+  {
+    "slug": "23-probetraining-geplant",
+    "group": "Probetraining",
+    "subject": "Probetraining geplant: Noah Becker",
+    "trigger": "Team plant Probetraining"
+  },
+  {
+    "slug": "24-probetraining-erinnerung",
+    "group": "Probetraining",
+    "subject": "Erinnerung an euer Probetraining: Noah Becker",
+    "trigger": "Vor dem Probetraining"
+  },
+  {
+    "slug": "25-probetraining-abgesagt",
+    "group": "Probetraining",
+    "subject": "Probetraining abgesagt: Noah Becker",
+    "trigger": "Abgesagt / verpasst / entschuldigt (3 Varianten, gleicher Aufbau)"
+  },
+  {
+    "slug": "26-probetraining-feedback",
+    "group": "Probetraining",
+    "subject": "Euer Probetraining: Feedback für Noah",
+    "trigger": "Coach gibt Feedback"
+  },
+  {
+    "slug": "27-probetraining-tag-7",
+    "group": "Probetraining",
+    "subject": "Euer nächster Schritt mit der ProAcademy",
+    "trigger": "7 Tage nach Probetraining (Werbe-Einwilligung)"
+  },
+  {
+    "slug": "28-probetraining-tag-14",
+    "group": "Probetraining",
+    "subject": "Academy und Vereinstraining: gemeinsam weiterentwickeln",
+    "trigger": "14 Tage nach Probetraining (letzte Mail der Folge)"
+  }
+]
