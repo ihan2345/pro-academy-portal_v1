@@ -17,6 +17,7 @@ import {
   resolveSubscriptionReview,
 } from "@/lib/server/subscription-reviews";
 import { playerProfileList } from "@/lib/server/player-profiles";
+import { playerArchive } from "@/lib/server/player-archive";
 import {
   profileList,
   loadParentProfile,
@@ -337,6 +338,8 @@ async function handler(
           await resolveSubscriptionReview(session, await request.json()),
         );
     }
+    if (path === "player-archive" && request.method === "GET")
+      return json(await playerArchive(session));
     if (path === "player-profiles" && request.method === "GET") {
       return json(
         await playerProfileList(session, {

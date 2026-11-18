@@ -82,7 +82,7 @@ async function collect(make: () => any): Promise<any[]> {
   );
 }
 // Bound IN filters and reuse the exact membership/training rules of the parent profile.
-async function membership(ids: string[], now: string) {
+export async function membership(ids: string[], now: string) {
   const db = serviceDb();
   const [periods, subscriptions] = await Promise.all([
     collect(() =>
@@ -120,7 +120,7 @@ async function membership(ids: string[], now: string) {
     ),
   };
 }
-async function training(ids: string[], now: string) {
+export async function training(ids: string[], now: string) {
   const db = serviceDb();
   const participants = await collect(() =>
     db

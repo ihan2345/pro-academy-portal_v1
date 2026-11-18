@@ -9,6 +9,7 @@ import {
   previewGifts,
   previewParentList,
   previewPlayerProfiles,
+  previewPlayerArchive,
   previewProducts,
   previewTrials,
 } from "./mock-pages";
@@ -53,6 +54,8 @@ if (
       return Response.json({ enabled: true });
     if (path === "/api/products" && (!init?.method || init.method === "GET"))
       return Response.json(previewProducts());
+    if (path === "/api/player-archive")
+      return Response.json(previewPlayerArchive());
     if (path === "/api/player-profiles")
       return Response.json(previewPlayerProfiles());
     if (path === "/api/parent-profiles/list")
