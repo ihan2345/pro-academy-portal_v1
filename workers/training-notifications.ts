@@ -6,6 +6,9 @@ import {
   whatsappLink,
 } from "../src/lib/domain";
 import { htmlEmail, safeRecipient, type Email } from "../src/lib/mail";
+import { greet, type MailLook } from "../src/lib/mail-2026/from-text";
+import { mailCalendar } from "../src/lib/mail-2026/ics-link";
+import { parentFirstName } from "../src/lib/server/parent-name";
 
 export const TRAINING_MAIL_KINDS = [
   "planning",
@@ -84,7 +87,49 @@ export async function composeTrainingNotice(
         : kind === "training_reminder"
           ? `Zur Erinnerung: Das Training von ${player.first_name} steht bevor.`
           : `Für ${player.first_name} ist folgendes Training geplant:`;
-  const text = `Hallo,\n${intro}\n${details.title}\n${formatDate(details.starts_at)}, ${formatTime(details.starts_at)} bis ${formatTime(details.ends_at)} Uhr\n${details.location_name}, ${details.address}\nTrainer: ${details.trainer_name}\nFragen oder Änderungen? Bitte kontaktiere uns per WhatsApp:\n${contact}`;
+  const text = greet(`Hallo,\n${intro}\n${details.title}\n${formatDate(details.starts_at)}, ${formatTime(details.starts_at)} bis ${formatTime(details.ends_at)} Uhr\n${details.location_name}, ${details.address}\nTrainer: ${details.trainer_name}\nFragen oder Änderungen? Bitte kontaktiere uns per WhatsApp:\n${contact}`, await parentFirstName(String(job.recipient)));
+  const look: MailLook = {
+    area: "Training",
+    eyebrow: heading,
+    title:
+      kind === "training_removed"
+        ? `${player.first_name} ist nicht mehr eingeplant.`
+        : kind === "training_reminder"
+          ? `Bald geht's los, ${player.first_name}.`
+          : kind === "change"
+            ? `Neuer Stand für ${player.first_name}.`
+            : `${player.first_name} ist eingeplant.`,
+    heroTime: {
+      start: formatTime(details.starts_at),
+      end: formatTime(details.ends_at),
+      caption: details.title,
+    },
+    chips: [
+      formatDate(details.starts_at),
+      details.location_name,
+      details.trainer_name,
+    ].filter(Boolean),
+  };
+  let attachments: Email["attachments"];
+  if (kind !== "training_removed") {
+    const calendar = await mailCalendar({
+      uid: `training-${payload.event_id}-${payload.player_id}`,
+      title: `ProAcademy Training: ${player.first_name} · ${details.title}`,
+      slots: [{ starts_at: details.starts_at, ends_at: details.ends_at }],
+      location: [details.location_name, details.address].filter(Boolean).join(", "),
+      description: `Trainer: ${details.trainer_name}`,
+      url: process.env.APP_URL ?? undefined,
+    });
+    attachments = [calendar.attachment];
+    if (calendar.links)
+      look.calendar = {
+        links: calendar.links,
+        note:
+          kind === "change"
+            ? "Neuen Stand eintragen und den alten Termin im Kalender löschen. Mit Erinnerung 1 Tag und 2 Stunden vorher."
+            : undefined,
+      };
+  }
   return {
     to:
       process.env.MAIL_PROVIDER === "capture"
@@ -92,10 +137,15 @@ export async function composeTrainingNotice(
         : safeRecipient(String(job.recipient)),
     subject,
     text,
-    html: htmlEmail(subject, text, process.env.APP_URL ?? "", [
-      { label: "Frage zum Training", url: contact },
-    ]),
+    html: htmlEmail(
+      subject,
+      text,
+      process.env.APP_URL ?? "",
+      [{ label: "Frage zum Training", url: contact }],
+      look,
+    ),
     messageId: `<${job.id}@proacademy-portal.local>`,
+    attachments,
   };
 }
 
@@ -114,7 +164,7 @@ export function composeStaffTrainingConfirmation(
     job.payload.event_id,
     true,
   );
-  const text = `Das Training „${details.title}“ am ${formatDate(details.starts_at)} von ${formatTime(details.starts_at)} bis ${formatTime(details.ends_at)} Uhr wurde als absolviert eingetragen.\nTrainingsdauer: ${durationMinutes(details.starts_at, details.ends_at)} Minuten.\nOrt: ${details.location_name}, ${details.address}\nTrainer: ${details.trainer_name}\nBestätigte Teilnahmen (${names.length}):\n${names.join("\n")}\nIst diese Angabe aus deiner Sicht nicht korrekt? Kontaktiere uns bitte über WhatsApp.\n${contact}`;
+  const text = `Hallo,\ndas Training „${details.title}“ am ${formatDate(details.starts_at)} von ${formatTime(details.starts_at)} bis ${formatTime(details.ends_at)} Uhr wurde als absolviert eingetragen.\nTrainingsdauer: ${durationMinutes(details.starts_at, details.ends_at)} Minuten.\nOrt: ${details.location_name}, ${details.address}\nTrainer: ${details.trainer_name}\nBestätigte Teilnahmen (${names.length}):\n${names.join("\n")}\nIst diese Angabe aus deiner Sicht nicht korrekt? Kontaktiere uns bitte über WhatsApp.\n${contact}`;
   return {
     to:
       process.env.MAIL_PROVIDER === "capture"
@@ -122,7 +172,18 @@ export function composeStaffTrainingConfirmation(
         : safeRecipient(String(job.recipient)),
     subject,
     text,
-    html: htmlEmail(subject, text, process.env.APP_URL ?? ""),
+    html: htmlEmail(subject, text, process.env.APP_URL ?? "", [], {
+      area: "Team",
+      eyebrow: "Training absolviert",
+      title: details.title,
+      heroTime: {
+        start: formatTime(details.starts_at),
+        end: formatTime(details.ends_at),
+        caption: `${durationMinutes(details.starts_at, details.ends_at)} Minuten · ${names.length} Teilnahmen`,
+      },
+      primaryLabel: "Zum Portal",
+      support: false,
+    }),
     messageId: `<${job.id}@proacademy-portal.local>`,
   };
 }

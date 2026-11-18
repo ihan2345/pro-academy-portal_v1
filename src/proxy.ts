@@ -49,6 +49,6 @@ export async function proxy(request: NextRequest) {
 }
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|brand/|sw.js|manifest.webmanifest|api/stripe/webhook|api/camp/webhook|api/cron|api/public/trainings/|api/public/players/|einbettung/produktbuehne/|api/public/product-showcase/).*)",
+    "/((?!_next/static|_next/image|brand/|mail/kalender-|sw.js|manifest.webmanifest|api/stripe/webhook|api/camp/webhook|api/cron|api/public/trainings/|api/public/players/|api/public/kalender/|einbettung/produktbuehne/|api/public/product-showcase/).*)",
   ],
 };

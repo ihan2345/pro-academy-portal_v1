@@ -5,7 +5,7 @@
  *
  * Schreibt:
  *   docs/mail-vorschau-2026/<nr>-<name>.html  (eine Datei pro Mail + index.html)
- *   supabase/templates/design-2026/*.html     (Vorlagen zum Einfügen ins Supabase-Dashboard)
+ *   supabase/templates/{magic-link,confirmation}.html (Supabase-Dashboard)
  *
  * Es wird nichts verschickt, keine Datenbank und kein Mail-Anbieter berührt.
  * Inhalte = aktuelle Texte aus src/lib/**, workers/** mit Beispieldaten.
@@ -897,7 +897,7 @@ const calendarFor: Record<string, [Omit<CalendarEvent, "uid">, string?]> = {
 
 const root = process.cwd();
 const outDir = join(root, "docs", "mail-vorschau-2026");
-const tplDir = join(root, "supabase", "templates", "design-2026");
+const tplDir = join(root, "supabase", "templates");
 mkdirSync(outDir, { recursive: true });
 mkdirSync(tplDir, { recursive: true });
 

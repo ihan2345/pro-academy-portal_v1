@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { textMailHtml, type MailLook } from "./mail-2026/from-text";
 export interface Email {
   to: string;
   subject: string;
@@ -88,17 +89,13 @@ export function escapeHtml(text: string) {
       ]!,
   );
 }
+/** Alle Portal-Mails im Design 2026 (src/lib/mail-2026). Klartext bleibt unverändert. */
 export function htmlEmail(
   title: string,
   text: string,
   url: string,
   actions: { label: string; url: string }[] = [],
+  look: MailLook = {},
 ) {
-  const logoUrl = new URL("/brand/logo-neon.png", url).href;
-  return `<html lang="de"><body style="margin:0;background:#f5f6f8;font:16px Arial,sans-serif;color:#17202c"><div style="max-width:560px;margin:30px auto;background:white"><div style="padding:24px 28px;background:#0B0F1A;color:#8EFF01"><img src="${escapeHtml(logoUrl)}" alt="ProAcademy" width="84" height="100" style="display:block;border:0;width:84px;height:100px;object-fit:contain"><div style="margin-top:12px;font-size:10px;letter-spacing:2px;color:#c4c8c7">BY AYHAN &amp; KARAMAN</div></div><div style="padding:28px"><h1 style="font-size:22px">${escapeHtml(title)}</h1>${text
-    .split("\n")
-    .map((line) => `<p style="line-height:1.6">${escapeHtml(line)}</p>`)
-    .join(
-      "",
-    )}${actions.map((a) => `<p><a href="${escapeHtml(a.url)}" style="display:inline-block;background:#edf5df;color:#173000;padding:12px 18px;text-decoration:none;border-radius:5px">${escapeHtml(a.label)}</a></p>`).join("")}<a href="${escapeHtml(url)}" style="display:inline-block;background:#8EFF01;color:#173000;padding:14px 20px;text-decoration:none;border-radius:5px">Zum Elternportal</a></div></div></body></html>`;
+  return textMailHtml(title, text, url, actions, look);
 }

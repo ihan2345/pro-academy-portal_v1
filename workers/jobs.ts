@@ -39,6 +39,9 @@ import {
   type Email,
   type MailProvider,
 } from "../src/lib/mail";
+import { firstName, greet, type MailLook } from "../src/lib/mail-2026/from-text";
+import { mailCalendar } from "../src/lib/mail-2026/ics-link";
+import { parentFirstName } from "../src/lib/server/parent-name";
 import {
   attendanceStats,
   isRemovedParticipant,
@@ -89,7 +92,8 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
   let subject = "",
     text = "",
     url = app,
-    attachments: Email["attachments"];
+    attachments: Email["attachments"],
+    look: MailLook = {};
   const actions: { label: string; url: string }[] = [];
   if (kind === "training_backfill") {
     const { data: links, error } = await db
@@ -247,6 +251,29 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
       kind === "attendance" || kind === "correction",
     );
     if (kind === "planning") {
+      const calendar = await mailCalendar({
+        uid: `training-${payload.event_id}-${payload.player_id}`,
+        title: `ProAcademy Training: ${player.first_name}`,
+        slots: [{ starts_at: start, ends_at: end }],
+        location: [event.locations?.name, event.locations?.address]
+          .filter(Boolean)
+          .join(", "),
+        description: `Trainer: ${event.staff_profiles?.display_name ?? ""}`,
+        url: app || undefined,
+      });
+      attachments = [calendar.attachment];
+      look = {
+        area: "Training",
+        eyebrow: "Training geplant",
+        title: `${player.first_name} ist eingeplant.`,
+        heroTime: { start: formatTime(start), end: formatTime(end) },
+        chips: [
+          formatDate(start),
+          event.locations?.name,
+          event.staff_profiles?.display_name,
+        ].filter(Boolean),
+        calendar: calendar.links ? { links: calendar.links } : undefined,
+      };
       subject = `Training geplant: ${player.first_name} am ${formatDate(start)}`;
       text = `Hallo,\ndas nächste Training von ${player.first_name} ist geplant:\n${formatDate(start)}, ${formatTime(start)} bis ${formatTime(end)} Uhr\n${event.locations?.name}, ${event.locations?.address}\nTrainer: ${event.staff_profiles?.display_name}\nÄnderungen oder Stornierungen sind aktuell nur über unser Team möglich. Bitte kontaktiere uns per WhatsApp.\n${contact}`;
     } else if (kind === "attendance") {
@@ -261,11 +288,53 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
     process.env.MAIL_PROVIDER === "capture"
       ? String(job.recipient)
       : safeRecipient(String(job.recipient));
+  // Einheitliche Anrede „Hallo <Vorname>,“ in allen Eltern-Mails.
+  if (!text.startsWith("Hallo"))
+    text = `Hallo,\n${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+  text =
+    kind === "invitation"
+      ? text.replace(
+          `Hallo ${payload.parent_name},`,
+          `Hallo ${firstName(payload.parent_name) || payload.parent_name},`,
+        )
+      : greet(text, await parentFirstName(String(job.recipient)));
+  look = {
+    area:
+      kind === "report"
+        ? "Berichte"
+        : kind === "stamp_card" || kind === "training_backfill"
+          ? "Stempelkarte"
+          : kind === "invitation"
+            ? "Elternportal"
+            : "Training",
+    ...(kind === "report" || kind === "stamp_card"
+      ? {
+          attachment: {
+            name:
+              kind === "report"
+                ? "ProAcademy-Trainingsbericht.pdf"
+                : "ProAcademy-Stempelkarte.pdf",
+            note: "Im Anhang · ohne Anmeldung lesbar",
+          },
+          primaryLabel: kind === "report" ? "Berichte öffnen" : "Stempelkarte ansehen",
+        }
+      : {}),
+    ...(kind === "invitation" ? { primaryLabel: "Einladung annehmen" } : {}),
+    eyebrow:
+      kind === "report"
+        ? "Neuer Bericht"
+        : kind === "stamp_card"
+          ? "Stempelkarte"
+          : kind === "invitation"
+            ? "Deine Einladung"
+            : undefined,
+    ...look,
+  };
   return {
     to,
     subject,
     text,
-    html: htmlEmail(subject, text, url, actions),
+    html: htmlEmail(subject, text, url, actions, look),
     messageId: `<${job.id}@proacademy-portal.local>`,
     attachments,
   };

@@ -1,5 +1,7 @@
 import "server-only";
 import { htmlEmail } from "@/lib/mail";
+import { MAIL_EXTRA_SLOT } from "@/lib/mail-2026/render";
+import { firstName } from "@/lib/mail-2026/from-text";
 import { giftMoney } from "./domain";
 import { giftExpiry } from "./artwork";
 import { giftMailImages } from "./artwork-mail";
@@ -27,7 +29,7 @@ export function giftMailContent({
   if (kind.startsWith("status_")) {
     subject = "Dein persönlicher ProAcademy Bestellstatus";
     text = [
-      `Hallo ${kind === "status_buyer" ? order.buyer.full_name : order.recipient.first_name},`,
+      `Hallo ${kind === "status_buyer" ? firstName(order.buyer.full_name) || order.buyer.full_name : order.recipient.first_name},`,
       "du hast deinen persönlichen Statuslink erneut angefordert.",
       kind === "status_buyer"
         ? "Über diesen Link findest du Kaufbestätigung und Zahlungsstatus deiner Geschenkkartenbestellung."
@@ -61,7 +63,7 @@ export function giftMailContent({
       ? "Deine ProAcademy Geschenkkarte – Kauf bestätigt"
       : `${order.buyer.full_name} schenkt dir ProAcademy`;
     text = [
-      `Hallo ${buyer ? order.buyer.full_name : order.recipient.first_name},`,
+      `Hallo ${buyer ? firstName(order.buyer.full_name) || order.buyer.full_name : order.recipient.first_name},`,
       buyer
         ? `Dein Kauf über ${giftMoney(order.amount)} ist bestätigt. Die Geschenkbenachrichtigung wird separat an ${order.recipient.email} zugestellt.`
         : `${order.buyer.full_name} hat dir eine ProAcademy Geschenkkarte über ${giftMoney(gift.amount)} gekauft.`,
@@ -99,15 +101,30 @@ export function giftMailContent({
   return {
     subject,
     text: `${text}\n${url}`,
-    html: htmlEmail(subject, text, url).replace(
-      ">Zum Elternportal</a>",
-      ">Bestellstatus ansehen</a>",
-    ),
+    html: htmlEmail(subject, text, url, [], {
+      area: "Geschenkkarte",
+      eyebrow: kind.startsWith("status_")
+        ? "Bestellstatus"
+        : kind === "balance"
+          ? "Guthaben aktualisiert"
+          : kind === "buyer"
+            ? "Kauf bestätigt"
+            : "Ein Geschenk für dich",
+      primaryLabel: "Bestellstatus ansehen",
+      heroCode: code
+        ? {
+            value: code,
+            caption:
+              kind === "balance"
+                ? "Dein neuer Geschenkcode"
+                : kind === "buyer"
+                  ? "Ursprünglicher Geschenkcode"
+                  : "Dein Geschenkcode",
+          }
+        : undefined,
+    }),
   };
 }
 export function withGiftImages(html: string) {
-  return html.replace(
-    "</div></div></body>",
-    `${giftMailImages}</div></div></body>`,
-  );
+  return html.replace(MAIL_EXTRA_SLOT, giftMailImages);
 }

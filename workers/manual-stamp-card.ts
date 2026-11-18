@@ -1,4 +1,6 @@
 import { emailPreferenceAllows } from "../src/lib/server/email-preference";
+import { greet } from "../src/lib/mail-2026/from-text";
+import { parentFirstName } from "../src/lib/server/parent-name";
 import { serviceDb } from "../src/lib/server/service-db";
 import { HttpError, assertRole } from "../src/lib/server/security";
 import { renderReport, type ReportSnapshot } from "../src/lib/pdf";
@@ -81,12 +83,23 @@ export async function deliverManualStampCard(
         : safeRecipient(job.recipient);
     const snapshot = job.payload.snapshot as ReportSnapshot;
     const subject = `Stempelkarte für ${snapshot.player_name}`;
-    const text = `Hallo,\nim Anhang findest du die aktuelle Stempelkarte für ${snapshot.player_name}. Zum Öffnen des PDFs ist keine Anmeldung im Elternportal erforderlich.`;
+    const text = greet(
+      `Hallo,\nim Anhang findest du die aktuelle Stempelkarte für ${snapshot.player_name}. Zum Öffnen des PDFs ist keine Anmeldung im Elternportal erforderlich.`,
+      await parentFirstName(String(job.recipient)),
+    );
     const mail = {
       to: recipient,
       subject,
       text,
-      html: htmlEmail(subject, text, `${process.env.APP_URL}/stempelkarte`),
+      html: htmlEmail(subject, text, `${process.env.APP_URL}/stempelkarte`, [], {
+        area: "Stempelkarte",
+        eyebrow: "Stempelkarte",
+        primaryLabel: "Stempelkarte ansehen",
+        attachment: {
+          name: "ProAcademy-Stempelkarte.pdf",
+          note: "Im Anhang · ohne Anmeldung lesbar",
+        },
+      }),
       messageId: `<${id}@proacademy-portal.local>`,
       attachments: [
         {

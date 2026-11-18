@@ -42,6 +42,8 @@ export interface Mail2026 {
   primary?: MailLink;
   greeting?: string;
   paragraphs?: string[];
+  /** Inhalt in fester Reihenfolge (aus Klartext-Mails abgeleitet). */
+  flow?: MailFlowItem[];
   factsTitle?: string;
   facts?: MailFact[];
   list?: { title: string; items: string[] };
@@ -63,6 +65,14 @@ export interface Mail2026 {
   /** Kontaktkarte „Wir sind für dich da.“ */
   support?: { whatsapp?: string; email?: string };
 }
+
+export type MailFlowItem =
+  | { type: "p"; text: string }
+  | { type: "fact"; label: string; value: string; tone?: MailFact["tone"] }
+  | { type: "quote"; title: string; text: string };
+
+/** Platzhalter für nachträglich eingefügtes HTML (z. B. Geschenkkarten-Bilder). */
+export const MAIL_EXTRA_SLOT = "<!--pa-extra-->";
 
 export const MAIL_2026 = {
   bg: "#f5f5f7",
@@ -145,7 +155,7 @@ ${m.primary ? `<div style="margin:${chips ? 14 : 26}px 0 0">${button(m.primary, 
 </td></tr>`;
 }
 
-function facts(m: Mail2026) {
+function facts(m: Pick<Mail2026, "facts" | "factsTitle">) {
   if (!m.facts?.length) return "";
   const toneColor = { lime: "#3f8f00", purple: c.purple, muted: c.muted };
   return `${m.factsTitle ? `<h2 style="margin:0 0 6px;font-size:19px;font-weight:700;letter-spacing:-0.02em;color:${c.ink}">${esc(m.factsTitle)}</h2>` : ""}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px">${m.facts
@@ -172,16 +182,37 @@ function calendar(cal: NonNullable<Mail2026["calendar"]>, base: string) {
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px;border-collapse:separate"><tr><td style="padding:20px 15px 15px;border-radius:22px;background:${c.bg}"><div style="padding:0 5px"><div style="font-size:19px;font-weight:700;letter-spacing:-0.02em;color:${c.ink}">In Kalender eintragen</div><div style="margin:4px 0 12px;font-size:14px;line-height:1.5;color:${c.muted}">${esc(cal.note ?? "Mit Erinnerung 1 Tag und 2 Stunden vorher.")}</div></div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>${tile(tiles[0])}${tile(tiles[1])}</tr><tr>${tile(tiles[2])}${tile(tiles[3])}</tr></table></td></tr></table>`;
 }
 
+function paragraph(text: string) {
+  return `<p style="margin:0 0 16px;font-size:16px;line-height:1.65;color:#3a3a3f">${lines(text)}</p>`;
+}
+
+function quoteBox(q: { title: string; text: string; meta?: string }) {
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px;border-collapse:separate"><tr><td style="padding:22px 24px;border-radius:20px;background:${c.purpleTint}"><div style="font-size:12px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:${c.purple}">${esc(q.title)}</div>${q.meta ? `<div style="margin:8px 0 0;font-size:15px;font-weight:600;color:${c.ink}">${esc(q.meta)}</div>` : ""}<p style="margin:10px 0 0;font-size:16px;line-height:1.6;color:${c.ink}">${lines(q.text)}</p></td></tr></table>`;
+}
+
 function body(m: Mail2026, assetBase: string) {
   const parts: string[] = [];
   if (m.greeting)
     parts.push(
       `<p style="margin:0 0 14px;font-size:17px;line-height:1.6;font-weight:600;color:${c.ink}">${esc(m.greeting)}</p>`,
     );
-  for (const p of m.paragraphs ?? [])
-    parts.push(
-      `<p style="margin:0 0 16px;font-size:16px;line-height:1.65;color:#3a3a3f">${lines(p)}</p>`,
-    );
+  for (const p of m.paragraphs ?? []) parts.push(paragraph(p));
+  const flow = m.flow ?? [];
+  for (let i = 0; i < flow.length; i++) {
+    const item = flow[i];
+    if (item.type === "p") parts.push(paragraph(item.text));
+    else if (item.type === "quote") parts.push(quoteBox(item));
+    else {
+      const group: MailFact[] = [];
+      while (i < flow.length && flow[i].type === "fact") {
+        const f = flow[i] as Extract<MailFlowItem, { type: "fact" }>;
+        group.push({ label: f.label, value: f.value, tone: f.tone });
+        i++;
+      }
+      i--;
+      parts.push(facts({ facts: group }));
+    }
+  }
   if (m.facts?.length) parts.push(`<div style="height:6px"></div>${facts(m)}`);
   if (m.calendar) parts.push(calendar(m.calendar, assetBase));
   if (m.list)
@@ -193,10 +224,7 @@ function body(m: Mail2026, assetBase: string) {
         )
         .join("")}</table>`,
     );
-  if (m.quote)
-    parts.push(
-      `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px;border-collapse:separate"><tr><td style="padding:22px 24px;border-radius:20px;background:${c.purpleTint}"><div style="font-size:12px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:${c.purple}">${esc(m.quote.title)}</div>${m.quote.meta ? `<div style="margin:8px 0 0;font-size:15px;font-weight:600;color:${c.ink}">${esc(m.quote.meta)}</div>` : ""}<p style="margin:10px 0 0;font-size:16px;line-height:1.6;color:${c.ink}">${lines(m.quote.text)}</p></td></tr></table>`,
-    );
+  if (m.quote) parts.push(quoteBox(m.quote));
   if (m.rating)
     parts.push(
       `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px;border-collapse:separate"><tr><td style="padding:24px 20px;border-radius:20px;background:${c.bg};text-align:center"><h2 style="margin:0;font-size:20px;font-weight:700;letter-spacing:-0.02em;color:${c.ink}">${esc(m.rating.title)}</h2><p style="margin:8px 0 16px;font-size:14px;line-height:1.5;color:${c.muted}">${lines(m.rating.text)}</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>${m.rating.urls
@@ -228,6 +256,7 @@ function body(m: Mail2026, assetBase: string) {
     parts.push(
       `<p style="margin:0 0 10px;font-size:13px;line-height:1.6;color:${c.muted}">${lines(f)}</p>`,
     );
+  parts.push(MAIL_EXTRA_SLOT);
   parts.push(
     `<p style="margin:22px 0 0;font-size:16px;line-height:1.5;color:${c.ink}">${esc(m.signature ?? "Dein ProAcademy-Team")}</p>`,
   );

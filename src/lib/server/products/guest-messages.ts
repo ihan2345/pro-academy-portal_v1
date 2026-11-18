@@ -3,6 +3,7 @@ import type { MailProvider } from "@/lib/mail";
 import { htmlEmail, safeRecipient } from "@/lib/mail";
 import { serviceDb } from "../service-db";
 import { checked } from "./context";
+import { greet } from "@/lib/mail-2026/from-text";
 /** Separate transactional purchase/access messages. Never releases legacy reminder or invitation queues. */
 export async function processGuestMessages(provider: MailProvider) {
   if (process.env.PRODUCT_GUEST_MAIL_ENABLED !== "true") return 0;
@@ -68,7 +69,8 @@ export async function processGuestMessages(provider: MailProvider) {
         style: "currency",
         currency: i.currency,
       }).format(i.expected_amount / 100);
-      const text = [
+      const text = greet([
+        "Hallo,",
         i.status === "review"
           ? `Deine Bestellung von „${i.product.name}“ ist zur Prüfung erfasst. Bei Stripe vereinbarter Betrag: ${price}. Bestellnummer: ${i.id}.`
           : `Dein Kauf von „${i.product.name}“ wurde mit ${price} abgeschlossen. Bestellnummer: ${i.id}.`,
@@ -82,7 +84,7 @@ export async function processGuestMessages(provider: MailProvider) {
             ]
           : []),
         "Falls der Link abgelaufen ist, kannst du im Shop über die Bestellbestätigung oder über die Anmeldung einen neuen Zugangslink anfordern.",
-      ].join("\n");
+      ].join("\n"), i.guest_data.full_name);
       await provider.send({
         to: recipient,
         subject: `Deine Buchung: ${i.product.name} – Portalzugang bestätigen`,
@@ -93,6 +95,14 @@ export async function processGuestMessages(provider: MailProvider) {
             : "Buchung bestätigt – Zugang aktivieren",
           text,
           url.href,
+          [],
+          {
+            area: "Shop",
+            eyebrow: i.status === "review" ? "Bestellung eingegangen" : "Buchung bestätigt",
+            title: `${i.product.name}`,
+            subtitle: "Aktiviere jetzt deinen persönlichen Portalzugang.",
+            primaryLabel: "Zugang aktivieren",
+          },
         ),
         messageId: `<product-guest-${i.id}-${job.attempts}@proacademy-ak.com>`,
       });

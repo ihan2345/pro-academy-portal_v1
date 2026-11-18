@@ -96,12 +96,13 @@ function icsText(text: string) {
 }
 
 /** RFC-5545-Zeilen auf 75 Oktette falten. */
+const bytes = (text: string) => new TextEncoder().encode(text).length;
 function fold(line: string) {
   const out: string[] = [];
   let rest = line;
-  while (Buffer.byteLength(rest) > 75) {
+  while (bytes(rest) > 75) {
     let cut = 75;
-    while (Buffer.byteLength(rest.slice(0, cut)) > 75) cut--;
+    while (bytes(rest.slice(0, cut)) > 75) cut--;
     out.push(rest.slice(0, cut));
     rest = ` ${rest.slice(cut)}`;
   }
