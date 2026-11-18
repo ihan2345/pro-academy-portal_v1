@@ -5,6 +5,7 @@
 // Filters, damit Summen, Durchschnitte und Top 10 über alle Familien stimmen.
 import { useEffect, useState } from "react";
 import {
+  Archive,
   CalendarRange,
   Clock3,
   Radio,
@@ -18,7 +19,9 @@ import type { PlayerProfilePage } from "@/lib/player-profiles";
 import type { ProfileListRow } from "@/lib/parent-profile";
 import { familyStatus } from "@/lib/parent-profile";
 import { activityStatus, ONLINE_WINDOW } from "@/lib/user-activity";
+import type { ArchivePage, ArchivePlayer } from "@/lib/player-archive";
 import { PageHead, SheetRow } from "./page-head";
+import { PlayerArchive } from "./player-archive";
 
 /** Grün: gerade aktiv im Portal. Orange: in den letzten 30 Minuten da. */
 const IDLE_WINDOW = 30 * 60000;
@@ -138,6 +141,11 @@ export function PlayerDirectoryHead({
       throw new Error("zu viele Seiten");
     },
   );
+  const archive = useEverything<ArchivePlayer>(
+    `archive:${revision}`,
+    async (signal) =>
+      ((await json("/api/player-archive", signal)) as ArchivePage).rows,
+  );
   const rows = all.rows;
   const ready = !!rows;
   const minutes = rows?.reduce((s, r) => s + r.stats.all.minutes, 0) ?? 0;
@@ -193,11 +201,31 @@ export function PlayerDirectoryHead({
       }
       kpis={[
         {
-          icon: Users,
-          value: count,
-          label: "Spieler",
+          icon: Archive,
+          value: archive.rows ? archive.rows.length : pending,
+          label: "Alle Spieler",
+          tip: "Archiv: alle jemals erfassten Spieler, unabhängig vom Status",
           sheet: {
             title: "Alle Spieler",
+            eyebrow: archive.rows
+              ? `Archiv · ${archive.rows.length} erfasst`
+              : "Archiv",
+            body: (
+              <PlayerArchive
+                rows={archive.rows}
+                failed={archive.failed}
+                base={base}
+                search={search}
+              />
+            ),
+          },
+        },
+        {
+          icon: Users,
+          value: count,
+          label: "Abo-Spieler",
+          sheet: {
+            title: "Abo-Spieler",
             eyebrow: ready ? `${count} Spieler` : undefined,
             body: list(
               [...(rows ?? [])].sort((a, b) =>

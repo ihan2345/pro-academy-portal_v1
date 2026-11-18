@@ -488,3 +488,67 @@ export function previewTrials() {
     staff: [{ id: "t-1", display_name: "Coach Max" }],
   };
 }
+
+/** Archiv „Alle Spieler“: Abo, nur Camp, Probetraining und Inaktive. */
+export function previewPlayerArchive() {
+  const abo = previewPlayerProfiles().rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    first_name: r.first_name,
+    last_name: r.last_name,
+    age: r.age,
+    team: r.team,
+    archived: false,
+    created: r.since,
+    status: "abo" as const,
+    products: [...r.products],
+    formerProducts: [...r.products],
+    months: r.months,
+    since: r.since,
+    trainings: r.stats.all.count,
+    minutes: r.stats.all.minutes,
+    camps: r.camps,
+    trial: null,
+    parents: r.parents,
+  }));
+  const others = (
+    [
+      ["Lina", "Hoffmann", "camp", 0, 0, 2, null, []],
+      ["Jonas", "Arslan", "camp", 0, 0, 1, null, []],
+      ["Finn", "Richter", "camp", 0, 0, 3, "closed", []],
+      ["Sofia", "Demir", "trial", 0, 1, 0, "attended", []],
+      ["Paul", "Krüger", "trial", 0, 0, 0, "planned", []],
+      ["Ida", "Neumann", "trial", 0, 0, 0, "new", []],
+      ["Luca", "Schmitt", "inactive", 9, 34, 2, null, ["Gamechanger"]],
+      ["Mila", "Fischer", "inactive", 4, 15, 0, null, ["First Touch"]],
+      ["Tim", "Braun", "inactive", 0, 0, 0, null, []],
+    ] as const
+  ).map(
+    ([first, last, status, months, trainings, camps, trial, former], i) => ({
+      id: `a-${i + 1}`,
+      name: `${first} ${last}`,
+      first_name: first,
+      last_name: last,
+      age: `${8 + (i % 5)} Jahre`,
+      team: i % 2 ? "U10" : "U12",
+      archived: last === "Braun",
+      created: iso(-60 - i * 40),
+      status,
+      products: [] as string[],
+      formerProducts: [...former],
+      months,
+      since: months ? iso(-months * 30 - 120) : null,
+      trainings,
+      minutes: trainings * 75,
+      camps,
+      trial,
+      parents: [{ id: `fa-${i + 1}`, name: `Familie ${last}` }],
+    }),
+  );
+  return {
+    rows: [...abo, ...others].sort((a, b) =>
+      a.name.localeCompare(b.name, "de"),
+    ),
+    trainingAvailable: true,
+  };
+}
