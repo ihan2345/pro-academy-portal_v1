@@ -428,7 +428,7 @@ export function previewCampCustomers() {
       "Sabine Brandt",
       "sabine.brandt@example.com",
       "0170 1234567",
-      "Ohne Trikot-Set",
+      "Ohne ProAcademy Trikot-Set",
     ],
     [
       "Celik",
@@ -450,7 +450,7 @@ export function previewCampCustomers() {
       "Thomas Fischer",
       "t.fischer@example.com",
       "0151 3456789",
-      "Mit Trikot-Set",
+      "Mit ProAcademy Trikot-Set",
     ],
     [
       "Hoffmann",
@@ -461,7 +461,7 @@ export function previewCampCustomers() {
       "Julia Hoffmann",
       "julia.hoffmann.familie@example.com",
       "0173 4567890",
-      "Ohne Trikot-Set",
+      "Ohne ProAcademy Trikot-Set",
     ],
     [
       "Kaya",
@@ -494,7 +494,7 @@ export function previewCampCustomers() {
       "Anna Wagner-Lindqvist",
       "anna.wagner@example.com",
       "0162 7890123",
-      "Mit Trikot-Set",
+      "Mit ProAcademy Trikot-Set",
     ],
     [
       "Yilmaz",
@@ -505,7 +505,7 @@ export function previewCampCustomers() {
       "Selin Yilmaz",
       "selin.yilmaz@example.com",
       "0176 8901234",
-      "Ohne Trikot-Set",
+      "Ohne ProAcademy Trikot-Set",
     ],
   ] as const;
   return {

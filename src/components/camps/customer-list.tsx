@@ -83,6 +83,8 @@ export function CampCustomerList({ campId }: { campId: string }) {
   }
   return (
     <section className="camp-customer-list">
+      {/* Nur solange die Kundenliste offen ist: Druck/PDF auf A4 quer. */}
+      <style>{`@page { size: A4 landscape; margin: 10mm 9mm 12mm; }`}</style>
       <Link
         className="camp-back-link camp-customer-controls"
         href={`/camps/${campId}`}

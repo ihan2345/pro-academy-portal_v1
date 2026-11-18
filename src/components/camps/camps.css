@@ -112,16 +112,12 @@
    Breite. Gleiche Darstellung, egal ob vom Computer oder vom Handy gedruckt.
    Die Regeln brauchen !important, weil Design 2026 (:root[data-design])
    Hauptbereich, Abstände und Einblend-Animationen stärker gewichtet. */
-.camp-customer-list {
-  page: kundenliste;
-}
 .camp-customer-print-label {
   display: none;
 }
-@page kundenliste {
-  size: A4 landscape;
-  margin: 10mm 9mm 12mm;
-}
+/* @page (A4 quer) setzt die Komponente selbst, nur solange die Liste offen
+   ist. Safari ignoriert das teils und druckt hochkant: dafür gibt es unten
+   eine kompaktere Hochformat-Variante. */
 @media print {
   html:has(.camp-customer-list),
   html:has(.camp-customer-list) body {
@@ -272,24 +268,29 @@
   .camp-customer-list .camp-customer-table th.col-paid_amount {
     text-align: right;
   }
+  .camp-customer-list .camp-customer-table th {
+    overflow-wrap: anywhere;
+  }
   .camp-customer-list .camp-customer-tag {
-    display: inline;
-    padding: 0.3mm 1.4mm;
-    font-size: 7pt;
-    white-space: nowrap;
+    display: inline-block;
+    max-width: 100%;
+    padding: 0.3mm 1.2mm;
+    font-size: 0.92em;
+    line-height: 1.25;
+    white-space: normal;
   }
   /* Spaltenbreiten (Summe 100 %), damit jede Zeile die volle Breite nutzt. */
   .camp-customer-table .col-last_name {
     width: 8%;
   }
   .camp-customer-table .col-first_name {
-    width: 7%;
-  }
-  .camp-customer-table .col-birth_date {
     width: 6.5%;
   }
+  .camp-customer-table .col-birth_date {
+    width: 7%;
+  }
   .camp-customer-table .col-birth_year {
-    width: 3.5%;
+    width: 4%;
   }
   .camp-customer-table .col-clothing_size {
     width: 4%;
@@ -298,13 +299,13 @@
     width: 5%;
   }
   .camp-customer-table .col-customer_group {
-    width: 7%;
+    width: 7.5%;
   }
   .camp-customer-table .col-parent_name {
     width: 9%;
   }
   .camp-customer-table .col-email {
-    width: 16%;
+    width: 15.5%;
   }
   .camp-customer-table .col-phone {
     width: 7.5%;
@@ -313,13 +314,39 @@
     width: 8%;
   }
   .camp-customer-table .col-option_title {
-    width: 8%;
+    width: 7.5%;
   }
   .camp-customer-table .col-attendance {
     width: 5%;
   }
   .camp-customer-table .col-paid_amount {
     width: 5.5%;
+  }
+}
+/* Hochformat (z. B. Safari): kleinere Schrift, damit jede Zeile trotzdem
+   über die volle Breite passt. */
+@media print and (orientation: portrait) {
+  .camp-customer-list .camp-customer-table table {
+    font-size: 6pt;
+    line-height: 1.25;
+  }
+  .camp-customer-list .camp-customer-table th {
+    font-size: 5.3pt;
+    letter-spacing: 0;
+  }
+  .camp-customer-list .camp-customer-table th,
+  .camp-customer-list .camp-customer-table td {
+    padding: 1.3mm 0.7mm !important;
+  }
+  .camp-customer-list .page-heading h1 {
+    font-size: 17pt !important;
+  }
+  .camp-customer-list .page-heading p {
+    font-size: 10pt !important;
+  }
+  .camp-customer-list .camp-customer-count,
+  .camp-customer-list .camp-customer-legend {
+    font-size: 7pt !important;
   }
 }
 .camp-top {
