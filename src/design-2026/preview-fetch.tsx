@@ -1,7 +1,11 @@
 "use client";
 // Design-Vorschau 2026: beantwortet Portal-Anfragen der Vorschau im Browser mit
 // Beispieldaten, damit ohne Login und ohne Supabase nichts geladen oder gespeichert wird.
-import { previewAdminRows, previewCamps } from "./mock-data";
+import {
+  previewAdminRows,
+  previewCampCustomers,
+  previewCamps,
+} from "./mock-data";
 import {
   previewActivities,
   previewConflicts,
@@ -28,6 +32,8 @@ if (
           : input.url;
     const path = new URL(url, location.origin).pathname;
     if (path === "/api/camp/dashboard") return Response.json(previewCamps());
+    if (path === "/api/camp/customers")
+      return Response.json(previewCampCustomers());
     // Vorschau: gemeinsames Merken ist "noch nicht eingerichtet", der
     // Browser merkt Markierungen lokal.
     if (path === "/api/notice-decisions")

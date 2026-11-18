@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { Portal } from "@/components/portal";
 import { CampDashboard } from "@/components/camps/dashboard";
+import { CampCustomerList } from "@/components/camps/customer-list";
 import "@/components/camps/camps.css";
 import { previewAdminPortal, previewPortal } from "@/design-2026/mock-data";
 import { PreviewFetch } from "@/design-2026/preview-fetch";
@@ -123,7 +124,11 @@ export default async function Page({
   return (
     <>
       <PreviewFetch />
-      {section === "camps" ? (
+      {section === "camps" && campId && view[2] === "kundenliste" ? (
+        <Portal initial={previewAdminPortal()} section="camps">
+          <CampCustomerList campId={campId} />
+        </Portal>
+      ) : section === "camps" ? (
         <Portal initial={previewPortal()} section="camps">
           <CampDashboard campId={campId} view="overview" loginHref="/login" />
         </Portal>
