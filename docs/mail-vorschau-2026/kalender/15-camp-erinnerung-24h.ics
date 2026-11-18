@@ -1,0 +1,66 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//ProAcademy by Ayhan & Karaman//Portal//DE
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:15-camp-erinnerung-24h-1@proacademy-ak.com
+DTSTAMP:20261118T070000Z
+DTSTART:20261019T080000Z
+DTEND:20261019T140000Z
+SUMMARY:ProAcademy Herbstcamp 2026: Max Mustermann
+LOCATION:Sportpark Musterstadt
+DESCRIPTION:https://portal.proacademy-ak.com/camps
+URL:https://portal.proacademy-ak.com/camps
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:ProAcademy Herbstcamp 2026: Max Mustermann
+TRIGGER:-PT1440M
+END:VALARM
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:ProAcademy Herbstcamp 2026: Max Mustermann
+TRIGGER:-PT120M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:15-camp-erinnerung-24h-2@proacademy-ak.com
+DTSTAMP:20261118T070000Z
+DTSTART:20261020T080000Z
+DTEND:20261020T140000Z
+SUMMARY:ProAcademy Herbstcamp 2026: Max Mustermann
+LOCATION:Sportpark Musterstadt
+DESCRIPTION:https://portal.proacademy-ak.com/camps
+URL:https://portal.proacademy-ak.com/camps
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:ProAcademy Herbstcamp 2026: Max Mustermann
+TRIGGER:-PT1440M
+END:VALARM
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:ProAcademy Herbstcamp 2026: Max Mustermann
+TRIGGER:-PT120M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:15-camp-erinnerung-24h-3@proacademy-ak.com
+DTSTAMP:20261118T070000Z
+DTSTART:20261021T080000Z
+DTEND:20261021T140000Z
+SUMMARY:ProAcademy Herbstcamp 2026: Max Mustermann
+LOCATION:Sportpark Musterstadt
+DESCRIPTION:https://portal.proacademy-ak.com/camps
+URL:https://portal.proacademy-ak.com/camps
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:ProAcademy Herbstcamp 2026: Max Mustermann
+TRIGGER:-PT1440M
+END:VALARM
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:ProAcademy Herbstcamp 2026: Max Mustermann
+TRIGGER:-PT120M
+END:VALARM
+END:VEVENT
+END:VCALENDAR

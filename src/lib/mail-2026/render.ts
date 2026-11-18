@@ -49,6 +49,11 @@ export interface Mail2026 {
   callout?: { title?: string; text: string; tone?: MailTone };
   rating?: { title: string; text: string; urls: string[] };
   attachment?: { name: string; note: string };
+  /** „In Kalender eintragen“ mit Buttons je Plattform (siehe calendar.ts). */
+  calendar?: {
+    links: { google: string; outlook: string; ics: string };
+    note?: string;
+  };
   secondary?: MailLink[];
   /** Hinweisbox erst nach den Zusatz-Buttons zeigen (z. B. Link-Hinweis beim Login). */
   calloutAfterActions?: boolean;
@@ -155,7 +160,19 @@ function actions(m: Mail2026) {
   return `<div style="margin:2px 0 20px">${(m.secondary ?? []).map((s) => `<div style="margin:0 0 10px">${button(s, "secondary")}</div>`).join("")}</div>`;
 }
 
-function body(m: Mail2026) {
+function calendar(cal: NonNullable<Mail2026["calendar"]>, base: string) {
+  const tiles = [
+    { icon: "kalender-apple", label: "Apple", sub: "iPhone & Mac", url: cal.links.ics },
+    { icon: "kalender-google", label: "Google", sub: "Android & Web", url: cal.links.google },
+    { icon: "kalender-outlook", label: "Outlook", sub: "Windows & Web", url: cal.links.outlook },
+    { icon: "kalender-datei", label: "Andere", sub: ".ics-Datei", url: cal.links.ics },
+  ];
+  const tile = (t: (typeof tiles)[number]) =>
+    `<td class="m-cal" width="50%" style="padding:5px;vertical-align:top"><a href="${esc(t.url)}" style="display:block;padding:12px;border-radius:18px;border:1px solid ${c.hair};background:#ffffff;text-decoration:none"><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td width="50" style="vertical-align:middle"><img src="${esc(`${base}/mail/${t.icon}.png`)}" width="40" height="40" alt="" style="display:block;border:0;width:40px;height:40px"></td><td style="vertical-align:middle;font-family:${c.font}"><div style="font-size:15px;font-weight:600;color:${c.ink};line-height:1.25">${esc(t.label)}</div><div style="font-size:12px;color:${c.muted};line-height:1.35;margin-top:2px">${esc(t.sub)}</div></td></tr></table></a></td>`;
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px;border-collapse:separate"><tr><td style="padding:20px 15px 15px;border-radius:22px;background:${c.bg}"><div style="padding:0 5px"><div style="font-size:19px;font-weight:700;letter-spacing:-0.02em;color:${c.ink}">In Kalender eintragen</div><div style="margin:4px 0 12px;font-size:14px;line-height:1.5;color:${c.muted}">${esc(cal.note ?? "Mit Erinnerung 1 Tag und 2 Stunden vorher.")}</div></div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>${tile(tiles[0])}${tile(tiles[1])}</tr><tr>${tile(tiles[2])}${tile(tiles[3])}</tr></table></td></tr></table>`;
+}
+
+function body(m: Mail2026, assetBase: string) {
   const parts: string[] = [];
   if (m.greeting)
     parts.push(
@@ -166,6 +183,7 @@ function body(m: Mail2026) {
       `<p style="margin:0 0 16px;font-size:16px;line-height:1.65;color:#3a3a3f">${lines(p)}</p>`,
     );
   if (m.facts?.length) parts.push(`<div style="height:6px"></div>${facts(m)}`);
+  if (m.calendar) parts.push(calendar(m.calendar, assetBase));
   if (m.list)
     parts.push(
       `<h2 style="margin:4px 0 8px;font-size:19px;font-weight:700;letter-spacing:-0.02em;color:${c.ink}">${esc(m.list.title)}</h2><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px">${m.list.items
@@ -254,6 +272,8 @@ a{text-decoration:none}
  .m-digit div{width:40px!important;height:54px!important;line-height:54px!important;font-size:27px!important}
  .m-fact-l,.m-fact-v{font-size:14px!important}
  .m-star{font-size:15px!important;padding:12px 0!important}
+ .m-cal a{padding:10px 8px!important}
+ .m-cal td[width="50"]{width:44px!important}
 }
 </style></head>
 <body style="margin:0;padding:0;background:${c.bg}">
@@ -265,7 +285,7 @@ a{text-decoration:none}
 <td align="right" style="vertical-align:middle;font-family:${c.font}"><span style="display:inline-block;padding:7px 12px;border-radius:999px;background:#ffffff;border:1px solid ${c.hair};font-size:12px;font-weight:600;color:${c.muted}">${esc(m.area)}</span></td>
 </tr></table></td></tr>
 ${hero(m)}
-${body(m)}
+${body(m, base)}
 ${support(m)}
 <tr><td class="m-pad-x" style="padding:26px 34px 0;font-family:${c.font}">
 <div style="font-size:22px;line-height:1;font-weight:800;font-style:italic;letter-spacing:-0.04em;color:#c7c7cc">BUILT. NOT BORN.</div>

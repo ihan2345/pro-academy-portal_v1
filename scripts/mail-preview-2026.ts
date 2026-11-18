@@ -13,6 +13,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderMail2026, esc, type Mail2026 } from "../src/lib/mail-2026/render";
+import {
+  calendarLinks,
+  icsFile,
+  type CalendarEvent,
+} from "../src/lib/mail-2026/calendar";
 
 const APP = "https://portal.proacademy-ak.com";
 const WA =
@@ -27,7 +32,7 @@ type Entry = {
   mail: Mail2026;
 };
 
-const loginMail = (token: string): Mail2026 => ({
+const loginMail = (token: string, greeting: string): Mail2026 => ({
   preheader: "Dein sechsstelliger Code für das ProAcademy-Portal.",
   area: "Anmeldung",
   eyebrow: "Dein Anmeldecode",
@@ -35,7 +40,7 @@ const loginMail = (token: string): Mail2026 => ({
   subtitle:
     "Gib diesen sechsstelligen Code auf der Anmeldeseite des ProAcademy-Portals ein.",
   heroCode: { value: token, caption: "Nur einmal gültig · begrenzte Zeit" },
-  greeting: "Hallo,",
+  greeting,
   paragraphs: [
     "du kannst diese E-Mail auf einem anderen Gerät lesen und den Code in deinem geöffneten Anmeldefenster eingeben.",
     "Alternativ kannst du dich auch mit diesem Link anmelden:",
@@ -53,7 +58,7 @@ const loginMail = (token: string): Mail2026 => ({
   ],
 });
 
-const confirmMail = (token: string): Mail2026 => ({
+const confirmMail = (token: string, greeting: string): Mail2026 => ({
   preheader: "Bestätige deine E-Mail-Adresse für das ProAcademy-Portal.",
   area: "Registrierung",
   eyebrow: "Willkommen",
@@ -61,7 +66,7 @@ const confirmMail = (token: string): Mail2026 => ({
   subtitle:
     "Nur noch ein Schritt, um deine Registrierung im ProAcademy-Portal abzuschließen.",
   heroCode: { value: token, caption: "Code auf der Anmeldeseite eingeben" },
-  greeting: "Hallo,",
+  greeting,
   paragraphs: [
     "gib diesen sechsstelligen Code auf der Anmeldeseite des Portals ein. Alternativ kannst du den Link unten im selben Browser auf demselben Gerät öffnen, in dem du die Anmeldung angefordert hast.",
   ],
@@ -87,14 +92,14 @@ const entries: Entry[] = [
     group: "Anmeldung · Supabase",
     subject: "Dein Anmeldecode für ProAcademy",
     trigger: "Login mit E-Mail-Code / Magic Link",
-    mail: loginMail("482913"),
+    mail: loginMail("482913", "Hallo Laura,"),
   },
   {
     slug: "02-registrierung-bestaetigen",
     group: "Anmeldung · Supabase",
     subject: "Bestätige deine E-Mail-Adresse für ProAcademy",
     trigger: "Erste Registrierung",
-    mail: confirmMail("482913"),
+    mail: confirmMail("482913", "Hallo Laura,"),
   },
   // ---------- Elternportal ----------
   {
@@ -110,6 +115,8 @@ const entries: Entry[] = [
       subtitle:
         "Termine, Fortschritt, Stempelkarte und Berichte von Noah an einem Ort.",
       primary: { label: "Einladung annehmen", url: `${APP}/auth/invite` },
+      greeting: "Hallo Laura,",
+      paragraphs: ["willkommen in deinem Elternportal. Deine persönliche Einladung ist sieben Tage gültig."],
       list: {
         title: "Das erwartet dich",
         items: [
@@ -118,7 +125,6 @@ const entries: Entry[] = [
           "Fortschritt, Stempelkarte und Trainingsberichte",
         ],
       },
-      fineprint: ["Deine persönliche Einladung ist sieben Tage gültig."],
       support,
     },
   },
@@ -135,7 +141,7 @@ const entries: Entry[] = [
       heroTime: { start: "18:00", end: "19:30", caption: "Abschluss & Torschuss" },
       chips: trainingChips,
       primary: { label: "Im Portal ansehen", url: `${APP}/` },
-      greeting: "Hallo,",
+      greeting: "Hallo Laura,",
       paragraphs: ["für Noah ist folgendes Training geplant:"],
       facts: [
         { label: "Datum", value: "Mi, 18.11.2026" },
@@ -164,7 +170,7 @@ const entries: Entry[] = [
       heroTime: { start: "18:00", end: "19:30", caption: "Abschluss & Torschuss" },
       chips: trainingChips,
       primary: { label: "Route öffnen", url: "https://maps.google.com/?q=Sportpark+Nord" },
-      greeting: "Hallo,",
+      greeting: "Hallo Laura,",
       paragraphs: ["zur Erinnerung: Das Training von Noah steht bevor."],
       callout: {
         tone: "lime",
@@ -188,7 +194,7 @@ const entries: Entry[] = [
       heroTime: { start: "17:30", end: "19:00", caption: "Abschluss & Torschuss" },
       chips: ["Mittwoch, 18. November", "Sportpark Nord", "Coach Sara"],
       primary: { label: "Im Kalender ansehen", url: `${APP}/termine` },
-      greeting: "Hallo,",
+      greeting: "Hallo Laura,",
       paragraphs: [
         "die Trainingsplanung für Noah wurde aktualisiert. Hier ist der aktuelle Stand:",
       ],
@@ -213,7 +219,7 @@ const entries: Entry[] = [
       title: "Noah ist nicht mehr eingeplant.",
       subtitle: "Abschluss & Torschuss · Mi, 18.11. · 18:00 – 19:30 Uhr",
       chips: ["Sportpark Nord", "Coach Max"],
-      greeting: "Hallo,",
+      greeting: "Hallo Laura,",
       paragraphs: [
         "Noah wurde aus diesem Training entfernt und ist dafür nicht mehr eingeplant.",
         "Fragen oder Änderungen? Bitte kontaktiere uns per WhatsApp.",
@@ -235,8 +241,9 @@ const entries: Entry[] = [
       heroStat: { value: "3", unit: "/ 4", caption: "Einheiten in diesem Zeitraum" },
       chips: ["Mi, 18.11.", "18:00 – 19:30 Uhr", "90 Minuten"],
       primary: { label: "Fortschritt ansehen", url: `${APP}/fortschritt` },
+      greeting: "Hallo Laura,",
       paragraphs: [
-        "Das Training von Noah am 18.11.2026 von 18:00 bis 19:30 Uhr wurde als absolviert eingetragen.",
+        "das Training von Noah am 18.11.2026 von 18:00 bis 19:30 Uhr wurde als absolviert eingetragen.",
       ],
       facts: [
         { label: "Trainingsdauer", value: "90 Minuten" },
@@ -262,8 +269,9 @@ const entries: Entry[] = [
       title: "Teilnahme korrigiert.",
       heroStat: { value: "2", unit: "/ 4", caption: "Angerechnete Einheiten" },
       primary: { label: "Status im Portal", url: `${APP}/termine` },
+      greeting: "Hallo Laura,",
       paragraphs: [
-        "Unser Team hat das Training von Noah am 18.11.2026 aktualisiert.",
+        "unser Team hat das Training von Noah am 18.11.2026 aktualisiert.",
       ],
       callout: {
         tone: "neutral",
@@ -286,6 +294,10 @@ const entries: Entry[] = [
       title: "Abschluss & Torschuss",
       heroTime: { start: "18:00", end: "19:30", caption: "90 Minuten · 4 Teilnahmen" },
       chips: trainingChips,
+      greeting: "Hallo Max,",
+      paragraphs: [
+        "das Training „Abschluss & Torschuss“ am 18.11.2026 von 18:00 bis 19:30 Uhr wurde als absolviert eingetragen.",
+      ],
       list: {
         title: "Bestätigte Teilnahmen (4)",
         items: ["Noah Becker", "Mia Becker", "Elias Wagner", "Lina Hoffmann"],
@@ -306,11 +318,12 @@ const entries: Entry[] = [
       area: "Berichte",
       eyebrow: "Neuer Bericht",
       title: "Oktober 2026",
-      subtitle: "Der neue Trainingsbericht von Noah ist verfügbar.",
+      subtitle: "Noahs Trainingsbericht ist da.",
       heroStat: { value: "4", unit: "/ 4", caption: "Einheiten absolviert" },
       primary: { label: "Berichte öffnen", url: `${APP}/berichte` },
+      greeting: "Hallo Laura,",
       paragraphs: [
-        "Du findest ihn im Anhang und in deinem Elternportal. Noch ausstehende Teilnahmen sind im Bericht gekennzeichnet.",
+        "der neue Trainingsbericht von Noah ist verfügbar. Du findest ihn im Anhang und in deinem Elternportal. Noch ausstehende Teilnahmen sind im Bericht gekennzeichnet.",
       ],
       attachment: {
         name: "ProAcademy-Trainingsbericht.pdf",
@@ -334,7 +347,7 @@ const entries: Entry[] = [
       paragraphs: [
         "im Anhang findest du die Stempelkarte für Noah Becker. Die Übersicht enthält absolvierte, nachgetragene und geplante Einheiten für den angegebenen Leistungszeitraum.",
       ],
-      greeting: "Hallo,",
+      greeting: "Hallo Laura,",
       facts: [{ label: "Datenstand", value: "18.11.2026, 07:30 Uhr" }],
       attachment: {
         name: "ProAcademy-Stempelkarte.pdf",
@@ -362,8 +375,9 @@ const entries: Entry[] = [
       subtitle: "Aktiviere jetzt deinen persönlichen Portalzugang.",
       heroStat: { value: "149,00 €", caption: "Bezahlt · Bestellung abgeschlossen" },
       primary: { label: "Zugang aktivieren", url: `${APP}/auth/product` },
+      greeting: "Hallo Laura,",
       paragraphs: [
-        "Dein Kauf von „FirstTouch“ wurde mit 149,00 € abgeschlossen. Die Buchung wurde im Portal übernommen.",
+        "dein Kauf von „FirstTouch“ wurde mit 149,00 € abgeschlossen. Die Buchung wurde im Portal übernommen.",
         "Bestätige deine E-Mail über den Button, um deinen persönlichen Portalzugang zu aktivieren. Dein Kauf bleibt auch ohne Aktivierung bestehen.",
       ],
       facts: [
@@ -413,7 +427,7 @@ function campEntries(): Entry[] {
         subtitle: "Der Camp-Platz für Max Mustermann ist sicher.",
         chips,
         primary: { label: "Camp im Portal", url: `${APP}/camps` },
-        greeting: "Hallo,",
+        greeting: "Hallo Laura,",
         paragraphs: [
           "die Zahlung ist bestätigt und der Camp-Platz für Max Mustermann beim Herbstcamp 2026 ist gebucht.",
         ],
@@ -447,7 +461,7 @@ function campEntries(): Entry[] {
         subtitle: "Wir freuen uns auf Max Mustermann.",
         chips,
         primary: { label: "Camp-Details", url: `${APP}/camps` },
-        greeting: "Hallo,",
+        greeting: "Hallo Laura,",
         paragraphs: [
           "wir freuen uns auf Max Mustermann beim Herbstcamp 2026. Hier findest du die wichtigsten Angaben:",
         ],
@@ -474,7 +488,7 @@ function campEntries(): Entry[] {
         heroTime: { start: "10:00", end: "16:00", caption: "Tag 1 · Montag, 19. Oktober" },
         chips: ["Sportpark Musterstadt", "3 Tage"],
         primary: { label: "Route öffnen", url: "https://maps.google.com/?q=Sportpark+Musterstadt" },
-        greeting: "Hallo,",
+        greeting: "Hallo Laura,",
         paragraphs: [
           "wir freuen uns auf Max Mustermann beim Herbstcamp 2026. Hier findest du die wichtigsten Angaben:",
         ],
@@ -500,7 +514,7 @@ function campEntries(): Entry[] {
         title: "Danke fürs Mitmachen, Max!",
         heroStat: { value: "3", unit: "/ 3", caption: "Camp-Tage dabei · Herbstcamp 2026" },
         primary: { label: "Zum Elternportal", url: `${APP}/camps` },
-        greeting: "Hallo,",
+        greeting: "Hallo Laura,",
         paragraphs: [
           "die Teilnahme von Max Mustermann am Herbstcamp 2026 ist bestätigt. Hier findest du die Zusammenfassung des Camps:",
         ],
@@ -536,7 +550,7 @@ function giftEntries(): Entry[] {
         title: "Danke, Laura. Deine Geschenkkarte ist bereit.",
         heroStat: { value: "100,00 €", caption: "Geschenkwert · einlösbar bis 18.11.2029" },
         primary: { label: "Bestellstatus ansehen", url: `${APP}/geschenkkarten/status` },
-        greeting: "Hallo Laura Becker,",
+        greeting: "Hallo Laura,",
         paragraphs: [
           "dein Kauf über 100,00 € ist bestätigt. Die Geschenkbenachrichtigung wird separat an jonas@example.com zugestellt.",
         ],
@@ -836,22 +850,77 @@ function trialEntries(): Entry[] {
   ];
 }
 
+// Termin-Mails: „In Kalender eintragen“ (Apple, Google/Android, Outlook, .ics).
+const sportparkNord = "Sportpark Nord, Nordring 12, 44135 Dortmund";
+const training: Omit<CalendarEvent, "uid"> = {
+  title: "ProAcademy Training: Noah · Abschluss & Torschuss",
+  slots: [{ starts_at: "2026-11-18T17:00:00Z", ends_at: "2026-11-18T18:30:00Z" }],
+  location: sportparkNord,
+  description: "Coach Max. Bitte Sportsachen, passende Schuhe und etwas zu trinken mitbringen.",
+  url: `${APP}/`,
+};
+const camp: Omit<CalendarEvent, "uid"> = {
+  title: "ProAcademy Herbstcamp 2026: Max Mustermann",
+  slots: ["19", "20", "21"].map((d) => ({
+    starts_at: `2026-10-${d}T08:00:00Z`,
+    ends_at: `2026-10-${d}T14:00:00Z`,
+  })),
+  location: "Sportpark Musterstadt",
+  url: `${APP}/camps`,
+};
+const trial: Omit<CalendarEvent, "uid"> = {
+  title: "ProAcademy Probetraining: Noah",
+  slots: [{ starts_at: "2026-11-21T09:00:00Z", ends_at: "2026-11-21T10:30:00Z" }],
+  location: sportparkNord,
+  description: "Coach Max. Bitte Sportsachen, passende Schuhe und etwas zu trinken mitbringen.",
+  url: `${APP}/probetraining/willkommen`,
+};
+const campNote =
+  "Alle 3 Camp-Tage mit Erinnerung 1 Tag und 2 Stunden vorher. Outlook übernimmt nur den ersten Tag.";
+const calendarFor: Record<string, [Omit<CalendarEvent, "uid">, string?]> = {
+  "04-training-geplant": [training],
+  "05-trainingserinnerung": [training],
+  "06-trainingsplanung-aktualisiert": [
+    {
+      ...training,
+      slots: [{ starts_at: "2026-11-18T16:30:00Z", ends_at: "2026-11-18T18:00:00Z" }],
+      description: "Coach Sara. Neue Uhrzeit 17:30 – 19:00 Uhr.",
+    },
+    "Neue Uhrzeit eintragen. Den alten Termin bitte im Kalender löschen.",
+  ],
+  "13-camp-buchung": [camp, campNote],
+  "14-camp-erinnerung-7-tage": [camp, campNote],
+  "15-camp-erinnerung-24h": [camp, campNote],
+  "23-probetraining-geplant": [trial],
+  "24-probetraining-erinnerung": [trial],
+};
+
 const root = process.cwd();
 const outDir = join(root, "docs", "mail-vorschau-2026");
 const tplDir = join(root, "supabase", "templates", "design-2026");
 mkdirSync(outDir, { recursive: true });
 mkdirSync(tplDir, { recursive: true });
 
-for (const e of entries)
+mkdirSync(join(outDir, "kalender"), { recursive: true });
+for (const e of entries) {
+  const cal = calendarFor[e.slug];
+  if (cal) {
+    const event: CalendarEvent = { uid: e.slug, ...cal[0] };
+    // Vorschau: .ics liegt neben der Mail. Live: signierter Portal-Link + Anhang.
+    const ics = `kalender/${e.slug}.ics`;
+    writeFileSync(join(outDir, ics), icsFile(event, new Date("2026-11-18T07:00:00Z")));
+    e.mail.calendar = { links: calendarLinks(event, ics), note: cal[1] };
+  }
   writeFileSync(join(outDir, `${e.slug}.html`), renderMail2026(e.mail));
+}
 
 writeFileSync(
   join(tplDir, "magic-link.html"),
-  renderMail2026(loginMail("{{ .Token }}")),
+  renderMail2026(loginMail("{{ .Token }}", "Hallo{{ if .Data.first_name }} {{ .Data.first_name }}{{ end }},")),
 );
 writeFileSync(
   join(tplDir, "confirmation.html"),
-  renderMail2026(confirmMail("{{ .Token }}")),
+  renderMail2026(confirmMail("{{ .Token }}", "Hallo{{ if .Data.first_name }} {{ .Data.first_name }}{{ end }},")),
 );
 
 const groups = [...new Set(entries.map((e) => e.group))];
