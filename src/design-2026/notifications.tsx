@@ -20,8 +20,13 @@ import {
   ExternalLink,
   FileText,
   Inbox,
+  Mail,
   Siren,
   Sparkles,
+  Star,
+  UserPlus,
+  UserRoundCheck,
+  UserX,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { PortalData } from "@/lib/types";
@@ -30,6 +35,7 @@ import type { Activity, ActivitySummary } from "@/lib/activities";
 import { formatDate, formatTime } from "@/lib/domain";
 import { calendarDate } from "@/lib/calendar";
 import { CHANGED, useDecisions } from "./decisions";
+import type { TrialBellEvent } from "@/lib/trials/bell";
 
 type Tone = "sos" | "urgent" | "warn" | "info" | "good";
 type Action =
@@ -423,6 +429,8 @@ function activityTarget(
     };
   const admin = base === "/admin";
   const t = a.title.toLowerCase();
+  if (t.startsWith("probetraining"))
+    return { label: "Probetraining öffnen", href: `${base}/probetraining` };
   if (t.startsWith("spielerprofil"))
     return { label: "Spielerprofile öffnen", href: `${base}/spielerprofile` };
   if (t.startsWith("elternprofil"))
@@ -458,6 +466,7 @@ function activityNotes(
   players: PortalData["players"] = [],
   issues: Activity[] = [],
   hidden: (key: string) => boolean = () => false,
+  trialsShown = false,
 ): Note[] {
   const notes: Note[] = [];
   // Offene Vorgänge einzeln, damit jeder für sich erledigt, ignoriert oder
@@ -495,6 +504,8 @@ function activityNotes(
     });
   for (const a of rows
     .filter((r) => !issues.some((i) => i.id === r.id))
+    // Probetraining-Mails erscheinen schon als eigene Probetraining-Hinweise.
+    .filter((r) => !trialsShown || !r.title.startsWith("Probetraining"))
     .slice(0, 4))
     notes.push({
       id: `act:${a.id}`,
@@ -510,6 +521,192 @@ function activityNotes(
       group: "news",
     });
   return notes;
+}
+
+/**
+ * Probetraining-Ereignisse (Anfrage bis Abo-Übernahme). Was noch das Team
+ * braucht, steht unter "Jetzt wichtig", der Rest 7 Tage unter "Neu".
+ */
+export function trialNotes(
+  rows: TrialBellEvent[],
+  base: string,
+  now: number,
+): Note[] {
+  const notes: Note[] = [];
+  const page = (e: TrialBellEvent) =>
+    `${base}/probetraining${e.requestId ? `?request=${e.requestId}` : ""}`;
+  const when = (iso?: string) =>
+    iso
+      ? `${formatDate(iso, { weekday: "short", day: "numeric", month: "short" })}, ${formatTime(iso)}`
+      : "";
+  const quote = (e: TrialBellEvent) => (e.comment ? `„${e.comment}“ ` : "");
+  for (const e of rows) {
+    const age = now - Date.parse(e.at);
+    const open = !!e.open;
+    if (!open && age > 7 * DAY) continue;
+    const card = { label: "Probetraining öffnen", href: page(e) };
+    let note: Omit<Note, "id" | "key" | "at" | "group"> | null = null;
+    switch (e.kind) {
+      case "request":
+        note = {
+          tone: open ? "warn" : "info",
+          icon: UserPlus,
+          title: `Neue Probetraining-Anfrage · ${e.child}`,
+          text: open
+            ? `Von ${e.parent}. Wartet auf Kontakt und einen Termin.`
+            : `Von ${e.parent}.`,
+        };
+        break;
+      case "planned":
+        note = {
+          tone: "info",
+          icon: CalendarDays,
+          title: `Probetraining eingeplant · ${e.child}`,
+          text: `${e.eventTitle ?? "Training"} am ${when(e.startsAt)}.`,
+        };
+        break;
+      case "past":
+        note = {
+          tone: "info",
+          icon: CalendarClock,
+          title: `Probetraining rückwirkend eingetragen · ${e.child}`,
+          text: `${e.eventTitle ?? "Training"} am ${when(e.startsAt)}. Teilnahme ist bestätigt, als Nächstes das Feedback schreiben.`,
+        };
+        break;
+      case "attended":
+        note = {
+          tone: "good",
+          icon: UserRoundCheck,
+          title: `Teilnahme bestätigt · ${e.child}`,
+          text: "Als Nächstes das Feedback für die Eltern schreiben und freigeben.",
+        };
+        break;
+      case "absent":
+      case "excused":
+        note = {
+          tone: e.kind === "absent" ? "warn" : "info",
+          icon: UserX,
+          title: `${e.kind === "absent" ? "Nicht erschienen" : "Entschuldigt"} · ${e.child}`,
+          text: `${e.eventTitle ? `${e.eventTitle}. ` : ""}Bei Bedarf einen neuen Termin vereinbaren.`,
+        };
+        break;
+      case "closed":
+        note = {
+          tone: "info",
+          icon: Check,
+          title: `Probetraining-Anfrage beendet · ${e.child}`,
+          text: `Familie ${e.parent}.`,
+        };
+        break;
+      case "feedback":
+        note = {
+          tone: "good",
+          icon: FileText,
+          title: `Feedback freigegeben · ${e.child}`,
+          text: `Die Feedbackmail an ${e.parent} wird vorbereitet.`,
+        };
+        break;
+      case "mail_sent":
+        note = {
+          tone: "good",
+          icon: Mail,
+          title: `Feedbackmail versendet · ${e.child}`,
+          text: `An ${e.parent}. Die Eltern können jetzt bewerten.`,
+        };
+        break;
+      case "mail_failed":
+        note = {
+          tone: "warn",
+          icon: Mail,
+          title: `Feedbackmail nicht zugestellt · ${e.child}`,
+          text: `Der Versand an ${e.parent} ist fehlgeschlagen oder unklar. Bitte in der Versandhistorie prüfen.`,
+        };
+        break;
+      case "rating":
+        note =
+          (e.rating ?? 5) <= 2
+            ? {
+                tone: "urgent",
+                icon: Star,
+                title: `Schlechte Elternbewertung ${e.rating}/5 · ${e.child}`,
+                text: `${quote(e)}Von ${e.parent}. Bitte Familie kontaktieren. Folge-Mails an Tag 7 und 14 gehen an diese Familie nicht raus.`,
+              }
+            : {
+                tone: "good",
+                icon: Star,
+                title: `Elternbewertung ${e.rating}/5 · ${e.child}`,
+                text: `${quote(e)}Von ${e.parent}${e.comment ? "" : ", ohne Kommentar"}.`,
+              };
+        break;
+      case "comment":
+        note = {
+          tone: (e.rating ?? 5) <= 2 ? "warn" : "info",
+          icon: Star,
+          title: `Elternkommentar nachgereicht · ${e.child}`,
+          text: `${quote(e)}Von ${e.parent} (${e.rating}/5).`,
+        };
+        break;
+      case "day7":
+      case "day14":
+        note = {
+          tone: "info",
+          icon: Mail,
+          title: `Folge-Mail Tag ${e.day} versendet · ${e.parent}`,
+          text: `Betrifft ${e.child}.`,
+        };
+        break;
+      case "followup_failed":
+        note = {
+          tone: "warn",
+          icon: Mail,
+          title: `Folge-Mail Tag ${e.day} nicht zugestellt · ${e.parent}`,
+          text: `Betrifft ${e.child}. Bitte in der Versandhistorie prüfen.`,
+        };
+        break;
+      case "unsubscribed":
+        note = {
+          tone: "info",
+          icon: Mail,
+          title: `Von Folge-Mails abgemeldet · ${e.parent}`,
+          text: `Betrifft ${e.child}. Tag-7- und Tag-14-Mails gehen nicht mehr raus.`,
+        };
+        break;
+      case "converted":
+        note = {
+          tone: "good",
+          icon: Sparkles,
+          title: `Abo übernommen · ${e.child}`,
+          text: "Aus dem Probetraining ist ein Spielerprofil mit Abo geworden.",
+        };
+        break;
+    }
+    if (!note) continue;
+    const mailIssue = e.kind === "mail_failed" || e.kind === "followup_failed";
+    const target =
+      e.kind === "converted" && e.playerId
+        ? {
+            label: "Spielerkarte öffnen",
+            href: `${base}/spieler/${e.playerId}`,
+          }
+        : mailIssue && base === "/admin"
+          ? {
+              label: "Versandhistorie öffnen",
+              href: "/admin/protokolle#notification_deliveries",
+            }
+          : card;
+    notes.push({
+      ...note,
+      id: `trial:${e.id}`,
+      key: `trial:${e.id}`,
+      at: e.at,
+      href: target.href,
+      open: target,
+      group: open ? "now" : "news",
+    });
+  }
+  // "Neu" bleibt übersichtlich: höchstens 12 Probetraining-Meldungen.
+  const news = notes.filter((n) => n.group === "news").slice(12);
+  return notes.filter((n) => !news.includes(n));
 }
 
 function ago(iso: string | undefined, now: number) {
@@ -567,7 +764,7 @@ export function NotificationBell({
     let alive = true;
     // Erst nach dem Seitenaufbau laden, damit die Seite selbst Vorrang hat.
     const timer = setTimeout(async () => {
-      const [summary, list, issues, conflicts] = await Promise.all([
+      const [summary, list, issues, conflicts, trials] = await Promise.all([
         cached<ActivitySummary>("/api/activities/summary", 5 * 60000),
         cached<{ rows: Activity[] }>(
           "/api/activities?window=0&limit=3",
@@ -584,6 +781,11 @@ export function NotificationBell({
               true,
             )
           : Promise.resolve(null),
+        // Probetraining: 404, solange das Modul ausgeschaltet ist.
+        cached<{ rows: TrialBellEvent[] }>(
+          "/api/probetraining/notices",
+          5 * 60000,
+        ),
       ]);
       if (!alive) return;
       const t = Date.now();
@@ -614,7 +816,10 @@ export function NotificationBell({
           base,
           data.players,
           issues.ok ? issues.v.rows : [],
+          undefined,
+          trials.ok,
         ),
+        ...(trials.ok ? trialNotes(trials.v.rows, base, t) : []),
       ]);
     }, 2500);
     return () => {

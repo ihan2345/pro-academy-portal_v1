@@ -2,6 +2,7 @@
 // Spielerkarte, Shop und Geschenkkarten. Keine echten Personen.
 import type { ParentProfile } from "@/lib/parent-profile";
 import type { PlayerCardData } from "./player-card";
+import { buildTrialBellEvents } from "@/lib/trials/bell";
 
 const iso = (days: number, hour = 17) => {
   const d = new Date();
@@ -311,7 +312,7 @@ export function previewGifts() {
   const cards = [
     card("g-1", ["recipient"], 10000, 6500, "Oma Gisela", "Laura", 300),
     card("g-2", ["recipient"], 5000, 5000, "Familie Kaya", "Laura", 120),
-    card("g-3", ["buyer"], 5000, 5000, "Laura", "Familie Yilmaz", 330),
+    card("g-3", ["buyer"], 5000, 5000, "Laura", "Derya Yilmaz", 330),
   ];
   return {
     cards,
@@ -581,5 +582,84 @@ export function previewPlayerArchive() {
       a.name.localeCompare(b.name, "de"),
     ),
     trainingAvailable: true,
+  };
+}
+
+/** Probetraining-Ereignisse für die Glocke in der Vorschau. */
+export function previewTrialNotices() {
+  const now = Date.now();
+  const ago = (h: number) => new Date(now - h * 3600000).toISOString();
+  const row = (
+    n: number,
+    first: string,
+    last: string,
+    parent: string,
+    extra: Record<string, string | null> = {},
+  ) => ({
+    id: `00000000-0000-4000-8000-00000000070${n}`,
+    family_id: `00000000-0000-4000-8000-00000000080${n}`,
+    first_name: first,
+    last_name: last,
+    parent_name: parent,
+    status: "planned",
+    created_at: ago(24 * 20),
+    ...extra,
+  });
+  return {
+    rows: buildTrialBellEvents(
+      {
+        rows: [
+          row(1, "Elias", "Yilmaz", "Derya Yilmaz", {
+            status: "new",
+            created_at: ago(2),
+          }),
+          row(2, "Mia", "Schulte", "Anna Schulte", {
+            scheduled_at: ago(30),
+            starts_at: ago(-50),
+            event_title: "U10 Technik Dienstag",
+          }),
+          row(3, "Noah", "Krämer", "Jan Krämer", {
+            scheduled_at: ago(6),
+            confirmed_at: ago(6),
+            starts_at: ago(70),
+            attendance: "attended_manual",
+            event_title: "U12 Athletik",
+            feedback_at: ago(5),
+          }),
+          row(4, "Lina", "Becker", "Sven Becker", {
+            converted_at: ago(20),
+            converted_player_id: "00000000-0000-4000-8000-000000000101",
+          }),
+        ],
+        feedback: [
+          {
+            request_id: "00000000-0000-4000-8000-000000000703",
+            rating: 2,
+            feedback: "Die Gruppe war sehr voll, Noah kam kaum an den Ball.",
+            created_at: ago(1),
+            comment_submitted_at: ago(1),
+          },
+        ],
+        mails: [
+          {
+            id: "00000000-0000-4000-8000-000000000901",
+            kind: "trial_feedback",
+            status: "sent",
+            updated_at: ago(4.5),
+            payload: { request_id: "00000000-0000-4000-8000-000000000703" },
+          },
+          {
+            id: "00000000-0000-4000-8000-000000000902",
+            kind: "trial_day7",
+            status: "sent",
+            updated_at: ago(26),
+            payload: { family_id: "00000000-0000-4000-8000-000000000802" },
+          },
+        ],
+        audits: [],
+        families: [],
+      },
+      now,
+    ),
   };
 }

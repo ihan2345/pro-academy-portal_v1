@@ -8,6 +8,13 @@ import { readAll } from "@/lib/server/read-all";
 import { required } from "@/lib/server/config";
 import { readTrialGrant } from "./tokens";
 import { trialFeatureEnabled } from "./feature";
+import {
+  buildTrialBellEvents,
+  TRIAL_BELL_DAYS,
+  type TrialBellEvent,
+  type TrialBellInput,
+  type TrialBellRow,
+} from "./bell";
 export { trialFeatureEnabled, trialFeatureInstalled } from "./feature";
 import {
   type TrialCamp,
@@ -377,4 +384,141 @@ export async function ensureTrialAuth(family: {
       "Elternanmeldung konnte nicht abgeschlossen werden.",
     );
   return linked.data as string;
+}
+/**
+ * Probetraining-Ereignisse der letzten 30 Tage für die Glocke. Rein lesend.
+ * Fehlt die Spalte aus Release 056 noch, fehlt nur die Abmeldung.
+ */
+export async function trialBellData(): Promise<{ rows: TrialBellEvent[] }> {
+  const s = await sessionUser();
+  assertRole(s?.role, "team");
+  const db = serviceDb();
+  const now = Date.now();
+  const since = new Date(now - TRIAL_BELL_DAYS * 86400000).toISOString();
+  const cols =
+    "id,family_id,first_name,last_name,parent_name,status,created_at,scheduled_at,confirmed_at,feedback_at,converted_at,converted_player_id,event_title,starts_at,attendance";
+  const [rows, feedback, mails, requestAudits, attendanceAudits, families] =
+    await Promise.all([
+      db
+        .from("trial_team_overview")
+        .select(cols)
+        .or(
+          [
+            "created_at",
+            "scheduled_at",
+            "confirmed_at",
+            "feedback_at",
+            "converted_at",
+          ]
+            .map((c) => `${c}.gte.${since}`)
+            .join(","),
+        )
+        .limit(500),
+      db
+        .from("trial_feedback")
+        .select("request_id,rating,feedback,created_at,comment_submitted_at")
+        .eq("author_type", "parent")
+        .or(`created_at.gte.${since},comment_submitted_at.gte.${since}`)
+        .limit(500),
+      db
+        .from("notification_jobs")
+        .select("id,kind,status,updated_at,payload")
+        .in("kind", ["trial_feedback", "trial_day7", "trial_day14"])
+        .in("status", ["sent", "failed", "uncertain"])
+        .gte("updated_at", since)
+        .limit(500),
+      db
+        .from("audit_log")
+        .select("id,table_name,record_id,created_at,old_value,new_value")
+        .eq("table_name", "trial_requests")
+        .eq("new_value->>status", "closed")
+        .gte("created_at", since)
+        .limit(500),
+      db
+        .from("audit_log")
+        .select("id,table_name,record_id,created_at,old_value,new_value")
+        .eq("table_name", "event_participants")
+        .not("new_value->>trial_request_id", "is", null)
+        .in("new_value->>status", ["absent", "excused"])
+        .gte("created_at", since)
+        .limit(500),
+      db
+        .from("trial_families")
+        .select("id,parent_name,marketing_stopped_at")
+        .gte("marketing_stopped_at", since)
+        .limit(200),
+    ]);
+  if (rows.error)
+    throw new HttpError(
+      503,
+      "Probetraining-Ereignisse konnten nicht geladen werden.",
+    );
+  const list = (rows.data ?? []) as TrialBellRow[];
+  const mailRows = (
+    mails.error ? [] : (mails.data ?? [])
+  ) as TrialBellInput["mails"];
+  const feedbackRows = (
+    feedback.error ? [] : (feedback.data ?? [])
+  ) as TrialBellInput["feedback"];
+  const audits = [
+    ...(requestAudits.error ? [] : (requestAudits.data ?? [])),
+    ...(attendanceAudits.error ? [] : (attendanceAudits.data ?? [])),
+  ] as TrialBellInput["audits"];
+  const familyRows = (
+    families.error ? [] : (families.data ?? [])
+  ) as TrialBellInput["families"];
+  // Ereignisse zu Anfragen außerhalb des Zeitfensters brauchen trotzdem Namen.
+  const known = new Set(list.map((r) => r.id));
+  const missing = new Set<string>();
+  const missingFamilies = new Set<string>();
+  for (const f of feedbackRows)
+    if (!known.has(f.request_id)) missing.add(f.request_id);
+  for (const m of mailRows) {
+    if (m.payload?.request_id && !known.has(m.payload.request_id))
+      missing.add(m.payload.request_id);
+    if (m.payload?.family_id) missingFamilies.add(m.payload.family_id);
+  }
+  for (const a of audits) {
+    const rid =
+      a.table_name === "trial_requests"
+        ? a.record_id
+        : String(a.new_value?.trial_request_id ?? "");
+    if (rid && !known.has(rid)) missing.add(rid);
+  }
+  for (const f of familyRows) missingFamilies.add(f.id);
+  const uuid = /^[0-9a-f-]{36}$/i;
+  const ids = [...missing].filter((x) => uuid.test(x)).slice(0, 200);
+  const fids = [...missingFamilies].filter((x) => uuid.test(x)).slice(0, 200);
+  if (ids.length || fids.length) {
+    const more = await db
+      .from("trial_team_overview")
+      .select(cols)
+      .or(
+        [
+          ids.length ? `id.in.(${ids.join(",")})` : "",
+          fids.length ? `family_id.in.(${fids.join(",")})` : "",
+        ]
+          .filter(Boolean)
+          .join(","),
+      )
+      .limit(500);
+    if (!more.error)
+      for (const r of (more.data ?? []) as TrialBellRow[])
+        if (!known.has(r.id)) {
+          known.add(r.id);
+          list.push(r);
+        }
+  }
+  return {
+    rows: buildTrialBellEvents(
+      {
+        rows: list,
+        feedback: feedbackRows,
+        mails: mailRows,
+        audits,
+        families: familyRows,
+      },
+      now,
+    ),
+  };
 }

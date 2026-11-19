@@ -13,6 +13,7 @@ import {
   trialFamily,
   trialResult,
   trialTeamData,
+  trialBellData,
   trialPastEvents,
   trialSummary,
   trialWelcomeData,
@@ -38,6 +39,7 @@ async function handle(
     if (request.method === "GET") {
       if (action === "team") return json(await trialTeamData());
       if (action === "summary") return json(await trialSummary());
+      if (action === "notices") return json(await trialBellData());
       if (action === "past-events") return json(await trialPastEvents());
       if (action === "welcome") return json(await trialWelcomeData());
       if (action === "rating") {
