@@ -11,6 +11,8 @@ type Co = {
     status: string;
     invite_sent_at: string | null;
     wait_hours: number;
+    banned?: boolean;
+    locked_until?: string | null;
   };
   changes_left: number;
 };
@@ -36,13 +38,18 @@ export function CoParentPanel({ co, reload }: { co: Co; reload: () => void }) {
     }
     setBusy(false);
   }
+  const lockedDate = c?.locked_until
+    ? new Date(c.locked_until).toLocaleDateString("de-DE")
+    : null;
   const status = !c
     ? null
-    : c.status === "active"
-      ? "Verbunden"
-      : c.invite_sent_at
-        ? "Einladung verschickt"
-        : "Noch nicht eingeladen";
+    : c.banned
+      ? "Gesperrt"
+      : c.status === "active"
+        ? "Verbunden"
+        : c.invite_sent_at
+          ? "Einladung verschickt"
+          : "Noch nicht eingeladen";
   return (
     <section className="ek-co">
       <h3>Zweiter Elternteil</h3>
@@ -58,57 +65,75 @@ export function CoParentPanel({ co, reload }: { co: Co; reload: () => void }) {
             <small>{c.email}</small>
           </div>
           <span
-            className={`ek-tag ${c.status === "active" ? "is-solved" : ""}`}
+            className={`ek-tag ${c.banned ? "is-red" : c.status === "active" ? "is-solved" : ""}`}
           >
             {status}
           </span>
-          <div className="ek-co-actions">
-            {c.status !== "active" && (
+          {lockedDate ? (
+            <p className="ek-hint ek-co-locked">
+              Dieses Zweitkonto wurde von unserem Team gesperrt. Bis{" "}
+              {lockedDate} kannst du es nicht ändern oder entfernen. Danach
+              kannst du es entfernen und einen zweiten Elternteil mit einer
+              neuen E-Mail-Adresse einladen.
+            </p>
+          ) : c.banned ? (
+            <p className="ek-hint ek-co-locked">
+              Dieses Zweitkonto ist gesperrt. Du kannst es jetzt entfernen und
+              danach einen zweiten Elternteil mit einer neuen E-Mail-Adresse
+              einladen.
+            </p>
+          ) : null}
+          {!lockedDate && (
+            <div className="ek-co-actions">
+              {c.status !== "active" && (
+                <button
+                  type="button"
+                  disabled={busy || c.wait_hours > 0}
+                  title={
+                    c.wait_hours
+                      ? `Nächster Versand in ${c.wait_hours} Std.`
+                      : ""
+                  }
+                  onClick={() =>
+                    run(async () => {
+                      await api("co/invite", {
+                        email: c.email,
+                        first_name: c.first_name || "Elternteil",
+                      });
+                      setMsg("Einladung erneut verschickt ✓");
+                      reload();
+                    })
+                  }
+                >
+                  {c.wait_hours
+                    ? `Erneut senden in ${c.wait_hours} Std.`
+                    : "Einladung erneut senden"}
+                </button>
+              )}
               <button
                 type="button"
-                disabled={busy || c.wait_hours > 0}
-                title={
-                  c.wait_hours ? `Nächster Versand in ${c.wait_hours} Std.` : ""
-                }
+                className="ek-danger"
+                disabled={busy}
                 onClick={() =>
                   run(async () => {
-                    await api("co/invite", {
-                      email: c.email,
-                      first_name: c.first_name || "Elternteil",
+                    const check = await api<{ gift_cards: number }>(
+                      "co/remove-check",
+                    );
+                    const text = check.gift_cards
+                      ? `Achtung: Mit diesem Zweitkonto sind ${check.gift_cards} Geschenkkarte(n) verbunden. Nach dem Entfernen sieht ${c.first_name || "der zweite Elternteil"} sie nicht mehr in eurer Familie. Trotzdem entfernen?`
+                      : `${c.first_name || "Den zweiten Elternteil"} wirklich entfernen? Er oder sie bekommt dazu eine E-Mail.`;
+                    if (!window.confirm(text)) return;
+                    await api("co/remove", {
+                      confirm_gifts: check.gift_cards > 0,
                     });
-                    setMsg("Einladung erneut verschickt ✓");
                     reload();
                   })
                 }
               >
-                {c.wait_hours
-                  ? `Erneut senden in ${c.wait_hours} Std.`
-                  : "Einladung erneut senden"}
+                Entfernen
               </button>
-            )}
-            <button
-              type="button"
-              className="ek-danger"
-              disabled={busy}
-              onClick={() =>
-                run(async () => {
-                  const check = await api<{ gift_cards: number }>(
-                    "co/remove-check",
-                  );
-                  const text = check.gift_cards
-                    ? `Achtung: Mit diesem Zweitkonto sind ${check.gift_cards} Geschenkkarte(n) verbunden. Nach dem Entfernen sieht ${c.first_name || "der zweite Elternteil"} sie nicht mehr in eurer Familie. Trotzdem entfernen?`
-                    : `${c.first_name || "Den zweiten Elternteil"} wirklich entfernen? Er oder sie bekommt dazu eine E-Mail.`;
-                  if (!window.confirm(text)) return;
-                  await api("co/remove", {
-                    confirm_gifts: check.gift_cards > 0,
-                  });
-                  reload();
-                })
-              }
-            >
-              Entfernen
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       ) : preview ? (
         <div className="ek-mail-preview">

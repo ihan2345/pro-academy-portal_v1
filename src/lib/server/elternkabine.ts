@@ -18,7 +18,10 @@ import {
   QUESTION_ALERT_MS,
   REACTIONS,
   REPORT_REASONS,
+  DEFAULT_BLOCKED_TERMS,
+  type BlockedTerm,
   bodyProblem,
+  coBanLockedUntil,
   coChangesLeft,
   inviteWaitHours,
   postAllowed,
@@ -78,6 +81,19 @@ async function names(uids: string[]) {
   return new Map(rows.map((r) => [r.user_id, { name: r.name, team: r.team }]));
 }
 
+// ───────────── Blacklist ─────────────
+let termCache: { at: number; terms: BlockedTerm[] } | null = null;
+/** Blacklist aus der Datenbank (1 Min. Cache). Vor Release 052: Startliste. */
+async function blockedTerms(): Promise<BlockedTerm[]> {
+  if (termCache && Date.now() - termCache.at < 60_000) return termCache.terms;
+  const { data, error } = await db()
+    .from("community_blocked_terms")
+    .select("term,match");
+  const terms = error ? DEFAULT_BLOCKED_TERMS : ((data ?? []) as BlockedTerm[]);
+  termCache = { at: Date.now(), terms };
+  return terms;
+}
+
 // ───────────── Übersicht für Eltern (und Team) ─────────────
 export async function overview() {
   const { s, flags, parentId } = await parentSession();
@@ -108,7 +124,7 @@ export async function overview() {
       ? db()
           .from("parent_co_accounts")
           .select(
-            "id,email,first_name,status,invite_sent_at,accepted_at,created_at,revoked_at",
+            "id,email,first_name,status,auth_user_id,invite_sent_at,accepted_at,created_at,revoked_at",
           )
           .eq("parent_id", parentId)
           .order("created_at", { ascending: false })
@@ -138,7 +154,7 @@ export async function overview() {
     },
     regions: regions ?? [],
     children: parentId ? await familyChildren(parentId) : [],
-    co: coAccountState(coRows ?? []),
+    co: coAccountState(coRows ?? [], await coBans(coRows ?? [])),
   };
   const active =
     s.role !== "parent" ||
@@ -150,8 +166,22 @@ export async function overview() {
   };
 }
 
-function coAccountState(rows: any[]) {
+/** Sperrzeitpunkte der Zweitkonten (Login-ID → banned_at). */
+async function coBans(rows: any[]) {
+  const ids = rows.map((r) => r.auth_user_id).filter(Boolean);
+  if (!ids.length) return new Map<string, string>();
+  const bans = ok(
+    await db()
+      .from("community_members")
+      .select("user_id,banned_at")
+      .in("user_id", ids)
+      .not("banned_at", "is", null),
+  ) as any[];
+  return new Map<string, string>(bans.map((b) => [b.user_id, b.banned_at]));
+}
+function coAccountState(rows: any[], bans: Map<string, string>) {
   const open = rows.find((r) => r.status !== "revoked") ?? null;
+  const banned = open?.auth_user_id ? bans.get(open.auth_user_id) : undefined;
   return {
     current: open
       ? {
@@ -161,6 +191,8 @@ function coAccountState(rows: any[]) {
           status: open.status,
           invite_sent_at: open.invite_sent_at,
           wait_hours: inviteWaitHours(open.invite_sent_at),
+          banned: !!banned,
+          locked_until: coBanLockedUntil(banned),
         }
       : null,
     changes_left: coChangesLeft(rows.map((r) => r.created_at)),
@@ -470,7 +502,7 @@ export async function createPost(input: unknown) {
   });
   if (problem) throw new HttpError(403, problem);
   if (!a.team) {
-    const filter = bodyProblem(body.body);
+    const filter = bodyProblem(body.body, await blockedTerms());
     if (filter) throw new HttpError(400, filter);
     const member = ok(
       await db()
@@ -543,7 +575,7 @@ export async function editPost(input: unknown) {
   if (Date.now() - Date.parse(p.created_at) > EDIT_WINDOW_MS)
     throw new HttpError(403, "Bearbeiten geht nur 15 Minuten lang.");
   if (!team) {
-    const filter = bodyProblem(body.body);
+    const filter = bodyProblem(body.body, await blockedTerms());
     if (filter) throw new HttpError(400, filter);
   }
   ok(
@@ -793,6 +825,29 @@ async function checkCoEmail(email: string, s: Session, parentId: string) {
       409,
       "Diese E-Mail ist schon mit einer anderen Familie verbunden.",
     );
+  // Ein vom Team gesperrtes Zweitkonto kommt nicht zurück: dann neue E-Mail.
+  const before = ok(
+    await db()
+      .from("parent_co_accounts")
+      .select("auth_user_id")
+      .eq("email", email)
+      .not("auth_user_id", "is", null),
+  ) as any[];
+  if ((await coBans(before)).size)
+    throw new HttpError(
+      409,
+      "Diese E-Mail wurde in der Elternkabine gesperrt. Bitte nutze eine andere E-Mail-Adresse.",
+    );
+}
+/** 1 Monat ab Sperre bleibt das Zweitkonto für das Hauptkonto unveränderbar. */
+async function assertCoNotLocked(row: any) {
+  if (!row?.auth_user_id) return;
+  const until = coBanLockedUntil((await coBans([row])).get(row.auth_user_id));
+  if (until)
+    throw new HttpError(
+      423,
+      `Das Zweitkonto wurde von unserem Team gesperrt. Bis ${new Date(until).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })} kannst du es nicht ändern oder entfernen.`,
+    );
 }
 export async function coInvitePreview(input: unknown) {
   const { s, parent } = await mainParent();
@@ -829,10 +884,11 @@ export async function coInvite(input: unknown) {
   const rows = ok(
     await db()
       .from("parent_co_accounts")
-      .select("id,email,status,created_at,invite_sent_at")
+      .select("id,email,status,auth_user_id,created_at,invite_sent_at")
       .eq("parent_id", parent.id),
   ) as any[];
   const open = rows.find((r) => r.status !== "revoked");
+  await assertCoNotLocked(open);
   if (open && open.email !== body.email)
     throw new HttpError(
       409,
@@ -917,6 +973,7 @@ export async function coRemove(input: unknown) {
       .maybeSingle(),
   );
   if (!row) throw new HttpError(404, "Kein zweiter Elternteil verbunden.");
+  await assertCoNotLocked(row);
   const gifts = await coGifts(row.auth_user_id);
   if (gifts && !body.confirm_gifts)
     throw new HttpError(
@@ -1304,7 +1361,16 @@ export async function adminOverview() {
     .from("parent_co_accounts")
     .select("id", { count: "exact", head: true })
     .eq("status", "active");
+  const terms = await db()
+    .from("community_blocked_terms")
+    .select("id,term,match,created_at")
+    .order("term");
+  const camps = ok(
+    await db().from("camps").select("id,title").order("title").limit(200),
+  );
   return {
+    terms: terms.error ? null : terms.data,
+    camps: camps ?? [],
     me: s.user.id,
     flags,
     families: families ?? 0,
@@ -1339,8 +1405,89 @@ export async function adminSettings(input: unknown) {
         channel_id: id,
         status: z.enum(["active", "readonly", "archived"]),
       }),
+      z.object({
+        type: z.literal("channel_create"),
+        title: z.string().trim().min(2).max(60),
+        emoji: z.string().trim().max(8).default(""),
+        description: z.string().trim().max(200).default(""),
+        audience: z.enum(["general", "plan", "age", "region", "camp"]),
+        plan_name: z
+          .enum(["FirstTouch", "GameChanger", "Pro-Player"])
+          .optional(),
+        u_from: z.number().int().min(3).max(19).optional(),
+        u_to: z.number().int().min(3).max(19).optional(),
+        location_id: id.optional(),
+        camp_id: id.optional(),
+        write_mode: z.enum(["members", "team"]).default("members"),
+      }),
+      z.object({
+        type: z.literal("term_add"),
+        term: z.string().trim().min(2).max(80),
+        match: z.enum(["contains", "word"]),
+      }),
+      z.object({ type: z.literal("term_remove"), term_id: id }),
     ])
     .parse(input);
+  if (b.type === "channel_create") {
+    const AREA = {
+      general: "training",
+      plan: "training",
+      age: "ages",
+      region: "regions",
+      camp: "camps",
+    } as const;
+    const missing =
+      (b.audience === "plan" && !b.plan_name) ||
+      (b.audience === "age" &&
+        (b.u_from == null || b.u_to == null || b.u_from > b.u_to)) ||
+      (b.audience === "region" && !b.location_id) ||
+      (b.audience === "camp" && !b.camp_id);
+    if (missing)
+      throw new HttpError(400, "Bitte wähle aus, für wen der Kanal ist.");
+    const row = ok(
+      await db()
+        .from("community_channels")
+        .insert({
+          custom: true,
+          created_by: s.user.id,
+          area: AREA[b.audience],
+          kind: b.audience,
+          title: b.title,
+          emoji: b.emoji || "💬",
+          description: b.description,
+          plan_name: b.audience === "plan" ? b.plan_name : null,
+          u_from: b.audience === "age" ? b.u_from : null,
+          u_to: b.audience === "age" ? b.u_to : null,
+          location_id: b.audience === "region" ? b.location_id : null,
+          camp_id: b.audience === "camp" ? b.camp_id : null,
+          write_mode: b.write_mode,
+          published_at: null,
+          sort: 90,
+        })
+        .select("id")
+        .single(),
+    );
+    return { ok: true, id: row.id };
+  }
+  if (b.type === "term_add" || b.type === "term_remove") {
+    termCache = null;
+    if (b.type === "term_add") {
+      const { error } = await db()
+        .from("community_blocked_terms")
+        .insert({
+          term: b.term.toLowerCase(),
+          match: b.match,
+          created_by: s.user.id,
+        });
+      if (error?.code === "23505")
+        throw new HttpError(409, "Dieser Eintrag steht schon auf der Liste.");
+      if (error) throw error;
+    } else
+      ok(
+        await db().from("community_blocked_terms").delete().eq("id", b.term_id),
+      );
+    return { ok: true };
+  }
   if (b.type === "feature") {
     const { error } = await s.db.rpc("set_platform_feature", {
       feature_key: b.key,

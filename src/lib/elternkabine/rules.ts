@@ -55,32 +55,88 @@ export function postAllowed(input: {
   if (access.level === "locked")
     return access.reason === "region"
       ? "Bitte wähle zuerst deine Region aus."
-      : "Für diesen Kanal fehlt noch deine Zustimmung.";
+      : "Für diesen Kanal muss die Fotomediathek aktiviert sein.";
   return "In diesem Kanal kannst du nicht schreiben.";
 }
 
 const LINK = /(https?:\/\/|www\.)\S+/i;
-const PHONE = /(\+?\d[\d\s/().-]{7,}\d)/;
-const BLOCKED_WORDS = [
-  "arschloch",
-  "hurensohn",
-  "wichser",
-  "fotze",
-  "missgeburt",
-  "spast",
+// Telefonnummer: beginnt mit +, 00 oder 0 und hat mindestens 9 Ziffern.
+// Datumsangaben (19.11.2026), Uhrzeiten und Zahlenreihen (128 140 152) bleiben erlaubt.
+const PHONE_CANDIDATE = /(?:\+|(?<![\d.,:])0)\d[\d \/()-]{6,}\d/g;
+export function looksLikePhone(text: string) {
+  return (text.match(PHONE_CANDIDATE) ?? []).some(
+    (m) => m.replace(/\D/g, "").length >= 9,
+  );
+}
+/** Blacklist-Eintrag: „contains“ trifft auch Wortteile und Schreibtricks
+ *  (A.r.s.c.h, 4rschl0ch), „word“ nur das ganze Wort bzw. den ganzen Satz. */
+export type BlockedTerm = { term: string; match: "contains" | "word" };
+/** Startliste, falls die Datenbank-Liste noch fehlt (vor Release 052). */
+export const DEFAULT_BLOCKED_TERMS: BlockedTerm[] = [
+  { term: "arschloch", match: "contains" },
+  { term: "hurensohn", match: "contains" },
+  { term: "wichser", match: "contains" },
+  { term: "fotze", match: "contains" },
+  { term: "missgeburt", match: "contains" },
+  { term: "spast", match: "word" },
+  { term: "behindert", match: "word" },
+  { term: "halt die fresse", match: "word" },
+  { term: "du opfer", match: "word" },
 ];
+const LEET: Record<string, string> = {
+  "0": "o",
+  "1": "i",
+  "3": "e",
+  "4": "a",
+  "5": "s",
+  "7": "t",
+  "@": "a",
+  $: "s",
+  ä: "ae",
+  ö: "oe",
+  ü: "ue",
+  ß: "ss",
+};
+/** Kleinbuchstaben, Umlaute/Leetspeak auflösen, Buchstaben-Wiederholungen
+ *  zusammenziehen, alles außer Buchstaben wird zu Leerzeichen. */
+export function normalizeForFilter(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[0134578@$äöüß]/g, (c) => LEET[c] ?? c)
+    .replace(/[^a-z]+/g, " ")
+    .replace(/([a-z])\1+/g, "$1")
+    .trim();
+}
+/** Welcher Blacklist-Eintrag trifft? (null = keiner) */
+export function blockedTermHit(body: string, terms: BlockedTerm[]) {
+  const words = ` ${normalizeForFilter(body)} `;
+  const compact = words.replace(/ /g, "");
+  for (const t of terms) {
+    const n = normalizeForFilter(t.term);
+    if (!n) continue;
+    if (
+      t.match === "word"
+        ? words.includes(` ${n} `)
+        : compact.includes(n.replace(/ /g, ""))
+    )
+      return t.term;
+  }
+  return null;
+}
 /** Wortfilter für Eltern-Beiträge (Team ist ausgenommen). */
-export function bodyProblem(body: string): string | null {
+export function bodyProblem(
+  body: string,
+  terms: BlockedTerm[] = DEFAULT_BLOCKED_TERMS,
+): string | null {
   const text = body.trim();
   if (!text) return "Bitte schreib etwas.";
   if (text.length > 4000)
     return "Der Beitrag ist zu lang (max. 4.000 Zeichen).";
   if (LINK.test(text))
     return "Links sind hier nur für das Team erlaubt. Schreib die Info gern als Text.";
-  if (PHONE.test(text))
+  if (looksLikePhone(text))
     return "Bitte keine Telefonnummern öffentlich posten. Nutze dafür „Frag das Team“ oder tauscht euch persönlich aus.";
-  const lower = text.toLowerCase();
-  if (BLOCKED_WORDS.some((w) => lower.includes(w)))
+  if (blockedTermHit(text, terms))
     return "Bitte bleib freundlich. Dieser Beitrag verstößt gegen die Regeln der Elternkabine.";
   return null;
 }
@@ -102,6 +158,17 @@ export function coChangesLeft(createdAt: string[], now = new Date()) {
     CO_CHANGES_PER_MONTH -
       createdAt.filter((d) => d.slice(0, 7) === month).length,
   );
+}
+/** Gesperrtes Zweitkonto: 1 Monat ab Sperre darf das Hauptkonto es weder
+ *  ändern noch entfernen. Gibt das Ende der Frist zurück (oder null). */
+export const CO_BAN_LOCK_DAYS = 30;
+export function coBanLockedUntil(
+  bannedAt: string | null | undefined,
+  now = Date.now(),
+) {
+  if (!bannedAt) return null;
+  const until = Date.parse(bannedAt) + CO_BAN_LOCK_DAYS * 86400000;
+  return until > now ? new Date(until).toISOString() : null;
 }
 /** Einladung höchstens einmal pro Tag. Gibt die Wartezeit in Stunden zurück. */
 export function inviteWaitHours(sentAt: string | null, now = Date.now()) {

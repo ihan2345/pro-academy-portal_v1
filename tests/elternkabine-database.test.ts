@@ -293,3 +293,36 @@ it("Familie mit zwei Kindern (U8 und U12) ist in beiden Jahrgangskanälen", asyn
   expect((await access(fam.A.uid, "GameChanger-Eltern")).level).toBe("write");
   expect((await access(fam.A.uid, "FirstTouch-Eltern")).level).toBe("write");
 });
+
+it("eigene Kanäle vom Super-Admin: mehrere pro Zielgruppe, Zugriff nach denselben Regeln", async () => {
+  await q(
+    `insert into community_channels(custom,area,kind,title,plan_name,published_at) values
+     (true,'training','general','Turniere',null,now()),
+     (true,'training','general','Fahrgemeinschaften',null,null),
+     (true,'training','plan','FirstTouch-Tipps','FirstTouch',now())`,
+  );
+  expect((await access(fam.A.uid, "Turniere")).level).toBe("write");
+  expect((await access(fam.A.uid, "Fahrgemeinschaften")).level).toBe("none"); // Entwurf
+  expect((await access(fam.A.uid, "FirstTouch-Tipps")).level).toBe("write");
+  expect((await access(fam.C.uid, "Turniere")).level).toBe("none"); // nur Camp
+  await expect(
+    q(
+      "insert into community_channels(custom,area,kind,title) values(true,'training','plan','Ohne Abo')",
+    ),
+  ).rejects.toThrow();
+  // automatische Kanäle bleiben eindeutig
+  await expect(
+    q(
+      "insert into community_channels(area,kind,title,plan_name) values('training','plan','Doppelt','FirstTouch')",
+    ),
+  ).rejects.toThrow();
+});
+
+it("Blacklist ist nur für den Server lesbar und startet mit der Grundliste", async () => {
+  expect(
+    Number((await one("select count(*) n from community_blocked_terms")).n),
+  ).toBeGreaterThanOrEqual(9);
+  await expect(
+    asUser(fam.A.uid, () => q("select * from community_blocked_terms")),
+  ).rejects.toThrow();
+});

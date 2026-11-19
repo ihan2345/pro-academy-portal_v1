@@ -286,7 +286,7 @@ export function Elternkabine({ team = false }: { team?: boolean }) {
                       {c.access.level === "locked"
                         ? c.access.reason === "region"
                           ? "Wähle eine Region aus"
-                          : "Zustimmung fehlt"
+                          : "Fotomediathek nicht aktiviert"
                         : c.last
                           ? `${c.last.name}: ${c.last.body}`
                           : c.description}
@@ -340,8 +340,8 @@ export function Elternkabine({ team = false }: { team?: boolean }) {
             />
           ) : (
             <p className="ek-hint">
-              Für diesen Kanal braucht es eine zusätzliche Zustimmung. Das
-              Hauptkonto kann sie in den Einstellungen geben.
+              Für diesen Kanal muss die Fotomediathek aktiviert sein. Das
+              Hauptkonto kann sie in den Einstellungen einschalten.
             </p>
           )}
         </Sheet>
@@ -489,9 +489,10 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
           onChange={(e) => setPhotos(e.target.checked)}
         />
         <span>
-          <b>Fotos und Dateien von mir (freiwillig).</b> Ich darf Fotos und
-          Dateien teilen, auf denen keine Kinder zu sehen sind. Ohne Zustimmung
-          bleiben Foto-Kanäle ausgegraut.
+          <b>Fotomediathek für mich aktivieren (freiwillig).</b> Ich kann Fotos
+          und Dateien teilen und sehe die Fotos der anderen Eltern. Auf meinen
+          Fotos sind keine Kinder zu sehen. Ohne Mediathek bleiben Foto-Kanäle
+          ausgegraut.
         </span>
       </label>
       {data.flags.childPhotos && (
@@ -502,8 +503,9 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
             onChange={(e) => setChildPhotos(e.target.checked)}
           />
           <span>
-            <b>Fotos meiner Kinder (freiwillig).</b> Pro Academy und ich dürfen
-            Fotos meiner Kinder in den passenden Kanälen zeigen.
+            <b>Fotomediathek für mein Kind aktivieren (freiwillig).</b> Pro
+            Academy und ich dürfen Fotos zeigen, auf denen mein Kind zu sehen
+            ist, nur in den Kanälen seiner Gruppe.
           </span>
         </label>
       )}
@@ -639,7 +641,10 @@ function SettingsPanel({
         <section>
           <h3>Zustimmungen</h3>
           <label className="ek-switch">
-            <span>Fotos und Dateien von mir</span>
+            <span>
+              <b>Fotomediathek für mich</b>
+              <small>Fotos und Dateien teilen und sehen, ohne Kinder</small>
+            </span>
             <input
               type="checkbox"
               checked={data.family.consent_photos}
@@ -653,7 +658,10 @@ function SettingsPanel({
           </label>
           {data.flags.childPhotos && (
             <label className="ek-switch">
-              <span>Fotos meiner Kinder</span>
+              <span>
+                <b>Fotomediathek für mein Kind</b>
+                <small>Fotos, auf denen mein Kind zu sehen ist</small>
+              </span>
               <input
                 type="checkbox"
                 checked={data.family.consent_child_photos}
