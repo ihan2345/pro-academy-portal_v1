@@ -266,3 +266,30 @@ it("Anzeigename folgt der gewählten Variante", async () => {
   );
   expect(await name()).toBe("E.B.");
 });
+
+it("Familie mit zwei Kindern (U8 und U12) ist in beiden Jahrgangskanälen", async () => {
+  const kid2 = id(26);
+  const u12Year =
+    new Date().getFullYear() + (new Date().getMonth() >= 6 ? 1 : 0) - 12;
+  await q(
+    "insert into players(id,first_name,last_name,birth_year) values($1,'Zweit','A',$2)",
+    [kid2, u12Year],
+  );
+  await q("insert into parent_players(parent_id,player_id) values($1,$2)", [
+    fam.A.pid,
+    kid2,
+  ]);
+  await q(
+    `insert into entitlement_periods(player_id,subscription_id,stripe_customer_id,stripe_item_id,stripe_price_id,product_name,starts_at,ends_at,included_units)
+     values($1,$2,'cus_1','si2','price','GameChanger',now()-interval '5 days',now()+interval '20 days',8)`,
+    [kid2, id(101)],
+  );
+  await q(
+    "update community_channels set published_at=now() where title='GameChanger-Eltern'",
+  );
+  expect((await access(fam.A.uid, "U6–U8")).level).toBe("write");
+  expect((await access(fam.A.uid, "U9–U12")).level).toBe("write");
+  expect((await access(fam.A.uid, "U13–U16")).level).toBe("none");
+  expect((await access(fam.A.uid, "GameChanger-Eltern")).level).toBe("write");
+  expect((await access(fam.A.uid, "FirstTouch-Eltern")).level).toBe("write");
+});

@@ -110,6 +110,13 @@ export function inviteWaitHours(sentAt: string | null, now = Date.now()) {
   return left > 0 ? Math.ceil(left / 3600000) : 0;
 }
 
-export function uAgeGroup(birthYear: number, now = new Date()) {
-  return `U${now.getFullYear() - birthYear + 1}`;
+/** Altersklasse wie im Verein: Saison wechselt am 1. Juli. */
+export function uAge(birthYear: number, now = new Date()) {
+  return now.getFullYear() + (now.getMonth() >= 6 ? 1 : 0) - birthYear;
 }
+export const AGE_GROUPS = [
+  { from: 4, to: 5 },
+  { from: 6, to: 8 },
+  { from: 9, to: 12 },
+  { from: 13, to: 16 },
+];

@@ -22,6 +22,7 @@ import {
   coChangesLeft,
   inviteWaitHours,
   postAllowed,
+  uAge,
 } from "../elternkabine/rules";
 
 type Session = NonNullable<Awaited<ReturnType<typeof sessionUser>>>;
@@ -136,13 +137,17 @@ export async function overview() {
       banned: !!member?.banned_at,
     },
     regions: regions ?? [],
+    children: parentId ? await familyChildren(parentId) : [],
     co: coAccountState(coRows ?? []),
   };
   const active =
     s.role !== "parent" ||
     (family?.enabled && family.consent_privacy_at && !member?.banned_at);
   if (!active) return { ...base, channels: [] };
-  return { ...base, channels: await channelList(uid, parentId) };
+  return {
+    ...base,
+    channels: await channelList(uid, parentId, base.children),
+  };
 }
 
 function coAccountState(rows: any[]) {
@@ -162,7 +167,101 @@ function coAccountState(rows: any[]) {
   };
 }
 
-async function channelList(uid: string, parentId: string | null) {
+type Child = Awaited<ReturnType<typeof familyChildren>>[number];
+/** Kinder der Familie mit Altersklasse und aktuellen Abos (für Jahrgänge und „über Noah“). */
+async function familyChildren(parentId: string) {
+  const links = ok(
+    await db()
+      .from("parent_players")
+      .select("players(id,first_name,birth_year,camp_birth_date,archived_at)")
+      .eq("parent_id", parentId),
+  ) as any[];
+  const kids = links.map((l) => l.players).filter((p) => p && !p.archived_at);
+  const periods = kids.length
+    ? (ok(
+        await db()
+          .from("entitlement_periods")
+          .select("player_id,product_name,ends_at")
+          .in(
+            "player_id",
+            kids.map((k) => k.id),
+          )
+          .eq("status", "active")
+          .gt("ends_at", new Date(Date.now() - 14 * 86400000).toISOString()),
+      ) as any[])
+    : [];
+  return kids.map((k) => ({
+    id: k.id as string,
+    first_name: k.first_name as string,
+    birth_year: (k.birth_year as number | null) ?? null,
+    u: k.birth_year ? uAge(k.birth_year) : null,
+    plans: [
+      ...new Set(
+        periods.filter((p) => p.player_id === k.id).map((p) => p.product_name),
+      ),
+    ] as string[],
+  }));
+}
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
+function viaChildren(c: any, children: Child[]) {
+  if (c.kind === "age")
+    return children
+      .filter((k) => k.u !== null && k.u >= c.u_from && k.u <= c.u_to)
+      .map((k) => `${k.first_name} (U${k.u})`);
+  if (c.kind === "plan")
+    return children
+      .filter((k) =>
+        k.plans.some((p) => norm(p).includes(norm(c.plan_name ?? ""))),
+      )
+      .map((k) => k.first_name);
+  return [];
+}
+
+/** Hauptkonto ergänzt ein fehlendes Geburtsdatum (speichert Geburtsjahr + Geburtstag im Kinderprofil). */
+export async function saveChildBirth(input: unknown) {
+  const s = await session();
+  if (s.role !== "parent" || s.coParent)
+    throw new HttpError(
+      403,
+      "Das Geburtsdatum kann nur das Hauptkonto eintragen.",
+    );
+  const parentId = await portalParentId(s.user.id);
+  const body = z
+    .object({ player_id: id, birth_date: z.iso.date() })
+    .parse(input);
+  const year = Number(body.birth_date.slice(0, 4));
+  const now = new Date().getFullYear();
+  if (year < now - 25 || year > now - 2)
+    throw new HttpError(400, "Bitte prüfe das Geburtsdatum.");
+  const link = ok(
+    await db()
+      .from("parent_players")
+      .select("player_id,players(birth_year)")
+      .eq("parent_id", parentId)
+      .eq("player_id", body.player_id)
+      .maybeSingle(),
+  );
+  if (!link) throw new HttpError(403, "Kind gehört nicht zu deinem Konto.");
+  const known = link.players?.birth_year;
+  if (known && known !== year)
+    throw new HttpError(
+      409,
+      `Im Profil ist das Geburtsjahr ${known} gespeichert. Bitte ein Datum aus ${known} wählen oder das Team kontaktieren.`,
+    );
+  ok(
+    await db()
+      .from("players")
+      .update({ birth_year: year, camp_birth_date: body.birth_date })
+      .eq("id", body.player_id),
+  );
+  return { ok: true, u: uAge(year) };
+}
+
+async function channelList(
+  uid: string,
+  parentId: string | null,
+  children: Child[] = [],
+) {
   const rows = ok(
     await db().rpc("community_my_channels", { uid }),
   ) as unknown as { channel_id: string; access: Access }[];
@@ -173,7 +272,7 @@ async function channelList(uid: string, parentId: string | null) {
     db()
       .from("community_channels")
       .select(
-        "id,area,kind,title,emoji,description,write_mode,published_at,status,sort,plan_name,requires_consent",
+        "id,area,kind,title,emoji,description,write_mode,published_at,status,sort,plan_name,requires_consent,u_from,u_to",
       )
       .in("id", ids)
       .then(ok),
@@ -215,6 +314,7 @@ async function channelList(uid: string, parentId: string | null) {
       return {
         ...c,
         access: a,
+        via: viaChildren(c, children),
         muted: !!read?.muted,
         unread: list.filter(
           (p: any) =>
@@ -282,16 +382,14 @@ export async function channelPosts(channelId: string) {
   ]);
   const counts = (ok(await db().rpc("community_member_counts")) ??
     []) as unknown as { channel_id: string; members: number }[];
-  await db()
-    .from("community_reads")
-    .upsert(
-      {
-        user_id: s.user.id,
-        channel_id: ch,
-        last_read_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,channel_id" },
-    );
+  await db().from("community_reads").upsert(
+    {
+      user_id: s.user.id,
+      channel_id: ch,
+      last_read_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,channel_id" },
+  );
   return {
     channel,
     access: a,
@@ -500,13 +598,11 @@ export async function react(input: unknown) {
     );
   else
     ok(
-      await db()
-        .from("community_reactions")
-        .insert({
-          post_id: body.post_id,
-          user_id: s.user.id,
-          emoji: body.emoji,
-        }),
+      await db().from("community_reactions").insert({
+        post_id: body.post_id,
+        user_id: s.user.id,
+        emoji: body.emoji,
+      }),
     );
   return { ok: true };
 }
@@ -569,16 +665,14 @@ export async function saveMe(input: unknown) {
   const { s } = await parentSession();
   const body = z.object({ name_style: z.enum(NAME_STYLES) }).parse(input);
   ok(
-    await db()
-      .from("community_members")
-      .upsert(
-        {
-          user_id: s.user.id,
-          name_style: body.name_style,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      ),
+    await db().from("community_members").upsert(
+      {
+        user_id: s.user.id,
+        name_style: body.name_style,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    ),
   );
   return { ok: true };
 }

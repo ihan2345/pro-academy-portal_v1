@@ -861,3 +861,39 @@ button.ek-kpi {
     display: none;
   }
 }
+.ek-via {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ek-purple);
+  background: var(--ek-soft);
+  border-radius: 6px;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+.ek-kids {
+  display: grid;
+  gap: 8px;
+}
+.ek-kid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  background: var(--d26-bg, #f5f5f7);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.ek-kid-birth {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--d26-muted, #6e6e73);
+}
+.ek-kid-birth input {
+  border: 1px solid var(--d26-hair, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+  padding: 6px 8px;
+  font: inherit;
+}

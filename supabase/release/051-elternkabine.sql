@@ -241,6 +241,12 @@ create trigger audit_change after insert or update or delete on public.community
 create trigger audit_change after update or delete on public.community_posts for each row execute function public.audit_change();
 create trigger audit_change after insert or update or delete on public.community_reports for each row execute function public.audit_change();
 
+-- Altersklasse wie im Verein: Saison wechselt am 1. Juli, U = Saison-Endjahr − Geburtsjahr.
+create function public.community_u_age(birth_year int) returns int language sql stable set search_path=public as $$
+ select case when birth_year is null then null else
+  (extract(year from now())::int + case when extract(month from now()) >= 7 then 1 else 0 end) - birth_year end
+$$;
+
 -- Zugriff wird berechnet, nicht gespeichert.
 -- level: none | locked | read | write | ask (nur Fragen stellen)
 create function public.community_access(uid uuid, ch uuid) returns jsonb language plpgsql stable security definer set search_path=public as $$
@@ -266,7 +272,7 @@ begin
   where pp.parent_id = fam and e.status = 'active'
    and (c.kind <> 'plan' or replace(lower(e.product_name),'-','') like '%' || replace(lower(c.plan_name),'-','') || '%')
    and (c.kind <> 'age' or exists(select 1 from players pl where pl.id = e.player_id
-        and extract(year from now())::int - pl.birth_year between c.u_from - 1 and c.u_to - 1));
+        and public.community_u_age(pl.birth_year) between c.u_from and c.u_to));
  trial_only := active_until is null
   and exists(select 1 from trial_families tf where tf.parent_id = fam)
   and not exists(select 1 from entitlement_periods e join parent_players pp on pp.player_id = e.player_id where pp.parent_id = fam);

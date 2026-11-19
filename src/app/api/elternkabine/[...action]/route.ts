@@ -35,6 +35,7 @@ async function handler(
       mute: ek.setMuted,
       me: ek.saveMe,
       family: ek.saveFamily,
+      "child-birth": ek.saveChildBirth,
       "co/preview": ek.coInvitePreview,
       "co/invite": ek.coInvite,
       "co/remove": ek.coRemove,

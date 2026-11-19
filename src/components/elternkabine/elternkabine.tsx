@@ -29,6 +29,7 @@ export type Channel = {
   emoji: string;
   description: string;
   access: Access;
+  via?: string[];
   unread: number;
   muted: boolean;
   published_at: string | null;
@@ -47,6 +48,13 @@ type Overview = {
   };
   me: { name_style: string; display_name: string; banned: boolean };
   regions: { id: string; name: string }[];
+  children: {
+    id: string;
+    first_name: string;
+    birth_year: number | null;
+    u: number | null;
+    plans: string[];
+  }[];
   co: {
     current: null | {
       id: string;
@@ -267,6 +275,9 @@ export function Elternkabine({ team = false }: { team?: boolean }) {
                   <span className="ek-channel-text">
                     <b>
                       {c.title}
+                      {!!c.via?.length && (
+                        <em className="ek-via">über {c.via.join(", ")}</em>
+                      )}
                       {team && !c.published_at && (
                         <em className="ek-draft">Entwurf</em>
                       )}
@@ -382,6 +393,9 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
   const [photos, setPhotos] = useState(false);
   const [childPhotos, setChildPhotos] = useState(false);
   const [style, setStyle] = useState(data.me.name_style);
+  const [births, setBirths] = useState<Record<string, string>>({});
+  const missing = data.children.filter((c) => !c.birth_year);
+  const birthsOk = missing.every((c) => births[c.id]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   if (data.me.banned)
@@ -405,6 +419,8 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
     setBusy(true);
     setMsg("");
     try {
+      for (const c of missing)
+        await api("child-birth", { player_id: c.id, birth_date: births[c.id] });
       await api("me", { name_style: style });
       await api("family", {
         enabled: true,
@@ -446,6 +462,12 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
           sichtbar.
         </p>
       )}
+      <h3>Kinder und Jahrgang</h3>
+      <p className="ek-hint">
+        Die Jahrgangskanäle ergeben sich aus dem Geburtsjahr. Bei mehreren
+        Kindern bist du automatisch in jedem passenden Kanal.
+      </p>
+      <ChildAges data={data} births={births} setBirths={setBirths} />
       <h3>Zustimmung</h3>
       <label className="ek-check">
         <input
@@ -493,7 +515,7 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
       <button
         type="button"
         className="ek-primary"
-        disabled={!privacy || busy}
+        disabled={!privacy || !birthsOk || busy}
         onClick={join}
       >
         Elternkabine beitreten
@@ -644,6 +666,20 @@ function SettingsPanel({
               />
             </label>
           )}
+        </section>
+      )}
+      {data.children.length > 0 && (
+        <section>
+          <h3>Kinder und Jahrgang</h3>
+          <ChildAges
+            data={data}
+            save={
+              main
+                ? (id, date) =>
+                    save("child-birth", { player_id: id, birth_date: date })
+                : undefined
+            }
+          />
         </section>
       )}
       {main && <CoParentPanel co={data.co} reload={reload} />}
@@ -1257,6 +1293,78 @@ function Composer({
         </button>
       </div>
       {msg && <p className="ek-error">{msg}</p>}
+    </div>
+  );
+}
+
+const ageGroup = (u: number) =>
+  u <= 5
+    ? "U4–U5"
+    : u <= 8
+      ? "U6–U8"
+      : u <= 12
+        ? "U9–U12"
+        : u <= 16
+          ? "U13–U16"
+          : null;
+function ChildAges({
+  data,
+  births,
+  setBirths,
+  save,
+}: {
+  data: Overview;
+  births?: Record<string, string>;
+  setBirths?: (b: Record<string, string>) => void;
+  save?: (id: string, date: string) => void;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  return (
+    <div className="ek-kids">
+      {data.children.map((c) => (
+        <div key={c.id} className="ek-kid">
+          <b>{c.first_name}</b>
+          {c.u !== null ? (
+            <span className="ek-tag is-team">
+              U{c.u}
+              {ageGroup(c.u)
+                ? ` · Kanal ${ageGroup(c.u)}`
+                : " · kein Jahrgangskanal"}
+            </span>
+          ) : setBirths ? (
+            <label className="ek-kid-birth">
+              Geburtsdatum (Pflicht)
+              <input
+                type="date"
+                value={births?.[c.id] ?? ""}
+                onChange={(e) =>
+                  setBirths({ ...births, [c.id]: e.target.value })
+                }
+              />
+            </label>
+          ) : save ? (
+            <span className="ek-kid-birth">
+              <input
+                type="date"
+                value={draft[c.id] ?? ""}
+                onChange={(e) => setDraft({ ...draft, [c.id]: e.target.value })}
+              />
+              <button
+                type="button"
+                className="ek-chip"
+                disabled={!draft[c.id]}
+                onClick={() => save(c.id, draft[c.id])}
+              >
+                Speichern
+              </button>
+            </span>
+          ) : (
+            <span className="ek-hint">
+              Geburtsdatum fehlt. Das Hauptkonto kann es eintragen.
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
