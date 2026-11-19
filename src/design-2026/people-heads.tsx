@@ -47,7 +47,7 @@ function Led({ state }: { state: "live" | "idle" | "off" }) {
 }
 
 /** Lädt alle Seiten einer Liste (im Tab 5 Minuten gemerkt). */
-function useEverything<T extends { id: string }>(
+export function useEverything<T extends { id: string }>(
   key: string,
   load: (signal: AbortSignal) => Promise<T[]>,
 ) {
@@ -95,7 +95,7 @@ function useEverything<T extends { id: string }>(
   }, [key]);
   return state.key === key ? state : { key, rows: null, failed: false };
 }
-async function json(url: string, signal: AbortSignal) {
+export async function json(url: string, signal: AbortSignal) {
   const r = await fetch(url, { signal, cache: "no-store" });
   if (!r.ok) throw new Error(String(r.status));
   return r.json();

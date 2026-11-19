@@ -1494,3 +1494,138 @@
     transform: translateY(-8px) rotate(4deg);
   }
 }
+
+/* ---------- Zentrale: Kachel „Neueste Spieler“ ---------- */
+:root[data-design="2026"] {
+  & .d26-newest {
+    gap: 2px;
+  }
+  & .d26-newest-head {
+    height: 24px;
+  }
+  & .d26-newest-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  & .d26-newest-head svg {
+    margin-bottom: 0;
+    flex: none;
+  }
+  & .d26-newest .d26-segments {
+    padding: 2px;
+    border-radius: 10px;
+  }
+  & .d26-newest .d26-segments.is-small > * {
+    padding: 2px 9px;
+    font-size: 11px;
+    border-radius: 8px;
+  }
+  & .d26-newest .d26-segments span {
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  & .d26-newest .d26-segments .is-short {
+    display: none;
+  }
+  & .d26-newest-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: end;
+    gap: 14px;
+  }
+  & .d26-newest-total {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 0;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+  }
+  & .d26-newest-total:not(:disabled) {
+    cursor: pointer;
+  }
+  & .d26-newest-total span {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    white-space: nowrap;
+  }
+  & .d26-newest-bars {
+    margin-top: 0;
+    min-height: 0;
+    height: 60px;
+    padding-top: 16px;
+    box-sizing: border-box;
+    gap: 3px;
+    align-self: end;
+  }
+  & .d26-newest.is-span-30 .d26-newest-bars {
+    gap: 2px;
+  }
+  & .d26-newest-bars > button {
+    gap: 3px;
+    min-width: 0;
+  }
+  & .d26-newest-bars small {
+    width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    overflow: visible;
+  }
+  & .d26-newest-bars i {
+    min-height: 3px;
+    border-radius: 4px;
+    background: rgba(139, 83, 254, 0.1);
+  }
+  & .d26-newest-bars .has-value i {
+    background: rgba(139, 83, 254, 0.3);
+  }
+  & .d26-newest-bars .is-today.has-value i {
+    background: linear-gradient(180deg, var(--purple), #b58cff);
+  }
+  & .d26-newest-bars em {
+    top: -15px;
+    font-size: 10px;
+  }
+  & .d26-newest-bars small {
+    font-size: 9px;
+    line-height: 1;
+  }
+  @media (max-width: 1100px) and (min-width: 761px) {
+    & .d26-newest-bars {
+      height: 66px;
+    }
+  }
+  @media (max-width: 760px) {
+    & .d26-newest .d26-segments .is-long {
+      display: none;
+    }
+    & .d26-newest .d26-segments .is-short {
+      display: inline;
+    }
+    & .d26-newest-head svg {
+      display: none;
+    }
+    & .d26-newest-body {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    & .d26-newest-bars {
+      height: 60px;
+      gap: 2px;
+    }
+    & .d26-newest .d26-segments.is-small > * {
+      padding: 2px 4px;
+    }
+    & .d26-newest-head {
+      height: auto;
+    }
+  }
+}

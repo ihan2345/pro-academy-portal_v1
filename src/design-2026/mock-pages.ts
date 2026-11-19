@@ -564,7 +564,11 @@ export function previewPlayerArchive() {
       age: `${8 + (i % 5)} Jahre`,
       team: i % 2 ? "U10" : "U12",
       archived: last === "Braun",
-      created: iso(-60 - i * 40),
+      // Für die Kachel „Neueste Spieler“: einige Profile aus den letzten 30 Tagen.
+      created: iso(
+        -[0, 0, 1, 3, 3, 3, 9, 16, 24][i],
+        [8, 10, 12, 9, 11, 15, 16, 14, 10][i],
+      ),
       status,
       products: [] as string[],
       formerProducts: [...former],
