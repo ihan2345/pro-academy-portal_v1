@@ -17,6 +17,7 @@ import {
   Pencil,
   EyeOff,
   Check,
+  Ban,
 } from "lucide-react";
 import { graceDaysLeft, type Access } from "@/lib/elternkabine/rules";
 import { CoParentPanel } from "./co-parent";
@@ -71,6 +72,8 @@ type Overview = {
 type Post = {
   id: string;
   author: string;
+  author_id?: string;
+  author_banned?: boolean;
   team: boolean;
   mine: boolean;
   editable: boolean;
@@ -1131,6 +1134,34 @@ function PostBody({
               >
                 <EyeOff size={13} />
               </button>
+              {!post.team && post.author_id && (
+                <button
+                  type="button"
+                  className={post.author_banned ? "is-banned" : ""}
+                  aria-label={
+                    post.author_banned
+                      ? `${post.author} entsperren`
+                      : `${post.author} sperren`
+                  }
+                  title={
+                    post.author_banned
+                      ? `${post.author} ist gesperrt. Klicken zum Entsperren.`
+                      : `${post.author} in der Elternkabine sperren`
+                  }
+                  onClick={() => {
+                    const text = post.author_banned
+                      ? `${post.author} wieder freischalten?`
+                      : `${post.author} in der Elternkabine sperren? Die Person sieht die Elternkabine dann nicht mehr. Ist es ein Zweitkonto, kann das Hauptkonto es 30 Tage lang nicht ändern.`;
+                    if (!window.confirm(text)) return;
+                    void act("admin/moderate", {
+                      action: post.author_banned ? "unban" : "ban",
+                      user_id: post.author_id,
+                    });
+                  }}
+                >
+                  <Ban size={13} />
+                </button>
+              )}
             </>
           )}
         </span>

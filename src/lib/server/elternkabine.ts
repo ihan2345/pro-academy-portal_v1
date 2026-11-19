@@ -412,6 +412,20 @@ export async function channelPosts(channelId: string) {
     ...posts.map((p) => p.author_id),
     ...posts.flatMap((p) => p.mentions ?? []),
   ]);
+  // Für das Team: welche Autor:innen sind gesperrt (Sperren/Entsperren am Beitrag).
+  const banned = a.team
+    ? new Set(
+        (
+          ok(
+            await db()
+              .from("community_members")
+              .select("user_id")
+              .in("user_id", [...new Set(posts.map((p) => p.author_id))])
+              .not("banned_at", "is", null),
+          ) as any[]
+        ).map((m) => m.user_id),
+      )
+    : new Set<string>();
   const counts = (ok(await db().rpc("community_member_counts")) ??
     []) as unknown as { channel_id: string; members: number }[];
   await db().from("community_reads").upsert(
@@ -433,6 +447,8 @@ export async function channelPosts(channelId: string) {
       author: n.get(p.author_id)?.name ?? "Elternteil",
       team: p.author_team,
       mine: p.author_id === s.user.id,
+      author_id: a.team ? p.author_id : undefined,
+      author_banned: a.team ? banned.has(p.author_id) : undefined,
       editable:
         p.author_id === s.user.id &&
         !p.deleted_at &&
@@ -1472,13 +1488,11 @@ export async function adminSettings(input: unknown) {
   if (b.type === "term_add" || b.type === "term_remove") {
     termCache = null;
     if (b.type === "term_add") {
-      const { error } = await db()
-        .from("community_blocked_terms")
-        .insert({
-          term: b.term.toLowerCase(),
-          match: b.match,
-          created_by: s.user.id,
-        });
+      const { error } = await db().from("community_blocked_terms").insert({
+        term: b.term.toLowerCase(),
+        match: b.match,
+        created_by: s.user.id,
+      });
       if (error?.code === "23505")
         throw new HttpError(409, "Dieser Eintrag steht schon auf der Liste.");
       if (error) throw error;

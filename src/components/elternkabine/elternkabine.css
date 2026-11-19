@@ -137,6 +137,9 @@
   font-weight: 600;
   cursor: pointer;
 }
+.ek-switches .ek-link + .ek-link {
+  margin-left: 16px;
+}
 .ek-link {
   background: none;
   border: 0;
@@ -835,7 +838,11 @@ button.ek-kpi {
 
 @media (max-width: 820px) {
   .ek-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ek-switches .ek-link {
+    min-height: 44px;
+    padding: 0 4px;
   }
   .ek.has-channel .ek-list {
     display: none;
@@ -962,4 +969,7 @@ button.ek-kpi {
 .ek-terms li small {
   flex: 1;
   color: var(--d26-muted, #6e6e73);
+}
+button.is-banned {
+  color: #c4161c;
 }
