@@ -208,6 +208,39 @@ export async function trialTeamData() {
     })),
   };
 }
+/** Bereits stattgefundene Einheiten (letzte 90 Tage) für "rückwirkend eintragen". */
+export async function trialPastEvents() {
+  const s = await sessionUser();
+  assertRole(s?.role, "team");
+  const now = Date.now();
+  const { data, error } = await serviceDb()
+    .from("training_events")
+    .select(
+      "id,title,starts_at,ends_at,locations(name),staff_profiles(display_name)",
+    )
+    .eq("status", "scheduled")
+    .lte("ends_at", new Date(now).toISOString())
+    .gte("starts_at", new Date(now - 90 * 86400000).toISOString())
+    .order("starts_at")
+    .limit(1000);
+  if (error)
+    throw new HttpError(503, "Einheiten konnten nicht geladen werden.");
+  const one = <T>(v: T | T[] | null): T | null =>
+    Array.isArray(v) ? (v[0] ?? null) : v;
+  return {
+    events: (data ?? []).map((e) => ({
+      id: e.id as string,
+      title: e.title as string,
+      starts_at: e.starts_at as string,
+      ends_at: e.ends_at as string,
+      location:
+        one(e.locations as unknown as { name: string } | null)?.name ?? "",
+      coach:
+        one(e.staff_profiles as unknown as { display_name: string } | null)
+          ?.display_name ?? "",
+    })),
+  };
+}
 export async function manageTrial(body: unknown) {
   const s = await sessionUser();
   assertRole(s?.role, "team");

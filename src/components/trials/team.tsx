@@ -9,6 +9,7 @@ import {
 } from "@/lib/domain";
 import type { TrialRow } from "@/lib/trials/domain";
 import { trialApi } from "./public";
+import { canAssignPast, TrialPastAssign } from "./past-assign";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { PageHead } from "@/design-2026/page-head";
 import { Archive, CalendarDays, Inbox, Star } from "lucide-react";
@@ -400,6 +401,7 @@ function TrialTeamCard({
       <p className="trial-owner">
         Betreuung: <strong>{r.assigned_name || "Noch nicht übernommen"}</strong>
       </p>
+      {canAssignPast(r) && <TrialPastAssign row={r} refresh={refresh} />}
       <details
         className="trial-card-details"
         open={

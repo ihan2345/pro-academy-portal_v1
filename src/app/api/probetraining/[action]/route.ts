@@ -13,6 +13,7 @@ import {
   trialFamily,
   trialResult,
   trialTeamData,
+  trialPastEvents,
   trialSummary,
   trialWelcomeData,
   trialRatingGrant,
@@ -37,6 +38,7 @@ async function handle(
     if (request.method === "GET") {
       if (action === "team") return json(await trialTeamData());
       if (action === "summary") return json(await trialSummary());
+      if (action === "past-events") return json(await trialPastEvents());
       if (action === "welcome") return json(await trialWelcomeData());
       if (action === "rating") {
         const token = request.nextUrl.searchParams.get("token") ?? "";

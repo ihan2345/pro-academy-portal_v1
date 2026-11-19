@@ -489,6 +489,37 @@ export function previewTrials() {
   };
 }
 
+/** Bereits stattgefundene Einheiten für „Rückwirkend eintragen“. */
+export function previewTrialPastEvents() {
+  const unit = (
+    i: number,
+    days: number,
+    hour: number,
+    title: string,
+    location: string,
+    coach: string,
+  ) => ({
+    id: `pe-${i}`,
+    title,
+    starts_at: iso(days, hour),
+    ends_at: iso(days, hour + 1),
+    location,
+    coach,
+  });
+  return {
+    events: [
+      unit(1, -40, 16, "Techniktraining U9–12", "Sportpark Nord", "Coach Max"),
+      unit(2, -33, 17, "Torschuss", "Halle West", "Coach Lea"),
+      unit(3, -26, 16, "Techniktraining U9–12", "Sportpark Nord", "Coach Max"),
+      unit(4, -19, 16, "Techniktraining U9–12", "Sportpark Nord", "Coach Max"),
+      unit(5, -12, 17, "Torschuss", "Halle West", "Coach Lea"),
+      unit(6, -5, 15, "Koordination U6–8", "Sportpark Nord", "Coach Lea"),
+      unit(7, -5, 17, "Techniktraining U9–12", "Sportpark Nord", "Coach Max"),
+      unit(8, -2, 16, "Spielformen", "Halle West", "Coach Max"),
+    ],
+  };
+}
+
 /** Archiv „Alle Spieler“: Abo, nur Camp, Probetraining und Inaktive. */
 export function previewPlayerArchive() {
   const abo = previewPlayerProfiles().rows.map((r) => ({

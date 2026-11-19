@@ -16,6 +16,7 @@ import {
   previewPlayerArchive,
   previewProducts,
   previewTrials,
+  previewTrialPastEvents,
 } from "./mock-pages";
 
 if (
@@ -77,8 +78,10 @@ if (
       );
     if (path === "/api/admin/stripe-conflicts")
       return Response.json(previewConflicts());
-    if (path === "/api/probetraining/team")
+    if (path === "/api/probetraining/team" && init?.method !== "POST")
       return Response.json(previewTrials());
+    if (path === "/api/probetraining/past-events")
+      return Response.json(previewTrialPastEvents());
     if (path === "/api/products/gifts/mine")
       return Response.json(previewGifts());
     if (/^\/api\/parent-profiles\/[^/]+\/units$/.test(path))
