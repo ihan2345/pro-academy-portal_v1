@@ -58,6 +58,7 @@ export function productSchemaFiles() {
       "048-camp-direct-checkout-product.sql",
       "049-camp-customer-activation.sql",
       "050-notice-decisions.sql",
+      "051-trial-past-assignment.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

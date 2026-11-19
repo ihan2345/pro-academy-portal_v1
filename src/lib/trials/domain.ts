@@ -89,6 +89,11 @@ export const trialTeamSchema = z.discriminatedUnion("action", [
     event_id: z.uuid(),
   }),
   z.object({
+    action: z.literal("assign_past"),
+    request_id: z.uuid(),
+    event_id: z.uuid(),
+  }),
+  z.object({
     action: z.literal("note"),
     request_id: z.uuid(),
     note: z.string().trim().max(2000),

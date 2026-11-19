@@ -48,6 +48,7 @@ beforeAll(async () => {
     "019-trial-release-rules.sql",
     "020-trial-camp-access.sql",
     "021-trial-platform-switch.sql",
+    "051-trial-past-assignment.sql",
   ])
     await db
       .exec(readFileSync(`supabase/release/${f}`, "utf8"))
@@ -1078,4 +1079,91 @@ it("uses only the audited Super-Admin switch, pauses requests and queued deliver
       )
     )[0].n,
   ).toBeGreaterThanOrEqual(2);
+});
+
+it("enters a trial child retroactively into a past unit, confirms attendance and starts the feedback mail flow", async () => {
+  const [r] = await apply();
+  await verify();
+  const future = await event(3);
+  await manage({ action: "assign", request_id: r.id, event_id: future.id });
+  const past = await event(-2);
+  // Future units and units older than 90 days are rejected.
+  await rejected(
+    "select manage_trial($1)",
+    [{ action: "assign_past", request_id: r.id, event_id: future.id }],
+    /stattgefundene Einheit/,
+  );
+  const old = await event(-120);
+  await rejected(
+    "select manage_trial($1)",
+    [{ action: "assign_past", request_id: r.id, event_id: old.id }],
+    /stattgefundene Einheit/,
+  );
+  await manage({ action: "assign_past", request_id: r.id, event_id: past.id });
+  const [req] = await q("select * from trial_requests where id=$1", [r.id]);
+  expect(req.event_id).toBe(past.id);
+  expect(req.status).toBe("attended");
+  expect(req.confirmed_at).not.toBeNull();
+  const parts = await q(
+    "select event_id,status,removed_from_event from event_participants where trial_request_id=$1 order by event_id=$2",
+    [r.id, past.id],
+  );
+  expect(
+    parts.map((p) => [p.event_id, p.status, p.removed_from_event]),
+  ).toEqual([
+    [future.id, "cancelled", true],
+    [past.id, "attended_manual", false],
+  ]);
+  // No planning, reminder or cancellation mails for a unit in the past.
+  await q("select plan_trial_notifications()");
+  expect(
+    (
+      await q(
+        "select kind from notification_jobs where kind like 'trial_%' and kind<>'trial_welcome'",
+      )
+    ).map((j) => j.kind),
+  ).toEqual([]);
+  // A second retroactive entry is refused once attendance is confirmed.
+  await rejected(
+    "select manage_trial($1)",
+    [{ action: "assign_past", request_id: r.id, event_id: past.id }],
+    /bereits bestätigt/,
+  );
+  await manage({
+    action: "review",
+    request_id: r.id,
+    event_id: past.id,
+    rating: 5,
+    feedback: "Sehr engagiert",
+    ready: true,
+  });
+  await q("select plan_trial_notifications()");
+  const jobs = await q(
+    "select kind,payload from notification_jobs where kind='trial_feedback'",
+  );
+  expect(jobs).toHaveLength(1);
+  expect(jobs[0].payload.event_id).toBe(past.id);
+});
+it("confirms a past unit the child was already planned for, also after it was marked absent", async () => {
+  const [r] = await apply();
+  await verify();
+  const e = await event(3);
+  await manage({ action: "assign", request_id: r.id, event_id: e.id });
+  await q(
+    "update training_events set starts_at=now()-interval '1 day',ends_at=now()-interval '1 day'+interval '1 hour' where id=$1",
+    [e.id],
+  );
+  await manage({ action: "attendance", request_id: r.id, status: "absent" });
+  await manage({ action: "assign_past", request_id: r.id, event_id: e.id });
+  const parts = await q(
+    "select status from event_participants where trial_request_id=$1 and not removed_from_event",
+    [r.id],
+  );
+  expect(parts.map((p) => p.status)).toEqual(["attended_manual"]);
+  const [req] = await q(
+    "select status,confirmed_at from trial_requests where id=$1",
+    [r.id],
+  );
+  expect(req.status).toBe("attended");
+  expect(req.confirmed_at).not.toBeNull();
 });
