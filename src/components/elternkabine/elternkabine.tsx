@@ -37,7 +37,7 @@ export type Channel = {
   last: { body: string; at: string; name: string } | null;
 };
 type Overview = {
-  flags: { enabled: boolean; childPhotos: boolean };
+  flags: { enabled: boolean; community?: boolean; childPhotos: boolean };
   co_parent: boolean;
   role: string;
   family: null | {
@@ -375,6 +375,12 @@ function Head({
             ? "Du bist als zweiter Elternteil dabei."
             : "Euer geschützter Ort für Fragen, Tipps und Absprachen."}
         </p>
+        {data.role !== "parent" && !data.flags.enabled && (
+          <p className="ek-staff-only">
+            Nur für Mitarbeiter sichtbar. Eltern sehen die Elternkabine erst,
+            wenn sie veröffentlicht ist.
+          </p>
+        )}
       </div>
       {data.role === "parent" && (
         <button

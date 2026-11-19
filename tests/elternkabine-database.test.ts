@@ -326,3 +326,13 @@ it("Blacklist ist nur für den Server lesbar und startet mit der Grundliste", as
     asUser(fam.A.uid, () => q("select * from community_blocked_terms")),
   ).rejects.toThrow();
 });
+
+it("zweistufige Freischaltung: Schalter community und elternkabine sind aus", async () => {
+  const rows = await q(
+    "select key, enabled from platform_features where key in ('community','elternkabine') order by key",
+  );
+  expect(rows).toEqual([
+    { key: "community", enabled: false },
+    { key: "elternkabine", enabled: false },
+  ]);
+});

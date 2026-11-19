@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ChannelFeed, Sheet } from "./elternkabine";
 
 type AdminData = {
-  flags: { enabled: boolean; childPhotos: boolean };
+  flags: {
+    enabled: boolean;
+    community: boolean;
+    published: boolean;
+    childPhotos: boolean;
+  };
   families: number;
   co_parents: number;
   channels: any[];
@@ -128,9 +133,11 @@ export function AdminElternkabine() {
           <small className="ek-date">Super-Admin</small>
           <h1>Elternkabine</h1>
           <p>
-            {data.flags.enabled
-              ? "Für Eltern freigeschaltet."
-              : "Für Eltern noch aus. Nur du siehst diesen Bereich."}
+            {!data.flags.community
+              ? "Ausgeschaltet. Nur du siehst diese Verwaltung."
+              : data.flags.enabled
+                ? "Veröffentlicht: Eltern und Mitarbeiter sehen die Elternkabine."
+                : "Nur für Mitarbeiter freigegeben. Eltern sehen noch nichts."}
           </p>
         </div>
       </header>
@@ -163,16 +170,53 @@ export function AdminElternkabine() {
       <div className="ek-card ek-switches">
         <label className="ek-switch">
           <span>
-            <b>Elternkabine für Eltern</b>
-            <small>Menüpunkt und Beitritt für alle Eltern</small>
+            <b>Community aktivieren</b>
+            <small>
+              Schaltet die Funktion an. Sichtbar nur für Mitarbeiter (Menüpunkt
+              Elternkabine), Eltern sehen noch nichts.
+            </small>
           </span>
           <input
             type="checkbox"
-            checked={data.flags.enabled}
+            checked={data.flags.community}
+            onChange={(e) => {
+              if (
+                !e.target.checked &&
+                data.flags.published &&
+                !confirm(
+                  "Community ausschalten? Die Elternkabine verschwindet dann auch für alle Eltern.",
+                )
+              )
+                return;
+              void setting({
+                type: "feature",
+                key: "community",
+                enabled: e.target.checked,
+              });
+            }}
+          />
+        </label>
+        <label
+          className={`ek-switch ${data.flags.community ? "" : "is-disabled"}`}
+        >
+          <span>
+            <b>Elternkabine aktivieren</b>
+            <small>
+              {data.flags.community
+                ? "Macht die Elternkabine öffentlich: Menüpunkt und Beitritt für alle Eltern"
+                : "Zuerst „Community aktivieren“ einschalten"}
+            </small>
+          </span>
+          <input
+            type="checkbox"
+            disabled={!data.flags.community}
+            checked={data.flags.published}
             onChange={(e) => {
               if (
                 e.target.checked &&
-                !confirm("Elternkabine wirklich für alle Eltern freischalten?")
+                !confirm(
+                  "Elternkabine wirklich für alle Eltern veröffentlichen?",
+                )
               )
                 return;
               void setting({

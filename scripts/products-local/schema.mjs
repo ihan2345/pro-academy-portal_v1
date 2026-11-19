@@ -60,6 +60,7 @@ export function productSchemaFiles() {
       "050-notice-decisions.sql",
       "051-elternkabine.sql",
       "052-elternkabine-kanaele-blacklist.sql",
+      "053-community-schalter.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

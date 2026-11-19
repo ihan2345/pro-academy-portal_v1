@@ -41,11 +41,27 @@ export async function elternkabineFlags() {
   const { data, error } = await db()
     .from("platform_features")
     .select("key,enabled")
-    .in("key", ["elternkabine", "elternkabine_child_photos"]);
-  if (error) return { enabled: false, childPhotos: false, installed: false };
+    .in("key", ["community", "elternkabine", "elternkabine_child_photos"]);
+  if (error)
+    return {
+      community: false,
+      enabled: false,
+      published: false,
+      childPhotos: false,
+      installed: false,
+    };
   const on = (k: string) => !!data?.find((r) => r.key === k)?.enabled;
+  // Vor Release 053 gibt es den Schalter „community“ noch nicht: dann gilt
+  // „elternkabine“ allein (altes Verhalten).
+  const hasCommunity = !!data?.some((r) => r.key === "community");
+  const community = hasCommunity ? on("community") : on("elternkabine");
   return {
-    enabled: on("elternkabine"),
+    /** Funktion an: Mitarbeiter sehen den Bereich. */
+    community,
+    /** Schalter „Für Eltern veröffentlichen“ (wie gespeichert). */
+    published: on("elternkabine"),
+    /** Wirklich für Eltern offen: beide Schalter an. */
+    enabled: community && on("elternkabine"),
     childPhotos: on("elternkabine_child_photos"),
     installed: true,
   };
@@ -60,7 +76,7 @@ async function parentSession() {
   const s = await session();
   const flags = await elternkabineFlags();
   const team = s.role === "admin" || s.role === "staff";
-  if (!flags.enabled && !team)
+  if (!flags.community || (!flags.enabled && !team))
     throw new HttpError(404, "Die Elternkabine ist noch nicht freigeschaltet.");
   const parentId = s.role === "parent" ? await portalParentId(s.user.id) : null;
   if (s.role === "parent" && (!parentId || parentId === NO_PARENT))
@@ -1071,7 +1087,7 @@ export async function adminAlerts() {
   const s = await session();
   if (s.role !== "admin" && s.role !== "staff") return { alerts: [] };
   const flags = await elternkabineFlags();
-  if (!flags.installed) return { alerts: [] };
+  if (!flags.installed || !flags.community) return { alerts: [] };
   const [questions, reports, drafts, replies] = await Promise.all([
     db()
       .from("community_posts")
@@ -1407,7 +1423,7 @@ export async function adminSettings(input: unknown) {
     .discriminatedUnion("type", [
       z.object({
         type: z.literal("feature"),
-        key: z.enum(["elternkabine", "elternkabine_child_photos"]),
+        key: z.enum(["community", "elternkabine", "elternkabine_child_photos"]),
         enabled: z.boolean(),
       }),
       z.object({

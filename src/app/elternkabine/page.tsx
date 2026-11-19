@@ -9,8 +9,10 @@ export default async function Page() {
   const session = await profileSession().catch(() => null);
   if (!session?.role) redirect("/login");
   const flags = await elternkabineFlags();
-  if (session.role !== "parent") redirect("/admin-elternkabine");
-  if (!flags.enabled) notFound();
+  const team = session.role === "admin" || session.role === "staff";
+  // „Community aktivieren“ = nur Mitarbeiter; „Für Eltern veröffentlichen“ = auch Eltern.
+  if (!flags.community) notFound();
+  if (!team && (session.role !== "parent" || !flags.enabled)) notFound();
   return (
     <Portal initial={profileShell(session)} section="elternkabine">
       <Elternkabine />

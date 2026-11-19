@@ -973,3 +973,16 @@ button.ek-kpi {
 button.is-banned {
   color: #c4161c;
 }
+.ek-staff-only {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fff4e0;
+  color: #8a5a00;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ek-switch.is-disabled {
+  opacity: 0.5;
+}

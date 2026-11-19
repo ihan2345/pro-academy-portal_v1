@@ -54,17 +54,28 @@ export async function sessionUser() {
   }
   let coParent = false,
     elternkabine = false;
-  if (effectiveRole === "parent") {
-    const [co, feature] = await Promise.all([
-      db.rpc("is_co_parent"),
+  if (effectiveRole) {
+    // Menüpunkt Elternkabine: Mitarbeiter ab Schalter „community“,
+    // Eltern erst wenn zusätzlich „elternkabine“ (veröffentlicht) an ist.
+    const [co, features] = await Promise.all([
+      effectiveRole === "parent"
+        ? db.rpc("is_co_parent")
+        : Promise.resolve({ data: false, error: null }),
       serviceDb()
         .from("platform_features")
-        .select("enabled")
-        .eq("key", "elternkabine")
-        .maybeSingle(),
+        .select("key,enabled")
+        .in("key", ["community", "elternkabine"]),
     ]);
     coParent = !co.error && co.data === true;
-    elternkabine = !feature.error && feature.data?.enabled === true;
+    const rows = features.error ? [] : (features.data ?? []);
+    const on = (k: string) => rows.some((r) => r.key === k && r.enabled);
+    const community = rows.some((r) => r.key === "community")
+      ? on("community")
+      : on("elternkabine");
+    elternkabine =
+      effectiveRole === "parent"
+        ? community && on("elternkabine")
+        : (effectiveRole === "admin" || effectiveRole === "staff") && community;
   }
   return {
     coParent,

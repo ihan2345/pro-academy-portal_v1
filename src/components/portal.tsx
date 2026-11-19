@@ -331,7 +331,7 @@ export function Portal({
     activeNav.push({ href: "/pai", title: "PAiLTON", icon: MessageCircle });
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
-  if (!admin && !team && data.elternkabine)
+  if (data.elternkabine)
     activeNav.push({
       href: "/elternkabine",
       title: "Elternkabine",
