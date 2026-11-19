@@ -307,17 +307,22 @@ export function AdminElternkabine() {
       {sheet === "reports" && (
         <Sheet title="Meldungen" close={() => setSheet(null)}>
           {!data.reports.length && <p className="ek-hint">Keine Meldungen.</p>}
-          {data.reports.map((r) => (
+          {groupReports(data.reports).map(({ r, count, reasons }) => (
             <div key={r.id} className={`ek-report ${r.state}`}>
-              <span className="ek-tag">{REASON[r.reason]}</span>
+              {reasons.map((x) => (
+                <span key={x} className="ek-tag">
+                  {REASON[x] ?? x}
+                </span>
+              ))}
+              {count > 1 && <span className="ek-tag">{count} Meldungen</span>}
               <p>„{r.community_posts?.body}“</p>
               <small>
                 {new Date(r.created_at).toLocaleString("de-DE")} ·{" "}
                 {r.state === "open"
                   ? "offen"
                   : r.state === "resolved"
-                    ? "ausgeblendet"
-                    : "ist okay"}
+                    ? "erledigt: Beitrag ausgeblendet"
+                    : "erledigt: ist okay"}
               </small>
               {r.state === "open" && (
                 <div className="ek-co-actions">
@@ -327,7 +332,6 @@ export function AdminElternkabine() {
                       await api("admin/moderate", {
                         action: "hide",
                         post_id: r.post_id,
-                        report_id: r.id,
                       });
                       await load();
                     }}
@@ -339,7 +343,7 @@ export function AdminElternkabine() {
                     onClick={async () => {
                       await api("admin/moderate", {
                         action: "dismiss",
-                        report_id: r.id,
+                        post_id: r.post_id,
                       });
                       await load();
                     }}
@@ -416,6 +420,21 @@ export function AdminElternkabine() {
       {msg && <p className="ek-error">{msg}</p>}
     </div>
   );
+}
+
+/** Meldungen pro Beitrag und Status zusammenfassen (neueste zuerst). */
+function groupReports(reports: any[]) {
+  const map = new Map<string, { r: any; count: number; reasons: string[] }>();
+  for (const r of reports) {
+    const key = `${r.post_id}:${r.state}`;
+    const g = map.get(key);
+    if (!g) map.set(key, { r, count: 1, reasons: [r.reason] });
+    else {
+      g.count++;
+      if (!g.reasons.includes(r.reason)) g.reasons.push(r.reason);
+    }
+  }
+  return [...map.values()];
 }
 
 function NewChannel({
