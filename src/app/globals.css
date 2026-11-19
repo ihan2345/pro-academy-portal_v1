@@ -5962,3 +5962,23 @@ label {
   font-size: 11px;
   color: #6e6e73;
 }
+
+.profile-relations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.profile-relations label {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.profile-relations select {
+  width: auto;
+  padding: 6px 10px;
+}
+.profile-relation-chip {
+  color: var(--d26-muted, #6e6e73);
+}

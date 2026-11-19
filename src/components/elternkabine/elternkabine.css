@@ -986,3 +986,18 @@ button.is-banned {
 .ek-switch.is-disabled {
   opacity: 0.5;
 }
+.ek-select {
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid var(--d26-hair, rgba(0, 0, 0, 0.12));
+  border-radius: 12px;
+  background: #fff;
+  max-width: 320px;
+}
+.ek-relation {
+  margin-top: 12px;
+  font-size: 14px;
+  color: inherit;
+  display: grid;
+  gap: 6px;
+}

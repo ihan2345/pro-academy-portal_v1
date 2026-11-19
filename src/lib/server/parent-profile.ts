@@ -25,6 +25,7 @@ import { profileActivePeriods } from "./profile-subscription-history";
 import { compareRevenue, readParentRevenue } from "./profile-revenue";
 import type { PortalData } from "../types";
 import { readProfileAccess } from "./profile-access";
+import { CHILD_RELATION_IDS } from "../parent-relation";
 
 export type ProfileSession = NonNullable<
   Awaited<ReturnType<typeof sessionUser>>
@@ -488,6 +489,7 @@ export async function loadParentProfile(
         }
       : {}),
     name: parent.full_name,
+    relations: await familyRelations(parent, s.user.id),
     email: parent.contact_email,
     phone: parent.phone,
     city: parent.city,
@@ -529,6 +531,67 @@ export async function loadParentProfile(
     backfills_available: backfillsAvailable,
     camps_available: campsAvailable,
   };
+}
+/** Eltern-Logins dieser Familie (Hauptkonto + aktives Zweitkonto) mit Beziehung zum Kind. */
+async function familyRelations(
+  parent: { id: string; auth_user_id: string | null; full_name: string },
+  viewer: string,
+) {
+  const db = serviceDb();
+  const co = await db
+    .from("parent_co_accounts")
+    .select("auth_user_id,first_name")
+    .eq("parent_id", parent.id)
+    .eq("status", "active");
+  const people = [
+    ...(parent.auth_user_id
+      ? [{ uid: parent.auth_user_id, name: parent.full_name, co: false }]
+      : []),
+    ...((co.error ? [] : co.data) ?? [])
+      .filter((c) => c.auth_user_id)
+      .map((c) => ({
+        uid: c.auth_user_id as string,
+        name: c.first_name,
+        co: true,
+      })),
+  ];
+  if (!people.length) return [];
+  const rel = await db
+    .from("profiles")
+    .select("id,full_name,child_relation")
+    .in(
+      "id",
+      people.map((p) => p.uid),
+    );
+  // Vor Release 054 fehlt die Spalte: dann ohne Beziehung anzeigen.
+  if (rel.error) return null;
+  return people.map((p) => {
+    const row = (rel.data ?? []).find((r) => r.id === p.uid);
+    return {
+      name: (p.co ? row?.full_name || p.name : p.name) as string,
+      relation: (row?.child_relation as string | null) ?? null,
+      co: p.co,
+      mine: p.uid === viewer,
+    };
+  });
+}
+/** Eigene Beziehung zum Kind speichern (Haupt- und Zweitkonto). */
+export async function saveMyRelation(s: ProfileSession, input: unknown) {
+  if (s.role !== "parent") throw new HttpError(403, "Nur für Eltern.");
+  const body = z
+    .object({ relation: z.enum(CHILD_RELATION_IDS).nullable() })
+    .strict()
+    .parse(input);
+  const { error } = await serviceDb()
+    .from("profiles")
+    .update({ child_relation: body.relation })
+    .eq("id", s.user.id);
+  if (error)
+    throw new HttpError(
+      503,
+      "Die Beziehung zum Kind kann erst nach dem Datenbank-Update gespeichert werden.",
+    );
+  return { ok: true };
 }
 export const profileEditSchema = z
   .object({

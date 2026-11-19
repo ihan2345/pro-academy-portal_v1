@@ -72,6 +72,15 @@ export interface ParentProfile {
   portal_access?: ProfileAccess;
   id: string;
   name: string;
+  /** Eltern-Logins der Familie mit Beziehung zum Kind (null = Release 054 fehlt). */
+  relations?:
+    | {
+        name: string;
+        relation: string | null;
+        co: boolean;
+        mine: boolean;
+      }[]
+    | null;
   email: string;
   phone: string | null;
   city: string | null;

@@ -8,6 +8,7 @@ import { HttpError } from "./security";
 import { portalParentId, NO_PARENT } from "./co-parent";
 import { required } from "./config";
 import { coParentMail } from "../elternkabine/mails";
+import { CHILD_RELATION_IDS } from "../parent-relation";
 import {
   type Access,
   AUTO_HIDE_REPORTS,
@@ -150,9 +151,10 @@ export async function overview() {
           .then(ok)
       : [],
   ]);
-  const { data: display } = await db().rpc("community_display_name", {
-    uid,
-  });
+  const [{ data: display }, rel] = await Promise.all([
+    db().rpc("community_display_name", { uid }),
+    db().from("profiles").select("child_relation").eq("id", uid).maybeSingle(),
+  ]);
   const base = {
     flags,
     co_parent: !!s.coParent,
@@ -169,6 +171,10 @@ export async function overview() {
     me: {
       name_style: member?.name_style ?? "first_initial",
       display_name: (display as string) ?? "",
+      // null = Release 054 fehlt (Feld wird dann nicht angezeigt)
+      child_relation: rel.error
+        ? undefined
+        : ((rel.data?.child_relation as string | null) ?? null),
       banned: !!member?.banned_at,
     },
     regions: regions ?? [],
@@ -729,17 +735,35 @@ export async function setMuted(input: unknown) {
 // ───────────── Einstellungen ─────────────
 export async function saveMe(input: unknown) {
   const { s } = await parentSession();
-  const body = z.object({ name_style: z.enum(NAME_STYLES) }).parse(input);
-  ok(
-    await db().from("community_members").upsert(
-      {
-        user_id: s.user.id,
-        name_style: body.name_style,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" },
-    ),
-  );
+  const body = z
+    .object({
+      name_style: z.enum(NAME_STYLES).optional(),
+      child_relation: z.enum(CHILD_RELATION_IDS).nullable().optional(),
+    })
+    .parse(input);
+  if (body.name_style)
+    ok(
+      await db().from("community_members").upsert(
+        {
+          user_id: s.user.id,
+          name_style: body.name_style,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      ),
+    );
+  // Beziehung zum Kind gehört zum Profil (wird auch im Elternprofil angezeigt).
+  if (body.child_relation !== undefined) {
+    const { error } = await db()
+      .from("profiles")
+      .update({ child_relation: body.child_relation })
+      .eq("id", s.user.id);
+    if (error && body.name_style === undefined)
+      throw new HttpError(
+        503,
+        "Die Beziehung zum Kind kann erst nach dem Datenbank-Update gespeichert werden.",
+      );
+  }
   return { ok: true };
 }
 const familySchema = z.object({

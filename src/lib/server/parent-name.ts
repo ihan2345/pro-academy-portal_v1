@@ -8,7 +8,10 @@ export async function parentFirstName(email: string): Promise<string> {
     const { data, error } = await serviceDb()
       .from("parents")
       .select("full_name")
-      .ilike("contact_email", email.replace(/[\\%_]/g, (c) => `\\${c}`))
+      .ilike(
+        "contact_email",
+        email.replace(/[\\%_]/g, (c) => `\\${c}`),
+      )
       .is("archived_at", null)
       .limit(1)
       .maybeSingle();

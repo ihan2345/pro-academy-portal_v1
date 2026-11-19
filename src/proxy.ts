@@ -80,7 +80,7 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 const CO_PARENT_ALLOWED =
-  /^\/api\/(?:auth\/|activity$|notice-decisions$|elternkabine\/|pai\/|products\/gifts\/(?:checkout|mine|status-link)$)/;
+  /^\/api\/(?:auth\/|activity$|notice-decisions$|elternkabine\/|profile\/relation$|pai\/|products\/gifts\/(?:checkout|mine|status-link)$)/;
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|brand/|mail/kalender-|sw.js|manifest.webmanifest|api/stripe/webhook|api/camp/webhook|api/cron|api/public/trainings/|api/public/players/|api/public/kalender/|einbettung/produktbuehne/|api/public/product-showcase/).*)",

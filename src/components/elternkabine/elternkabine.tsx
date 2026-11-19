@@ -19,6 +19,7 @@ import {
   Check,
   Ban,
 } from "lucide-react";
+import { CHILD_RELATIONS } from "@/lib/parent-relation";
 import { graceDaysLeft, type Access } from "@/lib/elternkabine/rules";
 import { CoParentPanel } from "./co-parent";
 
@@ -47,7 +48,12 @@ type Overview = {
     consent_child_photos: boolean;
     region_id: string | null;
   };
-  me: { name_style: string; display_name: string; banned: boolean };
+  me: {
+    name_style: string;
+    display_name: string;
+    banned: boolean;
+    child_relation?: string | null;
+  };
   regions: { id: string; name: string }[];
   children: {
     id: string;
@@ -402,11 +408,35 @@ function Head({
   );
 }
 
+function RelationSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <select
+      className="ek-select"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">Bitte wählen (freiwillig)</option>
+      {CHILD_RELATIONS.map((r) => (
+        <option key={r.id} value={r.id}>
+          {r.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function Join({ data, reload }: { data: Overview; reload: () => void }) {
   const [privacy, setPrivacy] = useState(false);
   const [photos, setPhotos] = useState(false);
   const [childPhotos, setChildPhotos] = useState(false);
   const [style, setStyle] = useState(data.me.name_style);
+  const [relation, setRelation] = useState(data.me.child_relation ?? "");
   const [births, setBirths] = useState<Record<string, string>>({});
   const missing = data.children.filter((c) => !c.birth_year);
   const birthsOk = missing.every((c) => births[c.id]);
@@ -435,7 +465,12 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
     try {
       for (const c of missing)
         await api("child-birth", { player_id: c.id, birth_date: births[c.id] });
-      await api("me", { name_style: style });
+      await api("me", {
+        name_style: style,
+        ...(data.me.child_relation !== undefined
+          ? { child_relation: relation || null }
+          : {}),
+      });
       await api("family", {
         enabled: true,
         consent_privacy: privacy,
@@ -475,6 +510,16 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
           Hinweis: Dein voller Name ist für alle Mitglieder deiner Kanäle
           sichtbar.
         </p>
+      )}
+      {data.me.child_relation !== undefined && (
+        <>
+          <h3>Deine Beziehung zum Kind</h3>
+          <RelationSelect value={relation} onChange={setRelation} />
+          <p className="ek-hint">
+            Wird in deinem Elternprofil gespeichert und kann dort jederzeit
+            geändert werden.
+          </p>
+        </>
       )}
       <h3>Kinder und Jahrgang</h3>
       <p className="ek-hint">
@@ -624,6 +669,15 @@ function SettingsPanel({
             </button>
           ))}
         </div>
+        {data.me.child_relation !== undefined && (
+          <label className="ek-relation">
+            <span>Beziehung zum Kind</span>
+            <RelationSelect
+              value={data.me.child_relation ?? ""}
+              onChange={(v) => save("me", { child_relation: v || null })}
+            />
+          </label>
+        )}
       </section>
       {data.regions.length > 0 && (
         <section>

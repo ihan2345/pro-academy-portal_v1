@@ -22,6 +22,7 @@ import {
   profileList,
   loadParentProfile,
   editParentProfile,
+  saveMyRelation,
   archiveProfileChild,
   changeProfileChild,
   profileChildSchema,
@@ -350,6 +351,8 @@ async function handler(
         }),
       );
     }
+    if (path === "profile/relation" && request.method === "POST")
+      return json(await saveMyRelation(session, await request.json()));
     if (path.startsWith("parent-profiles/")) {
       const parts = path.split("/");
       if (

@@ -357,3 +357,16 @@ it("ProMediathek-Kanal bleibt gesperrt, solange der Admin-Schalter aus ist", asy
     "update platform_features set enabled=false where key='elternkabine_child_photos'",
   );
 });
+
+it("Beziehung zum Kind wird im Profil gespeichert und nur mit gültigen Werten", async () => {
+  await q("update profiles set child_relation='mutter' where id=$1", [
+    fam.A.uid,
+  ]);
+  await q("update profiles set child_relation='vater' where id=$1", [coUid]);
+  expect(
+    (await one("select child_relation r from profiles where id=$1", [coUid])).r,
+  ).toBe("vater");
+  await expect(
+    q("update profiles set child_relation='chef' where id=$1", [fam.A.uid]),
+  ).rejects.toThrow();
+});
