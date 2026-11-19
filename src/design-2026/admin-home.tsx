@@ -9,7 +9,6 @@ import {
   CalendarDays,
   CalendarPlus,
   ChevronRight,
-  FileText,
   Inbox,
   Mail,
   MapPin,
@@ -26,6 +25,7 @@ import type { PortalData, Training } from "@/lib/types";
 import { STATUS_LABELS, formatDate, formatTime } from "@/lib/domain";
 import { SubscriptionReviews } from "@/components/subscription-reviews";
 import { useMounted } from "./parent-experience";
+import { NewestPlayersTile } from "./newest-players";
 
 function dayStart(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -38,7 +38,7 @@ export function AdminHome({ data }: { data: PortalData }) {
 }
 
 type AdminSheet =
-  | { kind: "players" | "week" | "open" | "reports" }
+  | { kind: "players" | "week" | "open" }
   | { kind: "day"; day: Date }
   | { kind: "event"; event: Training }
   | null;
@@ -178,13 +178,6 @@ function AdminHomeView({ data }: { data: PortalData }) {
       icon: Inbox,
       tip: "Vergangene Termine mit geplanten Teilnehmern",
     },
-    {
-      key: "reports" as const,
-      label: "Berichte",
-      value: data.reports.length,
-      icon: FileText,
-      tip: "Erstellte Trainingsreports",
-    },
   ];
   const EventLine = ({ e }: { e: Training }) => (
     <button
@@ -249,6 +242,7 @@ function AdminHomeView({ data }: { data: PortalData }) {
             </span>
           </button>
         ))}
+        <NewestPlayersTile />
       </div>
 
       <div className="d26-bento">
@@ -492,38 +486,6 @@ function AdminHomeView({ data }: { data: PortalData }) {
           ) : (
             <p className="d26-empty">Alles bestätigt.</p>
           )}
-        </div>
-      </Sheet>
-      <Sheet
-        open={sheet?.kind === "reports"}
-        onClose={() => setSheet(null)}
-        eyebrow={`${data.reports.length} Berichte`}
-        title="Trainingsreports"
-      >
-        <div className="d26-mini-list">
-          {data.reports.map((r) => (
-            <a
-              key={r.id}
-              className="d26-mini-event tone-lime"
-              href={`/api/reports/${r.id}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <span className="d26-mini-index">
-                <FileText size={16} />
-              </span>
-              <span>
-                <b>
-                  {playerName(r.player_id) || "Spieler"} · {r.period_label}
-                </b>
-                <small>
-                  {r.product_name} · {r.completed} von {r.units} Einheiten ·
-                  Version {r.version}
-                </small>
-              </span>
-              <span className="d26-pill">PDF</span>
-            </a>
-          ))}
         </div>
       </Sheet>
       <Sheet
