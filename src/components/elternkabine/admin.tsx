@@ -232,10 +232,10 @@ export function AdminElternkabine() {
           className={`ek-switch ${data.flags.enabled ? "" : "is-disabled"}`}
         >
           <span>
-            <b>Kinderfotos</b>
+            <b>ProMediathek</b>
             <small>
               {data.flags.enabled
-                ? "Eltern „Fotomediathek für mein Kind“ anbieten"
+                ? "Eltern können Fotos/Videos von Pro Academy Events erhalten (jede Familie stimmt selbst zu)"
                 : "Erst möglich, wenn „Elternkabine aktivieren“ an ist"}
             </small>
           </span>

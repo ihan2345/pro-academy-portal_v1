@@ -62,7 +62,7 @@ export async function elternkabineFlags() {
     published: on("elternkabine"),
     /** Wirklich für Eltern offen: beide Schalter an. */
     enabled: community && on("elternkabine"),
-    /** Kinderfotos wirken nur, wenn die Elternkabine veröffentlicht ist. */
+    /** ProMediathek (Fotos/Videos von Pro Academy Events) wirkt nur, wenn die Elternkabine veröffentlicht ist. */
     childPhotos:
       community && on("elternkabine") && on("elternkabine_child_photos"),
     childPhotosSaved: on("elternkabine_child_photos"),
@@ -1528,7 +1528,7 @@ export async function adminSettings(input: unknown) {
   )
     throw new HttpError(
       409,
-      "Kinderfotos gehen erst, wenn die Elternkabine aktiviert ist.",
+      "Die ProMediathek geht erst, wenn die Elternkabine aktiviert ist.",
     );
   if (b.type === "feature") {
     const { error } = await s.db.rpc("set_platform_feature", {

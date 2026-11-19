@@ -55,7 +55,9 @@ export function postAllowed(input: {
   if (access.level === "locked")
     return access.reason === "region"
       ? "Bitte wähle zuerst deine Region aus."
-      : "Für diesen Kanal muss die Fotomediathek aktiviert sein.";
+      : access.reason === "consent_child_photos"
+        ? "Für diesen Kanal muss die ProMediathek aktiviert sein."
+        : "Für diesen Kanal muss die Fotomediathek aktiviert sein.";
   return "In diesem Kanal kannst du nicht schreiben.";
 }
 

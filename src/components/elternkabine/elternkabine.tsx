@@ -288,7 +288,9 @@ export function Elternkabine({ team = false }: { team?: boolean }) {
                       {c.access.level === "locked"
                         ? c.access.reason === "region"
                           ? "Wähle eine Region aus"
-                          : "Fotomediathek nicht aktiviert"
+                          : c.access.reason === "consent_child_photos"
+                            ? "ProMediathek nicht aktiviert"
+                            : "Fotomediathek nicht aktiviert"
                         : c.last
                           ? `${c.last.name}: ${c.last.body}`
                           : c.description}
@@ -342,8 +344,12 @@ export function Elternkabine({ team = false }: { team?: boolean }) {
             />
           ) : (
             <p className="ek-hint">
-              Für diesen Kanal muss die Fotomediathek aktiviert sein. Das
-              Hauptkonto kann sie in den Einstellungen einschalten.
+              Für diesen Kanal muss die{" "}
+              {locked.access.reason === "consent_child_photos"
+                ? "ProMediathek"
+                : "Fotomediathek"}{" "}
+              aktiviert sein. Das Hauptkonto kann sie in den Einstellungen
+              einschalten.
             </p>
           )}
         </Sheet>
@@ -511,9 +517,10 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
             onChange={(e) => setChildPhotos(e.target.checked)}
           />
           <span>
-            <b>Fotomediathek für mein Kind aktivieren (freiwillig).</b> Pro
-            Academy und ich dürfen Fotos zeigen, auf denen mein Kind zu sehen
-            ist, nur in den Kanälen seiner Gruppe.
+            <b>ProMediathek aktivieren (freiwillig).</b> Fotos und Videos von
+            Pro Academy Events erhalten. Darauf kann auch mein Kind zu sehen
+            sein. Pro Academy zeigt sie nur den Familien, die beim jeweiligen
+            Training oder Event dabei waren.
           </span>
         </label>
       )}
@@ -667,8 +674,12 @@ function SettingsPanel({
           {data.flags.childPhotos && (
             <label className="ek-switch">
               <span>
-                <b>Fotomediathek für mein Kind</b>
-                <small>Fotos, auf denen mein Kind zu sehen ist</small>
+                <b>ProMediathek</b>
+                <small>
+                  {data.family.consent_child_photos
+                    ? "Aktiv: Du erhältst Fotos/Videos von Pro Academy Events. Jederzeit wieder ausschaltbar."
+                    : "Fotos/Videos von Pro Academy Events erhalten"}
+                </small>
               </span>
               <input
                 type="checkbox"

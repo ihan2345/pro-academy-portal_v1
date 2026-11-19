@@ -15,7 +15,7 @@ export default async function Page() {
   if (!team && (session.role !== "parent" || !flags.enabled)) notFound();
   return (
     <Portal initial={profileShell(session)} section="elternkabine">
-      <Elternkabine />
+      <Elternkabine team={team} />
     </Portal>
   );
 }
