@@ -62,7 +62,10 @@ export async function elternkabineFlags() {
     published: on("elternkabine"),
     /** Wirklich für Eltern offen: beide Schalter an. */
     enabled: community && on("elternkabine"),
-    childPhotos: on("elternkabine_child_photos"),
+    /** Kinderfotos wirken nur, wenn die Elternkabine veröffentlicht ist. */
+    childPhotos:
+      community && on("elternkabine") && on("elternkabine_child_photos"),
+    childPhotosSaved: on("elternkabine_child_photos"),
     installed: true,
   };
 }
@@ -1517,6 +1520,16 @@ export async function adminSettings(input: unknown) {
       );
     return { ok: true };
   }
+  if (
+    b.type === "feature" &&
+    b.key === "elternkabine_child_photos" &&
+    b.enabled &&
+    !(await elternkabineFlags()).enabled
+  )
+    throw new HttpError(
+      409,
+      "Kinderfotos gehen erst, wenn die Elternkabine aktiviert ist.",
+    );
   if (b.type === "feature") {
     const { error } = await s.db.rpc("set_platform_feature", {
       feature_key: b.key,

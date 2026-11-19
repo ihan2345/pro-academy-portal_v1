@@ -9,6 +9,7 @@ type AdminData = {
     community: boolean;
     published: boolean;
     childPhotos: boolean;
+    childPhotosSaved: boolean;
   };
   families: number;
   co_parents: number;
@@ -227,14 +228,21 @@ export function AdminElternkabine() {
             }}
           />
         </label>
-        <label className="ek-switch">
+        <label
+          className={`ek-switch ${data.flags.enabled ? "" : "is-disabled"}`}
+        >
           <span>
             <b>Kinderfotos</b>
-            <small>Eltern „Fotomediathek für mein Kind“ anbieten</small>
+            <small>
+              {data.flags.enabled
+                ? "Eltern „Fotomediathek für mein Kind“ anbieten"
+                : "Erst möglich, wenn „Elternkabine aktivieren“ an ist"}
+            </small>
           </span>
           <input
             type="checkbox"
-            checked={data.flags.childPhotos}
+            disabled={!data.flags.enabled}
+            checked={data.flags.enabled && data.flags.childPhotosSaved}
             onChange={(e) =>
               setting({
                 type: "feature",
