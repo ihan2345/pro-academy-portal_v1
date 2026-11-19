@@ -62,6 +62,7 @@ export function productSchemaFiles() {
       "052-elternkabine-kanaele-blacklist.sql",
       "053-community-schalter.sql",
       "054-beziehung-zum-kind.sql",
+      "055-elternkabine-familien-verbinden.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

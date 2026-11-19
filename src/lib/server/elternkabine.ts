@@ -180,6 +180,7 @@ export async function overview() {
     regions: regions ?? [],
     children: parentId ? await familyChildren(parentId) : [],
     co: coAccountState(coRows ?? [], await coBans(coRows ?? [])),
+    link: parentId ? await familyLinkState(parentId) : null,
   };
   const active =
     s.role !== "parent" ||
@@ -226,14 +227,29 @@ function coAccountState(rows: any[], bans: Map<string, string>) {
 
 type Child = Awaited<ReturnType<typeof familyChildren>>[number];
 /** Kinder der Familie mit Altersklasse und aktuellen Abos (für Jahrgänge und „über Noah“). */
+async function familyIds(parentId: string): Promise<string[]> {
+  const { data, error } = await db().rpc("community_family_ids", {
+    fam: parentId,
+  });
+  return !error && Array.isArray(data) && data.length
+    ? (data as string[])
+    : [parentId];
+}
 async function familyChildren(parentId: string) {
+  const ids = await familyIds(parentId);
   const links = ok(
     await db()
       .from("parent_players")
-      .select("players(id,first_name,birth_year,camp_birth_date,archived_at)")
-      .eq("parent_id", parentId),
+      .select(
+        "parent_id,players(id,first_name,birth_year,camp_birth_date,archived_at)",
+      )
+      .in("parent_id", ids),
   ) as any[];
-  const kids = links.map((l) => l.players).filter((p) => p && !p.archived_at);
+  const seen = new Set<string>();
+  const kids = links
+    .filter((l) => l.players && !l.players.archived_at)
+    .map((l) => ({ ...l.players, own: l.parent_id === parentId }))
+    .filter((k) => !seen.has(k.id) && seen.add(k.id));
   const periods = kids.length
     ? (ok(
         await db()
@@ -252,6 +268,8 @@ async function familyChildren(parentId: string) {
     first_name: k.first_name as string,
     birth_year: (k.birth_year as number | null) ?? null,
     u: k.birth_year ? uAge(k.birth_year) : null,
+    /** false = Kind des verbundenen Elternkontos (nur ansehen). */
+    own: k.own as boolean,
     plans: [
       ...new Set(
         periods.filter((p) => p.player_id === k.id).map((p) => p.product_name),
@@ -910,6 +928,16 @@ async function assertCoNotLocked(row: any) {
 export async function coInvitePreview(input: unknown) {
   const { s, parent } = await mainParent();
   const body = inviteSchema.parse(input);
+  if (
+    body.email !== (s.user.email ?? "").toLowerCase() &&
+    (await otherParentByEmail(body.email, parent.id))
+  )
+    return {
+      mode: "link" as const,
+      to: body.email,
+      subject: "Familien in der Elternkabine verbinden",
+      text: `Diese E-Mail gehört schon zu einem eigenen Elternkonto. Ein Zweitkonto ist dann nicht möglich, aber ihr könnt eure Familien in der Elternkabine verbinden: Beide sehen die Kanäle aller Kinder, jeder behält sein eigenes Konto und Abo und ändert nur seine eigenen Kinder. ${body.first_name} bekommt die Anfrage in der Elternkabine und muss sie annehmen.`,
+    };
   await checkCoEmail(body.email, s, parent.id);
   const m = coParentMail(
     "co_parent_invitation",
@@ -1055,6 +1083,143 @@ export async function coRemove(input: unknown) {
       parent.full_name,
       "main_removed",
     );
+  return { ok: true };
+}
+
+// ───────────── Zwei eigene Elternkonten in der Elternkabine verbinden ─────────────
+// Nur die Elternkabine wird verbunden: beide sehen die Kanäle aller Kinder.
+// Im übrigen Portal bleiben die Konten getrennt; jeder ändert nur seine Kinder.
+const LINK_REQUEST_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+async function openLink(parentId: string) {
+  const { data, error } = await db()
+    .from("community_family_links")
+    .select("id,parent_a,parent_b,status,created_at,accepted_at")
+    .in("status", ["requested", "active"])
+    .or(`parent_a.eq.${parentId},parent_b.eq.${parentId}`)
+    .maybeSingle();
+  if (error) return { missing: true as const, row: null };
+  return { missing: false as const, row: data as any };
+}
+async function familyLinkState(parentId: string) {
+  const { missing, row } = await openLink(parentId);
+  if (missing) return null; // Release 055 fehlt
+  if (!row) return { status: "none" as const };
+  const partnerId = row.parent_a === parentId ? row.parent_b : row.parent_a;
+  const partner = ok(
+    await db()
+      .from("parents")
+      .select("full_name,contact_email")
+      .eq("id", partnerId)
+      .maybeSingle(),
+  );
+  return {
+    status: row.status as "requested" | "active",
+    incoming: row.status === "requested" && row.parent_b === parentId,
+    partner_name: partner?.full_name ?? "Elternteil",
+    partner_email: row.parent_a === parentId ? partner?.contact_email : null,
+    since: row.accepted_at ?? row.created_at,
+  };
+}
+/** Gehört die E-Mail zu einem anderen eigenen Elternkonto? */
+async function otherParentByEmail(email: string, selfId: string) {
+  const rows = ok(
+    await db()
+      .from("parents")
+      .select("id,full_name")
+      .ilike("contact_email", email)
+      .is("archived_at", null)
+      .limit(1),
+  ) as any[];
+  return rows[0] && rows[0].id !== selfId ? rows[0] : null;
+}
+export async function linkRequest(input: unknown) {
+  const { s, parent } = await mainParent();
+  const body = z.object({ email: z.email().trim().toLowerCase() }).parse(input);
+  if (body.email === (s.user.email ?? "").toLowerCase())
+    throw new HttpError(400, "Das ist deine eigene E-Mail-Adresse.");
+  const other = await otherParentByEmail(body.email, parent.id);
+  if (!other)
+    throw new HttpError(
+      404,
+      "Zu dieser E-Mail gibt es kein eigenes Elternkonto. Lade sie stattdessen als zweiten Elternteil ein.",
+    );
+  const [mine, theirs] = await Promise.all([
+    openLink(parent.id),
+    openLink(other.id),
+  ]);
+  if (mine.missing)
+    throw new HttpError(
+      503,
+      "Diese Funktion braucht das Datenbank-Update 055.",
+    );
+  if (mine.row)
+    throw new HttpError(
+      409,
+      "Du hast schon eine offene oder bestehende Verbindung. Bitte trenne sie zuerst.",
+    );
+  if (theirs.row)
+    throw new HttpError(
+      409,
+      "Dieses Elternkonto ist schon mit einer anderen Familie verbunden.",
+    );
+  const last = ok(
+    await db()
+      .from("community_family_links")
+      .select("created_at")
+      .eq("parent_a", parent.id)
+      .order("created_at", { ascending: false })
+      .limit(1),
+  ) as any[];
+  if (
+    last[0] &&
+    Date.now() - Date.parse(last[0].created_at) < LINK_REQUEST_COOLDOWN_MS
+  )
+    throw new HttpError(
+      429,
+      "Eine Verbindungsanfrage geht höchstens einmal pro Tag raus.",
+    );
+  ok(
+    await db().from("community_family_links").insert({
+      parent_a: parent.id,
+      parent_b: other.id,
+      requested_by: s.user.id,
+    }),
+  );
+  return { ok: true };
+}
+export async function linkRespond(input: unknown) {
+  const { parent } = await mainParent();
+  const body = z.object({ accept: z.boolean() }).parse(input);
+  const { row } = await openLink(parent.id);
+  if (!row || row.status !== "requested" || row.parent_b !== parent.id)
+    throw new HttpError(404, "Keine offene Anfrage gefunden.");
+  ok(
+    await db()
+      .from("community_family_links")
+      .update(
+        body.accept
+          ? { status: "active", accepted_at: new Date().toISOString() }
+          : { status: "declined", ended_at: new Date().toISOString() },
+      )
+      .eq("id", row.id)
+      .eq("status", "requested"),
+  );
+  return { ok: true };
+}
+export async function linkEnd() {
+  const { s, parent } = await mainParent();
+  const { row } = await openLink(parent.id);
+  if (!row) throw new HttpError(404, "Keine Verbindung vorhanden.");
+  ok(
+    await db()
+      .from("community_family_links")
+      .update({
+        status: "ended",
+        ended_at: new Date().toISOString(),
+        ended_by: s.user.id,
+      })
+      .eq("id", row.id),
+  );
   return { ok: true };
 }
 

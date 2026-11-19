@@ -21,6 +21,7 @@ export function CoParentPanel({ co, reload }: { co: Co; reload: () => void }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [preview, setPreview] = useState<{
+    mode?: "link";
     to: string;
     subject: string;
     text: string;
@@ -137,7 +138,11 @@ export function CoParentPanel({ co, reload }: { co: Co; reload: () => void }) {
         </div>
       ) : preview ? (
         <div className="ek-mail-preview">
-          <small>Vorschau der Einladung an {preview.to}</small>
+          <small>
+            {preview.mode === "link"
+              ? `Eigenes Elternkonto gefunden: ${preview.to}`
+              : `Vorschau der Einladung an ${preview.to}`}
+          </small>
           <b>{preview.subject}</b>
           <p>{preview.text}</p>
           <div className="ek-co-actions">
@@ -150,7 +155,10 @@ export function CoParentPanel({ co, reload }: { co: Co; reload: () => void }) {
               disabled={busy}
               onClick={() =>
                 run(async () => {
-                  await api("co/invite", { email, first_name: name });
+                  if (preview.mode === "link") {
+                    await api("link/request", { email });
+                    setMsg("Anfrage gesendet ✓");
+                  } else await api("co/invite", { email, first_name: name });
                   setPreview(null);
                   setEmail("");
                   setName("");
@@ -158,7 +166,9 @@ export function CoParentPanel({ co, reload }: { co: Co; reload: () => void }) {
                 })
               }
             >
-              Einladung senden
+              {preview.mode === "link"
+                ? "Verbindung anfragen"
+                : "Einladung senden"}
             </button>
           </div>
         </div>
@@ -198,6 +208,108 @@ export function CoParentPanel({ co, reload }: { co: Co; reload: () => void }) {
             Noch {co.changes_left} Änderung{co.changes_left === 1 ? "" : "en"}{" "}
             in diesem Monat möglich.
           </small>
+        </div>
+      )}
+      {msg && <p className="ek-hint">{msg}</p>}
+    </section>
+  );
+}
+
+type Link = null | {
+  status: "none" | "requested" | "active";
+  incoming?: boolean;
+  partner_name?: string;
+  partner_email?: string | null;
+  since?: string;
+};
+/** Zwei eigene Elternkonten in der Elternkabine verbinden (nur Kanäle, kein Portal-Zugriff). */
+export function FamilyLinkPanel({
+  link,
+  main,
+  reload,
+}: {
+  link: Link;
+  main: boolean;
+  reload: () => void;
+}) {
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!link || link.status === "none") return null;
+  async function run(path: string, body?: unknown, confirmText?: string) {
+    if (confirmText && !window.confirm(confirmText)) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      await api(path, body ?? {});
+      reload();
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+    setBusy(false);
+  }
+  const name = link.partner_name ?? "Elternteil";
+  return (
+    <section className="ek-co ek-link-panel">
+      <h3>Verbundene Familie</h3>
+      {link.status === "active" ? (
+        <p className="ek-hint">
+          Verbunden mit <b>{name}</b>. Ihr seht in der Elternkabine die Kanäle
+          aller Kinder. Jeder behält sein eigenes Konto und Abo und ändert nur
+          seine eigenen Kinder.
+        </p>
+      ) : link.incoming ? (
+        <p className="ek-hint">
+          <b>{name}</b> möchte eure Familien in der Elternkabine verbinden. Ihr
+          seht dann die Kanäle aller Kinder. Konten, Abos und Kinder bleiben
+          getrennt, jeder ändert nur seine eigenen.
+        </p>
+      ) : (
+        <p className="ek-hint">
+          Anfrage an <b>{name}</b>
+          {link.partner_email ? ` (${link.partner_email})` : ""} gesendet. Sie
+          oder er muss sie in der Elternkabine annehmen.
+        </p>
+      )}
+      {main && (
+        <div className="ek-co-actions">
+          {link.incoming ? (
+            <>
+              <button
+                type="button"
+                className="ek-primary"
+                disabled={busy}
+                onClick={() => run("link/respond", { accept: true })}
+              >
+                Annehmen
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run("link/respond", { accept: false })}
+              >
+                Ablehnen
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="ek-danger"
+              disabled={busy}
+              onClick={() =>
+                run(
+                  "link/end",
+                  undefined,
+                  link.status === "active"
+                    ? `Verbindung mit ${name} trennen? Ihr seht danach nur noch die Kanäle eurer eigenen Kinder.`
+                    : "Anfrage zurückziehen?",
+                )
+              }
+            >
+              {link.status === "active"
+                ? "Verbindung trennen"
+                : "Anfrage zurückziehen"}
+            </button>
+          )}
         </div>
       )}
       {msg && <p className="ek-hint">{msg}</p>}

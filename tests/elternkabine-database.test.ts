@@ -370,3 +370,31 @@ it("Beziehung zum Kind wird im Profil gespeichert und nur mit gültigen Werten",
     q("update profiles set child_relation='chef' where id=$1", [fam.A.uid]),
   ).rejects.toThrow();
 });
+
+it("verbundene Elternkonten sehen in der Elternkabine die Kanäle beider Familien", async () => {
+  // C hat kein Abo; nach Verbindung mit A (FirstTouch aktiv) sieht C die Abo-Kanäle.
+  expect((await access(fam.C.uid, "Alle Abo-Eltern")).level).toBe("none");
+  await q(
+    "insert into community_family_links(parent_a,parent_b,status) values($1,$2,'requested')",
+    [fam.A.pid, fam.C.pid],
+  );
+  expect((await access(fam.C.uid, "Alle Abo-Eltern")).level).toBe("none");
+  await q(
+    "update community_family_links set status='active', accepted_at=now() where parent_a=$1",
+    [fam.A.pid],
+  );
+  expect((await access(fam.C.uid, "Alle Abo-Eltern")).level).toBe("write");
+  expect((await access(fam.C.uid, "FirstTouch-Eltern")).level).toBe("write");
+  // Eine zweite offene Verbindung für dasselbe Konto ist nicht möglich.
+  await expect(
+    q("insert into community_family_links(parent_a,parent_b) values($1,$2)", [
+      fam.D.pid,
+      fam.C.pid,
+    ]),
+  ).rejects.toThrow();
+  await q(
+    "update community_family_links set status='ended', ended_at=now() where parent_a=$1",
+    [fam.A.pid],
+  );
+  expect((await access(fam.C.uid, "Alle Abo-Eltern")).level).toBe("none");
+});

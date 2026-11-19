@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { CHILD_RELATIONS } from "@/lib/parent-relation";
 import { graceDaysLeft, type Access } from "@/lib/elternkabine/rules";
-import { CoParentPanel } from "./co-parent";
+import { CoParentPanel, FamilyLinkPanel } from "./co-parent";
 
 export type Channel = {
   id: string;
@@ -61,7 +61,15 @@ type Overview = {
     birth_year: number | null;
     u: number | null;
     plans: string[];
+    own?: boolean;
   }[];
+  link?: {
+    status: "none" | "requested" | "active";
+    incoming?: boolean;
+    partner_name?: string;
+    partner_email?: string | null;
+    since?: string;
+  } | null;
   co: {
     current: null | {
       id: string;
@@ -207,6 +215,15 @@ export function Elternkabine({ team = false }: { team?: boolean }) {
     return (
       <div className="ek">
         <Head data={data} onSettings={() => setSettings(true)} />
+        {data.link?.incoming && (
+          <div className="ek-card">
+            <FamilyLinkPanel
+              link={data.link}
+              main={!data.co_parent}
+              reload={load}
+            />
+          </div>
+        )}
         <Join data={data} reload={load} />
       </div>
     );
@@ -438,7 +455,7 @@ function Join({ data, reload }: { data: Overview; reload: () => void }) {
   const [style, setStyle] = useState(data.me.name_style);
   const [relation, setRelation] = useState(data.me.child_relation ?? "");
   const [births, setBirths] = useState<Record<string, string>>({});
-  const missing = data.children.filter((c) => !c.birth_year);
+  const missing = data.children.filter((c) => !c.birth_year && c.own !== false);
   const birthsOk = missing.every((c) => births[c.id]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -763,6 +780,7 @@ function SettingsPanel({
           />
         </section>
       )}
+      <FamilyLinkPanel link={data.link ?? null} main={main} reload={reload} />
       {main && <CoParentPanel co={data.co} reload={reload} />}
       {main && data.family?.enabled && (
         <section>
@@ -1433,6 +1451,9 @@ function ChildAges({
       {data.children.map((c) => (
         <div key={c.id} className="ek-kid">
           <b>{c.first_name}</b>
+          {c.own === false && (
+            <small className="ek-hint">verbundene Familie</small>
+          )}
           {c.u !== null ? (
             <span className="ek-tag is-team">
               U{c.u}
@@ -1440,6 +1461,8 @@ function ChildAges({
                 ? ` · Kanal ${ageGroup(c.u)}`
                 : " · kein Jahrgangskanal"}
             </span>
+          ) : c.own === false ? (
+            <span className="ek-hint">Geburtsjahr fehlt noch</span>
           ) : setBirths ? (
             <label className="ek-kid-birth">
               Geburtsdatum (Pflicht)
