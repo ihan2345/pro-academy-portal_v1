@@ -5926,3 +5926,39 @@ label {
     cursor: pointer;
   }
 }
+
+/* Zweitkonto-Hinweis und Elternkabine-Schnellaktionen in der Glocke */
+.co-parent-banner {
+  background: #f1eaff;
+  color: #3d1f8f;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.d26-ek-quick {
+  margin-top: 6px;
+  display: grid;
+  gap: 6px;
+}
+.d26-ek-quick textarea {
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+.d26-ek-suggest {
+  display: flex;
+  gap: 5px;
+  align-items: flex-start;
+  font-size: 11.5px;
+  color: #5b2bd1;
+  margin: 0;
+}
+.d26-ek-msg {
+  font-size: 11px;
+  color: #6e6e73;
+}

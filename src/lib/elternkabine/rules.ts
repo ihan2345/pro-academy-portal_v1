@@ -73,7 +73,8 @@ const BLOCKED_WORDS = [
 export function bodyProblem(body: string): string | null {
   const text = body.trim();
   if (!text) return "Bitte schreib etwas.";
-  if (text.length > 4000) return "Der Beitrag ist zu lang (max. 4.000 Zeichen).";
+  if (text.length > 4000)
+    return "Der Beitrag ist zu lang (max. 4.000 Zeichen).";
   if (LINK.test(text))
     return "Links sind hier nur für das Team erlaubt. Schreib die Info gern als Text.";
   if (PHONE.test(text))
@@ -85,7 +86,10 @@ export function bodyProblem(body: string): string | null {
 }
 
 /** Tage bis zum Ende der Lesefrist nach Abo-Ende (für den Hinweis unten im Chat). */
-export function graceDaysLeft(graceUntil: string | undefined, now = Date.now()) {
+export function graceDaysLeft(
+  graceUntil: string | undefined,
+  now = Date.now(),
+) {
   if (!graceUntil) return null;
   return Math.max(0, Math.ceil((Date.parse(graceUntil) - now) / 86400000));
 }
@@ -95,7 +99,8 @@ export function coChangesLeft(createdAt: string[], now = new Date()) {
   const month = now.toISOString().slice(0, 7);
   return Math.max(
     0,
-    CO_CHANGES_PER_MONTH - createdAt.filter((d) => d.slice(0, 7) === month).length,
+    CO_CHANGES_PER_MONTH -
+      createdAt.filter((d) => d.slice(0, 7) === month).length,
   );
 }
 /** Einladung höchstens einmal pro Tag. Gibt die Wartezeit in Stunden zurück. */

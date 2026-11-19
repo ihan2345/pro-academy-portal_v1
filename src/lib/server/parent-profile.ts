@@ -57,6 +57,8 @@ export function profileShell(s: ProfileSession): PortalData {
       s.trialEnabled && ["trial", "mixed"].includes(s.customerStatus),
     trial_enabled: s.trialEnabled,
     role: s.role!,
+    co_parent: s.coParent,
+    elternkabine: s.elternkabine,
     user_name: s.name.split(" ")[0] || "Willkommen",
     email: s.user.email ?? "",
     players: [],

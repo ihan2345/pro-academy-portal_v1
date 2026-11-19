@@ -3,7 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { required } from "./config";
 import { trialFeatureEnabled } from "../trials/feature";
-export { serviceDb } from "./service-db";
+import { serviceDb } from "./service-db";
+export { serviceDb };
 export async function sessionDb() {
   const store = await cookies();
   return createServerClient(
@@ -51,13 +52,23 @@ export async function sessionUser() {
       throw new Error("Kundenstatus nicht verfügbar.");
     customerStatus = result.data;
   }
-  let coParent = false;
+  let coParent = false,
+    elternkabine = false;
   if (effectiveRole === "parent") {
-    const co = await db.rpc("is_co_parent");
+    const [co, feature] = await Promise.all([
+      db.rpc("is_co_parent"),
+      serviceDb()
+        .from("platform_features")
+        .select("enabled")
+        .eq("key", "elternkabine")
+        .maybeSingle(),
+    ]);
     coParent = !co.error && co.data === true;
+    elternkabine = !feature.error && feature.data?.enabled === true;
   }
   return {
     coParent,
+    elternkabine,
     trialEnabled: await trialFeatureEnabled(),
     customerStatus,
     db,

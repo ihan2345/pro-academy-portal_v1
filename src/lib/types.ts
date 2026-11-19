@@ -61,6 +61,10 @@ export interface Report {
   athletics_units?: number;
 }
 export interface PortalData {
+  /** Zweiter Elternteil: nur ansehen. */
+  co_parent?: boolean;
+  /** Elternkabine (Community) für Eltern freigeschaltet. */
+  elternkabine?: boolean;
   products_enabled?: boolean;
   trial_access?: boolean;
   trial_enabled?: boolean;

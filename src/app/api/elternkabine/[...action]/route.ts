@@ -47,11 +47,15 @@ async function handler(
     if (!run) throw new HttpError(404, "Nicht gefunden.");
     return json(await run(body));
   } catch (error) {
-    if (error instanceof HttpError) return json({ error: error.message }, error.status);
+    if (error instanceof HttpError)
+      return json({ error: error.message }, error.status);
     if (error && typeof error === "object" && "issues" in error)
       return json({ error: "Bitte prüfe deine Eingaben." }, 400);
     console.error("elternkabine", error);
-    return json({ error: "Das hat nicht geklappt. Bitte versuche es erneut." }, 500);
+    return json(
+      { error: "Das hat nicht geklappt. Bitte versuche es erneut." },
+      500,
+    );
   }
 }
 export const GET = handler;

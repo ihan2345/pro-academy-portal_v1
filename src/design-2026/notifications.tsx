@@ -20,6 +20,7 @@ import {
   ExternalLink,
   FileText,
   Inbox,
+  MessageCircle,
   Siren,
   Sparkles,
 } from "lucide-react";
@@ -52,7 +53,116 @@ export type Note = {
   open?: { label: string; href: string };
   actions?: Action[];
   group: "now" | "news";
+  /** Elternkabine: Vorschlag und Direkt-Aktionen (Antworten, Eröffnen, Ausblenden). */
+  ek?: { suggestion: string; actions: EkAction[] };
 };
+export type EkAction = {
+  id: "reply" | "publish" | "hide" | "dismiss";
+  label: string;
+  post_id?: string;
+  channel_id?: string;
+  report_id?: string;
+  text?: string;
+};
+type EkAlert = {
+  key: string;
+  type: "report" | "question" | "draft";
+  title: string;
+  text: string;
+  suggestion: string;
+  at: string | null;
+  href: string;
+  actions: EkAction[];
+};
+export function elternkabineNotes(alerts: EkAlert[]): Note[] {
+  return alerts.map((a) => ({
+    id: a.key,
+    key: a.key,
+    tone:
+      a.type === "report" ? "urgent" : a.type === "question" ? "warn" : "info",
+    icon: MessageCircle,
+    title: a.title,
+    text: a.text,
+    at: a.at ?? undefined,
+    href: a.href,
+    group: "now",
+    ek: { suggestion: a.suggestion, actions: a.actions },
+  }));
+}
+function EkQuick({ note, done }: { note: Note; done: () => void }) {
+  const write = note.ek!.actions.find(
+    (a) => a.id === "reply" || a.id === "publish",
+  );
+  const [text, setText] = useState(write?.text ?? "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  async function run(a: EkAction) {
+    setBusy(true);
+    setMsg("");
+    const r = await fetch("/api/elternkabine/alerts/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: a.id,
+        post_id: a.post_id,
+        channel_id: a.channel_id,
+        report_id: a.report_id,
+        text,
+      }),
+    }).catch(() => null);
+    setBusy(false);
+    if (!r?.ok) {
+      setMsg(
+        ((await r?.json().catch(() => null))?.error as string) ??
+          "Hat nicht geklappt.",
+      );
+      return;
+    }
+    try {
+      sessionStorage.removeItem("d26-notify:/api/elternkabine/alerts");
+    } catch {
+      /* Egal. */
+    }
+    setMsg("Erledigt ✓");
+    done();
+  }
+  return (
+    <div className="d26-ek-quick" onClick={(e) => e.stopPropagation()}>
+      <p className="d26-ek-suggest">
+        <Sparkles size={12} /> {note.ek!.suggestion}
+      </p>
+      {write && (
+        <textarea
+          rows={2}
+          value={text}
+          placeholder="Antwort schreiben …"
+          onChange={(e) => setText(e.target.value)}
+        />
+      )}
+      <div className="d26-note-actions">
+        {note.ek!.actions.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            disabled={busy}
+            className={a.id === "reply" || a.id === "publish" ? "is-open" : ""}
+            onClick={() => run(a)}
+          >
+            {a.id === "hide" ? (
+              <EyeOff size={13} />
+            ) : a.id === "dismiss" ? (
+              <Check size={13} />
+            ) : (
+              <ArrowRight size={13} />
+            )}
+            {a.label}
+          </button>
+        ))}
+      </div>
+      {msg && <small className="d26-ek-msg">{msg}</small>}
+    </div>
+  );
+}
 
 const DAY = 86400000;
 const HOUR = 3600000;
@@ -567,7 +677,7 @@ export function NotificationBell({
     let alive = true;
     // Erst nach dem Seitenaufbau laden, damit die Seite selbst Vorrang hat.
     const timer = setTimeout(async () => {
-      const [summary, list, issues, conflicts] = await Promise.all([
+      const [summary, list, issues, conflicts, ek] = await Promise.all([
         cached<ActivitySummary>("/api/activities/summary", 5 * 60000),
         cached<{ rows: Activity[] }>(
           "/api/activities?window=0&limit=3",
@@ -584,6 +694,7 @@ export function NotificationBell({
               true,
             )
           : Promise.resolve(null),
+        cached<{ alerts: EkAlert[] }>("/api/elternkabine/alerts", 2 * 60000),
       ]);
       if (!alive) return;
       const t = Date.now();
@@ -604,6 +715,7 @@ export function NotificationBell({
             ]
           : [];
       setRemote([
+        ...elternkabineNotes(ek.ok ? ek.v.alerts : []),
         ...unavailable,
         ...(conflicts?.ok ? conflicts.v.rows : []).map((r) =>
           paymentNote(r, t),
@@ -746,6 +858,7 @@ export function NotificationBell({
           {n.title}
         </Link>
         <p>{n.text.replace(/\.\./g, ".")}</p>
+        {n.ek && <EkQuick note={n} done={() => setReload((r) => r + 1)} />}
         <div className="d26-note-meta">
           {n.at && <small>{ago(n.at, now)}</small>}
           {n.external && (

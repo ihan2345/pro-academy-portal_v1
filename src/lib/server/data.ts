@@ -112,6 +112,8 @@ export async function loadPortal(section: string): Promise<PortalData> {
     camp_enabled: campsEnabled,
     camp_access: campAccess,
     role: session.role,
+    co_parent: session.coParent,
+    elternkabine: session.elternkabine,
     user_name: session.name.split(" ")[0] || "Willkommen",
     email: session.user.email ?? "",
     players: players as PortalData["players"],

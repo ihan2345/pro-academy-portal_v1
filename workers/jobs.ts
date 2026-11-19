@@ -1,4 +1,7 @@
-import { CO_PARENT_MAIL_KINDS, coParentMail } from "../src/lib/elternkabine/mails";
+import {
+  CO_PARENT_MAIL_KINDS,
+  coParentMail,
+} from "../src/lib/elternkabine/mails";
 import {
   TRIAL_MAIL_KINDS,
   composeTrialMail,
@@ -40,7 +43,11 @@ import {
   type Email,
   type MailProvider,
 } from "../src/lib/mail";
-import { firstName, greet, type MailLook } from "../src/lib/mail-2026/from-text";
+import {
+  firstName,
+  greet,
+  type MailLook,
+} from "../src/lib/mail-2026/from-text";
 import { mailCalendar } from "../src/lib/mail-2026/ics-link";
 import { parentFirstName } from "../src/lib/server/parent-name";
 import {
@@ -330,7 +337,8 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
                 : "ProAcademy-Stempelkarte.pdf",
             note: "Im Anhang · ohne Anmeldung lesbar",
           },
-          primaryLabel: kind === "report" ? "Berichte öffnen" : "Stempelkarte ansehen",
+          primaryLabel:
+            kind === "report" ? "Berichte öffnen" : "Stempelkarte ansehen",
         }
       : {}),
     ...(kind === "invitation" ? { primaryLabel: "Einladung annehmen" } : {}),

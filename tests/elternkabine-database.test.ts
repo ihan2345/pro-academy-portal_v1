@@ -56,10 +56,10 @@ beforeAll(async () => {
   const year = new Date().getFullYear();
   for (const [k, f] of Object.entries(fam)) {
     await q("insert into auth.users values($1,$2,now())", [f.uid, f.mail]);
-    await q(
-      "insert into profiles(id,role,full_name) values($1,'parent',$2)",
-      [f.uid, `Elternteil ${k}ort Beispiel`],
-    );
+    await q("insert into profiles(id,role,full_name) values($1,'parent',$2)", [
+      f.uid,
+      `Elternteil ${k}ort Beispiel`,
+    ]);
     await q(
       "insert into parents(id,auth_user_id,full_name,contact_email) values($1,$2,$3,$4)",
       [f.pid, f.uid, `Elternteil ${k}`, f.mail],
@@ -83,9 +83,10 @@ beforeAll(async () => {
   await q("insert into auth.users values($1,'admin@example.invalid',now())", [
     adminUid,
   ]);
-  await q("insert into profiles(id,role,full_name) values($1,'admin','Admin')", [
-    adminUid,
-  ]);
+  await q(
+    "insert into profiles(id,role,full_name) values($1,'admin','Admin')",
+    [adminUid],
+  );
   const period = async (
     f: { pid: string; kid: string },
     plan: string,
@@ -213,9 +214,8 @@ it("Zweitkonto sieht dieselben Kinder, kann aber nichts über Hauptkonto-RPCs ä
     [fam.A.pid],
   );
   expect(
-    (
-      await one("select co_parent_activation_available('CO@example.invalid') v")
-    ).v,
+    (await one("select co_parent_activation_available('CO@example.invalid') v"))
+      .v,
   ).toBe(true);
   const linked = await asUser(coUid, () =>
     one("select activate_co_parent() v"),
@@ -227,9 +227,9 @@ it("Zweitkonto sieht dieselben Kinder, kann aber nichts über Hauptkonto-RPCs ä
     q("select product_name from entitlement_periods"),
   );
   expect(periods.map((p: any) => p.product_name)).toEqual(["FirstTouch"]);
-  expect(
-    (await asUser(coUid, () => one("select is_co_parent() v"))).v,
-  ).toBe(true);
+  expect((await asUser(coUid, () => one("select is_co_parent() v"))).v).toBe(
+    true,
+  );
   expect(
     (await asUser(fam.A.uid, () => one("select is_co_parent() v"))).v,
   ).toBe(false);

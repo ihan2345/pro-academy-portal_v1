@@ -218,8 +218,7 @@ async function channelList(uid: string, parentId: string | null) {
         muted: !!read?.muted,
         unread: list.filter(
           (p: any) =>
-            p.author_id !== uid &&
-            (!read || p.created_at > read.last_read_at),
+            p.author_id !== uid && (!read || p.created_at > read.last_read_at),
         ).length,
         last: last
           ? {
@@ -230,7 +229,9 @@ async function channelList(uid: string, parentId: string | null) {
           : null,
       };
     })
-    .sort((a: any, b: any) => a.sort - b.sort || a.title.localeCompare(b.title));
+    .sort(
+      (a: any, b: any) => a.sort - b.sort || a.title.localeCompare(b.title),
+    );
 }
 function isReplyToFamily(p: any, all: any[], parentId: string) {
   if (!p.reply_to) return false;
@@ -264,8 +265,7 @@ export async function channelPosts(channelId: string) {
   if (channel.kind === "ask_team" && !team)
     posts = posts.filter(
       (p) =>
-        p.author_parent_id === parentId ||
-        isReplyToFamily(p, posts, parentId!),
+        p.author_parent_id === parentId || isReplyToFamily(p, posts, parentId!),
     );
   const ids = posts.map((p) => p.id);
   const reactions = ids.length
@@ -285,7 +285,11 @@ export async function channelPosts(channelId: string) {
   await db()
     .from("community_reads")
     .upsert(
-      { user_id: s.user.id, channel_id: ch, last_read_at: new Date().toISOString() },
+      {
+        user_id: s.user.id,
+        channel_id: ch,
+        last_read_at: new Date().toISOString(),
+      },
       { onConflict: "user_id,channel_id" },
     );
   return {
@@ -353,7 +357,10 @@ export async function createPost(input: unknown) {
         .single(),
     );
     if (root.channel_id !== body.channel_id || root.deleted_at)
-      throw new HttpError(400, "Auf diesen Beitrag kann nicht geantwortet werden.");
+      throw new HttpError(
+        400,
+        "Auf diesen Beitrag kann nicht geantwortet werden.",
+      );
     if (root.reply_to) root = { ...root, id: root.reply_to };
   }
   const problem = postAllowed({
@@ -386,7 +393,10 @@ export async function createPost(input: unknown) {
       .eq("author_id", s.user.id)
       .gt("created_at", since);
     if ((count ?? 0) >= 10)
-      throw new HttpError(429, "Kurz durchatmen: Bitte warte ein paar Minuten.");
+      throw new HttpError(
+        429,
+        "Kurz durchatmen: Bitte warte ein paar Minuten.",
+      );
   }
   const inserted = ok(
     await db()
@@ -428,7 +438,9 @@ async function ownPost(uid: string, postId: string) {
 }
 export async function editPost(input: unknown) {
   const { s, team } = await parentSession();
-  const body = z.object({ id, body: z.string().trim().min(1).max(4000) }).parse(input);
+  const body = z
+    .object({ id, body: z.string().trim().min(1).max(4000) })
+    .parse(input);
   const p = await ownPost(s.user.id, body.id);
   if (Date.now() - Date.parse(p.created_at) > EDIT_WINDOW_MS)
     throw new HttpError(403, "Bearbeiten geht nur 15 Minuten lang.");
@@ -457,9 +469,7 @@ export async function deletePost(input: unknown) {
 }
 export async function react(input: unknown) {
   const { s } = await parentSession();
-  const body = z
-    .object({ post_id: id, emoji: z.enum(REACTIONS) })
-    .parse(input);
+  const body = z.object({ post_id: id, emoji: z.enum(REACTIONS) }).parse(input);
   const post = ok(
     await db()
       .from("community_posts")
@@ -492,7 +502,11 @@ export async function react(input: unknown) {
     ok(
       await db()
         .from("community_reactions")
-        .insert({ post_id: body.post_id, user_id: s.user.id, emoji: body.emoji }),
+        .insert({
+          post_id: body.post_id,
+          user_id: s.user.id,
+          emoji: body.emoji,
+        }),
     );
   return { ok: true };
 }
@@ -540,10 +554,12 @@ export async function setMuted(input: unknown) {
   const { s } = await parentSession();
   const body = z.object({ channel_id: id, muted: z.boolean() }).parse(input);
   ok(
-    await db().from("community_reads").upsert(
-      { user_id: s.user.id, channel_id: body.channel_id, muted: body.muted },
-      { onConflict: "user_id,channel_id" },
-    ),
+    await db()
+      .from("community_reads")
+      .upsert(
+        { user_id: s.user.id, channel_id: body.channel_id, muted: body.muted },
+        { onConflict: "user_id,channel_id" },
+      ),
   );
   return { ok: true };
 }
@@ -556,7 +572,11 @@ export async function saveMe(input: unknown) {
     await db()
       .from("community_members")
       .upsert(
-        { user_id: s.user.id, name_style: body.name_style, updated_at: new Date().toISOString() },
+        {
+          user_id: s.user.id,
+          name_style: body.name_style,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: "user_id" },
       ),
   );
@@ -611,8 +631,14 @@ export async function saveFamily(input: unknown) {
         {
           parent_id: parentId,
           enabled: body.enabled,
-          consent_privacy_at: keep(body.consent_privacy, previous?.consent_privacy_at),
-          consent_photos_at: keep(body.consent_photos, previous?.consent_photos_at),
+          consent_privacy_at: keep(
+            body.consent_privacy,
+            previous?.consent_privacy_at,
+          ),
+          consent_photos_at: keep(
+            body.consent_photos,
+            previous?.consent_photos_at,
+          ),
           consent_child_photos_at: flags.childPhotos
             ? keep(body.consent_child_photos, previous?.consent_child_photos_at)
             : null,
@@ -669,7 +695,10 @@ async function checkCoEmail(email: string, s: Session, parentId: string) {
       .in("status", ["invited", "active"]),
   ) as any[];
   if (other.some((o) => o.parent_id !== parentId))
-    throw new HttpError(409, "Diese E-Mail ist schon mit einer anderen Familie verbunden.");
+    throw new HttpError(
+      409,
+      "Diese E-Mail ist schon mit einer anderen Familie verbunden.",
+    );
 }
 export async function coInvitePreview(input: unknown) {
   const { s, parent } = await mainParent();
@@ -682,7 +711,12 @@ export async function coInvitePreview(input: unknown) {
   );
   return { to: body.email, subject: m.subject, text: m.text };
 }
-async function queueCoMail(kind: string, row: any, mainName: string, reason = "") {
+async function queueCoMail(
+  kind: string,
+  row: any,
+  mainName: string,
+  reason = "",
+) {
   ok(
     await db()
       .from("notification_jobs")
@@ -738,7 +772,11 @@ export async function coInvite(input: unknown) {
       429,
       `Einladungen gehen höchstens einmal pro Tag raus. Nächster Versand in ${wait} Std. möglich.`,
     );
-  await queueCoMail("co_parent_invitation", { ...row, first_name: body.first_name }, parent.full_name);
+  await queueCoMail(
+    "co_parent_invitation",
+    { ...row, first_name: body.first_name },
+    parent.full_name,
+  );
   ok(
     await db()
       .from("parent_co_accounts")
@@ -773,7 +811,9 @@ export async function coRemoveCheck() {
 }
 export async function coRemove(input: unknown) {
   const { parent } = await mainParent();
-  const body = z.object({ confirm_gifts: z.boolean().default(false) }).parse(input);
+  const body = z
+    .object({ confirm_gifts: z.boolean().default(false) })
+    .parse(input);
   const row = ok(
     await db()
       .from("parent_co_accounts")
@@ -800,7 +840,12 @@ export async function coRemove(input: unknown) {
       .eq("id", row.id),
   );
   if (row.status === "active")
-    await queueCoMail("co_parent_removed", row, parent.full_name, "main_removed");
+    await queueCoMail(
+      "co_parent_removed",
+      row,
+      parent.full_name,
+      "main_removed",
+    );
   return { ok: true };
 }
 
@@ -830,7 +875,9 @@ export async function adminUnlocked() {
 }
 export async function adminUnlock(input: unknown) {
   const s = await superAdmin();
-  const { password } = z.object({ password: z.string().min(1).max(200) }).parse(input);
+  const { password } = z
+    .object({ password: z.string().min(1).max(200) })
+    .parse(input);
   const want = Buffer.from(required("ELTERNKABINE_ADMIN_PASSWORD"));
   const got = Buffer.from(password);
   if (got.length !== want.length || !timingSafeEqual(got, want))
@@ -846,7 +893,10 @@ export async function adminUnlock(input: unknown) {
 }
 async function requireAdmin() {
   if (!(await adminUnlocked()))
-    throw new HttpError(403, "Bitte zuerst mit dem Elternkabine-Passwort entsperren.");
+    throw new HttpError(
+      403,
+      "Bitte zuerst mit dem Elternkabine-Passwort entsperren.",
+    );
   return superAdmin();
 }
 
@@ -859,7 +909,9 @@ export async function adminAlerts() {
   const [questions, reports, drafts, replies] = await Promise.all([
     db()
       .from("community_posts")
-      .select("id,channel_id,body,created_at,author_id,community_channels(title)")
+      .select(
+        "id,channel_id,body,created_at,author_id,community_channels(title)",
+      )
       .eq("kind", "question")
       .is("reply_to", null)
       .is("deleted_at", null)
@@ -871,7 +923,9 @@ export async function adminAlerts() {
       .then(ok),
     db()
       .from("community_reports")
-      .select("id,reason,note,created_at,post_id,community_posts(body,channel_id,hidden_at)")
+      .select(
+        "id,reason,note,created_at,post_id,community_posts(body,channel_id,hidden_at)",
+      )
       .eq("state", "open")
       .order("created_at")
       .limit(30)
@@ -904,7 +958,12 @@ export async function adminAlerts() {
       at: r.created_at,
       href: `/admin-elternkabine?kanal=${r.community_posts?.channel_id}&beitrag=${r.post_id}`,
       actions: [
-        { id: "hide", label: "Ausblenden", report_id: r.id, post_id: r.post_id },
+        {
+          id: "hide",
+          label: "Ausblenden",
+          report_id: r.id,
+          post_id: r.post_id,
+        },
         { id: "dismiss", label: "Ist okay", report_id: r.id },
       ],
     })),
@@ -919,7 +978,14 @@ export async function adminAlerts() {
         suggestion: "Kurz antworten. Die Antwort erscheint direkt im Kanal.",
         at: q.created_at,
         href: `/admin-elternkabine?kanal=${q.channel_id}&beitrag=${q.id}`,
-        actions: [{ id: "reply", label: "Antworten", post_id: q.id, channel_id: q.channel_id }],
+        actions: [
+          {
+            id: "reply",
+            label: "Antworten",
+            post_id: q.id,
+            channel_id: q.channel_id,
+          },
+        ],
       })),
     ...(drafts ?? []).map((c: any) => ({
       key: `ek-draft:${c.id}`,
@@ -977,7 +1043,17 @@ export async function alertAction(input: unknown) {
 }
 
 const moderateSchema = z.object({
-  action: z.enum(["hide", "unhide", "dismiss", "pin", "unpin", "solve", "mute", "ban", "unban"]),
+  action: z.enum([
+    "hide",
+    "unhide",
+    "dismiss",
+    "pin",
+    "unpin",
+    "solve",
+    "mute",
+    "ban",
+    "unban",
+  ]),
   post_id: id.optional(),
   report_id: id.optional(),
   user_id: id.optional(),
@@ -1002,20 +1078,45 @@ export async function moderate(input: unknown) {
     ok(
       await db()
         .from("community_posts")
-        .update({ hidden_at: now, hidden_by: s.user.id, hidden_reason: b.reason ?? "team" })
+        .update({
+          hidden_at: now,
+          hidden_by: s.user.id,
+          hidden_reason: b.reason ?? "team",
+        })
         .eq("id", b.post_id),
     );
     await resolveReports("resolved");
   } else if (b.action === "unhide" && b.post_id)
-    ok(await db().from("community_posts").update({ hidden_at: null, hidden_by: null, hidden_reason: null }).eq("id", b.post_id));
+    ok(
+      await db()
+        .from("community_posts")
+        .update({ hidden_at: null, hidden_by: null, hidden_reason: null })
+        .eq("id", b.post_id),
+    );
   else if (b.action === "dismiss") {
     if (b.post_id && !b.report_id)
-      ok(await db().from("community_posts").update({ hidden_at: null }).eq("id", b.post_id).eq("hidden_reason", "auto_reports"));
+      ok(
+        await db()
+          .from("community_posts")
+          .update({ hidden_at: null })
+          .eq("id", b.post_id)
+          .eq("hidden_reason", "auto_reports"),
+      );
     await resolveReports("dismissed");
   } else if ((b.action === "pin" || b.action === "unpin") && b.post_id)
-    ok(await db().from("community_posts").update({ pinned: b.action === "pin" }).eq("id", b.post_id));
+    ok(
+      await db()
+        .from("community_posts")
+        .update({ pinned: b.action === "pin" })
+        .eq("id", b.post_id),
+    );
   else if (b.action === "solve" && b.post_id)
-    ok(await db().from("community_posts").update({ solved_by: b.solved_by ?? null }).eq("id", b.post_id));
+    ok(
+      await db()
+        .from("community_posts")
+        .update({ solved_by: b.solved_by ?? null })
+        .eq("id", b.post_id),
+    );
   else if (["mute", "ban", "unban"].includes(b.action) && b.user_id) {
     if (s.role !== "admin") throw new HttpError(403, "Nur Admins.");
     ok(
@@ -1025,8 +1126,15 @@ export async function moderate(input: unknown) {
           {
             user_id: b.user_id,
             ...(b.action === "mute"
-              ? { muted_until: new Date(Date.now() + 7 * 86400000).toISOString() }
-              : { banned_at: b.action === "ban" ? now : null, muted_until: null }),
+              ? {
+                  muted_until: new Date(
+                    Date.now() + 7 * 86400000,
+                  ).toISOString(),
+                }
+              : {
+                  banned_at: b.action === "ban" ? now : null,
+                  muted_until: null,
+                }),
           },
           { onConflict: "user_id" },
         ),
@@ -1038,24 +1146,31 @@ export async function moderate(input: unknown) {
 export async function adminOverview() {
   const s = await requireAdmin();
   await db().rpc("community_sync_channels");
-  const [channels, counts, reports, locations, flags, posts] = await Promise.all([
-    db().from("community_channels").select("*").order("sort").then(ok),
-    db().rpc("community_member_counts").then(ok),
-    db()
-      .from("community_reports")
-      .select("id,reason,note,state,created_at,post_id,community_posts(body,channel_id,hidden_at,author_id)")
-      .order("created_at", { ascending: false })
-      .limit(50)
-      .then(ok),
-    db().from("locations").select("id,name,is_region,active").order("name").then(ok),
-    elternkabineFlags(),
-    db()
-      .from("community_posts")
-      .select("channel_id,created_at")
-      .is("deleted_at", null)
-      .gt("created_at", new Date(Date.now() - 7 * 86400000).toISOString())
-      .then(ok),
-  ]);
+  const [channels, counts, reports, locations, flags, posts] =
+    await Promise.all([
+      db().from("community_channels").select("*").order("sort").then(ok),
+      db().rpc("community_member_counts").then(ok),
+      db()
+        .from("community_reports")
+        .select(
+          "id,reason,note,state,created_at,post_id,community_posts(body,channel_id,hidden_at,author_id)",
+        )
+        .order("created_at", { ascending: false })
+        .limit(50)
+        .then(ok),
+      db()
+        .from("locations")
+        .select("id,name,is_region,active")
+        .order("name")
+        .then(ok),
+      elternkabineFlags(),
+      db()
+        .from("community_posts")
+        .select("channel_id,created_at")
+        .is("deleted_at", null)
+        .gt("created_at", new Date(Date.now() - 7 * 86400000).toISOString())
+        .then(ok),
+    ]);
   const { count: families } = await db()
     .from("community_families")
     .select("parent_id", { count: "exact", head: true })
@@ -1072,7 +1187,8 @@ export async function adminOverview() {
     channels: (channels ?? []).map((c: any) => ({
       ...c,
       members:
-        ((counts ?? []) as any[]).find((x) => x.channel_id === c.id)?.members ?? 0,
+        ((counts ?? []) as any[]).find((x) => x.channel_id === c.id)?.members ??
+        0,
       posts_7d: (posts ?? []).filter((p: any) => p.channel_id === c.id).length,
     })),
     reports: reports ?? [],
@@ -1083,9 +1199,21 @@ export async function adminSettings(input: unknown) {
   const s = await requireAdmin();
   const b = z
     .discriminatedUnion("type", [
-      z.object({ type: z.literal("feature"), key: z.enum(["elternkabine", "elternkabine_child_photos"]), enabled: z.boolean() }),
-      z.object({ type: z.literal("region"), location_id: id, is_region: z.boolean() }),
-      z.object({ type: z.literal("channel"), channel_id: id, status: z.enum(["active", "readonly", "archived"]) }),
+      z.object({
+        type: z.literal("feature"),
+        key: z.enum(["elternkabine", "elternkabine_child_photos"]),
+        enabled: z.boolean(),
+      }),
+      z.object({
+        type: z.literal("region"),
+        location_id: id,
+        is_region: z.boolean(),
+      }),
+      z.object({
+        type: z.literal("channel"),
+        channel_id: id,
+        status: z.enum(["active", "readonly", "archived"]),
+      }),
     ])
     .parse(input);
   if (b.type === "feature") {
@@ -1094,11 +1222,25 @@ export async function adminSettings(input: unknown) {
       wanted: b.enabled,
       expected: !b.enabled,
     });
-    if (error) throw new HttpError(409, "Schalter wurde gerade geändert. Bitte neu laden.");
+    if (error)
+      throw new HttpError(
+        409,
+        "Schalter wurde gerade geändert. Bitte neu laden.",
+      );
   } else if (b.type === "region") {
-    ok(await db().from("locations").update({ is_region: b.is_region }).eq("id", b.location_id));
+    ok(
+      await db()
+        .from("locations")
+        .update({ is_region: b.is_region })
+        .eq("id", b.location_id),
+    );
     ok(await db().rpc("community_sync_channels"));
   } else
-    ok(await db().from("community_channels").update({ status: b.status }).eq("id", b.channel_id));
+    ok(
+      await db()
+        .from("community_channels")
+        .update({ status: b.status })
+        .eq("id", b.channel_id),
+    );
   return { ok: true };
 }

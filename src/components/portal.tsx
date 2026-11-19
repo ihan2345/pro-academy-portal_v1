@@ -331,6 +331,12 @@ export function Portal({
     activeNav.push({ href: "/pai", title: "PAiLTON", icon: MessageCircle });
   if (data.camp_enabled)
     activeNav.push({ href: "/camps", title: "Camps", icon: CalendarDays });
+  if (!admin && !team && data.elternkabine)
+    activeNav.push({
+      href: "/elternkabine",
+      title: "Elternkabine",
+      icon: MessageCircle,
+    });
   const isActiveNav = (href: string) =>
     (href === "/profil/geschenkkarten" && onGiftPage) ||
     (href.split("?")[0] === "/" + section &&
@@ -616,6 +622,12 @@ export function Portal({
           </div>
         </header>
         <main className="main-content">
+          {data.co_parent && (
+            <div className="co-parent-banner">
+              Du bist als <b>zweiter Elternteil</b> angemeldet: Du siehst alles,
+              ändern, buchen oder kündigen kann nur das Hauptkonto.
+            </div>
+          )}
           {data.role === "parent" &&
             !DESIGN_2026 &&
             (section === "" || section === "camps") && (

@@ -7,20 +7,24 @@ export const NO_PARENT = "00000000-0000-0000-0000-000000000000";
 
 /** Elternkonto eines Logins: Hauptkonto oder aktives Zweitkonto. */
 export async function portalParentId(userId: string) {
-  const { data, error } = await serviceDb().rpc("portal_parent_id_for", {
-    uid: userId,
-  });
-  if (error) {
-    // Release 051 not installed yet: fall back to the old main-account rule.
-    const fallback = await serviceDb()
-      .from("parents")
-      .select("id")
-      .eq("auth_user_id", userId)
-      .is("archived_at", null)
-      .maybeSingle();
-    return (fallback.data?.id as string | undefined) ?? NO_PARENT;
+  let data: unknown, error: unknown;
+  try {
+    ({ data, error } = await serviceDb().rpc("portal_parent_id_for", {
+      uid: userId,
+    }));
+  } catch (e) {
+    error = e;
   }
-  return (data as string | null) ?? NO_PARENT;
+  if (!error && typeof data === "string") return data;
+  if (!error && data === null) return NO_PARENT;
+  // Release 051 not installed yet: fall back to the old main-account rule.
+  const fallback = await serviceDb()
+    .from("parents")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .is("archived_at", null);
+  const rows = (fallback.data ?? []) as { id: string }[];
+  return rows.length === 1 ? rows[0].id : NO_PARENT;
 }
 
 export async function isCoParent(userId: string) {
