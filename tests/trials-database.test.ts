@@ -49,6 +49,7 @@ beforeAll(async () => {
     "020-trial-camp-access.sql",
     "021-trial-platform-switch.sql",
     "051-trial-past-assignment.sql",
+    "056-trial-bell-events.sql",
   ])
     await db
       .exec(readFileSync(`supabase/release/${f}`, "utf8"))
@@ -1166,4 +1167,36 @@ it("confirms a past unit the child was already planned for, also after it was ma
   );
   expect(req.status).toBe("attended");
   expect(req.confirmed_at).not.toBeNull();
+});
+
+it("records when a family unsubscribes from the day 7 / day 14 follow-up mails", async () => {
+  await apply();
+  await verify();
+  expect(
+    (
+      await q("select marketing_stopped_at from trial_families where id=$1", [
+        id(10),
+      ])
+    )[0].marketing_stopped_at,
+  ).toBeNull();
+  await q("select trial_parent_action($1,$2)", [
+    id(10),
+    { action: "unsubscribe" },
+  ]);
+  const [first] = await q(
+    "select marketing_consent,marketing_stopped_at from trial_families where id=$1",
+    [id(10)],
+  );
+  expect(first.marketing_consent).toBe(false);
+  expect(first.marketing_stopped_at).not.toBeNull();
+  // A second click keeps the original time.
+  await q("select trial_parent_action($1,$2)", [
+    id(10),
+    { action: "unsubscribe" },
+  ]);
+  const [second] = await q(
+    "select marketing_stopped_at from trial_families where id=$1",
+    [id(10)],
+  );
+  expect(second.marketing_stopped_at).toEqual(first.marketing_stopped_at);
 });

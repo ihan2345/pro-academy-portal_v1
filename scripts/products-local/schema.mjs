@@ -59,6 +59,7 @@ export function productSchemaFiles() {
       "049-camp-customer-activation.sql",
       "050-notice-decisions.sql",
       "051-trial-past-assignment.sql",
+      "056-trial-bell-events.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

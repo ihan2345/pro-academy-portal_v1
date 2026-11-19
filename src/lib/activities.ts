@@ -130,8 +130,16 @@ export function describeActivity(
         training_staff_attendance: "Teilnahmebestätigung",
         training_backfill: "Nachtragsinformation",
         attendance: "Teilnahmebestätigung",
+        trial_planning: "Probetraining-Termin",
+        trial_reminder: "Probetraining-Erinnerung",
+        trial_cancelled: "Probetraining-Absage",
+        trial_feedback: "Probetraining-Feedback",
+        trial_day7: "Probetraining-Folgemail Tag 7",
+        trial_day14: "Probetraining-Folgemail Tag 14",
       };
-      const noun = kinds[d.mailKind ?? ""] ?? "Nachricht";
+      const noun =
+        kinds[d.mailKind ?? ""] ??
+        (d.mailKind?.startsWith("trial_") ? "Probetraining-Mail" : "Nachricht");
       title = `${noun} ${d.status === "sent" ? "versendet" : d.status === "uncertain" ? "– Versandstatus unklar" : "– Versand fehlgeschlagen"}`;
       text =
         d.status === "sent"
