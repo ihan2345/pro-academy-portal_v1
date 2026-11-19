@@ -336,3 +336,24 @@ it("zweistufige Freischaltung: Schalter community und elternkabine sind aus", as
     { key: "elternkabine", enabled: false },
   ]);
 });
+
+it("ProMediathek-Kanal bleibt gesperrt, solange der Admin-Schalter aus ist", async () => {
+  await q(
+    "update community_families set consent_child_photos_at=now() where parent_id=$1",
+    [fam.A.pid],
+  );
+  await q(
+    `insert into community_channels(custom,area,kind,title,requires_consent,published_at) values
+     (true,'training','general','Event-Fotos','child_photos',now())`,
+  );
+  expect((await access(fam.A.uid, "Event-Fotos")).reason).toBe(
+    "consent_child_photos",
+  );
+  await q(
+    "update platform_features set enabled=true where key='elternkabine_child_photos'",
+  );
+  expect((await access(fam.A.uid, "Event-Fotos")).level).toBe("write");
+  await q(
+    "update platform_features set enabled=false where key='elternkabine_child_photos'",
+  );
+});
