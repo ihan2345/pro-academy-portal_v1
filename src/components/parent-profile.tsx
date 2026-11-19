@@ -553,6 +553,47 @@ export function ProfileView({
     return () => abort.abort();
   }, [full, selected, child, period, state, offset, initial]);
   const canEdit = data.role === "admin" || data.role === "parent";
+  const relationsNode = data.relations && data.relations.length > 0 && (
+    <div className="profile-relations">
+      {data.relations.map((r, i) =>
+        r.mine && data.role === "parent" ? (
+          <label key={i}>
+            <span>
+              {r.co ? "Du (zweiter Elternteil)" : "Du"}: Beziehung zum Kind
+            </span>
+            <select
+              value={r.relation ?? ""}
+              disabled={busy}
+              onChange={async (e) => {
+                setError("");
+                try {
+                  await api("profile/relation", {
+                    relation: e.target.value || null,
+                  });
+                  setData(await request(data.id));
+                } catch (err) {
+                  setError((err as Error).message);
+                }
+              }}
+            >
+              <option value="">Nicht angegeben</option>
+              {CHILD_RELATIONS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <span key={i} className="profile-relation-chip">
+            {r.name}
+            {r.co ? " (zweiter Elternteil)" : ""}:{" "}
+            <b>{relationLabel(r.relation) ?? "nicht angegeben"}</b>
+          </span>
+        ),
+      )}
+    </div>
+  );
   const locked =
     data.role === "parent" &&
     !!data.next_edit_at &&
@@ -699,6 +740,7 @@ export function ProfileView({
                   />
                 ) : undefined
               }
+              relations={relationsNode}
             />
           ) : (
             <>
@@ -732,50 +774,7 @@ export function ProfileView({
                       {childCount} {childCount === 1 ? "Kind" : "Kinder"}
                     </span>
                   </div>
-                  {data.relations && data.relations.length > 0 && (
-                    <div className="profile-relations">
-                      {data.relations.map((r, i) =>
-                        r.mine && data.role === "parent" ? (
-                          <label key={i}>
-                            <span>
-                              {r.co ? "Du (zweiter Elternteil)" : "Du"}:
-                              Beziehung zum Kind
-                            </span>
-                            <select
-                              value={r.relation ?? ""}
-                              disabled={busy}
-                              onChange={async (e) => {
-                                setError("");
-                                try {
-                                  await api("profile/relation", {
-                                    relation: e.target.value || null,
-                                  });
-                                  setData(await request(data.id));
-                                } catch (err) {
-                                  setError((err as Error).message);
-                                }
-                              }}
-                            >
-                              <option value="">Nicht angegeben</option>
-                              {CHILD_RELATIONS.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        ) : (
-                          <span key={i} className="profile-relation-chip">
-                            {r.name}
-                            {r.co ? " (zweiter Elternteil)" : ""}:{" "}
-                            <b>
-                              {relationLabel(r.relation) ?? "nicht angegeben"}
-                            </b>
-                          </span>
-                        ),
-                      )}
-                    </div>
-                  )}
+                  {relationsNode}
                 </div>
                 {canEdit && (
                   <div className="profile-edit">

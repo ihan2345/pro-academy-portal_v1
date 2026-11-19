@@ -56,6 +56,7 @@ export function FamilyHero({
   locked,
   onEdit,
   access,
+  relations,
 }: {
   data: ParentProfile;
   status: { tier: string; label: string; target: number; progress: number };
@@ -64,6 +65,7 @@ export function FamilyHero({
   locked: boolean;
   onEdit: () => void;
   access?: React.ReactNode;
+  relations?: React.ReactNode;
 }) {
   const [present, setPresent] = useState<[string, string][]>([]);
   useEffect(() => {
@@ -179,6 +181,7 @@ export function FamilyHero({
             {childCount === 1 ? "Kind" : "Kinder"}
           </span>
         </div>
+        {relations}
         {showStatus && (
           <div className="d26-tier">
             <div className="d26-tier-head">

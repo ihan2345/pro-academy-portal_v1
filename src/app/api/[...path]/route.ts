@@ -125,7 +125,8 @@ async function handler(
     if (
       process.env.CAMP_SIDE_EFFECTS_BLOCKED === "true" &&
       request.method !== "GET" &&
-      path !== "auth/logout"
+      path !== "auth/logout" &&
+      path !== "profile/relation"
     )
       throw new HttpError(
         423,
