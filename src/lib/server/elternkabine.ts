@@ -1040,25 +1040,24 @@ export async function adminAlerts() {
   const answered = new Set((replies ?? []).map((r: any) => r.reply_to));
   const n = await names((questions ?? []).map((q: any) => q.author_id));
   const alerts = [
-    ...(reports ?? []).map((r: any) => ({
-      key: `ek-report:${r.id}`,
+    ...reportGroups(reports ?? []).map(({ r, count, reasons }) => ({
+      key: `ek-report:${r.post_id}`,
       type: "report",
       tone: "red",
-      title: "Meldung in der Elternkabine",
-      text: `„${String(r.community_posts?.body ?? "").slice(0, 120)}“`,
+      title:
+        count > 1
+          ? `${count} Meldungen zu einem Beitrag`
+          : "Meldung in der Elternkabine",
+      text: `„${String(r.community_posts?.body ?? "").slice(0, 120)}“${reasons ? ` · ${reasons}` : ""}`,
       suggestion: r.community_posts?.hidden_at
         ? "Automatisch ausgeblendet (3 Meldungen). Prüfen und entscheiden."
         : "Beitrag prüfen: ausblenden oder Meldung schließen.",
       at: r.created_at,
       href: `/admin-elternkabine?kanal=${r.community_posts?.channel_id}&beitrag=${r.post_id}`,
+      // Ohne report_id: die Aktion gilt für alle offenen Meldungen des Beitrags.
       actions: [
-        {
-          id: "hide",
-          label: "Ausblenden",
-          report_id: r.id,
-          post_id: r.post_id,
-        },
-        { id: "dismiss", label: "Ist okay", report_id: r.id },
+        { id: "hide", label: "Ausblenden", post_id: r.post_id },
+        { id: "dismiss", label: "Ist okay", post_id: r.post_id },
       ],
     })),
     ...(questions ?? [])
@@ -1107,6 +1106,38 @@ function draftSuggestion(c: { title: string; kind: string }) {
     return "Willkommen beim Probetraining! Stellt hier gern eure Fragen, wir antworten so schnell wie möglich.";
   return `Willkommen in „${c.title}“! Hier tauscht ihr euch aus, stellt Fragen und helft euch gegenseitig. Bitte bleibt freundlich und postet keine Fotos fremder Kinder.`;
 }
+const REPORT_REASON_LABELS: Record<string, string> = {
+  insult: "Beleidigung",
+  ads: "Werbung",
+  photo: "Foto",
+  privacy: "Privatsphäre",
+  other: "Sonstiges",
+};
+/** Mehrere Meldungen zum selben Beitrag werden zu einem Glocken-Eintrag. */
+function reportGroups(reports: any[]) {
+  const byPost = new Map<
+    string,
+    { r: any; count: number; reasons: Set<string> }
+  >();
+  for (const r of reports) {
+    const g = byPost.get(r.post_id);
+    if (g) {
+      g.count++;
+      if (r.reason) g.reasons.add(r.reason);
+    } else
+      byPost.set(r.post_id, {
+        r,
+        count: 1,
+        reasons: new Set(r.reason ? [r.reason] : []),
+      });
+  }
+  return [...byPost.values()].map((g) => ({
+    r: g.r,
+    count: g.count,
+    reasons: [...g.reasons].map((x) => REPORT_REASON_LABELS[x] ?? x).join(", "),
+  }));
+}
+
 export async function alertAction(input: unknown) {
   const s = await session();
   if (s.role !== "admin" && s.role !== "staff")

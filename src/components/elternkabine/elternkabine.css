@@ -654,6 +654,9 @@
 }
 .ek-switch {
   display: flex;
+  flex-direction: row;
+  font-size: 14px;
+  color: inherit;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
@@ -720,7 +723,7 @@
   flex-wrap: wrap;
   margin-top: 6px;
 }
-.ek-co-actions button {
+.ek-co-actions button:not(.ek-primary) {
   border: 1px solid var(--d26-hair, rgba(0, 0, 0, 0.1));
   background: #fff;
   border-radius: 999px;

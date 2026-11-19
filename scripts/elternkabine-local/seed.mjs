@@ -99,7 +99,7 @@ async function main() {
         // Camp-Buchungen brauchen eine echte Camp-Konfiguration; nur wenn ein lokales Camp existiert.
         const offer = must(await db.from("camp_offers").select("id").eq("camp_id", camps[0].id).limit(1), "offer")[0];
         if (offer)
-          await db.from("camp_bookings").insert({ id: crypto.randomUUID(), camp_id: camps[0].id, offer_id: offer.id, parent_id: parent.id, player_id: kidId, browser_token_hash: "ek", parent_data: {}, child_data: {}, status: "paid" });
+          must(await db.from("camp_bookings").insert({ id: crypto.randomUUID(), camp_id: camps[0].id, offer_id: offer.id, parent_id: parent.id, player_id: kidId, browser_token_hash: "ek", parent_data: {}, child_data: {}, status: "paid", booking_origin: "portal_checkout", customer_group: "new", expected_amount: 19900, currency: "eur", stripe_price_id: `price_ek_camp_${n}` }), "camp booking");
       }
     }
     const joined = i % 5 !== 4; // 80 % sind beigetreten

@@ -57,8 +57,18 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/api/") &&
     !CO_PARENT_ALLOWED.test(request.nextUrl.pathname)
   ) {
+    // Fail-closed: kann die Rolle nicht geprüft werden, wird nicht geschrieben.
+    // Ausnahme: Release 051 ist noch nicht eingespielt (Funktion fehlt),
+    // dann gibt es auch keine Zweitkonten.
     const co = await db.rpc("is_co_parent");
-    if (!co.error && co.data === true)
+    const notInstalled =
+      co.error?.code === "PGRST202" || co.error?.code === "42883";
+    if (co.error && !notInstalled)
+      return NextResponse.json(
+        { error: "Das hat nicht geklappt. Bitte versuche es erneut." },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } },
+      );
+    if (co.data === true)
       return NextResponse.json(
         {
           error:
