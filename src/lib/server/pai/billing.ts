@@ -1,4 +1,5 @@
 import "server-only";
+import { portalParentId } from "../co-parent";
 import { z } from "zod";
 import { Temporal } from "@js-temporal/polyfill";
 import type { ProfileSession } from "../parent-profile";
@@ -22,9 +23,10 @@ export async function billing(s: ProfileSession, raw: unknown) {
       403,
       "Finanzdaten sind für diese Rolle nicht freigegeben.",
     );
+  const parentId = s.role === "parent" ? await portalParentId(s.user.id) : "";
   const parents = await collectRows(() => {
     let q = s.db.from("parents").select("id,full_name").is("archived_at", null);
-    if (s.role === "parent") q = q.eq("auth_user_id", s.user.id);
+    if (s.role === "parent") q = q.eq("id", parentId);
     return q;
   });
   const parentIds = new Set(parents.map((p) => p.id));

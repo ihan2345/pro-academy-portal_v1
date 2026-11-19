@@ -1,3 +1,4 @@
+import { CO_PARENT_MAIL_KINDS, coParentMail } from "../src/lib/elternkabine/mails";
 import {
   TRIAL_MAIL_KINDS,
   composeTrialMail,
@@ -95,6 +96,19 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
     attachments: Email["attachments"],
     look: MailLook = {};
   const actions: { label: string; url: string }[] = [];
+  if ((CO_PARENT_MAIL_KINDS as readonly string[]).includes(kind)) {
+    const m = coParentMail(kind, payload, app);
+    return {
+      to:
+        process.env.MAIL_PROVIDER === "capture"
+          ? String(job.recipient)
+          : safeRecipient(String(job.recipient)),
+      subject: m.subject,
+      text: m.text,
+      html: htmlEmail(m.subject, m.text, m.url, [], m.look),
+      messageId: `<${job.id}@proacademy-portal.local>`,
+    };
+  }
   if (kind === "training_backfill") {
     const { data: links, error } = await db
       .from("parent_players")

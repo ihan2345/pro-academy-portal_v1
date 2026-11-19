@@ -1,3 +1,4 @@
+import { portalParentId } from "../co-parent";
 import { paiEnabled } from "./switch";
 import "server-only";
 import { createHash } from "node:crypto";
@@ -204,7 +205,7 @@ export async function context(s: ProfileSession, targetUser?: string) {
       await db
         .from("parents")
         .select("id")
-        .eq("auth_user_id", uid)
+        .eq("id", await portalParentId(uid))
         .is("archived_at", null)
         .single(),
     );

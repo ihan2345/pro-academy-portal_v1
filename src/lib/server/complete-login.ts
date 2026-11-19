@@ -10,7 +10,13 @@ export async function completeLogin(db: Awaited<ReturnType<typeof sessionDb>>) {
   const store = await cookies(),
     invitation = store.get("pa_invitation")?.value;
   let activated = false;
-  if (invitation) {
+  // Zweiter Elternteil: offene Einladung mit bestätigter E-Mail verbinden.
+  const co = await db.rpc("activate_co_parent");
+  if (!co.error && co.data === true) {
+    activated = true;
+    if (invitation) store.delete("pa_invitation");
+  }
+  if (!activated && invitation) {
     const result = await db.rpc("accept_invitation", {
       invitation_hash: invitation,
     });

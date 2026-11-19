@@ -222,11 +222,11 @@ it("Zweitkonto sieht dieselben Kinder, kann aber nichts über Hauptkonto-RPCs ä
   );
   expect(linked.v).toBe(true);
   const kids = await asUser(coUid, () => q("select id from players"));
-  expect(kids.map((k) => k.id)).toEqual([fam.A.kid]);
+  expect(kids.map((k: any) => k.id)).toEqual([fam.A.kid]);
   const periods = await asUser(coUid, () =>
     q("select product_name from entitlement_periods"),
   );
-  expect(periods.map((p) => p.product_name)).toEqual(["FirstTouch"]);
+  expect(periods.map((p: any) => p.product_name)).toEqual(["FirstTouch"]);
   expect(
     (await asUser(coUid, () => one("select is_co_parent() v"))).v,
   ).toBe(true);

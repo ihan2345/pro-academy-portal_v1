@@ -1,4 +1,5 @@
 import "server-only";
+import { portalParentId } from "../co-parent";
 import { z } from "zod";
 import { type ProfileSession } from "../parent-profile";
 import { checked, context, enabled, membership } from "./service";
@@ -456,7 +457,7 @@ export async function executeTool(
       await s.db
         .from("parents")
         .select("id")
-        .eq("auth_user_id", s.user.id)
+        .eq("id", await portalParentId(s.user.id))
         .is("archived_at", null)
         .single(),
     );

@@ -1,4 +1,5 @@
 import "server-only";
+import { portalParentId } from "../co-parent";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   ProductContext,
@@ -57,7 +58,7 @@ export async function loadProductContext(
     .is("archived_at", null);
   q = parentOverride
     ? q.eq("id", parentOverride)
-    : q.eq("auth_user_id", session!.user.id);
+    : q.eq("id", await portalParentId(session!.user.id));
   const parent = snapshot?.parent ?? checked(await q.maybeSingle());
   if (!parent) return context;
   context.parent_id = parent.id;

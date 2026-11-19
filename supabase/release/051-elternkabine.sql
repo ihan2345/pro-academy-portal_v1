@@ -98,6 +98,11 @@ grant execute on function public.activate_co_parent() to authenticated;
 create function public.revoke_co_on_parent_archive() returns trigger language plpgsql security definer set search_path=public as $$
 begin
  if new.archived_at is not null and old.archived_at is null then
+  insert into notification_jobs(idempotency_key, kind, recipient, payload)
+   select 'co-parent-removed:' || c.id, 'co_parent_removed', c.email,
+    jsonb_build_object('first_name', c.first_name, 'main_name', new.full_name, 'reason', 'main_archived')
+   from parent_co_accounts c where c.parent_id = new.id and c.status = 'active'
+   on conflict (idempotency_key) do nothing;
   update parent_co_accounts set status = 'revoked', revoked_at = now(), revoked_reason = 'main_archived'
    where parent_id = new.id and status in ('invited','active');
  end if;
@@ -342,5 +347,32 @@ end $$;
 revoke all on function public.community_sync_channels() from public, anon, authenticated;
 grant execute on function public.community_sync_channels() to service_role;
 select public.community_sync_channels();
+
+
+-- Mitglieder je Kanal, pro Person gezählt (Haupt- und Zweitkonto einzeln).
+create function public.community_member_counts() returns table(channel_id uuid, members int) language sql stable security definer set search_path=public as $$
+ with users as (
+  select p.auth_user_id uid from parents p join community_families f on f.parent_id = p.id
+   where p.archived_at is null and p.auth_user_id is not null and f.enabled and f.consent_privacy_at is not null
+  union
+  select c.auth_user_id from parent_co_accounts c join community_families f on f.parent_id = c.parent_id
+   where c.status = 'active' and f.enabled and f.consent_privacy_at is not null)
+ select ch.id, count(u.uid) filter (where community_access(u.uid, ch.id)->>'level' in ('read','write','ask'))::int
+ from community_channels ch cross join users u where ch.status <> 'archived' group by ch.id
+$$;
+revoke all on function public.community_member_counts() from public, anon, authenticated;
+grant execute on function public.community_member_counts() to service_role;
+
+
+create function public.community_my_channels(uid uuid) returns table(channel_id uuid, access jsonb) language sql stable security definer set search_path=public as $$
+ select id, community_access(uid, id) from community_channels where status <> 'archived'
+$$;
+create function public.community_names(uids uuid[]) returns table(user_id uuid, name text, team boolean) language sql stable security definer set search_path=public as $$
+ select p.id, case when p.role in ('admin','staff') then coalesce(nullif(s.display_name,''), nullif(p.full_name,''), 'Pro Academy')
+   else community_display_name(p.id) end, p.role in ('admin','staff')
+ from profiles p left join staff_profiles s on s.id = p.id where p.id = any(uids)
+$$;
+revoke all on function public.community_my_channels(uuid), public.community_names(uuid[]) from public, anon, authenticated;
+grant execute on function public.community_my_channels(uuid), public.community_names(uuid[]) to service_role;
 
 commit;

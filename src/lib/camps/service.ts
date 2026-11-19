@@ -1,3 +1,4 @@
+import { portalParentId } from "../server/co-parent";
 import { requireGuestEmailAvailable } from "@/lib/server/parent-activation";
 import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -77,7 +78,7 @@ export async function campContext() {
     await serviceDb()
       .from("parents")
       .select("id,auth_user_id,full_name,contact_email,phone")
-      .eq("auth_user_id", s.user.id)
+      .eq("id", await portalParentId(s.user.id))
       .is("archived_at", null),
   );
   if (parents.length !== 1) return { role: s.role, children: [], parent: null };

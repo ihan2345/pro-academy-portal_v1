@@ -1,3 +1,4 @@
+import { portalParentId } from "./co-parent";
 import { productsEnabled } from "./products/runtime";
 import "server-only";
 import { z } from "zod";
@@ -74,7 +75,7 @@ export async function authorizeProfile(s: ProfileSession, target?: string) {
   const db = serviceDb();
   let q = db.from("parents").select(contacts).is("archived_at", null);
   if (s.role === "parent") {
-    q = q.eq("auth_user_id", s.user.id);
+    q = q.eq("id", await portalParentId(s.user.id));
     if (target) q = q.eq("id", z.uuid().parse(target));
   } else if (["admin", "staff"].includes(s.role) && target)
     q = q.eq("id", z.uuid().parse(target));

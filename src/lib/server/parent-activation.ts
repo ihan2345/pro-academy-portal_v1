@@ -10,7 +10,12 @@ export async function parentCanActivate(email: string) {
       503,
       "Die Anmeldung ist vorübergehend nicht verfügbar. Bitte versuche es später erneut.",
     );
-  return r.data === true;
+  if (r.data === true) return true;
+  // Eingeladener zweiter Elternteil darf sich ebenfalls anmelden.
+  const co = await serviceDb().rpc("co_parent_activation_available", {
+    input_email: email.trim().toLowerCase(),
+  });
+  return !co.error && co.data === true;
 }
 export async function guestEmailRequiresLogin(email: string) {
   const r = await serviceDb().rpc("parent_email_requires_login", {

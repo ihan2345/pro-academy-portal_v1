@@ -44,9 +44,33 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await db.auth.getUser();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  // Zweitkonto (zweiter Elternteil): darf alles ansehen, aber nichts ändern,
+  // buchen oder kaufen – außer Geschenkgutscheine kaufen und eigene
+  // Elternkabine-Beiträge. Gilt zentral für alle schreibenden API-Aufrufe.
+  if (
+    user &&
+    request.method !== "GET" &&
+    request.method !== "HEAD" &&
+    request.nextUrl.pathname.startsWith("/api/") &&
+    !CO_PARENT_ALLOWED.test(request.nextUrl.pathname)
+  ) {
+    const co = await db.rpc("is_co_parent");
+    if (!co.error && co.data === true)
+      return NextResponse.json(
+        {
+          error:
+            "Mit dem Zweitkonto kannst du alles ansehen, aber nichts ändern oder buchen. Bitte nutze dafür das Hauptkonto.",
+        },
+        { status: 403, headers: { "Cache-Control": "private, no-store" } },
+      );
+  }
   return response;
 }
+const CO_PARENT_ALLOWED =
+  /^\/api\/(?:auth\/|activity$|notice-decisions$|elternkabine\/|pai\/|products\/gifts\/(?:checkout|mine|status-link)$)/;
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|brand/|mail/kalender-|sw.js|manifest.webmanifest|api/stripe/webhook|api/camp/webhook|api/cron|api/public/trainings/|api/public/players/|api/public/kalender/|einbettung/produktbuehne/|api/public/product-showcase/).*)",

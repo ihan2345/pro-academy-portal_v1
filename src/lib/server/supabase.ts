@@ -51,7 +51,13 @@ export async function sessionUser() {
       throw new Error("Kundenstatus nicht verfügbar.");
     customerStatus = result.data;
   }
+  let coParent = false;
+  if (effectiveRole === "parent") {
+    const co = await db.rpc("is_co_parent");
+    coParent = !co.error && co.data === true;
+  }
   return {
+    coParent,
     trialEnabled: await trialFeatureEnabled(),
     customerStatus,
     db,
