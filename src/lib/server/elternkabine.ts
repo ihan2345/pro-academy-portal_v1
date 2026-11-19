@@ -447,7 +447,6 @@ export async function channelPosts(channelId: string) {
       author: n.get(p.author_id)?.name ?? "Elternteil",
       team: p.author_team,
       mine: p.author_id === s.user.id,
-      author_id: a.team ? p.author_id : undefined,
       author_banned: a.team ? banned.has(p.author_id) : undefined,
       editable:
         p.author_id === s.user.id &&

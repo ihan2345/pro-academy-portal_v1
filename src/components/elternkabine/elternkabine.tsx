@@ -72,7 +72,6 @@ type Overview = {
 type Post = {
   id: string;
   author: string;
-  author_id?: string;
   author_banned?: boolean;
   team: boolean;
   mine: boolean;
