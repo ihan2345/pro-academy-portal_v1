@@ -113,6 +113,11 @@
   background: #fff0ea;
   color: #a1402d;
 }
+.profile-payment-table small.profile-payment-failure {
+  max-width: 220px;
+  color: #a1402d;
+  line-height: 1.35;
+}
 @media (max-width: 760px) {
   .profile-subscription-summary {
     width: 100%;

@@ -144,6 +144,13 @@ it("returns chronological payment rows, including failed attempts, without addin
       status: "failed",
       paid: false,
       captured: false,
+      failure_code: "card_declined",
+      failure_message: "Your card has insufficient funds.",
+      outcome: { type: "issuer_declined", reason: "insufficient_funds" },
+      payment_method_details: {
+        type: "card",
+        card: { brand: "visa", last4: "4242" },
+      },
     },
     {
       id: "ch_authorized",
@@ -167,6 +174,13 @@ it("returns chronological payment rows, including failed attempts, without addin
     amount: 17500,
     description: "Subscription update",
     method: "paypal",
+    method_detail: null,
+    failure: null,
+  });
+  expect(result.payments?.[1]).toMatchObject({
+    failure: "Nicht genügend Deckung",
+    method: "card",
+    method_detail: "Visa •••• 4242",
   });
   expect(result.currencies[0].all.total).toBe(17500);
 });

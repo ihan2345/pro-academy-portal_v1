@@ -160,10 +160,18 @@ export function ProfileStripePayments({
                   <span className={`profile-payment-status ${p.status}`}>
                     {statuses[p.status]}
                   </span>
+                  {p.failure && (
+                    <small className="profile-payment-failure">
+                      {p.failure}
+                    </small>
+                  )}
                 </td>
                 <td>{p.description}</td>
                 <td>{p.created_at ? date(p.created_at) : "Nicht verfügbar"}</td>
-                <td>{p.method ? (methods[p.method] ?? p.method) : "–"}</td>
+                <td>
+                  {p.method ? (methods[p.method] ?? p.method) : "–"}
+                  {p.method_detail && <small>{p.method_detail}</small>}
+                </td>
               </tr>
             ))}
           </tbody>

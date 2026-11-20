@@ -5,6 +5,7 @@ import { serviceDb } from "./service-db";
 import { authorizeProfile, type ProfileSession } from "./parent-profile";
 import { HttpError } from "./security";
 import { calendarDate } from "../calendar";
+import { cardBrand, declineReason } from "../payment-decline";
 import {
   readProfileSubscriptions,
   type ProfileSubscriptions,
@@ -25,6 +26,10 @@ export interface ProfilePayment {
   description: string;
   created_at: string | null;
   method: string | null;
+  /** z. B. "Visa •••• 4242"; nur gesetzt, wenn Stripe Kartendaten liefert. */
+  method_detail: string | null;
+  /** Deutscher Ablehnungsgrund, nur bei fehlgeschlagenen Versuchen. */
+  failure: string | null;
 }
 
 export interface ProfileFinances {
@@ -41,6 +46,13 @@ export interface ProfileFinances {
 }
 const id = (v: string | { id: string } | null | undefined) =>
   typeof v === "string" ? v : v?.id;
+function methodDetail(d: Stripe.Charge.PaymentMethodDetails | null) {
+  const card = d?.card;
+  if (card?.last4)
+    return `${card.brand ? cardBrand(card.brand) : "Karte"} •••• ${card.last4}`;
+  if (d?.sepa_debit?.last4) return `IBAN •••• ${d.sepa_debit.last4}`;
+  return null;
+}
 /** Read-only totals from the Stripe account owning the verified customer mapping. */
 export async function readProfileFinances(
   s: ProfileSession,
@@ -253,6 +265,16 @@ export async function readProfileFinances(
             ? new Date(timestamp * 1000).toISOString()
             : null,
           method: c.payment_method_details?.type ?? null,
+          method_detail: methodDetail(c.payment_method_details),
+          failure:
+            c.status === "failed"
+              ? (declineReason({
+                  failure_code: c.failure_code,
+                  failure_message: c.failure_message,
+                  outcome_reason: c.outcome?.reason,
+                  outcome_type: c.outcome?.type,
+                }) ?? "Grund in Stripe nicht angegeben")
+              : null,
         });
         if (c.status !== "succeeded" || !c.paid || !c.captured) continue;
         const key = id(c.payment_intent) ?? c.id;
