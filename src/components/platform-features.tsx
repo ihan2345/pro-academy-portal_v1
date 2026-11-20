@@ -39,6 +39,7 @@ export function PlatformFeatures({
   const paiActive =
     features?.some((f) => f.key === "pai" && f.enabled) === true;
   if (optional && !features) return null;
+  if (only && features && !features.some((f) => f.key === only)) return null;
   if (linkOnly)
     return features ? (
       <section className="panel account-panel">
@@ -48,7 +49,13 @@ export function PlatformFeatures({
     ) : null;
   return (
     <section className="panel account-panel settings-panel">
-      <h2>{only === "product_shop" ? "Produkt-Shop" : "Globale Funktionen"}</h2>
+      <h2>
+        {only === "product_shop"
+          ? "Produkt-Shop"
+          : only === "parent_auto_mail"
+            ? "Mailversand an Eltern"
+            : "Globale Funktionen"}
+      </h2>
       {optional && (
         <Link href="/admin/funktionen">Zur Funktionsverwaltung</Link>
       )}
@@ -76,7 +83,9 @@ export function PlatformFeatures({
                       ? "Probetraining"
                       : feature.key === "product_shop"
                         ? "Produkt-Shop"
-                        : feature.key}
+                        : feature.key === "parent_auto_mail"
+                          ? "Automatische Mails an aktive Eltern"
+                          : feature.key}
               </strong>
               <p>{feature.enabled ? "Aktiviert" : "Deaktiviert"}</p>
               {feature.key === "product_shop" && (
@@ -84,6 +93,17 @@ export function PlatformFeatures({
                   Steuert den Zugriff auf /produkte und neue Käufe. Bereits
                   bezahlte Buchungen und die Synchronisierung bestehender Abos
                   laufen weiter. Nur Super-Admins können diesen Schalter ändern.
+                </p>
+              )}
+              {feature.key === "parent_auto_mail" && (
+                <p className="muted">
+                  {feature.enabled
+                    ? "An: Trainingsplanung, Erinnerung, Teilnahme, Berichte und Stempelkarten gehen automatisch an alle aktiven Eltern (Konto, E-Mail bestätigt)."
+                    : "Aus: Diese Mails gehen nur an eingetragene Test-Adressen."}{" "}
+                  Einladungen bleiben unverändert aus. Persönliche Abmeldungen
+                  und „Eltern benachrichtigen“ am Termin gelten weiter. Bereits
+                  zurückgehaltene Mails werden nicht nachgeschickt. Nur
+                  Super-Admins können diesen Schalter ändern.
                 </p>
               )}
               {feature.key === "trial_training" && (

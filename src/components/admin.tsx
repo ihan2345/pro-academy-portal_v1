@@ -834,6 +834,7 @@ export function AdminView({
         <>
           <PlayerApiShare notify={notify} />
           <PlatformFeatures optional only="product_shop" />
+          <PlatformFeatures optional only="parent_auto_mail" />
         </>
       )}
       {edit && config && (
