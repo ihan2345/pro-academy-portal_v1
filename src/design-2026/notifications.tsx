@@ -6,7 +6,14 @@
 // werden nur im Browser dieses Geräts gespeichert, nichts geht an den Server.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -14,6 +21,7 @@ import {
   CalendarClock,
   CalendarDays,
   Check,
+  ChevronDown,
   Clock3,
   EyeOff,
   CreditCard,
@@ -33,7 +41,7 @@ import type { PortalData } from "@/lib/types";
 import type { StripeBillingConflictPage } from "@/lib/stripe-conflicts";
 import type { Activity, ActivitySummary } from "@/lib/activities";
 import { formatDate, formatTime } from "@/lib/domain";
-import { calendarDate } from "@/lib/calendar";
+import { addDays, calendarDate } from "@/lib/calendar";
 import { CHANGED, useDecisions } from "./decisions";
 import type { TrialBellEvent } from "@/lib/trials/bell";
 
@@ -58,7 +66,74 @@ export type Note = {
   open?: { label: string; href: string };
   actions?: Action[];
   group: "now" | "news";
+  /** Kategorie für die aufklappbaren Gruppen; sonst aus `key` abgeleitet. */
+  cat?: Cat;
 };
+
+/** Aufklappbare Kategorien unter "Jetzt wichtig", in dieser Reihenfolge. */
+export type Cat = "trial" | "pay" | "training" | "reports" | "other";
+export const CATS: { id: Cat; label: string; icon: LucideIcon }[] = [
+  { id: "trial", label: "Probetraining", icon: UserPlus },
+  { id: "pay", label: "Zahlungen & Abos", icon: CreditCard },
+  { id: "training", label: "Training", icon: CalendarDays },
+  { id: "reports", label: "Berichte", icon: FileText },
+  { id: "other", label: "Sonstiges", icon: Inbox },
+];
+
+/** Kategorie einer Aktivität, abgeleitet aus ihrem Titel. */
+export function activityCat(title: string): Cat {
+  const t = title.toLowerCase();
+  if (t.startsWith("probetraining")) return "trial";
+  if (
+    ["abo", "zahlung", "stripe", "rechnung", "gutschein"].some((w) =>
+      t.includes(w),
+    )
+  )
+    return "pay";
+  if (t.includes("bericht")) return "reports";
+  if (["training", "teilnahme", "stempel", "termin"].some((w) => t.includes(w)))
+    return "training";
+  return "other";
+}
+
+export function noteCat(n: Pick<Note, "key" | "cat">): Cat {
+  if (n.cat) return n.cat;
+  const k = n.key.split(":")[0];
+  if (k === "trial") return "trial";
+  if (["pay", "pay-check", "parent-pay", "ending"].includes(k)) return "pay";
+  if (["confirm", "today", "next"].includes(k)) return "training";
+  if (k === "report") return "reports";
+  return "other";
+}
+
+/** Zeitpunkt in ms; Hinweise ohne Zeit beschreiben den Stand jetzt. */
+export const noteTime = (n: Pick<Note, "at">, now: number) => {
+  const t = n.at ? Date.parse(n.at) : NaN;
+  return Number.isFinite(t) ? t : now;
+};
+
+/**
+ * "Jetzt wichtig" nach Dringlichkeit, dann neu vor alt. Alles andere streng
+ * chronologisch, das Neueste oben.
+ */
+export function sortNotes(notes: Note[], now: number) {
+  return [...notes].sort(
+    (a, b) =>
+      (a.group === "now" && b.group === "now"
+        ? rank[a.tone] - rank[b.tone]
+        : 0) || noteTime(b, now) - noteTime(a, now),
+  );
+}
+
+/** Trennzeile innerhalb einer Kategorie. */
+export function dayLabel(ms: number, now: number) {
+  const day = calendarDate(new Date(Math.min(ms, now)));
+  const today = calendarDate(new Date(now));
+  if (day === today) return "Heute";
+  if (day === addDays(today, -1)) return "Gestern";
+  if (day > addDays(today, -7)) return "Diese Woche";
+  return "Älter";
+}
 
 const DAY = 86400000;
 const HOUR = 3600000;
@@ -81,6 +156,17 @@ type Store = {
   done: Record<string, number>;
 };
 const STORE = "d26-notify-v1";
+/** Auf- und Zugeklappt je Kategorie, nur auf diesem Gerät. */
+const CAT_STORE = "d26-notify-cats-v1";
+type CatState = Partial<Record<Cat, boolean>>;
+function loadCats(): CatState {
+  try {
+    const s = JSON.parse(localStorage.getItem(CAT_STORE) ?? "null");
+    return s && typeof s === "object" ? s : {};
+  } catch {
+    return {};
+  }
+}
 const empty = (): Store => ({ seen: {}, snooze: {}, done: {} });
 function load(): Store {
   try {
@@ -477,6 +563,7 @@ function activityNotes(
     notes.push({
       id: `act-open:${a.id}`,
       key: `act:${a.id}`,
+      cat: activityCat(a.title),
       tone: "warn",
       icon: AlertTriangle,
       title: a.title,
@@ -510,6 +597,7 @@ function activityNotes(
     notes.push({
       id: `act:${a.id}`,
       key: `act:${a.id}`,
+      cat: activityCat(a.title),
       tone:
         a.tone === "problem" ? "warn" : a.tone === "success" ? "good" : "info",
       icon: a.tone === "problem" ? AlertTriangle : Sparkles,
@@ -716,7 +804,10 @@ function ago(iso: string | undefined, now: number) {
   if (d < 0) return "";
   if (d < HOUR) return `vor ${Math.max(1, Math.round(d / 60000))} Min.`;
   if (d < DAY) return `vor ${Math.round(d / HOUR)} Std.`;
-  if (d < 7 * DAY) return `vor ${Math.round(d / DAY)} Tagen`;
+  if (d < 7 * DAY) {
+    const n = Math.round(d / DAY);
+    return n === 1 ? "vor 1 Tag" : `vor ${n} Tagen`;
+  }
   return formatDate(iso, { day: "numeric", month: "short" });
 }
 
@@ -733,6 +824,10 @@ export function NotificationBell({
   const [remote, setRemote] = useState<Note[]>([]);
   const [showSnoozed, setShowSnoozed] = useState(false);
   const [reload, setReload] = useState(0);
+  const [catOpen, setCatOpen] = useState<CatState>({});
+  // Kategorien mit Ungelesenem gehen beim Öffnen auf und bleiben es, bis
+  // die Glocke wieder zugeht (auch wenn sie inzwischen gelesen sind).
+  const [autoOpen, setAutoOpen] = useState<Cat[]>([]);
   useEffect(() => {
     const bump = () => setReload((n) => n + 1);
     window.addEventListener(CHANGED, bump);
@@ -753,6 +848,7 @@ export function NotificationBell({
 
   useEffect(() => {
     setStore(load());
+    setCatOpen(loadCats());
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 60000);
     return () => clearInterval(id);
@@ -830,10 +926,7 @@ export function NotificationBell({
 
   const all = useMemo(() => {
     if (!now) return [];
-    return [...remote, ...portalNotes(data, now, base)].sort(
-      (a, b) =>
-        rank[a.tone] - rank[b.tone] || (b.at ?? "").localeCompare(a.at ?? ""),
-    );
+    return sortNotes([...remote, ...portalNotes(data, now, base)], now);
   }, [remote, data, now, base]);
   // Markierungen: bei Mitarbeitern gemeinsam gespeichert (Release 050),
   // ältere Markierungen aus diesem Browser gelten weiter.
@@ -849,6 +942,19 @@ export function NotificationBell({
   const visible = all.filter((n) => !closed(n.key) && !(remindAt(n.key) > now));
   const snoozed = all.filter((n) => !closed(n.key) && remindAt(n.key) > now);
   const unseen = visible.filter((n) => !store.seen[n.id]);
+  const now_ = visible.filter((n) => n.group === "now");
+  const news = visible.filter((n) => n.group === "news");
+  // Mitarbeiter: "Neu" nach Art aufklappbar. Eltern haben wenige Hinweise
+  // und sehen eine einfache, chronologische Liste.
+  const groups = CATS.map((c) => ({
+    ...c,
+    notes: news.filter((n) => noteCat(n) === c.id),
+  })).filter((g) => g.notes.length);
+  const isOpen = (c: Cat) => catOpen[c] ?? autoOpen.includes(c);
+  const shown = staff
+    ? [...now_, ...news.filter((n) => isOpen(noteCat(n)))]
+    : visible;
+  const shownUnseen = shown.filter((n) => !store.seen[n.id]);
   const sos = visible.some((n) => n.tone === "sos");
 
   const update = useCallback((fn: (s: Store) => Store) => {
@@ -859,10 +965,41 @@ export function NotificationBell({
     });
   }, []);
 
-  // Automatisch gelesen: was im offenen Fenster kurz sichtbar war.
+  // Beim Öffnen: Kategorien mit Ungelesenem aufklappen.
+  const unseenCats = [
+    ...new Set(unseen.filter((n) => n.group === "news").map(noteCat)),
+  ]
+    .sort()
+    .join(",");
   useEffect(() => {
-    if (!open || !unseen.length) return;
-    const ids = unseen.map((n) => n.id);
+    if (!open) {
+      setAutoOpen([]);
+      return;
+    }
+    if (!unseenCats) return;
+    setAutoOpen((prev) => {
+      const add = (unseenCats.split(",") as Cat[]).filter(
+        (c) => !prev.includes(c),
+      );
+      return add.length ? [...prev, ...add] : prev;
+    });
+  }, [open, unseenCats]);
+  const toggleCat = (c: Cat) =>
+    setCatOpen((prev) => {
+      const next = { ...prev, [c]: !(prev[c] ?? autoOpen.includes(c)) };
+      try {
+        localStorage.setItem(CAT_STORE, JSON.stringify(next));
+      } catch {
+        /* Dann nur bis zum Neuladen. */
+      }
+      return next;
+    });
+
+  // Automatisch gelesen: was im offenen Fenster kurz sichtbar war
+  // (zugeklappte Kategorien bleiben ungelesen).
+  useEffect(() => {
+    if (!open || !shownUnseen.length) return;
+    const ids = shownUnseen.map((n) => n.id);
     const t = setTimeout(
       () =>
         update((s) => ({
@@ -875,7 +1012,7 @@ export function NotificationBell({
       1200,
     );
     return () => clearTimeout(t);
-  }, [open, unseen, update]);
+  }, [open, shownUnseen, update]);
 
   useEffect(() => {
     if (!open) return;
@@ -926,8 +1063,25 @@ export function NotificationBell({
     return list;
   };
 
-  const now_ = visible.filter((n) => n.group === "now");
-  const news = visible.filter((n) => n.group === "news");
+  /** Liste mit Trennzeilen Heute / Gestern / Diese Woche / Älter. */
+  const dayList = (list: Note[]) => {
+    const labels = list.map((n) => dayLabel(noteTime(n, now), now));
+    const split = new Set(labels).size > 1;
+    return (
+      <ul>
+        {list.map((n, i) => (
+          <Fragment key={n.id}>
+            {split && labels[i] !== labels[i - 1] && (
+              <li className="d26-note-day" aria-hidden>
+                {labels[i]}
+              </li>
+            )}
+            {item(n)}
+          </Fragment>
+        ))}
+      </ul>
+    );
+  };
   const item = (n: Note) => (
     <li
       key={n.id}
@@ -1062,10 +1216,43 @@ export function NotificationBell({
                 <ul>{now_.map(item)}</ul>
               </>
             )}
-            {!!news.length && (
+            {!!news.length && !staff && (
               <>
-                <h4>{staff ? "Neu und heute" : "Für dich"}</h4>
-                <ul>{news.map(item)}</ul>
+                <h4>Für dich</h4>
+                {dayList(news)}
+              </>
+            )}
+            {!!groups.length && staff && (
+              <>
+                <h4>Neu</h4>
+                {groups.map((g) => {
+                  const fresh = g.notes.filter((n) => !store.seen[n.id]).length;
+                  const expanded = isOpen(g.id);
+                  return (
+                    <section
+                      key={g.id}
+                      className={`d26-notes-cat ${expanded ? "is-open" : ""}`}
+                    >
+                      <button
+                        type="button"
+                        className="d26-notes-cat-head"
+                        aria-expanded={expanded}
+                        onClick={() => toggleCat(g.id)}
+                      >
+                        <span className="d26-note-icon">
+                          <g.icon size={15} />
+                        </span>
+                        <b>{g.label}</b>
+                        {fresh > 0 && (
+                          <span className="d26-notes-cat-new">{fresh} neu</span>
+                        )}
+                        <small>{g.notes.length}</small>
+                        <ChevronDown size={15} className="d26-notes-cat-chev" />
+                      </button>
+                      {expanded && dayList(g.notes)}
+                    </section>
+                  );
+                })}
               </>
             )}
             {!!snoozed.length && (
