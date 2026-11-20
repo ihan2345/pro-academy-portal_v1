@@ -430,7 +430,7 @@ function UnitRows({ units }: { units: ProfileUnit[] }) {
           <div>
             <strong>{u.title}</strong>
             <p>
-              {u.child_name} · {u.event_type}
+              {u.child_name} · {u.trial ? "Probetraining" : u.event_type}
               {u.location ? ` · ${u.location}` : ""}
             </p>
           </div>
@@ -624,6 +624,11 @@ export function ProfileView({
         {data.children.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name}
+          </option>
+        ))}
+        {(data.trial_children ?? []).map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name} (Probetraining)
           </option>
         ))}
       </select>

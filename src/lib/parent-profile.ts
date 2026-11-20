@@ -33,6 +33,8 @@ export interface ProfileUnit {
   minutes: number;
   retrospective: boolean;
   location: string;
+  /** Probetraining-Teilnahme (zählt nicht in Statistik oder Abo-Monate). */
+  trial?: boolean;
 }
 export interface ProfileChild {
   gender?: "männlich" | "weiblich" | "divers" | null;

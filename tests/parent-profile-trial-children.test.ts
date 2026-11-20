@@ -159,3 +159,49 @@ it("excludes other families, expired/stopped trials and honors the feature switc
     "Profil nicht verfügbar",
   );
 });
+it("shows trial participations in calendar and units without counting them", async () => {
+  m.rows.event_participants = [
+    {
+      id: "20000000-0000-4000-8000-000000000001",
+      player_id: null,
+      trial_player_id: child,
+      status: "attended_manual",
+      removed_from_event: false,
+      training_events: {
+        title: "Gruppe Vormittag",
+        starts_at: "2026-10-19T09:00:00Z",
+        ends_at: "2026-10-19T10:00:00Z",
+        event_type: "training",
+        status: "scheduled",
+        locations: { name: "Halle" },
+      },
+    },
+    {
+      id: "20000000-0000-4000-8000-000000000002",
+      player_id: null,
+      trial_player_id: child,
+      status: "cancelled",
+      removed_from_event: true,
+      training_events: {
+        title: "Ausgetragen",
+        starts_at: "2026-10-20T09:00:00Z",
+        ends_at: "2026-10-20T10:00:00Z",
+        event_type: "training",
+        status: "scheduled",
+        locations: null,
+      },
+    },
+  ];
+  const profile = await loadParentProfile(session, undefined, true);
+  expect(profile.units.map((u) => [u.title, u.trial, u.child_name])).toEqual([
+    ["Gruppe Vormittag", true, "Ada Beispiel"],
+  ]);
+  expect(profile.calendar).toEqual({
+    "2026-10-19": { attended: 1, planned: 0 },
+  });
+  expect(profile.months).toBe(0);
+  const html = renderToStaticMarkup(
+    createElement(ProfileView, { initial: profile, base: "/profil" }),
+  );
+  expect(html).toContain("Ada Beispiel · Probetraining");
+});
