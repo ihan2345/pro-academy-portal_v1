@@ -282,5 +282,5 @@ export function buildTrialBellEvents(
         at: f.marketing_stopped_at,
       });
 
-  return out.sort((a, b) => b.at.localeCompare(a.at));
+  return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 }
