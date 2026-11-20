@@ -471,9 +471,39 @@ export async function loadParentProfile(
       ),
     };
   });
-  const visibleIds = new Set(
-    children.filter((c) => !c.archived || s.role === "admin").map((c) => c.id),
+  // Probetraining-Teilnahmen hängen an trial_player_id (player_id ist leer).
+  // Sie erscheinen in Kalender und Einheiten, zählen aber nicht in die Statistik.
+  const trialNames = new Map(
+    trialChildren.map((c) => [c.id, `${c.first_name} ${c.last_name}`]),
   );
+  const trialParticipants = trialNames.size
+    ? await collect(() =>
+        db
+          .from("event_participants")
+          .select(
+            "id,trial_player_id,status,reason,removed_from_event,training_events!inner(title,starts_at,ends_at,event_type,status,locations(name))",
+          )
+          .in("trial_player_id", [...trialNames.keys()]),
+      )
+    : [];
+  units.push(
+    ...trialParticipants
+      .map((p) =>
+        eventUnit(
+          { ...p, player_id: p.trial_player_id },
+          trialNames.get(p.trial_player_id) ?? "",
+          now,
+        ),
+      )
+      .filter((u): u is ProfileUnit => !!u)
+      .map((u) => ({ ...u, trial: true })),
+  );
+  const visibleIds = new Set([
+    ...children
+      .filter((c) => !c.archived || s.role === "admin")
+      .map((c) => c.id),
+    ...trialNames.keys(),
+  ]);
   const visibleUnits = units.filter((u) => visibleIds.has(u.player_id));
   return {
     id: parent.id,

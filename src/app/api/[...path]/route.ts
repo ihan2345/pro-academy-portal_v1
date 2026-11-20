@@ -411,7 +411,8 @@ async function handler(
         const profile = await loadParentProfile(session, target, true);
         if (
           params.child &&
-          !profile.children.some((c) => c.id === params.child)
+          !profile.children.some((c) => c.id === params.child) &&
+          !profile.trial_children?.some((c) => c.id === params.child)
         )
           throw new HttpError(404, "Kind nicht verfügbar.");
         const now = new Date().toISOString();
