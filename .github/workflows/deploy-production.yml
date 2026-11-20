@@ -38,6 +38,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
+      - run: npm run typecheck:jobs
       - run: npm test
 
   deploy:
@@ -89,3 +90,34 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx wrangler deploy --env production
+
+  deploy-jobs:
+    name: Deploy Hintergrunddienst (proacademy-jobs)
+    # Der Mail-/Jobs-Dienst nutzt denselben Code wie das Portal (Mails, Camps,
+    # Geschenkkarten, Probetraining). Er wird nach dem Portal veröffentlicht,
+    # damit beide immer denselben Stand haben. Einstellungen (Versand an/aus,
+    # Testmodus, Zeitplan) kommen unverändert aus workers/cloudflare/wrangler.jsonc,
+    # Server-Secrets bleiben in Cloudflare und werden nicht berührt.
+    needs: deploy
+    if: >-
+      always() &&
+      needs.deploy.result == 'success' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-jobs
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck:jobs
+      - name: Deploy (Wrangler, Container-Image wird mit Docker gebaut)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy --config workers/cloudflare/wrangler.jsonc

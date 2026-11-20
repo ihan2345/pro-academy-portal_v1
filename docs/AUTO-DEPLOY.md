@@ -7,12 +7,16 @@ Workflow: [`.github/workflows/deploy-production.yml`](../.github/workflows/deplo
 | Ereignis                            | Ablauf                                                                                                                            |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Pull Request gegen `main`           | `npm run typecheck` und `npm test`. Kein Deployment.                                                                              |
-| Merge/Push in `main`                | Direkt `npm run build:cloudflare -- --env production` und `wrangler deploy --env production` → `https://portal.proacademy-ak.com` |
+| Merge/Push in `main`                | Direkt `npm run build:cloudflare -- --env production` und `wrangler deploy --env production` → `https://portal.proacademy-ak.com`, danach der Hintergrunddienst `proacademy-jobs` (`wrangler deploy --config workers/cloudflare/wrangler.jsonc`) |
 | Manuell („Run workflow“ auf `main`) | Prüfungen, danach Build und Deploy, z. B. für ein erneutes Deployment ohne Codeänderung.                                          |
 
 Typecheck und Tests laufen in jedem Pull Request; ein PR mit rotem Test sollte nicht gemergt werden. Nach dem Merge in `main` laufen sie nicht noch einmal, damit der Deploy schneller ist (etwa 1,5 statt 3,5 Minuten). Beim manuellen Start („Run workflow“) laufen sie vor dem Deploy, und ein roter Test verhindert ihn. Deploys laufen nacheinander, nie parallel.
 
-Nicht Teil dieses Workflows: der Hintergrunddienst `proacademy-jobs` (`workers/cloudflare/wrangler.jsonc`), Supabase-Migrationen und Cloudflare-Server-Secrets. Diese werden weiterhin separat und bewusst ausgeführt.
+Seit 20.11.2026 wird auch der Hintergrunddienst `proacademy-jobs` (`workers/cloudflare/wrangler.jsonc`, verschickt alle Portal-Mails und verarbeitet Camps, Geschenkkarten und Probetraining) nach jedem Portal-Deploy automatisch veröffentlicht. Vorher lief er oft wochenlang mit altem Code, obwohl die Änderungen schon in `main` waren. Seine Einstellungen (Versand an/aus, Testmodus, Zeitplan) stehen in der Datei und ändern sich nur durch einen PR darauf; Server-Secrets bleiben in Cloudflare.
+
+Nicht Teil dieses Workflows: Supabase-Migrationen und Cloudflare-Server-Secrets. Diese werden weiterhin separat und bewusst ausgeführt.
+
+Falls der Job „Deploy Hintergrunddienst“ mit einem Berechtigungsfehler beim Container-Image scheitert: Das Cloudflare-Token zusätzlich um **Account → Containers → Edit** erweitern (Token bearbeiten, gleiches Token behalten).
 
 ## Einmalige Einrichtung
 
