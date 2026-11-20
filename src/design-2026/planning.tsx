@@ -2,6 +2,8 @@
 // Design 2026: Übersicht und Filter für die Trainingsplanung (Admin und Team).
 // Nur Darstellung und Filter im Browser. Speichern, Absagen, Teilnahmen und
 // Benachrichtigungen laufen unverändert über die bestehenden Aktionen.
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   CalendarCheck,
@@ -11,7 +13,12 @@ import {
   XCircle,
 } from "lucide-react";
 import type { PortalData, Training } from "@/lib/types";
-import { formatDate, formatTime, isAttended } from "@/lib/domain";
+import {
+  STATUS_LABELS,
+  formatDate,
+  formatTime,
+  isAttended,
+} from "@/lib/domain";
 import { addDays, calendarDate } from "@/lib/calendar";
 import { CountUp, glowFollow } from "./ui";
 
@@ -264,36 +271,134 @@ export function EventPulse({
     const p = data.players.find((x) => x.id === id);
     return p ? `${p.first_name} ${p.last_name}` : "Spieler";
   };
+  // Liste liegt „fixed“ über allem, damit scrollende Kartenlisten sie nicht abschneiden.
+  const [showAll, setShowAll] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const openAll = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    const width = Math.min(300, window.innerWidth - 32);
+    const height = window.innerHeight * 0.6;
+    setShowAll({
+      // Unten öffnen, sonst (zu wenig Platz) oberhalb des Kreises.
+      top:
+        window.innerHeight - r.bottom >= Math.min(360, height) + 24
+          ? r.bottom + 8
+          : Math.max(16, r.top - 8 - Math.min(360, height)),
+      left: Math.max(16, Math.min(r.left, window.innerWidth - width - 16)),
+    });
+  };
+  useEffect(() => {
+    if (!showAll) return;
+    const close = (e: Event) => {
+      // Scrollen in der Liste selbst schließt sie nicht.
+      if (e.target instanceof Element && e.target.closest(".d26-avatars-all"))
+        return;
+      setShowAll(null);
+    };
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [showAll]);
+  type Person = (typeof people)[number];
+  // Füllung = Status, Ring = Elternprofil (grün = aktiv, weiß = nicht aktiv).
+  const circleClass = (p: Person) =>
+    [
+      p.parent_active ? "is-parent-active" : "",
+      p.status === "absent" || p.status === "cancelled"
+        ? "is-missed"
+        : p.status === "excused"
+          ? "is-excused"
+          : isAttended(p.status) && (p.attendance_mail_sent || !p.parent_active)
+            ? "is-sent"
+            : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  const tip = (p: Person) =>
+    [
+      name(p.player_id),
+      p.parent_active ? "Elternprofil aktiv" : "Kein aktives Elternprofil",
+      isAttended(p.status)
+        ? p.attendance_mail_sent
+          ? "Teilnahme bestätigt · Mail versendet"
+          : "Teilnahme bestätigt"
+        : p.status === "planned"
+          ? ""
+          : STATUS_LABELS[p.status],
+    ]
+      .filter(Boolean)
+      .join(" · ");
   const startsIn = Math.round((Date.parse(event.starts_at) - now) / 60000);
   return (
     <div className="d26-event-pulse">
       <span className="d26-avatars">
         {people.slice(0, 6).map((p) => (
-          <i
-            key={p.id}
-            data-tip={[
-              name(p.player_id),
-              p.parent_active ? "Elternprofil aktiv" : "",
-              isAttended(p.status)
-                ? p.attendance_mail_sent
-                  ? "Teilnahme bestätigt · Mail versendet"
-                  : "Teilnahme bestätigt"
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-            className={[
-              p.parent_active ? "is-parent-active" : "",
-              isAttended(p.status) && p.attendance_mail_sent ? "is-sent" : "",
-              isAttended(p.status) && !p.parent_active ? "is-done" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          >
+          <i key={p.id} data-tip={tip(p)} className={circleClass(p)}>
             {name(p.player_id).charAt(0)}
           </i>
         ))}
-        {people.length > 6 && <i>+{people.length - 6}</i>}
+        {people.length > 6 && (
+          <span
+            className={`d26-avatars-more${showAll ? " is-open" : ""}`}
+            onPointerEnter={(e) => {
+              if (e.pointerType !== "mouse") return;
+              clearTimeout(closeTimer.current);
+              if (!showAll) openAll(e.currentTarget);
+            }}
+            onPointerLeave={(e) => {
+              if (e.pointerType !== "mouse") return;
+              // Kurze Verzögerung, damit der Weg vom Kreis in die Liste klappt.
+              closeTimer.current = setTimeout(() => setShowAll(null), 250);
+            }}
+          >
+            <button
+              type="button"
+              aria-expanded={!!showAll}
+              aria-label={`Alle ${people.length} Teilnehmer anzeigen`}
+              onClick={(e) =>
+                showAll ? setShowAll(null) : openAll(e.currentTarget)
+              }
+            >
+              +{people.length - 6}
+            </button>
+            {showAll &&
+              createPortal(
+                <span className="d26-avatars d26-avatars-portal">
+                  <span
+                    className="d26-avatars-all"
+                    role="list"
+                    style={{ top: showAll.top, left: showAll.left }}
+                  >
+                    {people.map((p, index) => (
+                      <span
+                        role="listitem"
+                        key={p.id}
+                        style={{
+                          animationDelay: `${Math.min(index, 20) * 25}ms`,
+                        }}
+                      >
+                        <i className={circleClass(p)}>
+                          {name(p.player_id).charAt(0)}
+                        </i>
+                        <span>
+                          <strong>{name(p.player_id)}</strong>
+                          <small>
+                            {tip(p).split(" · ").slice(1).join(" · ")}
+                          </small>
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                </span>,
+                document.body,
+              )}
+          </span>
+        )}
       </span>
       {event.status !== "cancelled" && people.length > 0 && (
         <span
