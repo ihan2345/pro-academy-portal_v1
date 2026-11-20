@@ -993,9 +993,15 @@
   & .d26-event-pulse .d26-avatars {
     margin: 0;
   }
-  & .d26-avatars i.is-done {
-    background: linear-gradient(135deg, #e3ffbf, #b9f76a);
-    color: #2f5600;
+  /* Grüner Außenring: Kind hat ein aktives Elternprofil. */
+  & .d26-avatars i.is-parent-active {
+    border-color: #58c21a;
+  }
+  /* Ganz grün: Teilnahme bestätigt und Teilnahmemail versendet. */
+  & .d26-avatars i.is-sent {
+    background: linear-gradient(135deg, #8fe34a, #58c21a);
+    border-color: #58c21a;
+    color: #fff;
   }
   & .d26-meter {
     width: 110px;

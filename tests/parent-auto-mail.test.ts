@@ -145,4 +145,41 @@ it("refuses to apply twice", async () => {
   await expect(
     db.exec(readFileSync("supabase/release/057-parent-auto-mail.sql", "utf8")),
   ).rejects.toThrow(/already/);
+  await db.exec("rollback");
+});
+
+it("reports active-parent players and sent attendance mails only to the team", async () => {
+  await db.query(
+    "insert into notification_jobs(idempotency_key,kind,recipient,payload,status) values('sent-1','attendance',$1,$2,'sent')",
+    [active, { player_id: kid(11), parent_id: id(11), event_id: id(99) }],
+  );
+  const asRole = async (role: string) => {
+    const uid = id(role === "admin" ? 40 : 41);
+    await db.query(
+      "insert into auth.users values($1,$2,now()) on conflict(id) do nothing",
+      [uid, `${role}@team.invalid`],
+    );
+    await db.query(
+      "insert into profiles(id,role) values($1,$2) on conflict(id) do nothing",
+      [uid, role],
+    );
+    await db.exec(`set request.jwt.claim.sub='${uid}';set role authenticated;`);
+    try {
+      return (
+        await db.query<{ kind: string; player_id: string; event_id: string }>(
+          "select * from team_participant_mail_state() order by kind,player_id",
+        )
+      ).rows;
+    } finally {
+      await db.exec("reset role;reset request.jwt.claim.sub;");
+    }
+  };
+  const rows = await asRole("admin");
+  expect(
+    rows.filter((r) => r.kind === "active_parent").map((r) => r.player_id),
+  ).toEqual([kid(11), kid(12)]);
+  expect(rows.filter((r) => r.kind === "attendance_sent")).toEqual([
+    { kind: "attendance_sent", player_id: kid(11), event_id: id(99) },
+  ]);
+  await expect(asRole("parent")).rejects.toThrow(/Forbidden/);
 });

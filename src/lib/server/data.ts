@@ -99,6 +99,25 @@ export async function loadPortal(section: string): Promise<PortalData> {
       : { data: [], error: null };
   if (trialPlayers.error)
     throw new Error("Probetraining-Profile konnten nicht geladen werden");
+  // Teilnehmer-Kreise: aktiver Elternring + versendete Teilnahmemail (Release 058).
+  // Fehlt die Funktion noch oder schlägt sie fehl, bleiben die Kreise wie bisher.
+  const mailState =
+    session.role === "staff" || session.role === "admin"
+      ? await Promise.resolve()
+          .then(() => db.rpc("team_participant_mail_state"))
+          .catch((error: unknown) => ({ data: [], error }))
+      : { data: [], error: null };
+  const activeParentPlayers = new Set<string>(),
+    attendanceSent = new Set<string>();
+  for (const row of (mailState.error ? [] : (mailState.data ?? [])) as {
+    kind: string;
+    player_id: string;
+    event_id: string | null;
+  }[]) {
+    if (row.kind === "active_parent") activeParentPlayers.add(row.player_id);
+    else if (row.kind === "attendance_sent")
+      attendanceSent.add(`${row.event_id}:${row.player_id}`);
+  }
   return {
     products_enabled: productsEnabled(),
     trial_players: (trialPlayers.data ?? []).map((p) => ({
@@ -131,6 +150,8 @@ export async function loadPortal(section: string): Promise<PortalData> {
         .map((p: any) => ({
           ...p,
           player_id: p.trial_player_id ?? p.player_id,
+          parent_active: activeParentPlayers.has(p.player_id),
+          attendance_mail_sent: attendanceSent.has(`${e.id}:${p.player_id}`),
         }))
         .filter(
           (p: Parameters<typeof isRemovedParticipant>[0]) =>

@@ -61,6 +61,7 @@ export function productSchemaFiles() {
       "051-trial-past-assignment.sql",
       "056-trial-bell-events.sql",
       "057-parent-auto-mail.sql",
+      "058-participant-mail-state.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }
