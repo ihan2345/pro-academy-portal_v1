@@ -367,6 +367,33 @@ export function previewAdminPortal(): PortalData {
       ];
       events.push(t);
     });
+  // Gruppentermin mit allen Kreis-Zuständen und „+N“-Liste.
+  const group = training("ea-gruppe", 0, 9, "Gruppe Vormittag", "planned");
+  const states: [
+    Training["participants"][number]["status"],
+    boolean,
+    boolean,
+  ][] = [
+    ["attended_manual", true, true],
+    ["attended_manual", true, false],
+    ["attended_auto", false, false],
+    ["absent", true, false],
+    ["cancelled", false, false],
+    ["excused", true, false],
+    ["excused", false, false],
+    ["planned", true, false],
+    ["planned", false, false],
+    ["attended_auto", true, true],
+  ];
+  group.participants = players.slice(0, states.length).map((p, i) => ({
+    id: `ea-gruppe-${i}`,
+    player_id: p.id,
+    period_id: periodId,
+    status: states[i][0],
+    parent_active: states[i][1],
+    attendance_mail_sent: states[i][2],
+  }));
+  events.push(group);
   return {
     ...base,
     role: "admin",
