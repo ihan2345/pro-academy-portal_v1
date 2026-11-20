@@ -285,6 +285,7 @@ export function EventPulse({
             className={[
               p.parent_active ? "is-parent-active" : "",
               isAttended(p.status) && p.attendance_mail_sent ? "is-sent" : "",
+              isAttended(p.status) && !p.parent_active ? "is-done" : "",
             ]
               .filter(Boolean)
               .join(" ")}

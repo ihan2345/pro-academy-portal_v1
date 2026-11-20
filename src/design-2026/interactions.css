@@ -997,6 +997,12 @@
   & .d26-avatars i.is-parent-active {
     border-color: #58c21a;
   }
+  /* Grün mit weißem Ring: bestätigt, aber kein aktives Elternprofil. */
+  & .d26-avatars i.is-done {
+    background: linear-gradient(135deg, #8fe34a, #58c21a);
+    border-color: #fff;
+    color: #fff;
+  }
   /* Ganz grün: Teilnahme bestätigt und Teilnahmemail versendet. */
   & .d26-avatars i.is-sent {
     background: linear-gradient(135deg, #8fe34a, #58c21a);
