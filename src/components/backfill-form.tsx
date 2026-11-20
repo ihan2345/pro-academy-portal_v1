@@ -167,8 +167,8 @@ export function BackfillForm({
             </div>
           </details>
           <label className="checkbox-label">
-            <input name="notify_parents" type="checkbox" /> Eltern per E-Mail
-            über die Nachtragung informieren
+            <input name="notify_parents" type="checkbox" defaultChecked />{" "}
+            Eltern per E-Mail über die Nachtragung informieren
           </label>
           <p className="muted">
             Die Nachricht enthält ausschließlich die Elternnotiz und wird für

@@ -1289,8 +1289,8 @@ function EventEditor({
               );
             })}
             <label className="checkbox-label">
-              <input name="notify_backfill" type="checkbox" /> Betroffene Eltern
-              per E-Mail über den Nachtrag informieren
+              <input name="notify_backfill" type="checkbox" defaultChecked />{" "}
+              Betroffene Eltern per E-Mail über den Nachtrag informieren
             </label>
           </fieldset>
         )}
