@@ -43,6 +43,10 @@ export interface Training {
     status: Attendance;
     reason?: string | null;
     removed_from_event?: boolean;
+    /** Kind hat ein aktives Elternprofil (nur Team/Admin). */
+    parent_active?: boolean;
+    /** Teilnahmemail für diesen Termin wurde versendet (nur Team/Admin). */
+    attendance_mail_sent?: boolean;
   }[];
 }
 export interface Report {

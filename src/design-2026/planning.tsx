@@ -271,8 +271,23 @@ export function EventPulse({
         {people.slice(0, 6).map((p) => (
           <i
             key={p.id}
-            data-tip={name(p.player_id)}
-            className={isAttended(p.status) ? "is-done" : ""}
+            data-tip={[
+              name(p.player_id),
+              p.parent_active ? "Elternprofil aktiv" : "",
+              isAttended(p.status)
+                ? p.attendance_mail_sent
+                  ? "Teilnahme bestätigt · Mail versendet"
+                  : "Teilnahme bestätigt"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            className={[
+              p.parent_active ? "is-parent-active" : "",
+              isAttended(p.status) && p.attendance_mail_sent ? "is-sent" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           >
             {name(p.player_id).charAt(0)}
           </i>
