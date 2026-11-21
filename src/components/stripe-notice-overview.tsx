@@ -1,7 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, TriangleAlert, Circle } from "lucide-react";
+import {
+  CheckCircle2,
+  TriangleAlert,
+  Circle,
+  CreditCard,
+  Repeat,
+} from "lucide-react";
 import { formatDate, formatTime } from "@/lib/domain";
 import { DashboardDisclosure } from "./dashboard-disclosure";
 import {
@@ -147,6 +153,12 @@ export function StripeNoticeOverview({
       loading={loading}
       error={!!error || !!data?.warning}
       description="Der Badge zählt offene Aktionen der letzten 30 Tage – unabhängig vom gewählten Filter und der Seite. Erledigte und ignorierte Meldungen bleiben im Verlauf sichtbar."
+      icon={conflicts ? <Repeat size={18} /> : <CreditCard size={18} />}
+      tip={
+        conflicts
+          ? "Abos, die Stripe und Portal unterschiedlich sehen – offene Aktionen der letzten 30 Tage"
+          : "Zahlungen, Kündigungen und Abo-Änderungen aus Stripe – offene Aktionen der letzten 30 Tage"
+      }
     >
       <div className="stripe-conflict-toolbar">
         <div

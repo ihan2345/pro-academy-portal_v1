@@ -12,7 +12,8 @@ import { trialApi } from "./public";
 import { canAssignPast, TrialPastAssign } from "./past-assign";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { PageHead } from "@/design-2026/page-head";
-import { Archive, CalendarDays, Inbox, Star } from "lucide-react";
+import { Archive, CalendarDays, Inbox, Star, UserCheck } from "lucide-react";
+import { DashboardDisclosure } from "../dashboard-disclosure";
 export function TrialMenuBadge() {
   const [counts, setCounts] = useState<{ new: number; review: number } | null>(
     null,
@@ -880,8 +881,16 @@ function TrialProfileEditor({
     </details>
   );
 }
-export function TrialDashboard({ base }: { base: string }) {
+export function TrialDashboard({
+  base,
+  chip = false,
+}: {
+  base: string;
+  /** Design 2026 (Zentrale): als Kachel oben statt Aufklapp-Menü. */
+  chip?: boolean;
+}) {
   const [rows, setRows] = useState<TrialRow[]>([]),
+    [loaded, setLoaded] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
@@ -900,6 +909,9 @@ export function TrialDashboard({ base }: { base: string }) {
         })
         .catch((e) => {
           if (!controller.signal.aborted) setError(e.message);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoaded(true);
         });
     load();
     window.addEventListener("trial-updated", load);
@@ -934,12 +946,8 @@ export function TrialDashboard({ base }: { base: string }) {
     const overdue = !!due && Date.parse(due) < Date.now();
     return action ? [{ r, action, overdue }] : [];
   });
-  return (
-    <details className="panel trial-dashboard">
-      <summary>
-        <strong>Probetraining</strong>{" "}
-        <span className="badge">{tasks.length} offene Aktionen</span>
-      </summary>
+  const list = (
+    <>
       {error && <p role="alert">{error}</p>}
       {!tasks.length && !error && <p>Aktuell keine offenen Aufgaben.</p>}
       {tasks.map(({ r, action, overdue }) => (
@@ -969,6 +977,29 @@ export function TrialDashboard({ base }: { base: string }) {
           </details>
         </div>
       ))}
+    </>
+  );
+  if (chip)
+    return (
+      <DashboardDisclosure
+        title="Probetraining"
+        count={tasks.length}
+        loading={!loaded}
+        error={!!error}
+        description="Offene Aufgaben rund ums Probetraining: Kontakt, Teilnahme bestätigen und Coachfeedback."
+        tip="Probetrainings mit offenen Aufgaben – Kontakt, Teilnahme, Feedback"
+        icon={<UserCheck size={18} />}
+      >
+        {list}
+      </DashboardDisclosure>
+    );
+  return (
+    <details className="panel trial-dashboard">
+      <summary>
+        <strong>Probetraining</strong>{" "}
+        <span className="badge">{tasks.length} offene Aktionen</span>
+      </summary>
+      {list}
     </details>
   );
 }

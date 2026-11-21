@@ -24,6 +24,8 @@ import { BreakdownBars, CountUp, Sheet, glowFollow } from "./ui";
 import type { PortalData, Training } from "@/lib/types";
 import { STATUS_LABELS, formatDate, formatTime } from "@/lib/domain";
 import { SubscriptionReviews } from "@/components/subscription-reviews";
+import { DisclosureAsChip } from "@/components/dashboard-disclosure";
+import { TrialDashboard } from "@/components/trials/team";
 import { useMounted } from "./parent-experience";
 import { NewestPlayersTile } from "./newest-players";
 
@@ -245,6 +247,22 @@ function AdminHomeView({ data }: { data: PortalData }) {
         <NewestPlayersTile />
       </div>
 
+      {/* Posteingang: früher Aufklapp-Menüs ganz unten, jetzt Kacheln oben. */}
+      <section className="d26-inbox-row" aria-label="Posteingang">
+        <div className="d26-section-head">
+          <h2>
+            <Inbox size={18} aria-hidden="true" /> Posteingang
+          </h2>
+          <span>Probetraining, Abos, Zahlungen und Zuordnungen</span>
+        </div>
+        <div className="d26-kpis d26-inbox-chips">
+          <DisclosureAsChip.Provider value>
+            {data.trial_enabled && <TrialDashboard base="/admin" chip />}
+            <SubscriptionReviews includeActivities />
+          </DisclosureAsChip.Provider>
+        </div>
+      </section>
+
       <div className="d26-bento">
         <section className="d26-card d26-span-2 d26-timeline">
           <div className="d26-card-head">
@@ -408,16 +426,6 @@ function AdminHomeView({ data }: { data: PortalData }) {
               <span>{a.title}</span>
             </Link>
           ))}
-        </div>
-      </section>
-
-      <section className="d26-list-section">
-        <div className="d26-section-head">
-          <h2>Posteingang</h2>
-          <span>Abos, Zahlungen und Zuordnungen</span>
-        </div>
-        <div className="d26-inbox">
-          <SubscriptionReviews includeActivities />
         </div>
       </section>
 

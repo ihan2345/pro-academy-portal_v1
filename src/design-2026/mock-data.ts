@@ -397,6 +397,7 @@ export function previewAdminPortal(): PortalData {
   return {
     ...base,
     role: "admin",
+    trial_enabled: true,
     user_name: "Kaan",
     email: "admin@example.com",
     camp_access: undefined,
@@ -537,6 +538,7 @@ export function previewCampCustomers() {
   ] as const;
   return {
     role: "admin",
+    trial_enabled: true,
     camp: { id: "preview-camp", title: "Winter-Camp PAbyAK (28.–30.12.26)" },
     rows: kids.map((k, i) => ({
       id: `preview-customer-${i}`,
