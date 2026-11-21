@@ -16,19 +16,25 @@
 -- Portal liest Namen weiterhin aus parents/profiles. Ein Fehler beim Abgleich
 -- blockiert nie das Speichern eines Elternteils oder Team-Kontos.
 -- Erzeugt oder ändert keine Mails. Apply after 058 (unabhängig davon lauffähig).
+-- Darf mehrfach ausgeführt werden (create or replace / drop trigger if exists).
 begin;
 
-create function public.auth_display_name_for(uid uuid)
+create or replace function public.auth_display_name_for(uid uuid)
 returns text
 language sql stable security definer set search_path=public as $$
  select coalesce(
   (select nullif(btrim(p.full_name),'') from parents p where p.auth_user_id=uid limit 1),
+  -- Noch nicht verknüpft: eindeutiges, nicht archiviertes Elternteil mit gleicher E-Mail.
+  (select nullif(btrim(min(p.full_name)),'') from parents p
+    where p.auth_user_id is null and p.archived_at is null
+      and lower(btrim(p.contact_email)) = (select lower(btrim(u.email)) from auth.users u where u.id=uid)
+    having count(*)=1),
   (select nullif(btrim(pr.full_name),'') from profiles pr where pr.id=uid),
   (select nullif(btrim(s.display_name),'') from staff_profiles s where s.id=uid)
  )
 $$;
 
-create function public.sync_auth_display_name(uid uuid)
+create or replace function public.sync_auth_display_name(uid uuid)
 returns void
 language plpgsql security definer set search_path=public as $$
 declare n text;
@@ -45,7 +51,7 @@ exception when others then
  raise warning 'sync_auth_display_name(%) übersprungen: %', uid, sqlerrm;
 end $$;
 
-create function public.sync_auth_display_name_trigger()
+create or replace function public.sync_auth_display_name_trigger()
 returns trigger
 language plpgsql security definer set search_path=public as $$
 begin
@@ -61,33 +67,35 @@ revoke all on function public.auth_display_name_for(uuid) from public, anon, aut
 revoke all on function public.sync_auth_display_name(uuid) from public, anon, authenticated;
 revoke all on function public.sync_auth_display_name_trigger() from public, anon, authenticated;
 
+drop trigger if exists parents_sync_auth_display_name on public.parents;
 create trigger parents_sync_auth_display_name
  after insert or update of auth_user_id, full_name on public.parents
  for each row execute function public.sync_auth_display_name_trigger();
 
+drop trigger if exists profiles_sync_auth_display_name on public.profiles;
 create trigger profiles_sync_auth_display_name
  after update of full_name on public.profiles
  for each row execute function public.sync_auth_display_name_trigger();
 
+drop trigger if exists staff_profiles_sync_auth_display_name on public.staff_profiles;
 create trigger staff_profiles_sync_auth_display_name
  after insert or update of display_name on public.staff_profiles
  for each row execute function public.sync_auth_display_name_trigger();
 
--- Einmaliger Nachtrag für alle bestehenden Konten.
+-- Einmaliger Nachtrag für alle Konten (auch noch nicht verknüpfte Eltern per E-Mail).
 do $$
-declare uid uuid;
+declare uid uuid; vorher int; nachher int;
 begin
- if not exists (select 1 from information_schema.columns
-                where table_schema='auth' and table_name='users' and column_name='raw_user_meta_data') then
+ if not exists (select 1 from pg_attribute
+                where attrelid = to_regclass('auth.users') and attname='raw_user_meta_data' and not attisdropped) then
   return;
  end if;
- for uid in
-  select auth_user_id from parents where auth_user_id is not null
-  union select id from profiles
-  union select id from staff_profiles
- loop
+ select count(*) into vorher from auth.users where coalesce(raw_user_meta_data->>'full_name','')='';
+ for uid in select id from auth.users loop
   perform public.sync_auth_display_name(uid);
  end loop;
+ select count(*) into nachher from auth.users where coalesce(raw_user_meta_data->>'full_name','')='';
+ raise notice 'Konten ohne Display name: vorher %, nachher %', vorher, nachher;
 end $$;
 
 commit;
