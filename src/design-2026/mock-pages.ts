@@ -581,11 +581,49 @@ export function previewPlayerArchive() {
       parents: [{ id: `fa-${i + 1}`, name: `Familie ${last}` }],
     }),
   );
+  // Einige Abonnenten sind frisch dazugekommen (Schalter „Abonnenten“).
+  abo.slice(0, 3).forEach((r, i) => {
+    r.created = iso(-[0, 2, 5][i], [9, 17, 12][i]);
+  });
   return {
     rows: [...abo, ...others].sort((a, b) =>
       a.name.localeCompare(b.name, "de"),
     ),
     trainingAvailable: true,
+  };
+}
+
+/** Probetraining-Kinder ohne Spielerprofil (trial_players) für „Neueste Spieler“. */
+export function previewTrialArchive() {
+  return {
+    rows: (
+      [
+        ["Emir", "Yıldız", "new", 0, 7],
+        ["Mats", "Becker", "planned", 1, 18],
+        ["Leni", "Wolf", "attended", 4, 10],
+        ["Noah", "Celik", "contacted", 11, 15],
+      ] as const
+    ).map(([first, last, trial, days, hour], i) => ({
+      id: `t-${i + 1}`,
+      name: `${first} ${last}`,
+      first_name: first,
+      last_name: last,
+      age: `${7 + i} Jahre`,
+      team: "",
+      archived: false,
+      created: iso(-days, hour),
+      status: "trial" as const,
+      products: [] as string[],
+      formerProducts: [] as string[],
+      months: 0,
+      since: null,
+      trainings: 0,
+      minutes: 0,
+      camps: null,
+      trial,
+      parents: [{ id: `tf-${i + 1}`, name: `Familie ${last}` }],
+      trialOnly: true,
+    })),
   };
 }
 

@@ -142,8 +142,14 @@ export function PlayerArchive({
           <a
             key={r.id}
             className={`d26-archive-row ${archiveTone(r)}`}
-            href={`${base}/spieler/${r.id}`}
-            aria-label={`Spielerprofil von ${r.name} öffnen`}
+            href={
+              r.trialOnly ? `${base}/probetraining` : `${base}/spieler/${r.id}`
+            }
+            aria-label={
+              r.trialOnly
+                ? `Probetraining von ${r.name} öffnen`
+                : `Spielerprofil von ${r.name} öffnen`
+            }
           >
             <span className="d26-archive-avatar" aria-hidden="true">
               {initials(r)}
@@ -279,7 +285,9 @@ function ArchiveCard({
       </dl>
       <small className="d26-archive-hint">
         {plural(r.trainings + (r.camps ?? 0), "Event", "Events")} insgesamt ·
-        Klick auf den Namen öffnet das Profil
+        {r.trialOnly
+          ? "Klick auf den Namen öffnet das Probetraining"
+          : "Klick auf den Namen öffnet das Profil"}
       </small>
     </div>
   );
