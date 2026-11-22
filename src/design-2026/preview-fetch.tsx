@@ -14,6 +14,7 @@ import {
   previewParentList,
   previewPlayerProfiles,
   previewPlayerArchive,
+  previewTrialArchive,
   previewProducts,
   previewTrials,
   previewTrialPastEvents,
@@ -64,6 +65,8 @@ if (
       return Response.json(previewProducts());
     if (path === "/api/player-archive")
       return Response.json(previewPlayerArchive());
+    if (path === "/api/player-archive/trials")
+      return Response.json(previewTrialArchive());
     if (path === "/api/player-profiles")
       return Response.json(previewPlayerProfiles());
     if (path === "/api/parent-profiles/list")

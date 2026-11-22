@@ -62,6 +62,7 @@ export function productSchemaFiles() {
       "056-trial-bell-events.sql",
       "057-parent-auto-mail.sql",
       "058-participant-mail-state.sql",
+      "059-auth-display-name.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

@@ -6,6 +6,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  CalendarClock,
   CalendarDays,
   CalendarPlus,
   ChevronRight,
@@ -24,6 +25,8 @@ import { BreakdownBars, CountUp, Sheet, glowFollow } from "./ui";
 import type { PortalData, Training } from "@/lib/types";
 import { STATUS_LABELS, formatDate, formatTime } from "@/lib/domain";
 import { SubscriptionReviews } from "@/components/subscription-reviews";
+import { DisclosureAsChip } from "@/components/dashboard-disclosure";
+import { TrialDashboard } from "@/components/trials/team";
 import { useMounted } from "./parent-experience";
 import { NewestPlayersTile } from "./newest-players";
 
@@ -38,7 +41,7 @@ export function AdminHome({ data }: { data: PortalData }) {
 }
 
 type AdminSheet =
-  | { kind: "players" | "week" | "open" }
+  | { kind: "players" | "week" | "open" | "field" }
   | { kind: "day"; day: Date }
   | { kind: "event"; event: Training }
   | null;
@@ -119,6 +122,16 @@ function AdminHomeView({ data }: { data: PortalData }) {
     return p ? `${p.first_name} ${p.last_name.charAt(0)}.` : "";
   };
   const isToday = focusDay.getTime() === today.getTime();
+  const fieldTitle =
+    range === "week"
+      ? "Nächste 7 Tage"
+      : range === "tomorrow"
+        ? "Morgen auf dem Platz"
+        : isToday
+          ? "Heute auf dem Platz"
+          : `Als Nächstes · ${formatDate(focusDay.toISOString(), { weekday: "long", day: "numeric", month: "long" })}`;
+  const nextUp = shown.find((e) => Date.parse(e.ends_at) >= Date.now());
+  const nextLive = !!nextUp && Date.parse(nextUp.starts_at) <= Date.now();
   const actions = [
     {
       href: "/admin/trainingsplanung",
@@ -242,100 +255,83 @@ function AdminHomeView({ data }: { data: PortalData }) {
             </span>
           </button>
         ))}
-        <NewestPlayersTile />
-      </div>
-
-      <div className="d26-bento">
-        <section className="d26-card d26-span-2 d26-timeline">
-          <div className="d26-card-head">
-            <h3>
-              {range === "week"
-                ? "Nächste 7 Tage"
-                : range === "tomorrow"
-                  ? "Morgen auf dem Platz"
-                  : isToday
-                    ? "Heute auf dem Platz"
-                    : `Als Nächstes · ${formatDate(focusDay.toISOString(), { weekday: "long", day: "numeric", month: "long" })}`}
-            </h3>
+        <div className="d26-card d26-kpi d26-onfield">
+          <div className="d26-onfield-head">
+            <CalendarClock size={18} />
             <div className="d26-segments is-small" role="tablist">
               {(
                 [
-                  ["focus", "Heute"],
-                  ["tomorrow", "Morgen"],
-                  ["week", "7 Tage"],
+                  ["focus", "Heute", "Heute"],
+                  ["tomorrow", "Morgen", "Morgen"],
+                  ["week", "7 Tage", "7 T"],
                 ] as const
-              ).map(([v, label]) => (
+              ).map(([v, label, short]) => (
                 <button
                   key={v}
                   type="button"
                   role="tab"
                   aria-selected={range === v}
+                  aria-label={label}
                   className={range === v ? "is-active" : ""}
                   onClick={() => setRange(v)}
                 >
-                  {label}
+                  <span className="is-long">{label}</span>
+                  <span className="is-short">{short}</span>
                 </button>
               ))}
             </div>
           </div>
-          {shown.length ? (
-            <ol key={range}>
-              {shown.map((e: Training) => {
-                const past = Date.parse(e.ends_at) < Date.now();
-                const running = Date.parse(e.starts_at) <= Date.now() && !past;
-                return (
-                  <li
-                    key={e.id}
-                    className={running ? "is-live" : past ? "is-past" : ""}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSheet({ kind: "event", event: e })}
-                    >
-                      <time>
-                        {formatTime(e.starts_at)}
-                        {range === "week" && (
-                          <small>
-                            {formatDate(e.starts_at, {
-                              weekday: "short",
-                              day: "numeric",
-                            })}
-                          </small>
-                        )}
-                      </time>
-                      <div>
-                        <b>{e.title}</b>
-                        <small>
-                          <MapPin size={13} /> {e.location_name}
-                          {e.trainer_name ? ` · ${e.trainer_name}` : ""}
-                        </small>
-                        <span className="d26-avatars">
-                          {e.participants.slice(0, 5).map((p) => (
-                            <i key={p.id} data-tip={playerName(p.player_id)}>
-                              {playerName(p.player_id).charAt(0)}
-                            </i>
-                          ))}
-                          <em>{e.participants.length} Teilnehmer</em>
-                        </span>
-                      </div>
-                      {running ? (
-                        <span className="d26-pill tone-lime">Läuft</span>
-                      ) : (
-                        <ChevronRight size={16} className="d26-chevron" />
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          ) : (
-            <p className="d26-empty">
-              {range === "tomorrow"
-                ? "Morgen ist kein Training geplant."
-                : "Keine Trainings in diesem Zeitraum."}
-            </p>
-          )}
-        </section>
+          <button
+            type="button"
+            className="d26-onfield-main"
+            onClick={() => setSheet({ kind: "field" })}
+          >
+            <b>
+              <CountUp value={shown.length} />
+            </b>
+            <span>
+              {fieldTitle} <ChevronRight size={13} />
+            </span>
+          </button>
+          <p className={`d26-onfield-next ${nextLive ? "is-live" : ""}`}>
+            {nextUp ? (
+              <>
+                <i aria-hidden="true" />
+                <span>
+                  {nextLive ? "Läuft" : formatTime(nextUp.starts_at)}
+                  {range === "week" && !nextLive
+                    ? ` · ${formatDate(nextUp.starts_at, { weekday: "short" })}`
+                    : ""}
+                </span>
+                <b>{nextUp.title}</b>
+              </>
+            ) : (
+              <span>
+                {shown.length ? "Alles gelaufen" : "Kein Training geplant"}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* Posteingang: früher Aufklapp-Menüs ganz unten, jetzt Kacheln oben. */}
+      <section className="d26-inbox-row" aria-label="Posteingang">
+        <div className="d26-section-head">
+          <h2>
+            <Inbox size={18} aria-hidden="true" /> Posteingang
+          </h2>
+          <span>Probetraining, Abos, Zahlungen und Zuordnungen</span>
+        </div>
+        <div className="d26-kpis d26-inbox-chips">
+          <DisclosureAsChip.Provider value>
+            {data.trial_enabled && <TrialDashboard base="/admin" chip />}
+            <SubscriptionReviews includeActivities />
+          </DisclosureAsChip.Provider>
+        </div>
+      </section>
+
+      <div className="d26-bento">
+        <NewestPlayersTile />
 
         <section className="d26-card d26-weekchart">
           <div className="d26-card-head">
@@ -411,16 +407,77 @@ function AdminHomeView({ data }: { data: PortalData }) {
         </div>
       </section>
 
-      <section className="d26-list-section">
-        <div className="d26-section-head">
-          <h2>Posteingang</h2>
-          <span>Abos, Zahlungen und Zuordnungen</span>
+      <Sheet
+        open={sheet?.kind === "field"}
+        onClose={() => setSheet(null)}
+        eyebrow={`${shown.length} ${shown.length === 1 ? "Training" : "Trainings"}`}
+        title={fieldTitle}
+        footer={
+          <Link href="/admin/trainingsplanung" className="d26-btn is-primary">
+            Zur Planung <ArrowRight size={16} />
+          </Link>
+        }
+      >
+        <div className="d26-timeline d26-onfield-list">
+          {shown.length ? (
+            <ol key={range}>
+              {shown.map((e: Training) => {
+                const past = Date.parse(e.ends_at) < Date.now();
+                const running = Date.parse(e.starts_at) <= Date.now() && !past;
+                return (
+                  <li
+                    key={e.id}
+                    className={running ? "is-live" : past ? "is-past" : ""}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSheet({ kind: "event", event: e })}
+                    >
+                      <time>
+                        {formatTime(e.starts_at)}
+                        {range === "week" && (
+                          <small>
+                            {formatDate(e.starts_at, {
+                              weekday: "short",
+                              day: "numeric",
+                            })}
+                          </small>
+                        )}
+                      </time>
+                      <div>
+                        <b>{e.title}</b>
+                        <small>
+                          <MapPin size={13} /> {e.location_name}
+                          {e.trainer_name ? ` · ${e.trainer_name}` : ""}
+                        </small>
+                        <span className="d26-avatars">
+                          {e.participants.slice(0, 5).map((p) => (
+                            <i key={p.id} data-tip={playerName(p.player_id)}>
+                              {playerName(p.player_id).charAt(0)}
+                            </i>
+                          ))}
+                          <em>{e.participants.length} Teilnehmer</em>
+                        </span>
+                      </div>
+                      {running ? (
+                        <span className="d26-pill tone-lime">Läuft</span>
+                      ) : (
+                        <ChevronRight size={16} className="d26-chevron" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
+            <p className="d26-empty">
+              {range === "tomorrow"
+                ? "Morgen ist kein Training geplant."
+                : "Keine Trainings in diesem Zeitraum."}
+            </p>
+          )}
         </div>
-        <div className="d26-inbox">
-          <SubscriptionReviews includeActivities />
-        </div>
-      </section>
-
+      </Sheet>
       <Sheet
         open={sheet?.kind === "players"}
         onClose={() => setSheet(null)}

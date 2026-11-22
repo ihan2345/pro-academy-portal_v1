@@ -20,6 +20,7 @@ export function Sheet({
   title,
   children,
   footer,
+  wide = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -27,6 +28,8 @@ export function Sheet({
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** Breiteres Panel für Listen mit Aktionen (z. B. Posteingang). */
+  wide?: boolean;
 }) {
   const [closing, setClosing] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
@@ -40,7 +43,13 @@ export function Sheet({
   };
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    // Ein darüber geöffnetes Pop-up (z. B. Abo-Prüfung) schließt Escape zuerst.
+    const onKey = (e: KeyboardEvent) =>
+      e.key === "Escape" &&
+      !document.querySelector(
+        ".d26-sheet-layer ~ .modal-backdrop:not([hidden])",
+      ) &&
+      close();
     document.addEventListener("keydown", onKey);
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -59,7 +68,7 @@ export function Sheet({
     >
       <div
         ref={panel}
-        className="d26-sheet"
+        className={`d26-sheet ${wide ? "is-wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}

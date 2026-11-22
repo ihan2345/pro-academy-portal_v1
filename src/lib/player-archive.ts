@@ -24,6 +24,8 @@ export interface ArchivePlayer {
   camps: number | null;
   trial: string | null;
   parents: { id: string; name: string }[];
+  /** Nur Probetraining-Kind (trial_players, noch nicht übernommen): kein Spielerprofil. */
+  trialOnly?: boolean;
 }
 export interface ArchivePage {
   rows: ArchivePlayer[];

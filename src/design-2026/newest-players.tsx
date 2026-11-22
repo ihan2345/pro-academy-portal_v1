@@ -1,19 +1,27 @@
 "use client";
-// Design 2026: Kachel „Neueste Spieler“ auf der Zentrale (ersetzt „Berichte“).
-// „Neu“ heißt: Das Spielerprofil wurde in diesem Zeitraum im Portal angelegt
-// (players.created_at), egal ob über Registrierung, Probetraining, Camp oder
-// Admin. Archivierte Kinder zählen mit. Daten kommen aus dem rein lesenden
-// Archiv-Endpunkt „Alle Spieler“; Klick auf einen Balken öffnet die Spieler
-// dieses Tages mit denselben Statusfarben wie im Archiv.
+// Design 2026: große Kachel „Neueste Spieler“ auf der Zentrale.
+// „Neu“ heißt: Das Kind ist in diesem Zeitraum im Portal erfasst worden.
+// Das sind alle Spielerprofile (players.created_at, egal ob Registrierung,
+// Camp, Admin oder übernommenes Probetraining, archivierte zählen mit) und
+// zusätzlich die Probetraining-Kinder ohne Spielerprofil (trial_players, über
+// trial_player_id verknüpft). Der Schalter „Alle / Abonnenten“ zeigt nur Kinder
+// mit laufendem Abo. Balken sind nach Status gestapelt, Klick auf einen Balken
+// öffnet die Kinder dieses Zeitfensters mit den Statusfarben des Archivs.
 import { useState } from "react";
 import { ArrowRight, ChevronRight, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { CountUp, Sheet } from "./ui";
-import { PlayerArchive } from "./player-archive";
+import { PlayerArchive, archiveTone } from "./player-archive";
 import { json, useEverything } from "./people-heads";
-import type { ArchivePage, ArchivePlayer } from "@/lib/player-archive";
+import { formatDate } from "@/lib/domain";
+import type {
+  ArchivePage,
+  ArchivePlayer,
+  ArchiveStatus,
+} from "@/lib/player-archive";
 
 type Span = "today" | "7" | "30";
+type Audience = "all" | "abo";
 type Bucket = {
   key: string;
   start: number;
@@ -23,7 +31,14 @@ type Bucket = {
   tick: string;
 };
 
-const DAY = 86400000;
+// Stapelreihenfolge von unten nach oben.
+const STACK: { status: ArchiveStatus; label: string }[] = [
+  { status: "abo", label: "Abo" },
+  { status: "trial", label: "Probetraining" },
+  { status: "camp", label: "Camp" },
+  { status: "inactive", label: "Ohne Abo" },
+];
+
 const dayStart = (d: Date) =>
   new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const longDay = (d: Date) =>
@@ -32,8 +47,10 @@ const longDay = (d: Date) =>
     day: "numeric",
     month: "long",
   });
-const people = (n: number) =>
-  `${n} ${n === 1 ? "neuer Spieler" : "neue Spieler"}`;
+const people = (n: number, audience: Audience = "all") =>
+  audience === "abo"
+    ? `${n} ${n === 1 ? "neuer Abonnent" : "neue Abonnenten"}`
+    : `${n} ${n === 1 ? "neuer Spieler" : "neue Spieler"}`;
 
 function buckets(rows: ArchivePlayer[], span: Span): Bucket[] {
   const today = dayStart(new Date());
@@ -56,7 +73,7 @@ function buckets(rows: ArchivePlayer[], span: Span): Bucket[] {
         end,
         rows: take(start, end),
         label: `${String(i * 2).padStart(2, "0")}–${String(i * 2 + 2).padStart(2, "0")} Uhr`,
-        tick: i % 3 === 0 ? String(i * 2) : "",
+        tick: i % 2 === 0 ? `${i * 2}` : "",
       };
     });
   }
@@ -75,8 +92,8 @@ function buckets(rows: ArchivePlayer[], span: Span): Bucket[] {
       label: longDay(d),
       tick:
         days === 7
-          ? d.toLocaleDateString("de-DE", { weekday: "narrow" })
-          : i % 7 === 2 || i === days - 1
+          ? d.toLocaleDateString("de-DE", { weekday: "short" })
+          : i % 5 === 4 || i === days - 1
             ? String(d.getDate())
             : "",
     };
@@ -88,8 +105,32 @@ const newestFirst = (list: Bucket[]) =>
     .flatMap((b) => b.rows)
     .sort((a, b) => Date.parse(b.created) - Date.parse(a.created));
 
+function initials(r: ArchivePlayer) {
+  return [r.first_name, r.last_name]
+    .map((w) => (w ?? "").trim().charAt(0).toUpperCase())
+    .join("");
+}
+function badge(r: ArchivePlayer) {
+  if (r.status === "abo") return r.products[0] ?? "Abo";
+  if (r.status === "trial") return "Probetraining";
+  if (r.status === "camp") return "Camp";
+  return r.archived ? "Archiviert" : "Ohne Abo";
+}
+function when(iso: string) {
+  const t = Date.parse(iso),
+    today = dayStart(new Date()).getTime();
+  const time = new Date(t).toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  if (t >= today) return `Heute, ${time}`;
+  if (t >= today - 86400000) return `Gestern, ${time}`;
+  return formatDate(iso, { weekday: "short", day: "numeric", month: "short" });
+}
+
 export function NewestPlayersTile({ base = "/admin" }: { base?: string }) {
   const [span, setSpan] = useState<Span>("7");
+  const [audience, setAudience] = useState<Audience>("all");
   const [open, setOpen] = useState<{
     title: string;
     eyebrow: string;
@@ -101,8 +142,20 @@ export function NewestPlayersTile({ base = "/admin" }: { base?: string }) {
     async (signal) =>
       ((await json("/api/player-archive", signal)) as ArchivePage).rows,
   );
-  const list = buckets(archive.rows ?? [], span);
-  const total = list.reduce((s, b) => s + b.rows.length, 0);
+  // Probetraining-Kinder ohne Spielerprofil. Fehlt der Endpunkt oder schlägt
+  // er fehl, zählt die Kachel wie bisher nur Spielerprofile.
+  const trials = useEverything<ArchivePlayer>("archive:trials", (signal) =>
+    json("/api/player-archive/trials", signal)
+      .then((r) => (r as { rows: ArchivePlayer[] }).rows ?? [])
+      .catch(() => []),
+  );
+  const loaded = !!archive.rows;
+  const everyone = [...(archive.rows ?? []), ...(trials.rows ?? [])];
+  const pool =
+    audience === "abo" ? everyone.filter((r) => r.status === "abo") : everyone;
+  const list = buckets(pool, span);
+  const all = newestFirst(list);
+  const total = all.length;
   const max = Math.max(1, ...list.map((b) => b.rows.length));
   const now = Date.now();
   const spanLabel =
@@ -111,21 +164,24 @@ export function NewestPlayersTile({ base = "/admin" }: { base?: string }) {
       : span === "7"
         ? "Letzte 7 Tage"
         : "Letzte 30 Tage";
+  const split = STACK.map((s) => ({
+    ...s,
+    count: all.filter((r) => r.status === s.status).length,
+  })).filter((s) => s.count > 0);
+  const openList = (title: string, rows: ArchivePlayer[]) =>
+    setOpen({ title, eyebrow: people(rows.length, audience), rows });
   const openBucket = (b: Bucket) =>
-    setOpen(
-      span === "today"
-        ? {
-            // Heute öffnet immer den ganzen Tag.
-            title: longDay(new Date(b.start)),
-            eyebrow: people(list.reduce((s, x) => s + x.rows.length, 0)),
-            rows: newestFirst(list),
-          }
-        : { title: b.label, eyebrow: people(b.rows.length), rows: b.rows },
-    );
+    span === "today"
+      ? openList(longDay(new Date(b.start)), all)
+      : openList(b.label, b.rows);
   return (
-    <div className={`d26-card d26-kpi d26-newest is-span-${span}`}>
-      <div className="d26-newest-head">
-        <UserPlus size={18} />
+    <section
+      className={`d26-card d26-span-2 d26-newest is-span-${span} is-${audience}`}
+    >
+      <div className="d26-card-head">
+        <h3>
+          <UserPlus size={18} /> Neueste Spieler
+        </h3>
         <div className="d26-segments is-small" role="tablist">
           {(
             [
@@ -149,53 +205,140 @@ export function NewestPlayersTile({ base = "/admin" }: { base?: string }) {
           ))}
         </div>
       </div>
-      <div className="d26-newest-body">
+
+      <div className="d26-newest-summary">
         <button
           type="button"
           className="d26-newest-total"
           disabled={!total}
-          onClick={() =>
-            setOpen({
-              title: spanLabel,
-              eyebrow: people(total),
-              rows: newestFirst(list),
-            })
-          }
+          onClick={() => openList(spanLabel, all)}
         >
-          <b>{archive.rows ? <CountUp value={total} /> : "…"}</b>
+          <b>{loaded ? <CountUp value={total} /> : "…"}</b>
           <span>
-            Neueste Spieler <ChevronRight size={13} />
+            {audience === "abo" ? "Neue Abonnenten" : "Neue Spieler"} ·{" "}
+            {spanLabel} <ChevronRight size={13} />
           </span>
         </button>
         <div
-          className="d26-bars d26-newest-bars"
-          style={{
-            gridTemplateColumns: `repeat(${list.length}, minmax(0, 1fr))`,
-          }}
-          key={span}
+          className="d26-newest-switch"
+          role="radiogroup"
+          aria-label="Welche Spieler zählen"
         >
-          {list.map((b) => {
-            const n = b.rows.length;
-            const current = now >= b.start && now < b.end;
-            return (
-              <button
-                type="button"
-                key={b.key}
-                disabled={!n}
-                data-tip={`${b.label}: ${people(n)}`}
-                aria-label={`${b.label}: ${people(n)}`}
-                className={`${current ? "is-today" : ""} ${n ? "has-value" : ""}`}
-                onClick={() => openBucket(b)}
-              >
-                <i style={{ height: `${(n / max) * 100}%` }}>
-                  {n > 0 && span !== "30" && <em>{n}</em>}
-                </i>
-                <small>{b.tick || " "}</small>
-              </button>
-            );
-          })}
+          {(
+            [
+              ["all", "Alle"],
+              ["abo", "Abonnenten"],
+            ] as const
+          ).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={audience === v}
+              className={audience === v ? "is-active" : ""}
+              onClick={() => setAudience(v)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
+
+      {audience === "all" && (
+        <ul className="d26-newest-legend" aria-label="Aufteilung nach Status">
+          {split.length ? (
+            split.map((s) => (
+              <li key={s.status} className={`is-${s.status}`}>
+                <i aria-hidden="true" />
+                {s.label} <b>{s.count}</b>
+              </li>
+            ))
+          ) : (
+            <li className="is-empty">Noch niemand in diesem Zeitraum</li>
+          )}
+        </ul>
+      )}
+
+      <div
+        className="d26-bars d26-newest-bars"
+        style={{
+          gridTemplateColumns: `repeat(${list.length}, minmax(0, 1fr))`,
+        }}
+        key={`${span}-${audience}`}
+      >
+        {list.map((b) => {
+          const n = b.rows.length;
+          const current = now >= b.start && now < b.end;
+          return (
+            <button
+              type="button"
+              key={b.key}
+              disabled={!n}
+              data-tip={`${b.label}: ${people(n, audience)}`}
+              aria-label={`${b.label}: ${people(n, audience)}`}
+              className={`${current ? "is-today" : ""} ${n ? "has-value" : ""}`}
+              onClick={() => openBucket(b)}
+            >
+              <i style={{ height: `${(n / max) * 100}%` }}>
+                {STACK.map((s) => {
+                  const part = b.rows.filter(
+                    (r) => r.status === s.status,
+                  ).length;
+                  return part ? (
+                    <span
+                      key={s.status}
+                      className={`is-${s.status}`}
+                      style={{ flexGrow: part }}
+                    />
+                  ) : null;
+                })}
+                {n > 0 && span !== "30" && <em>{n}</em>}
+              </i>
+              <small>{b.tick || " "}</small>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="d26-newest-recent">
+        <h4>Zuletzt dazugekommen</h4>
+        {all.length ? (
+          <ol>
+            {all.slice(0, 3).map((r) => (
+              <li key={r.id}>
+                <a
+                  className={archiveTone(r)}
+                  href={
+                    r.trialOnly
+                      ? `${base}/probetraining`
+                      : `${base}/spieler/${r.id}`
+                  }
+                >
+                  <span className="d26-newest-avatar" aria-hidden="true">
+                    {initials(r)}
+                  </span>
+                  <span className="d26-newest-who">
+                    <b>{r.name}</b>
+                    <small>
+                      {[when(r.created), r.age].filter(Boolean).join(" · ")}
+                    </small>
+                  </span>
+                  <span className="d26-newest-pill">{badge(r)}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="d26-empty">
+            {loaded
+              ? audience === "abo"
+                ? "Keine neuen Abonnenten in diesem Zeitraum."
+                : "Keine neuen Spieler in diesem Zeitraum."
+              : "Wird geladen …"}
+          </p>
+        )}
+      </div>
+
       <Sheet
         open={!!open}
         onClose={() => setOpen(null)}
@@ -209,6 +352,6 @@ export function NewestPlayersTile({ base = "/admin" }: { base?: string }) {
       >
         {open && <PlayerArchive rows={open.rows} failed={false} base={base} />}
       </Sheet>
-    </div>
+    </section>
   );
 }

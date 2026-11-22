@@ -156,3 +156,66 @@ export async function playerArchive(
   );
   return { rows, trainingAvailable };
 }
+
+/**
+ * Probetraining-Kinder, die (noch) kein Spielerprofil haben. Sie liegen seit
+ * Release 018 in trial_players und sind über trial_player_id/trial_requests
+ * verknüpft, nicht über players. Übernommene Kinder (converted_player_id)
+ * fehlen hier, weil sie schon als Spielerprofil im Archiv stehen.
+ */
+export async function trialArchiveRows(
+  session: ProfileSession,
+): Promise<ArchivePlayer[]> {
+  assertRole(session.role, "team");
+  if (!session.trialEnabled) return [];
+  const db = serviceDb(),
+    today = calendarDate(new Date().toISOString());
+  let kids: Record<string, any>[], requests: Record<string, any>[];
+  let families: Record<string, any>[];
+  try {
+    [kids, requests, families] = await Promise.all([
+      readAll(
+        db,
+        "trial_players",
+        "id,family_id,first_name,last_name,birth_date,team,created_at,converted_player_id",
+      ),
+      readAll(db, "trial_requests", "id,player_id,status,created_at"),
+      readAll(db, "trial_families", "id,parent_id,parent_name"),
+    ]);
+  } catch {
+    return []; // Probetraining noch nicht eingespielt.
+  }
+  const family = new Map(families.map((f) => [f.id as string, f]));
+  return kids
+    .filter((k) => !k.converted_player_id)
+    .map((k) => {
+      const id = k.id as string;
+      const latest = requests
+        .filter((r) => r.player_id === id)
+        .sort((a, b) => String(b.created_at).localeCompare(a.created_at))[0];
+      const f = family.get(k.family_id);
+      return {
+        id,
+        first_name: k.first_name,
+        last_name: k.last_name,
+        name: `${k.first_name} ${k.last_name}`.trim(),
+        age: childAge({ camp_birth_date: k.birth_date }, today),
+        team: k.team ?? "",
+        archived: false,
+        created: k.created_at,
+        status: "trial" as const,
+        products: [],
+        formerProducts: [],
+        months: 0,
+        since: null,
+        trainings: 0,
+        minutes: 0,
+        camps: null,
+        trial: latest?.status ?? "new",
+        parents: f?.parent_name
+          ? [{ id: (f.parent_id ?? f.id) as string, name: f.parent_name }]
+          : [],
+        trialOnly: true,
+      };
+    });
+}

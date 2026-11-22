@@ -628,7 +628,7 @@ export function Portal({
                 <ArrowRight size={20} />
               </Link>
             )}
-          {(section === "admin" || section === "team") &&
+          {(section === "team" || (section === "admin" && !DESIGN_2026)) &&
             data.trial_enabled && (
               <TrialDashboard base={admin ? "/admin" : "/team"} />
             )}
