@@ -484,6 +484,18 @@ export function ActivityRows({
               <strong className="activity-subject">{row.subject}</strong>
             )}
             <p>{row.text}</p>
+            {!!row.facts?.filter((f) => f.label !== "Durch").length && (
+              <dl className="activity-facts">
+                {row.facts
+                  .filter((f) => f.label !== "Durch")
+                  .map((f) => (
+                    <div key={f.label}>
+                      <dt>{f.label}</dt>
+                      <dd>{f.value}</dd>
+                    </div>
+                  ))}
+              </dl>
+            )}
             <small>
               <time dateTime={row.at}>
                 {formatDate(row.at)} · {formatTime(row.at)}

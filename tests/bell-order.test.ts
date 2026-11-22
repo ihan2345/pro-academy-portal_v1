@@ -79,3 +79,30 @@ describe("Glocke: Kategorien", () => {
     expect(dayLabel(Date.parse(ago(24 * 9)), now)).toBe("Älter");
   });
 });
+
+it("fasst Ereignisse einer Familie am selben Tag zusammen", async () => {
+  const { groupActivities } = await import("../src/design-2026/notifications");
+  const row = (id: string, at: string, title: string, extra = {}) => ({
+    id,
+    at,
+    title,
+    text: "",
+    subject: "Max Muster",
+    actor: "Automatisch",
+    tone: "normal" as const,
+    family: "Eva Muster",
+    ...extra,
+  });
+  const groups = groupActivities([
+    row("1", "2026-11-22T09:20:00Z", "Abo-Zuordnung aufgehoben"),
+    row("2", "2026-11-22T09:21:00Z", "Abo beendet", { tone: "problem" }),
+    row("3", "2026-11-22T08:00:00Z", "Training geändert", {
+      family: undefined,
+      subject: null,
+    }),
+  ]);
+  expect(groups).toHaveLength(2);
+  expect(groups[0].label).toBe("Familie Eva Muster");
+  expect(groups[0].rows.map((r) => r.id)).toEqual(["2", "1"]);
+  expect(groups[0].lead.title).toBe("Abo beendet");
+});

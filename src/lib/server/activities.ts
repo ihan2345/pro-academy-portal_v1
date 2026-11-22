@@ -107,6 +107,7 @@ export async function activityList(
       q = q.in("kind", [
         "stripe",
         "subscription",
+        "cancellation",
         "assignment",
         "review",
         "period",

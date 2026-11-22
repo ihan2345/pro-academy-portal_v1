@@ -4839,6 +4839,24 @@ label {
   font-size: 16px;
   line-height: 1.4;
 }
+.activity-facts {
+  display: grid;
+  gap: 2px;
+  margin: 6px 0;
+  font-size: 13px;
+}
+.activity-facts div {
+  display: flex;
+  gap: 8px;
+}
+.activity-facts dt {
+  min-width: 72px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.activity-facts dd {
+  margin: 0;
+}
 .activity-subject {
   display: block;
   font-size: 14px;

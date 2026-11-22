@@ -63,6 +63,7 @@ export function productSchemaFiles() {
       "057-parent-auto-mail.sql",
       "058-participant-mail-state.sql",
       "059-auth-display-name.sql",
+      "060-activity-details.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

@@ -7,6 +7,11 @@ export type Activity = {
   actor: string;
   tone: "normal" | "success" | "problem";
   help?: { text: string; href: string; label: string };
+  /** Kurz beantwortet: Wer, Warum, Wie, Wann wirksam, Durch wen. */
+  facts?: { label: string; value: string }[];
+  /** Familie (Elternprofil) für Zusammenfassung und Direktlink. */
+  family?: string;
+  parentId?: string;
 };
 export type ActivityPage = {
   rows: Activity[];
@@ -99,8 +104,38 @@ export function describeActivity(
       text = `${d.previousProduct ?? "Bisheriges Paket"} → ${d.product ?? "Neues Paket"}.${d.units ? ` Das Kontingent beträgt jetzt ${d.units} Einheiten.` : ""} Bisherige Teilnahmen des Zeitraums bleiben erhalten.`;
       break;
     case "subscription":
-      title = "Abostatus geändert";
+      title =
+        d.status === "canceled"
+          ? "Abo beendet"
+          : d.status === "past_due" || d.status === "unpaid"
+            ? "Abo-Zahlung offen"
+            : d.status === "active" && d.previousStatus === "trialing"
+              ? "Abo gestartet"
+              : d.status === "active" &&
+                  ["past_due", "unpaid", "paused"].includes(
+                    d.previousStatus ?? "",
+                  )
+                ? "Abo wieder aktiv"
+                : "Abostatus geändert";
       text = `${statuses[d.previousStatus ?? ""] ?? "Bisheriger Status"} → ${statuses[d.status ?? ""] ?? "Neuer Status"}.`;
+      tone =
+        d.status === "canceled" ||
+        d.status === "past_due" ||
+        d.status === "unpaid"
+          ? "problem"
+          : "normal";
+      break;
+    case "cancellation":
+      title =
+        d.scheduled === "true"
+          ? "Kündigung vorgemerkt"
+          : "Kündigung zurückgenommen";
+      text =
+        d.scheduled === "true"
+          ? d.cancelAt
+            ? `Das Abo läuft noch bis ${germanDate(d.cancelAt)} und endet dann.`
+            : "Das Abo endet zum Ende des laufenden Zeitraums."
+          : "Das Abo läuft unverändert weiter.";
       break;
     case "review":
       title =
@@ -174,6 +209,7 @@ export function describeActivity(
       tone = row.is_open ? "problem" : "normal";
       break;
   }
+  const facts = activityFacts(row.kind, d, row.actor, admin);
   let help: Activity["help"];
   if (admin && row.is_open) {
     if (row.kind === "review")
@@ -204,5 +240,99 @@ export function describeActivity(
     actor: row.actor,
     tone,
     ...(help ? { help } : {}),
+    ...(facts.length ? { facts } : {}),
+    ...(d.family ? { family: d.family } : {}),
+    ...(admin && d.parentId && /^[0-9a-f-]{36}$/.test(d.parentId)
+      ? { parentId: d.parentId }
+      : {}),
   };
+}
+
+const germanDate = (iso: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
+};
+/** Stripe cancellation_details.reason */
+const REASONS: Record<string, string> = {
+  cancellation_requested: "Kündigung angefordert",
+  payment_failed: "Zahlung fehlgeschlagen, Stripe hat das Abo beendet",
+  payment_disputed: "Zahlung zurückgebucht (Rückbuchung)",
+};
+/** Stripe cancellation_details.feedback (Auswahl im Kündigungsportal) */
+const FEEDBACK: Record<string, string> = {
+  customer_service: "Unzufrieden mit dem Service",
+  low_quality: "Qualität nicht ausreichend",
+  missing_features: "Es fehlt etwas",
+  other: "Sonstiges",
+  switched_service: "Zu einem anderen Anbieter gewechselt",
+  too_complex: "Zu kompliziert",
+  too_expensive: "Zu teuer",
+  unused: "Wird nicht genutzt",
+};
+const STRIPE_KINDS = [
+  "subscription",
+  "cancellation",
+  "assignment",
+  "review",
+  "period",
+  "package",
+  "stripe",
+];
+
+/**
+ * Wer, Warum, Wie, Wann: kurze Zeilen für Glocke und Aktivitäten. Gründe und
+ * Kundenkommentare nur für Admins; Trainer sehen keine Abrechnungsdetails.
+ */
+export function activityFacts(
+  kind: string,
+  d: Record<string, string | undefined>,
+  actor: string,
+  admin: boolean,
+): { label: string; value: string }[] {
+  const facts: { label: string; value: string }[] = [];
+  const who = [
+    d.family && `Familie ${d.family}`,
+    d.children && `Kind: ${d.children}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (who && kind !== "parent") facts.push({ label: "Wer", value: who });
+  if (admin && (kind === "subscription" || kind === "cancellation")) {
+    const customer = !!(d.feedback || d.comment);
+    let why: string | undefined;
+    if (d.reason === "cancellation_requested")
+      why = customer
+        ? "Vom Kunden selbst gekündigt (Kundenportal)"
+        : "Kündigung angefordert (Kunde oder Stripe-Dashboard)";
+    else if (d.reason) why = REASONS[d.reason] ?? d.reason;
+    else if (
+      kind === "subscription" &&
+      (d.status === "past_due" || d.status === "unpaid")
+    )
+      why = "Letzte Zahlung fehlgeschlagen, Stripe versucht es erneut";
+    else if (kind === "subscription" && d.status === "canceled")
+      why = "Stripe hat keinen Grund übermittelt";
+    if (why) facts.push({ label: "Warum", value: why });
+    if (d.feedback)
+      facts.push({
+        label: "Angabe",
+        value: FEEDBACK[d.feedback] ?? d.feedback,
+      });
+    if (d.comment)
+      facts.push({ label: "Kommentar", value: `„${d.comment.trim()}“` });
+  }
+  if (kind === "subscription" && d.status === "canceled" && d.endedAt)
+    facts.push({ label: "Wirksam", value: `seit ${germanDate(d.endedAt)}` });
+  else if (kind === "cancellation" && d.scheduled === "true" && d.cancelAt)
+    facts.push({ label: "Wirksam", value: `zum ${germanDate(d.cancelAt)}` });
+  facts.push({
+    label: "Durch",
+    value:
+      actor === "Automatisch"
+        ? STRIPE_KINDS.includes(kind)
+          ? "Stripe (automatisch)"
+          : "Automatisch (Portal)"
+        : actor,
+  });
+  return facts;
 }
