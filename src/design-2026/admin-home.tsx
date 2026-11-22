@@ -32,6 +32,7 @@ import { NewestPlayersTile } from "./newest-players";
 import { json, useEverything } from "./people-heads";
 import type { ArchivePage, ArchivePlayer } from "@/lib/player-archive";
 import { playerKinds } from "@/lib/player-kinds";
+import { TeamKindSwitch, useTeamKind } from "./team-kind-switch";
 
 function dayStart(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -49,25 +50,11 @@ type AdminSheet =
   | { kind: "event"; event: Training }
   | null;
 type Range = "focus" | "tomorrow" | "week";
-type PlayerSplit = "team" | "kind";
-const SPLIT_KEY = "d26-players-split-v1";
 
 function AdminHomeView({ data }: { data: PortalData }) {
   const [sheet, setSheet] = useState<AdminSheet>(null);
   const [range, setRange] = useState<Range>("focus");
-  const [split, setSplitState] = useState<PlayerSplit>(() => {
-    try {
-      return localStorage.getItem(SPLIT_KEY) === "kind" ? "kind" : "team";
-    } catch {
-      return "team";
-    }
-  });
-  const setSplit = (v: PlayerSplit) => {
-    setSplitState(v);
-    try {
-      localStorage.setItem(SPLIT_KEY, v);
-    } catch {}
-  };
+  const [split, setSplit] = useTeamKind();
   // Gleicher Schlüssel wie „Neueste Spieler“ und das Archiv: teilt den Cache.
   const archive = useEverything<ArchivePlayer>(
     "archive:0",
@@ -519,25 +506,7 @@ function AdminHomeView({ data }: { data: PortalData }) {
           </Link>
         }
       >
-        <div className="d26-segments is-small d26-split-switch" role="tablist">
-          {(
-            [
-              ["team", "Team"],
-              ["kind", "Art"],
-            ] as const
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              type="button"
-              role="tab"
-              aria-selected={split === v}
-              className={split === v ? "is-active" : ""}
-              onClick={() => setSplit(v)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <TeamKindSwitch value={split} onChange={setSplit} />
         {split === "team" ? (
           <BreakdownBars
             rows={byTeam.map(([label, value]) => ({

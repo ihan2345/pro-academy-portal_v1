@@ -379,6 +379,8 @@ export function previewParentList() {
             : i === 2
               ? iso(-2)
               : null,
+      // Vorschau: Familie 4 hat sich schon eingeloggt, ist aber nicht freigeschaltet.
+      signed_up_at: i === 3 ? iso(-1) : null,
       invitation: {
         status: i === 3 ? "sent" : i === 4 ? "none" : "accepted",
         sent_at: i === 4 ? null : iso(-60),
