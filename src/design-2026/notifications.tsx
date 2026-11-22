@@ -658,9 +658,8 @@ function activityNotes(
         a.tone === "problem" ? "warn" : a.tone === "success" ? "good" : "info",
       icon: a.tone === "problem" ? AlertTriangle : many ? Layers : Sparkles,
       title: many ? `${g.label}: ${g.rows.length} Änderungen` : a.title,
-      text: many
-        ? [...new Set(g.rows.map((r) => r.title))].join(" · ")
-        : activityText(a),
+      // Bei mehreren Schritten steht oben das Wichtigste, die Liste darunter.
+      text: many ? `${a.title}: ${a.text}` : activityText(a),
       at: g.rows[0].at,
       href: target.href,
       open: target,

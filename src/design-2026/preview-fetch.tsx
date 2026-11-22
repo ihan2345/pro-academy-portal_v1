@@ -72,7 +72,9 @@ if (
     if (path === "/api/parent-profiles/list")
       return Response.json(previewParentList());
     if (path.startsWith("/api/activities"))
-      return Response.json(previewActivities(path));
+      return Response.json(
+        previewActivities(path + new URL(url, location.origin).search),
+      );
     if (path === "/api/team/stamp-card")
       return Response.json(
         {
