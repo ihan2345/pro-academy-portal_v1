@@ -491,6 +491,26 @@
   & .d26-breakdown li em.tone-lime {
     background: linear-gradient(90deg, #6fd400, var(--lime));
   }
+  /* Zentrale „Spieler gesamt“ nach Art: Farben wie Archiv und „Neueste Spieler“. */
+  & .d26-breakdown li em.tone-kind-abo {
+    background: linear-gradient(90deg, #6b2fe6, #8b53fe);
+  }
+  & .d26-breakdown li em.tone-kind-camp {
+    background: linear-gradient(90deg, #e0263f, #ff7a7e);
+  }
+  & .d26-breakdown li em.tone-kind-trial {
+    background: linear-gradient(90deg, #12b8b0, #7af5ea);
+  }
+  & .d26-breakdown li em.tone-kind-ended {
+    background: linear-gradient(90deg, #8e94a0, #c3c8d0);
+  }
+  & .d26-breakdown li em.tone-kind-none {
+    background: linear-gradient(90deg, #b8bdc6, #e4e6ea);
+  }
+  & .d26-split-switch {
+    display: inline-flex;
+    margin-bottom: 16px;
+  }
   & .d26-breakdown li b {
     text-align: right;
     font-variant-numeric: tabular-nums;
