@@ -290,10 +290,7 @@ export function activityFacts(
   admin: boolean,
 ): { label: string; value: string }[] {
   const facts: { label: string; value: string }[] = [];
-  const who = [
-    d.family && `Familie ${d.family}`,
-    d.children && `Kind: ${d.children}`,
-  ]
+  const who = [d.family && `Familie ${d.family}`, d.children]
     .filter(Boolean)
     .join(" · ");
   if (who && kind !== "parent") facts.push({ label: "Wer", value: who });
@@ -316,23 +313,29 @@ export function activityFacts(
     if (d.feedback)
       facts.push({
         label: "Angabe",
-        value: FEEDBACK[d.feedback] ?? d.feedback,
+        value: `Angegebener Grund: ${FEEDBACK[d.feedback] ?? d.feedback}`,
       });
     if (d.comment)
       facts.push({ label: "Kommentar", value: `„${d.comment.trim()}“` });
   }
   if (kind === "subscription" && d.status === "canceled" && d.endedAt)
-    facts.push({ label: "Wirksam", value: `seit ${germanDate(d.endedAt)}` });
+    facts.push({
+      label: "Wirksam",
+      value: `Beendet seit ${germanDate(d.endedAt)}`,
+    });
   else if (kind === "cancellation" && d.scheduled === "true" && d.cancelAt)
-    facts.push({ label: "Wirksam", value: `zum ${germanDate(d.cancelAt)}` });
+    facts.push({
+      label: "Wirksam",
+      value: `Endet zum ${germanDate(d.cancelAt)}`,
+    });
   facts.push({
     label: "Durch",
     value:
       actor === "Automatisch"
         ? STRIPE_KINDS.includes(kind)
-          ? "Stripe (automatisch)"
-          : "Automatisch (Portal)"
-        : actor,
+          ? "Automatisch über Stripe"
+          : "Automatisch durch das Portal"
+        : `Durch ${actor}`,
   });
   return facts;
 }

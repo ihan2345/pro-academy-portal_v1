@@ -485,16 +485,13 @@ export function ActivityRows({
             )}
             <p>{row.text}</p>
             {!!row.facts?.filter((f) => f.label !== "Durch").length && (
-              <dl className="activity-facts">
+              <ul className="activity-facts">
                 {row.facts
                   .filter((f) => f.label !== "Durch")
                   .map((f) => (
-                    <div key={f.label}>
-                      <dt>{f.label}</dt>
-                      <dd>{f.value}</dd>
-                    </div>
+                    <li key={f.label}>{f.value}</li>
                   ))}
-              </dl>
+              </ul>
             )}
             <small>
               <time dateTime={row.at}>

@@ -664,7 +664,20 @@ function activityNotes(
       href: target.href,
       open: target,
       group: "news",
-      ...(a.facts?.length ? { facts: a.facts } : {}),
+      ...(a.facts?.length
+        ? {
+            // Die Familie steht schon im Titel, dann nur noch das Kind.
+            facts: many
+              ? a.facts.flatMap((f) =>
+                  f.label !== "Wer"
+                    ? [f]
+                    : a.subject
+                      ? [{ label: "Wer", value: a.subject }]
+                      : [],
+                )
+              : a.facts,
+          }
+        : {}),
       ...(many
         ? { steps: g.rows.map((r) => ({ title: r.title, at: r.at })) }
         : {}),
@@ -1168,14 +1181,11 @@ export function NotificationBell({
         </Link>
         <p>{n.text.replace(/\.\./g, ".")}</p>
         {!!n.facts?.length && (
-          <dl className="d26-note-facts">
+          <ul className="d26-note-facts">
             {n.facts.map((f) => (
-              <Fragment key={f.label}>
-                <dt>{f.label}</dt>
-                <dd>{f.value}</dd>
-              </Fragment>
+              <li key={f.label}>{f.value}</li>
             ))}
-          </dl>
+          </ul>
         )}
         {!!n.steps?.length && (
           <ol className="d26-note-steps">

@@ -76,12 +76,12 @@ it("answers who, why and when for a cancelled subscription", async () => {
     coach = describeActivity(row, false);
   expect(admin.title).toBe("Abo beendet");
   expect(admin.facts).toEqual([
-    { label: "Wer", value: "Familie Eva Muster · Kind: Max Muster" },
+    { label: "Wer", value: "Familie Eva Muster · Max Muster" },
     { label: "Warum", value: "Vom Kunden selbst gekündigt (Kundenportal)" },
-    { label: "Angabe", value: "Zu teuer" },
+    { label: "Angabe", value: "Angegebener Grund: Zu teuer" },
     { label: "Kommentar", value: "„Wir ziehen um“" },
-    { label: "Wirksam", value: "seit 22.11.2026" },
-    { label: "Durch", value: "Stripe (automatisch)" },
+    { label: "Wirksam", value: "Beendet seit 22.11.2026" },
+    { label: "Durch", value: "Automatisch über Stripe" },
   ]);
   expect(admin.parentId).toBe(PARENT);
   expect(JSON.stringify(coach)).not.toMatch(

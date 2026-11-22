@@ -598,21 +598,16 @@
     line-height: 1.4;
     color: var(--d26-muted);
   }
-  & .d26-note-facts {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 2px 8px;
+  & .d26-notes ul.d26-note-facts {
+    gap: 2px;
     margin: 6px 0 0;
-    font-size: 12px;
-    line-height: 1.35;
-  }
-  & .d26-note-facts dt {
-    color: var(--d26-muted);
-    font-weight: 600;
-  }
-  & .d26-note-facts dd {
-    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12.5px;
+    line-height: 1.45;
     color: var(--d26-ink);
+  }
+  & .d26-note-facts li {
     overflow-wrap: anywhere;
   }
   & .d26-note-steps {
