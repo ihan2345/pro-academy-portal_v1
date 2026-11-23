@@ -13,6 +13,8 @@ import {
 import {
   stripeNoticeCount,
   openStripeNotice,
+  groupStripeNotices,
+  matchesStripeNoticeType,
   STRIPE_NOTICE_MONTH,
   STRIPE_NOTICE_PAGE_SIZE,
   type StripeNotice,
@@ -25,6 +27,7 @@ const paramsSchema = z
     window: z.enum(["month", "all"]).default("month"),
     state: z.enum(["all", "open"]).default("all"),
     page: z.coerce.number().int().min(1).max(10000).default(1),
+    type: z.enum(["all", "new", "cancel"]).default("all"),
   })
   .strict();
 type SourceNotice = Omit<StripeNotice, "state" | "token"> & {
@@ -145,83 +148,60 @@ export async function stripeOverview(
   const columns = "id,stripe_event_id,type,payload,stripe_created,status";
   const cutoff = Math.ceil((now - STRIPE_NOTICE_MONTH) / 1000),
     asOf = Math.floor(now / 1000);
-  let query = db
-    .from("stripe_webhook_events")
-    .select(columns, { count: "exact" })
-    .lte("stripe_created", asOf)
-    .order("stripe_created", { ascending: false })
-    .order("id", { ascending: false });
-  if (params.window === "month") query = query.gte("stripe_created", cutoff);
-  const [selected, recent] = await Promise.all([
-    params.state === "open"
-      ? collectRows(() => {
-          let candidates = db
-            .from("stripe_webhook_events")
-            .select(columns)
-            .lte("stripe_created", asOf);
-          if (params.window === "month")
-            candidates = candidates.gte("stripe_created", cutoff);
-          return candidates;
-        }).then((data) => ({
-          data: data.sort(
-            (a, b) =>
-              b.stripe_created - a.stripe_created || b.id.localeCompare(a.id),
-          ),
-          count: data.length,
-        }))
-      : query.range(
-          (params.page - 1) * STRIPE_NOTICE_PAGE_SIZE,
-          params.page * STRIPE_NOTICE_PAGE_SIZE - 1,
-        ),
-    params.state === "open"
-      ? Promise.resolve([])
-      : collectRows(() =>
-          db
-            .from("stripe_webhook_events")
-            .select(columns)
-            .gte("stripe_created", cutoff)
-            .lte("stripe_created", asOf),
-        ),
-  ]);
-  const pageRows = checked(selected);
-  const combined = [
-    ...new Map([...recent, ...pageRows].map((r) => [r.id, r])).values(),
-  ];
+  // Einträge derselben Familie am selben Tag werden zusammengefasst und als
+  // Gruppe geblättert. Dafür (und für den Badge) wird der ganze Zeitraum
+  // bewertet; "Gesamt" schließt die letzten 30 Tage immer mit ein.
+  const candidates = await collectRows(() => {
+    let rows = db
+      .from("stripe_webhook_events")
+      .select(columns)
+      .lte("stripe_created", asOf);
+    if (params.window === "month") rows = rows.gte("stripe_created", cutoff);
+    return rows;
+  });
   // Open status depends on current assignments and saved decisions, so evaluate
   // every candidate before paging. Batch hydration to keep DB filter URLs bounded.
   const hydrated: Awaited<ReturnType<typeof stripeActivityRows>> = [];
-  for (let offset = 0; offset < combined.length; offset += 250)
+  for (let offset = 0; offset < candidates.length; offset += 250)
     hydrated.push(
-      ...(await stripeActivityRows(combined.slice(offset, offset + 250))),
+      ...(await stripeActivityRows(candidates.slice(offset, offset + 250))),
     );
-  const decorated = await decorate(
-    hydrated.map((r) => ({
-      id: r.id,
-      kind: "activity",
-      at: r.at,
-      customer: r.customer,
-      title: r.title,
-      actionRequired: r.actionRequired,
-      activity: r,
-      reviewId: r.reviewId ?? undefined,
-      revision: [r.actionRequired, r.actionLabel, r.subscriptionId],
-    })),
-    now,
+  const decorated = (
+    await decorate(
+      hydrated.map((r) => ({
+        id: r.id,
+        kind: "activity",
+        at: r.at,
+        customer: r.customer,
+        title: r.title,
+        actionRequired: r.actionRequired,
+        activity: r,
+        reviewId: r.reviewId ?? undefined,
+        revision: [r.actionRequired, r.actionLabel, r.subscriptionId],
+      })),
+      now,
+    )
+  ).sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id));
+  const groups = groupStripeNotices(
+    params.state === "open" ? decorated.filter(openStripeNotice) : decorated,
   );
-  const notices = pageRows.map((r: any) =>
-    decorated.find((row) => row.id === r.stripe_event_id)!,
+  const selected = groups.filter((g) =>
+    matchesStripeNoticeType(g, params.type),
   );
-  const open = params.state === "open" ? notices.filter(openStripeNotice) : [];
   return {
-    rows:
-      params.state === "open"
-        ? open.slice(
-            (params.page - 1) * STRIPE_NOTICE_PAGE_SIZE,
-            params.page * STRIPE_NOTICE_PAGE_SIZE,
-          )
-        : notices,
-    total: params.state === "open" ? open.length : (selected.count ?? 0),
+    rows: selected
+      .slice(
+        (params.page - 1) * STRIPE_NOTICE_PAGE_SIZE,
+        params.page * STRIPE_NOTICE_PAGE_SIZE,
+      )
+      .flatMap((g) => g.rows),
+    total: selected.length,
     openCount: stripeNoticeCount(decorated, now),
     checkedAt,
+    typeCounts: {
+      all: groups.length,
+      new: groups.filter((g) => matchesStripeNoticeType(g, "new")).length,
+      cancel: groups.filter((g) => matchesStripeNoticeType(g, "cancel")).length,
+    },
   };
 }

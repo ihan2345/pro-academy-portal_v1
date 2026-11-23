@@ -10,6 +10,7 @@ import {
   previewActivities,
   previewConflicts,
   previewFamily,
+  previewStripeActivities,
   previewGifts,
   previewParentList,
   previewPlayerProfiles,
@@ -81,6 +82,13 @@ if (
           error: "Die Stempelkarte selbst ist in der Vorschau nicht verfügbar.",
         },
         { status: 404 },
+      );
+    if (
+      path === "/api/admin/stripe-overview" &&
+      new URL(url, location.origin).searchParams.get("section") === "activities"
+    )
+      return Response.json(
+        previewStripeActivities(new URL(url, location.origin).search),
       );
     if (path === "/api/admin/stripe-conflicts")
       return Response.json(previewConflicts());

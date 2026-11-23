@@ -263,6 +263,7 @@ async function handler(
           window: request.nextUrl.searchParams.get("window") ?? "month",
           state: request.nextUrl.searchParams.get("state") ?? "all",
           page: request.nextUrl.searchParams.get("page") ?? 1,
+          type: request.nextUrl.searchParams.get("type") ?? "all",
         }),
       );
     }
