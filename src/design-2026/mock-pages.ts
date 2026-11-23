@@ -4,6 +4,14 @@ import type { ParentProfile } from "@/lib/parent-profile";
 import type { PlayerCardData } from "./player-card";
 import { buildTrialBellEvents } from "@/lib/trials/bell";
 import { describeActivity } from "@/lib/activities";
+import {
+  groupStripeNotices,
+  matchesStripeNoticeType,
+  openStripeNotice,
+  STRIPE_NOTICE_PAGE_SIZE,
+  type StripeNotice,
+  type StripeNoticeType,
+} from "@/lib/stripe-notices";
 
 const iso = (days: number, hour = 17) => {
   const d = new Date();
@@ -773,5 +781,105 @@ export function previewTrialNotices() {
       },
       now,
     ),
+  };
+}
+
+/** Stripe-Aktivitäten der Vorschau, gruppiert und geblättert wie der Server. */
+export function previewStripeActivities(search: string) {
+  const q = new URLSearchParams(search);
+  const base = Date.now();
+  const at = (days: number, hour: number, min: number) => {
+    const d = new Date(base - days * 86400000);
+    d.setHours(hour, min, 0, 0);
+    return d.toISOString();
+  };
+  const row = (
+    id: string,
+    customer: string,
+    title: string,
+    when: string,
+    o: Partial<StripeNotice> & { kids?: string[]; label?: string } = {},
+  ): StripeNotice => ({
+    id,
+    kind: "activity",
+    at: when,
+    customer,
+    title,
+    actionRequired: !!o.actionRequired,
+    state: o.state ?? (o.actionRequired ? "open" : "done"),
+    resolvedAutomatically: !o.actionRequired && !o.state,
+    token: id,
+    activity: {
+      id,
+      at: when,
+      title,
+      customer,
+      subscriptionId: "sub_preview",
+      assignment: o.actionRequired ? "unassigned" : "assigned",
+      children: o.kids ?? [],
+      actionRequired: !!o.actionRequired,
+      actionLabel: o.actionRequired ? (o.label ?? "Kind zuordnen") : null,
+      href: o.actionRequired ? "/admin/stripe" : null,
+    },
+  });
+  const all = [
+    row("e1", "Familie Yılmaz", "Buchung abgeschlossen", at(0, 9, 12), {
+      kids: ["Emir Yılmaz"],
+    }),
+    row("e2", "Familie Yılmaz", "Neues Abo abgeschlossen", at(0, 9, 12), {
+      actionRequired: true,
+      kids: ["Emir Yılmaz"],
+    }),
+    row("e3", "Familie Yılmaz", "Rechnung bezahlt", at(0, 9, 13), {
+      kids: ["Emir Yılmaz"],
+    }),
+    row("e4", "Familie Yılmaz", "Kundendaten aktualisiert", at(0, 9, 14)),
+    row(
+      "e5",
+      "Familie Becker",
+      "Abo zum Laufzeitende gekündigt",
+      at(1, 18, 40),
+      {
+        kids: ["Lina Becker", "Paul Becker"],
+      },
+    ),
+    row("e6", "Familie Schäfer", "Abo-Verlängerung bezahlt", at(2, 4, 2), {
+      kids: ["Mats Schäfer"],
+    }),
+    row("e7", "Familie Kaya", "Zahlung fehlgeschlagen", at(3, 4, 5), {
+      actionRequired: true,
+      label: "Zahlung prüfen",
+      kids: ["Deniz Kaya"],
+    }),
+    row("e8", "Familie Kaya", "Abo beendet", at(3, 4, 6), {
+      kids: ["Deniz Kaya"],
+    }),
+    row("e9", "Familie Neumann", "Neues Abo abgeschlossen", at(5, 16, 20), {
+      kids: ["Ben Neumann"],
+    }),
+    row("e10", "Familie Neumann", "Rechnung bezahlt", at(5, 16, 21), {
+      kids: ["Ben Neumann"],
+    }),
+  ];
+  const open = q.get("state") === "open";
+  const type = (q.get("type") ?? "all") as StripeNoticeType;
+  const page = Number(q.get("page") ?? 1);
+  const groups = groupStripeNotices(open ? all.filter(openStripeNotice) : all);
+  const selected = groups.filter((g) => matchesStripeNoticeType(g, type));
+  return {
+    rows: selected
+      .slice(
+        (page - 1) * STRIPE_NOTICE_PAGE_SIZE,
+        page * STRIPE_NOTICE_PAGE_SIZE,
+      )
+      .flatMap((g) => g.rows),
+    total: selected.length,
+    openCount: all.filter(openStripeNotice).length,
+    checkedAt: new Date(base).toISOString(),
+    typeCounts: {
+      all: groups.length,
+      new: groups.filter((g) => matchesStripeNoticeType(g, "new")).length,
+      cancel: groups.filter((g) => matchesStripeNoticeType(g, "cancel")).length,
+    },
   };
 }

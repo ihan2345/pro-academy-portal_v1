@@ -503,3 +503,86 @@ it("installs isolated acknowledgement storage with RLS, service-only access, uni
     await db.close();
   }
 });
+it("collects the same family's events of one day into one paged group and filters new subscriptions or cancellations", async () => {
+  // Mittags (UTC), damit keine Gruppe über Mitternacht reicht.
+  const base = Math.floor(now / 86400000) * 86400 - 3 * 86400 + 12 * 3600;
+  const events = [
+    ["evt_a1", "Familie Adam", "Buchung abgeschlossen", 0],
+    ["evt_a2", "Familie Adam", "Neues Abo abgeschlossen", 5],
+    ["evt_a3", "Familie Adam", "Rechnung bezahlt", 10],
+    ["evt_b1", "Familie Berg", "Abo zum Laufzeitende gekündigt", 20],
+    ["evt_c1", "Familie Cem", "Rechnung bezahlt", 30],
+    ["evt_a4", "Familie Adam", "Rechnung bezahlt", 86400],
+  ] as const;
+  m.tables.stripe_webhook_events = events.map(([id, , , offset], n) => ({
+    id: String(n).padStart(4, "0"),
+    stripe_event_id: id,
+    stripe_created: base + offset,
+    status: "processed",
+  }));
+  m.hydrate.mockImplementation(async (rows: any[]) =>
+    rows.map((r) => {
+      const [, customer, title] = events.find(
+        (e) => e[0] === r.stripe_event_id,
+      )!;
+      return {
+        id: r.stripe_event_id,
+        at: new Date(r.stripe_created * 1000).toISOString(),
+        customer,
+        title,
+        subscriptionId: "sub_x",
+        assignment: "assigned",
+        children: [],
+        actionRequired: false,
+        actionLabel: null,
+        href: null,
+      };
+    }),
+  );
+  const all = await stripeOverview(admin, { section: "activities" });
+  expect(all.total).toBe(4);
+  expect(all.typeCounts).toEqual({ all: 4, new: 1, cancel: 1 });
+  expect(all.rows.map((r) => r.id)).toEqual([
+    "evt_a4",
+    "evt_c1",
+    "evt_b1",
+    "evt_a3",
+    "evt_a2",
+    "evt_a1",
+  ]);
+  const fresh = await stripeOverview(admin, {
+    section: "activities",
+    type: "new",
+  });
+  expect(fresh.total).toBe(1);
+  // Die ganze Tagesgruppe der Familie bleibt zusammen sichtbar.
+  expect(fresh.rows.map((r) => r.id)).toEqual(["evt_a3", "evt_a2", "evt_a1"]);
+  const cancelled = await stripeOverview(admin, {
+    section: "activities",
+    type: "cancel",
+  });
+  expect(cancelled.rows.map((r) => r.id)).toEqual(["evt_b1"]);
+});
+it("puts an open action at the top of a family group", async () => {
+  const { groupStripeNotices } = await import("../src/lib/stripe-notices");
+  const at = (min: number) =>
+    new Date(Date.UTC(2026, 2, 10, 12) - min * 60000).toISOString();
+  const row = (id: string, title: string, min: number, open = false) =>
+    ({
+      id,
+      kind: "activity",
+      at: at(min),
+      customer: "Familie Adam",
+      title,
+      actionRequired: open,
+      state: "open",
+      token: id,
+    }) as any;
+  const [g] = groupStripeNotices([
+    row("1", "Rechnung bezahlt", 1),
+    row("2", "Neues Abo abgeschlossen", 2),
+    row("3", "Zahlung fehlgeschlagen", 3, true),
+  ]);
+  expect(g.rows).toHaveLength(3);
+  expect(g.lead.id).toBe("3");
+});

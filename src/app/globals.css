@@ -4597,6 +4597,99 @@ label {
   padding: 10px;
   border-radius: 8px;
 }
+.stripe-notice-type {
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 14px;
+  overflow-x: auto;
+}
+.stripe-notice-type button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.stripe-notice-type-count {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e4e6ee;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.stripe-notice-type button[aria-pressed="true"] .stripe-notice-type-count {
+  background: #ece7fb;
+  color: #5b3fc4;
+}
+.stripe-notice-steps {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  border-top: 1px solid #f0e7e0;
+}
+.stripe-notice-steps > li {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 10px 0 10px 16px;
+  border-bottom: 1px solid #f0e7e0;
+}
+.stripe-notice-steps > li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.stripe-notice-steps > li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 17px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c9b8f2;
+}
+.stripe-notice-steps > li > .stripe-notice-state {
+  position: absolute;
+  top: 8px;
+  right: 0;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #92552c;
+  background: #fff1e5;
+}
+.stripe-notice-steps > li > .stripe-notice-state.done {
+  color: #2b704b;
+  background: #e9f5ec;
+}
+.stripe-notice-steps > li > .stripe-notice-state.ignored {
+  color: #667085;
+  background: #eef0f4;
+}
+.stripe-notice-steps > li > .stripe-notice-title {
+  padding-right: 150px;
+}
+.stripe-notice-step-time {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.stripe-notice-steps > li.acknowledged .stripe-notice-title {
+  color: #667085;
+}
+@media (max-width: 600px) {
+  .stripe-notice-steps > li > .stripe-notice-state {
+    position: static;
+    justify-self: start;
+  }
+  .stripe-notice-steps > li > .stripe-notice-title {
+    padding-right: 0;
+  }
+}
 .stripe-notice-pagination {
   display: flex;
   align-items: center;

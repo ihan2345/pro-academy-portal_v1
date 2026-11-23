@@ -7,6 +7,7 @@ import {
   Circle,
   CreditCard,
   Repeat,
+  Layers,
 } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/domain";
 import { DashboardDisclosure } from "./dashboard-disclosure";
@@ -14,7 +15,9 @@ import {
   recentStripeNotice,
   openStripeNotice,
   STRIPE_NOTICE_PAGE_SIZE,
+  groupStripeNotices,
   type StripeNotice,
+  type StripeNoticeType,
   type StripeNoticePage,
   type StripeNoticeState,
 } from "@/lib/stripe-notices";
@@ -31,6 +34,7 @@ export function StripeNoticeOverview({
   const conflicts = section === "conflicts";
   const [window, setWindow] = useState<"month" | "all" | "open">("month"),
     [page, setPage] = useState(1),
+    [type, setType] = useState<StripeNoticeType>("all"),
     [data, setData] = useState<StripeNoticePage | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -49,6 +53,7 @@ export function StripeNoticeOverview({
       window: requestWindow,
       state: requestState,
       page: String(requestPage),
+      ...(conflicts ? {} : { type }),
     });
     fetch(`/api/admin/stripe-overview?${query}`, {
       signal: abort.signal,
@@ -69,7 +74,15 @@ export function StripeNoticeOverview({
         if (!abort.signal.aborted) setLoading(false);
       });
     return () => abort.abort();
-  }, [section, requestWindow, requestState, requestPage, retry, revision]);
+  }, [
+    section,
+    requestWindow,
+    requestState,
+    requestPage,
+    type,
+    retry,
+    revision,
+  ]);
   useEffect(() => {
     const refresh = () => {
       if (!saving) setRetry((n) => n + 1);
@@ -124,13 +137,6 @@ export function StripeNoticeOverview({
         return {
           ...old,
           openCount: Math.max(0, old.openCount + delta),
-          total:
-            !conflicts &&
-            window === "open" &&
-            openStripeNotice(previous) &&
-            state !== "open"
-              ? Math.max(0, old.total - 1)
-              : old.total,
           rows: old.rows.map((r) =>
             r.id === row.id && r.kind === row.kind ? { ...r, state } : r,
           ),
@@ -146,6 +152,186 @@ export function StripeNoticeOverview({
       setSaving("");
     }
   }
+  const stateLabel = (row: StripeNotice) =>
+    row.resolvedAutomatically
+      ? "Automatisch erledigt"
+      : row.state === "done"
+        ? "Erledigt"
+        : row.state === "ignored"
+          ? "Ignoriert"
+          : row.actionRequired
+            ? "Offen"
+            : "Information";
+  const groupLabel = (rows: StripeNotice[]) => {
+    const open = rows.filter(openStripeNotice).length;
+    return open ? `${open} offen` : "Zusammengefasst";
+  };
+  const groupChildren = (rows: StripeNotice[]) => [
+    ...new Set(
+      rows.flatMap((r) => [
+        ...(r.activity?.children ?? []),
+        ...(r.billing?.children.map((c) => c.name) ?? []),
+      ]),
+    ),
+  ];
+  const details = (row: StripeNotice, step = false) => (
+    <>
+      <div className="stripe-notice-title">
+        {row.actionRequired && row.state === "open" ? (
+          <TriangleAlert size={17} aria-hidden="true" />
+        ) : row.state === "done" ? (
+          <CheckCircle2 size={17} aria-hidden="true" />
+        ) : (
+          <Circle size={17} aria-hidden="true" />
+        )}
+        <strong>{row.title}</strong>
+        {step && (
+          <time className="stripe-notice-step-time" dateTime={row.at}>
+            {formatTime(row.at)}
+          </time>
+        )}
+      </div>
+      {!step && (
+        <small className="profile-muted">
+          <time dateTime={row.at}>
+            {formatDate(row.at)} · {formatTime(row.at)}
+          </time>{" "}
+          · {row.kind === "review" ? "Abo-Zuordnung" : "Stripe"}
+        </small>
+      )}
+      {row.billing && (
+        <>
+          {!!row.billing.children.length && (
+            <p>
+              {row.billing.children.map((c, i) => (
+                <span key={c.id}>
+                  {i > 0 && " · "}
+                  <Link href={`/admin/spieler/${c.id}`}>{c.name}</Link>
+                </span>
+              ))}
+            </p>
+          )}
+          {row.billing.blocked && (
+            <p>
+              Abo derzeit eingeschränkt. Zahlungs- und Abo-Status müssen geklärt
+              werden.
+            </p>
+          )}
+          {row.billing.invoices.map((invoice) => (
+            <div className="stripe-billing-invoice" key={invoice.id}>
+              <span>
+                Offen:{" "}
+                <strong>
+                  {new Intl.NumberFormat("de-DE", {
+                    style: "currency",
+                    currency: invoice.currency,
+                  }).format(invoice.remaining / 100)}
+                </strong>
+                {invoice.number && ` · ${invoice.number}`}
+              </span>
+              <a href={invoice.href} target="_blank" rel="noreferrer">
+                Rechnung in Stripe prüfen ↗
+              </a>
+            </div>
+          ))}
+          <a
+            className="secondary-button"
+            href={row.billing.href}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Abo in Stripe prüfen ↗
+          </a>
+        </>
+      )}
+      {row.reviewId && (
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={!onReview}
+          onClick={() => onReview?.(row.reviewId!)}
+        >
+          {row.activity?.actionLabel ?? "Kinder und Vorschläge prüfen"} →
+        </button>
+      )}
+      {row.activity && (
+        <>
+          {/* In der Familien-Liste nur erwähnen, was noch fehlt. */}
+          {(!step ||
+            !["assigned", "not_applicable"].includes(
+              row.activity.assignment,
+            )) && (
+            <p>
+              {
+                {
+                  assigned: "Bereits zugeordnet",
+                  unassigned: "Noch nicht zugeordnet",
+                  partial: "Teilweise zugeordnet",
+                  not_applicable: "Keine Abo-Zuordnung erforderlich",
+                }[row.activity.assignment]
+              }
+              {!step &&
+                !!row.activity.children.length &&
+                ` · ${row.activity.children.join(" · ")}`}
+            </p>
+          )}
+          {!!row.activity.trialCandidates?.length && (
+            <p className="stripe-notice-trial">
+              Mögliche Übernahme aus Probetraining:{" "}
+              {row.activity.trialCandidates.join(" · ")}. Vorhandene Angaben
+              können bei der Abo-Zuordnung übernommen werden.
+            </p>
+          )}
+          {row.activity.actionRequired &&
+            !row.reviewId &&
+            row.activity.href && (
+              <Link className="secondary-button" href={row.activity.href}>
+                {row.activity.actionLabel} →
+              </Link>
+            )}
+        </>
+      )}
+      {row.actionRequired && (
+        <div
+          className="stripe-notice-actions"
+          aria-label={`Bearbeitungsstand für ${row.customer}`}
+        >
+          {row.state === "open" ? (
+            <>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={!!saving || loading}
+                onClick={() => decide(row, "done")}
+              >
+                Erledigt
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={!!saving || loading}
+                onClick={() => decide(row, "ignored")}
+              >
+                Ignorieren
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!!saving || loading}
+              onClick={() => decide(row, "open")}
+            >
+              Wieder öffnen
+            </button>
+          )}
+          {saving === row.kind + row.id && (
+            <span role="status">Wird gespeichert …</span>
+          )}
+        </div>
+      )}
+    </>
+  );
   return (
     <DashboardDisclosure
       title={conflicts ? "Stripe/Abo-Konflikte" : "Stripe-Aktivitäten"}
@@ -200,6 +386,38 @@ export function StripeNoticeOverview({
           Aktualisieren
         </button>
       </div>
+      {!conflicts && (
+        <div
+          className="stripe-notice-filter stripe-notice-type"
+          role="group"
+          aria-label="Art der Aktivität"
+        >
+          {(["all", "new", "cancel"] as const).map((value) => (
+            <button
+              type="button"
+              key={value}
+              aria-pressed={type === value}
+              disabled={!!saving}
+              onClick={() => {
+                setType(value);
+                setPage(1);
+                setSaveError("");
+              }}
+            >
+              {value === "all"
+                ? "Alle"
+                : value === "new"
+                  ? "Neue Abos"
+                  : "Kündigungen"}
+              {data?.typeCounts && (
+                <span className="stripe-notice-type-count">
+                  {data.typeCounts[value]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
       {window === "open" && (
         <p className="profile-muted stripe-notice-explanation">
           Alle Meldungen mit offenen Aktionen, einschließlich älterer Einträge.
@@ -238,179 +456,81 @@ export function StripeNoticeOverview({
             <p>
               {window === "open"
                 ? "Keine Meldungen mit offenen Aktionen"
-                : `${conflicts ? "Keine Konflikte" : "Keine Stripe-Aktivitäten"}${window === "month" ? " in den letzten 30 Tagen" : ""}`}{" "}
+                : `${conflicts ? "Keine Konflikte" : type === "new" ? "Keine neuen Abos" : type === "cancel" ? "Keine Kündigungen" : "Keine Stripe-Aktivitäten"}${window === "month" ? " in den letzten 30 Tagen" : ""}`}{" "}
               vorhanden.
             </p>
           )}
           <div className="stripe-notice-list">
-            {visible.map((row) => (
-              <article
-                key={row.kind + row.id}
-                className={`stripe-billing-conflict stripe-notice-card ${row.state !== "open" ? "acknowledged" : ""}`}
-              >
-                <div className="stripe-billing-head">
-                  <h3>{row.customer}</h3>
-                  <span className={`stripe-notice-state ${row.state}`}>
-                    {row.resolvedAutomatically
-                      ? "Automatisch erledigt"
-                      : row.state === "done"
-                        ? "Erledigt"
-                        : row.state === "ignored"
-                          ? "Ignoriert"
-                          : row.actionRequired
-                            ? "Offen"
-                            : "Information"}
-                  </span>
-                </div>
-                <div className="stripe-notice-title">
-                  {row.actionRequired && row.state === "open" ? (
-                    <TriangleAlert size={17} aria-hidden="true" />
-                  ) : row.state === "done" ? (
-                    <CheckCircle2 size={17} aria-hidden="true" />
-                  ) : (
-                    <Circle size={17} aria-hidden="true" />
-                  )}
-                  <strong>{row.title}</strong>
-                </div>
-                <small className="profile-muted">
-                  <time dateTime={row.at}>
-                    {formatDate(row.at)} · {formatTime(row.at)}
-                  </time>{" "}
-                  · {row.kind === "review" ? "Abo-Zuordnung" : "Stripe"}
-                </small>
-                {row.billing && (
-                  <>
-                    {!!row.billing.children.length && (
-                      <p>
-                        {row.billing.children.map((c, i) => (
-                          <span key={c.id}>
-                            {i > 0 && " · "}
-                            <Link href={`/admin/spieler/${c.id}`}>
-                              {c.name}
-                            </Link>
-                          </span>
-                        ))}
-                      </p>
-                    )}
-                    {row.billing.blocked && (
-                      <p>
-                        Abo derzeit eingeschränkt. Zahlungs- und Abo-Status
-                        müssen geklärt werden.
-                      </p>
-                    )}
-                    {row.billing.invoices.map((invoice) => (
-                      <div className="stripe-billing-invoice" key={invoice.id}>
-                        <span>
-                          Offen:{" "}
-                          <strong>
-                            {new Intl.NumberFormat("de-DE", {
-                              style: "currency",
-                              currency: invoice.currency,
-                            }).format(invoice.remaining / 100)}
-                          </strong>
-                          {invoice.number && ` · ${invoice.number}`}
-                        </span>
-                        <a href={invoice.href} target="_blank" rel="noreferrer">
-                          Rechnung in Stripe prüfen ↗
-                        </a>
-                      </div>
-                    ))}
-                    <a
-                      className="secondary-button"
-                      href={row.billing.href}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Abo in Stripe prüfen ↗
-                    </a>
-                  </>
-                )}
-                {row.reviewId && (
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={!onReview}
-                    onClick={() => onReview?.(row.reviewId!)}
-                  >
-                    {row.activity?.actionLabel ??
-                      "Kinder und Vorschläge prüfen"}{" "}
-                    →
-                  </button>
-                )}
-                {row.activity && (
-                  <>
-                    <p>
-                      {
-                        {
-                          assigned: "Bereits zugeordnet",
-                          unassigned: "Noch nicht zugeordnet",
-                          partial: "Teilweise zugeordnet",
-                          not_applicable: "Keine Abo-Zuordnung erforderlich",
-                        }[row.activity.assignment]
-                      }
-                      {!!row.activity.children.length &&
-                        ` · ${row.activity.children.join(" · ")}`}
-                    </p>
-                    {!!row.activity.trialCandidates?.length && (
-                      <p className="stripe-notice-trial">
-                        Mögliche Übernahme aus Probetraining:{" "}
-                        {row.activity.trialCandidates.join(" · ")}. Vorhandene
-                        Angaben können bei der Abo-Zuordnung übernommen werden.
-                      </p>
-                    )}
-                    {row.activity.actionRequired &&
-                      !row.reviewId &&
-                      row.activity.href && (
-                        <Link
-                          className="secondary-button"
-                          href={row.activity.href}
-                        >
-                          {row.activity.actionLabel} →
-                        </Link>
-                      )}
-                  </>
-                )}
-                {row.actionRequired && (
-                  <div
-                    className="stripe-notice-actions"
-                    aria-label={`Bearbeitungsstand für ${row.customer}`}
-                  >
-                    {row.state === "open" ? (
-                      <>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          disabled={!!saving || loading}
-                          onClick={() => decide(row, "done")}
-                        >
-                          Erledigt
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          disabled={!!saving || loading}
-                          onClick={() => decide(row, "ignored")}
-                        >
-                          Ignorieren
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        disabled={!!saving || loading}
-                        onClick={() => decide(row, "open")}
-                      >
-                        Wieder öffnen
-                      </button>
-                    )}
-                    {saving === row.kind + row.id && (
-                      <span role="status">Wird gespeichert …</span>
-                    )}
+            {(conflicts
+              ? visible.map((row) => ({
+                  key: row.kind + row.id,
+                  customer: row.customer,
+                  rows: [row],
+                  lead: row,
+                }))
+              : groupStripeNotices(visible)
+            ).map((g) =>
+              g.rows.length === 1 ? (
+                <article
+                  key={g.key}
+                  className={`stripe-billing-conflict stripe-notice-card ${g.lead.state !== "open" ? "acknowledged" : ""}`}
+                >
+                  <div className="stripe-billing-head">
+                    <h3>{g.customer}</h3>
+                    <span className={`stripe-notice-state ${g.lead.state}`}>
+                      {stateLabel(g.lead)}
+                    </span>
                   </div>
-                )}
-              </article>
-            ))}
+                  {details(g.lead)}
+                </article>
+              ) : (
+                <article
+                  key={g.key}
+                  className={`stripe-billing-conflict stripe-notice-card stripe-notice-group ${g.rows.some(openStripeNotice) ? "" : "acknowledged"}`}
+                >
+                  <div className="stripe-billing-head">
+                    <h3>{g.customer}</h3>
+                    <span
+                      className={`stripe-notice-state ${g.rows.some(openStripeNotice) ? "open" : "done"}`}
+                    >
+                      {groupLabel(g.rows)}
+                    </span>
+                  </div>
+                  <div className="stripe-notice-title">
+                    <Layers size={17} aria-hidden="true" />
+                    <strong>
+                      {g.lead.title} · {g.rows.length} Ereignisse
+                    </strong>
+                  </div>
+                  <small className="profile-muted">
+                    <time dateTime={g.rows[0].at}>
+                      {formatDate(g.rows[0].at)} ·{" "}
+                      {formatTime(g.rows.at(-1)!.at)}
+                      {formatTime(g.rows.at(-1)!.at) !==
+                        formatTime(g.rows[0].at) &&
+                        `–${formatTime(g.rows[0].at)}`}
+                    </time>{" "}
+                    · Stripe
+                  </small>
+                  {!!groupChildren(g.rows).length && (
+                    <p>{groupChildren(g.rows).join(" · ")}</p>
+                  )}
+                  <ol className="stripe-notice-steps">
+                    {g.rows.map((row) => (
+                      <li
+                        key={row.kind + row.id}
+                        className={row.state !== "open" ? "acknowledged" : ""}
+                      >
+                        <span className={`stripe-notice-state ${row.state}`}>
+                          {stateLabel(row)}
+                        </span>
+                        {details(row, true)}
+                      </li>
+                    ))}
+                  </ol>
+                </article>
+              ),
+            )}
           </div>
           {!!total && (
             <nav
