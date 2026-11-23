@@ -30,6 +30,7 @@ import {
   Inbox,
   Mail,
   Siren,
+  Layers,
   Sparkles,
   Star,
   UserPlus,
@@ -68,6 +69,10 @@ export type Note = {
   group: "now" | "news";
   /** Kategorie für die aufklappbaren Gruppen; sonst aus `key` abgeleitet. */
   cat?: Cat;
+  /** Wer, Warum, Wie, Wann – kurze Antwortzeilen unter dem Text. */
+  facts?: { label: string; value: string }[];
+  /** Zusammengefasste Einzelschritte (neueste zuerst). */
+  steps?: { title: string; at: string }[];
 };
 
 /** Aufklappbare Kategorien unter "Jetzt wichtig", in dieser Reihenfolge. */
@@ -85,8 +90,8 @@ export function activityCat(title: string): Cat {
   const t = title.toLowerCase();
   if (t.startsWith("probetraining")) return "trial";
   if (
-    ["abo", "zahlung", "stripe", "rechnung", "gutschein"].some((w) =>
-      t.includes(w),
+    ["abo", "zahlung", "stripe", "rechnung", "gutschein", "kündigung"].some(
+      (w) => t.includes(w),
     )
   )
     return "pay";
@@ -500,6 +505,12 @@ function activityTarget(
   players: PortalData["players"] = [],
 ): Note["open"] {
   if (a.help) return { label: a.help.label, href: a.help.href };
+  // Abo- und Zahlungsthemen: direkt ins Elternprofil der Familie.
+  if (a.parentId && base === "/admin" && activityCat(a.title) === "pay")
+    return {
+      label: "Elternprofil öffnen",
+      href: `/admin/elternprofile/${a.parentId}`,
+    };
   // Betrifft die Aktivität ein bekanntes Kind, direkt zu dessen Spielerkarte.
   const subject = a.subject?.trim().toLowerCase();
   const player = subject
@@ -545,6 +556,46 @@ function activityTarget(
   return { label: "In Aktivitäten ansehen", href: `${base}/aktivitaeten` };
 }
 
+/** Text ohne doppelten Namen, wenn "Wer" schon als Zeile erscheint. */
+function activityText(a: Activity) {
+  if (a.facts?.some((f) => f.label === "Wer") || !a.subject) return a.text;
+  return `${a.subject}: ${a.text}`;
+}
+
+/**
+ * Fasst Ereignisse zur selben Familie bzw. zum selben Kind am selben Tag zu
+ * einem Hinweis zusammen. Leitereignis: Problem vor allem anderen, sonst das
+ * neueste. Reihenfolge der Gruppen: neueste zuerst.
+ */
+export function groupActivities(rows: Activity[]) {
+  const groups = new Map<
+    string,
+    { key: string; label: string; rows: Activity[]; lead: Activity }
+  >();
+  const sorted = [...rows].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  for (const r of sorted) {
+    const who = r.family
+      ? `f:${r.family}`
+      : r.subject
+        ? `s:${r.subject}`
+        : `id:${r.id}`;
+    const key = `${who}:${calendarDate(new Date(r.at))}`;
+    const g = groups.get(key);
+    if (!g)
+      groups.set(key, {
+        key,
+        label: r.family ? `Familie ${r.family}` : (r.subject ?? r.title),
+        rows: [r],
+        lead: r,
+      });
+    else {
+      g.rows.push(r);
+      if (g.lead.tone !== "problem" && r.tone === "problem") g.lead = r;
+    }
+  }
+  return [...groups.values()];
+}
+
 function activityNotes(
   summary: ActivitySummary | null,
   rows: Activity[],
@@ -567,11 +618,12 @@ function activityNotes(
       tone: "warn",
       icon: AlertTriangle,
       title: a.title,
-      text: a.subject ? `${a.subject}: ${a.text}` : a.text,
+      text: activityText(a),
       at: a.at,
       href: target.href,
       open: target,
       group: "now",
+      ...(a.facts?.length ? { facts: a.facts } : {}),
     });
   }
   const rest = issues.length ? shown.length - 20 : (summary?.open ?? 0);
@@ -589,25 +641,48 @@ function activityNotes(
       open: { label: "Offene Vorgänge ansehen", href: `${base}/aktivitaeten` },
       group: "now",
     });
-  for (const a of rows
+  const fresh = rows
     .filter((r) => !issues.some((i) => i.id === r.id))
     // Probetraining-Mails erscheinen schon als eigene Probetraining-Hinweise.
-    .filter((r) => !trialsShown || !r.title.startsWith("Probetraining"))
-    .slice(0, 4))
+    .filter((r) => !trialsShown || !r.title.startsWith("Probetraining"));
+  for (const g of groupActivities(fresh).slice(0, 6)) {
+    const a = g.lead,
+      target = activityTarget(a, base, players)!;
+    const many = g.rows.length > 1;
     notes.push({
-      id: `act:${a.id}`,
-      key: `act:${a.id}`,
+      // Neues Ereignis in der Gruppe = wieder ungelesen.
+      id: `act:${g.rows[0].id}`,
+      key: many ? `act-grp:${g.key}` : `act:${a.id}`,
       cat: activityCat(a.title),
       tone:
         a.tone === "problem" ? "warn" : a.tone === "success" ? "good" : "info",
-      icon: a.tone === "problem" ? AlertTriangle : Sparkles,
-      title: a.title,
-      text: a.subject ? `${a.subject}: ${a.text}` : a.text,
-      at: a.at,
-      href: activityTarget(a, base, players)!.href,
-      open: activityTarget(a, base, players),
+      icon: a.tone === "problem" ? AlertTriangle : many ? Layers : Sparkles,
+      title: many ? `${g.label}: ${g.rows.length} Änderungen` : a.title,
+      // Bei mehreren Schritten steht oben das Wichtigste, die Liste darunter.
+      text: many ? `${a.title}: ${a.text}` : activityText(a),
+      at: g.rows[0].at,
+      href: target.href,
+      open: target,
       group: "news",
+      ...(a.facts?.length
+        ? {
+            // Die Familie steht schon im Titel, dann nur noch das Kind.
+            facts: many
+              ? a.facts.flatMap((f) =>
+                  f.label !== "Wer"
+                    ? [f]
+                    : a.subject
+                      ? [{ label: "Wer", value: a.subject }]
+                      : [],
+                )
+              : a.facts,
+          }
+        : {}),
+      ...(many
+        ? { steps: g.rows.map((r) => ({ title: r.title, at: r.at })) }
+        : {}),
     });
+  }
   return notes;
 }
 
@@ -863,7 +938,7 @@ export function NotificationBell({
       const [summary, list, issues, conflicts, trials] = await Promise.all([
         cached<ActivitySummary>("/api/activities/summary", 5 * 60000),
         cached<{ rows: Activity[] }>(
-          "/api/activities?window=0&limit=3",
+          "/api/activities?window=0&limit=50",
           5 * 60000,
         ),
         cached<{ rows: Activity[] }>(
@@ -1105,6 +1180,22 @@ export function NotificationBell({
           {n.title}
         </Link>
         <p>{n.text.replace(/\.\./g, ".")}</p>
+        {!!n.facts?.length && (
+          <ul className="d26-note-facts">
+            {n.facts.map((f) => (
+              <li key={f.label}>{f.value}</li>
+            ))}
+          </ul>
+        )}
+        {!!n.steps?.length && (
+          <ol className="d26-note-steps">
+            {n.steps.map((st, i) => (
+              <li key={i}>
+                <time dateTime={st.at}>{formatTime(st.at)}</time> {st.title}
+              </li>
+            ))}
+          </ol>
+        )}
         <div className="d26-note-meta">
           {n.at && <small>{ago(n.at, now)}</small>}
           {n.external && (

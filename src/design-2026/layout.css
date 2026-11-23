@@ -598,6 +598,31 @@
     line-height: 1.4;
     color: var(--d26-muted);
   }
+  & .d26-notes ul.d26-note-facts {
+    gap: 2px;
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--d26-ink);
+  }
+  & .d26-note-facts li {
+    overflow-wrap: anywhere;
+  }
+  & .d26-note-steps {
+    margin: 6px 0 0;
+    padding: 0 0 0 10px;
+    border-left: 2px solid rgba(118, 118, 128, 0.2);
+    list-style: none;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--d26-muted);
+  }
+  & .d26-note-steps time {
+    font-variant-numeric: tabular-nums;
+    margin-right: 4px;
+  }
   & .d26-note-meta {
     display: flex;
     gap: 10px;

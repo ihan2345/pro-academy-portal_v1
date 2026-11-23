@@ -4839,6 +4839,13 @@ label {
   font-size: 16px;
   line-height: 1.4;
 }
+.activity-facts {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.45;
+}
 .activity-subject {
   display: block;
   font-size: 14px;

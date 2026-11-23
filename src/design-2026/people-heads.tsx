@@ -22,6 +22,9 @@ import { activityStatus, ONLINE_WINDOW } from "@/lib/user-activity";
 import type { ArchivePage, ArchivePlayer } from "@/lib/player-archive";
 import { PageHead, SheetRow } from "./page-head";
 import { PlayerArchive } from "./player-archive";
+import { BreakdownBars } from "./ui";
+import { TeamKindSwitch, useTeamKind } from "./team-kind-switch";
+import { familyKinds, familyTeams } from "@/lib/player-kinds";
 
 /** Grün: gerade aktiv im Portal. Orange: in den letzten 30 Minuten da. */
 const IDLE_WINDOW = 30 * 60000;
@@ -319,12 +322,27 @@ export function ParentListHead({
       throw new Error("zu viele Seiten");
     },
   );
+  // Gleicher Schlüssel wie Archiv und Zentrale: teilt den Tab-Cache.
+  const archive = useEverything<ArchivePlayer>(
+    "archive:0",
+    async (signal) =>
+      ((await json("/api/player-archive", signal)) as ArchivePage).rows,
+  );
+  const [split, setSplit] = useTeamKind();
   const rows = all.rows;
   const ready = !!rows;
   const families = rows?.length ?? total ?? loaded.length;
   const kids = rows?.reduce((s, r) => s + r.children, 0) ?? 0;
   const active = rows?.filter((r) => r.portal_access?.activated) ?? [];
   const inactive = rows?.filter((r) => !r.portal_access?.activated) ?? [];
+  // Angemeldet (Konto mit dieser E-Mail hat sich eingeloggt), aber das
+  // Elternprofil ist noch nicht freigeschaltet, z. B. wegen der Launch-Sperre.
+  const signedUp = inactive.filter((r) => r.portal_access?.signed_up_at);
+  const untouched = inactive.filter((r) => !r.portal_access?.signed_up_at);
+  const ids = (rows ?? []).map((r) => r.id);
+  const teams = ready && archive.rows ? familyTeams(ids, archive.rows) : null;
+  const kinds = ready && archive.rows ? familyKinds(ids, archive.rows) : null;
+  const split_rows = split === "team" ? teams?.rows : kinds;
   const loyal = [...(rows ?? [])]
     .filter((r) => r.months > 0)
     .sort((a, b) => b.months - a.months || a.name.localeCompare(b.name, "de"))
@@ -387,7 +405,29 @@ export function ParentListHead({
           sheet: {
             title: "Alle Familien",
             eyebrow: ready ? `${families} Familien` : undefined,
-            body: list(rows ?? [], (r) => familyStatus(r.months).label),
+            body: (
+              <>
+                <TeamKindSwitch value={split} onChange={setSplit} />
+                {split_rows ? (
+                  <>
+                    <BreakdownBars rows={split_rows} />
+                    <p className="d26-split-note">
+                      {split === "team"
+                        ? `Eine Familie zählt in jedem Team ihrer Kinder${teams?.multi ? `, ${teams.multi} ${teams.multi === 1 ? "Familie hat" : "Familien haben"} Kinder in mehreren Teams` : ""}.`
+                        : "Jede Familie zählt einmal, mit der stärksten Art ihrer Kinder: Abo vor Camp vor Probetraining."}
+                    </p>
+                  </>
+                ) : (
+                  <p className="d26-empty">
+                    {archive.failed || all.failed
+                      ? "Die Aufschlüsselung konnte nicht geladen werden."
+                      : "Wird geladen …"}
+                  </p>
+                )}
+                <h4 className="d26-split-list-title">Alle Familien</h4>
+                {list(rows ?? [], (r) => familyStatus(r.months).label)}
+              </>
+            ),
           },
         },
         {
@@ -403,7 +443,7 @@ export function ParentListHead({
           alert: inactive.length > 0,
           tip: ready
             ? inactive.length
-              ? `${inactive.length} von ${families} noch nicht aktiviert`
+              ? `${inactive.length} von ${families} noch nicht aktiviert${signedUp.length ? `, davon ${signedUp.length} schon angemeldet` : ""}`
               : "Alle aktiviert"
             : undefined,
           sheet: {
@@ -414,8 +454,13 @@ export function ParentListHead({
                 active={list(active, (r) =>
                   seen(r) ? activityStatus(seen(r), now).label : "Aktiviert",
                 )}
-                inactive={list(inactive, () => "Nicht aktiviert")}
-                counts={[active.length, inactive.length]}
+                signedUp={list(
+                  signedUp,
+                  (r) =>
+                    activityStatus(r.portal_access!.signed_up_at!, now).label,
+                )}
+                inactive={list(untouched, () => "Nicht angemeldet")}
+                counts={[active.length, signedUp.length, untouched.length]}
               />
             ),
           },
@@ -480,35 +525,43 @@ export function ParentListHead({
 
 function PortalSwitch({
   active,
+  signedUp,
   inactive,
   counts,
 }: {
   active: React.ReactNode;
+  signedUp: React.ReactNode;
   inactive: React.ReactNode;
-  counts: [number, number];
+  counts: [number, number, number];
 }) {
-  const [show, setShow] = useState<"on" | "off">("on");
+  const [show, setShow] = useState<"on" | "signed" | "off">("on");
+  const chips = [
+    ["on", "Aktiv", counts[0], "Elternprofil freigeschaltet"],
+    [
+      "signed",
+      "Angemeldet, nicht aktiv",
+      counts[1],
+      "Hat sich mit dieser E-Mail schon eingeloggt, das Elternprofil ist aber noch nicht freigeschaltet",
+    ],
+    ["off", "Noch nicht angemeldet", counts[2], "Noch nie eingeloggt"],
+  ] as const;
   return (
     <>
       <div className="d26-chips d26-sheet-switch" aria-label="Portalstatus">
-        <button
-          type="button"
-          className={`d26-chip ${show === "on" ? "is-active" : ""}`}
-          aria-pressed={show === "on"}
-          onClick={() => setShow("on")}
-        >
-          Aktiv · {counts[0]}
-        </button>
-        <button
-          type="button"
-          className={`d26-chip ${show === "off" ? "is-active" : ""}`}
-          aria-pressed={show === "off"}
-          onClick={() => setShow("off")}
-        >
-          Noch nicht aktiv · {counts[1]}
-        </button>
+        {chips.map(([v, label, n, tip]) => (
+          <button
+            key={v}
+            type="button"
+            data-tip={tip}
+            className={`d26-chip ${show === v ? "is-active" : ""}`}
+            aria-pressed={show === v}
+            onClick={() => setShow(v)}
+          >
+            {label} · {n}
+          </button>
+        ))}
       </div>
-      {show === "on" ? active : inactive}
+      {show === "on" ? active : show === "signed" ? signedUp : inactive}
     </>
   );
 }

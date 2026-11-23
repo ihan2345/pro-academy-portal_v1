@@ -25,6 +25,33 @@ async function collect(make: () => any, key = "id"): Promise<any[]> {
   throw new Error("Portalstatus zu umfangreich");
 }
 const email = (s?: string) => (s ?? "").trim().toLowerCase();
+
+/**
+ * Letzter Login je E-Mail für Login-Konten, die noch an kein Elternprofil
+ * gebunden sind. Rein lesend; bei Fehlern leer (Status bleibt dann wie bisher).
+ */
+async function signedUpByEmail(
+  emails: string[],
+  db: ReturnType<typeof serviceDb>,
+) {
+  const wanted = new Set(emails.map(email).filter(Boolean));
+  const found = new Map<string, string>();
+  if (!wanted.size) return found;
+  try {
+    for (let page = 1; page <= 20; page++) {
+      const r = await db.auth.admin.listUsers({ page, perPage: 1000 });
+      if (r.error) return new Map<string, string>();
+      for (const u of r.data.users) {
+        const e = email(u.email);
+        if (wanted.has(e) && u.last_sign_in_at) found.set(e, u.last_sign_in_at);
+      }
+      if (r.data.users.length < 1000) break;
+    }
+  } catch {
+    return new Map<string, string>();
+  }
+  return found;
+}
 /** Read delivery/claim evidence. Never creates users, links, or sends invitations. */
 export async function readProfileAccess(
   parents: Parent[],
@@ -158,6 +185,17 @@ export async function readProfileAccess(
       });
       if (role !== "admin") access.last_seen_at = null;
       result.set(parent.id, access);
+    }
+    const open = parents.filter((p) => !p.auth_user_id && p.contact_email);
+    if (open.length) {
+      const signedUp = await signedUpByEmail(
+        open.map((p) => p.contact_email!),
+        db,
+      );
+      for (const p of open) {
+        const at = signedUp.get(email(p.contact_email));
+        if (at) result.get(p.id)!.signed_up_at = at;
+      }
     }
   } catch {
     for (const p of parents)

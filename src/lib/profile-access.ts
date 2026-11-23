@@ -2,6 +2,11 @@ export type ProfileAccess = {
   activated: boolean;
   signed_in: boolean;
   last_seen_at: string | null;
+  /**
+   * Nicht freigeschaltet, aber ein Login-Konto mit dieser E-Mail hat sich
+   * schon eingeloggt (letzter Login). Fehlt, wenn unbekannt oder freigeschaltet.
+   */
+  signed_up_at?: string | null;
   complete: boolean;
   invitation: {
     status:
@@ -25,7 +30,9 @@ export function accessLabel(access: ProfileAccess) {
     ? "Bereits angemeldet"
     : access.activated
       ? "Zugang aktiviert"
-      : "Noch nicht angemeldet";
+      : access.signed_up_at
+        ? "Angemeldet, noch nicht freigeschaltet"
+        : "Noch nicht angemeldet";
 }
 export function invitationLabel(access: ProfileAccess) {
   const name =

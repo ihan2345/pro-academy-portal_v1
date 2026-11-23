@@ -3,6 +3,7 @@
 import type { ParentProfile } from "@/lib/parent-profile";
 import type { PlayerCardData } from "./player-card";
 import { buildTrialBellEvents } from "@/lib/trials/bell";
+import { describeActivity } from "@/lib/activities";
 
 const iso = (days: number, hour = 17) => {
   const d = new Date();
@@ -378,6 +379,8 @@ export function previewParentList() {
             : i === 2
               ? iso(-2)
               : null,
+      // Vorschau: Familie 4 hat sich schon eingeloggt, ist aber nicht freigeschaltet.
+      signed_up_at: i === 3 ? iso(-1) : null,
       invitation: {
         status: i === 3 ? "sent" : i === 4 ? "none" : "accepted",
         sent_at: i === 4 ? null : iso(-60),
@@ -390,21 +393,88 @@ export function previewParentList() {
 
 export function previewActivities(path: string) {
   if (path.endsWith("/summary"))
-    return { asOf: new Date().toISOString(), recent: 14, open: 2 };
-  const rows = [
-    ["Training bestätigt", "Techniktraining am Sportpark Nord", "success"],
-    ["Neue Buchung", "Ostercamp für Lea Yilmaz", "success"],
-    ["Zahlung offen", "Gamechanger für Ben Schulz", "problem"],
-    ["Bericht versendet", "Monatsbericht an Familie Kaya", "normal"],
-  ].map(([title, text, tone], i) => ({
-    id: `a-${i}`,
-    at: iso(-i / 4),
-    title,
-    text,
-    subject: null,
-    actor: "System",
-    tone,
-  }));
+    return { asOf: new Date().toISOString(), recent: 14, open: 0 };
+  if (path.includes("window=issues")) return { rows: [], next: null, total: 0 };
+  const ago = (min: number) => new Date(Date.now() - min * 60000).toISOString();
+  const kaya = {
+    family: "Selin Kaya",
+    parentId: "00000000-0000-4000-8000-00000000aa01",
+  };
+  const raw = [
+    {
+      kind: "subscription",
+      at: ago(62),
+      subject: "Emir Kaya",
+      details: {
+        ...kaya,
+        status: "canceled",
+        previousStatus: "active",
+        children: "Emir Kaya",
+        reason: "cancellation_requested",
+        feedback: "too_expensive",
+        comment: "Wir ziehen im Januar nach Hamburg.",
+        endedAt: new Date().toISOString().slice(0, 10),
+      },
+    },
+    {
+      kind: "assignment",
+      at: ago(61),
+      subject: "Emir Kaya",
+      details: { ...kaya, action: "DELETE" },
+    },
+    {
+      kind: "mail",
+      at: ago(60),
+      subject: "Emir Kaya",
+      details: { ...kaya, status: "sent", mailKind: "planning" },
+    },
+    {
+      kind: "cancellation",
+      at: ago(150),
+      subject: "Mia Weber",
+      details: {
+        family: "Jana Weber",
+        parentId: "00000000-0000-4000-8000-00000000aa02",
+        children: "Mia Weber",
+        scheduled: "true",
+        reason: "cancellation_requested",
+        cancelAt: "2026-12-31",
+      },
+    },
+    {
+      kind: "subscription",
+      at: ago(240),
+      subject: "Ben Schulz",
+      details: {
+        family: "Tim Schulz",
+        parentId: "00000000-0000-4000-8000-00000000aa03",
+        children: "Ben Schulz",
+        status: "past_due",
+        previousStatus: "active",
+      },
+    },
+    {
+      kind: "training",
+      at: ago(300),
+      subject: null,
+      actor: "Coach Ayhan",
+      details: { action: "UPDATE", title: "Techniktraining Sportpark Nord" },
+    },
+  ];
+  const rows = raw.map((r, i) =>
+    describeActivity(
+      {
+        id: `a:00000000-0000-4000-8000-0000000000${10 + i}`,
+        occurred_at: r.at,
+        kind: r.kind,
+        subject: r.subject,
+        actor: r.actor ?? "Automatisch",
+        details: r.details,
+        is_open: false,
+      },
+      true,
+    ),
+  );
   return { rows, next: null, total: rows.length };
 }
 

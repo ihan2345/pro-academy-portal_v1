@@ -29,6 +29,10 @@ import { DisclosureAsChip } from "@/components/dashboard-disclosure";
 import { TrialDashboard } from "@/components/trials/team";
 import { useMounted } from "./parent-experience";
 import { NewestPlayersTile } from "./newest-players";
+import { json, useEverything } from "./people-heads";
+import type { ArchivePage, ArchivePlayer } from "@/lib/player-archive";
+import { playerKinds } from "@/lib/player-kinds";
+import { TeamKindSwitch, useTeamKind } from "./team-kind-switch";
 
 function dayStart(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -50,6 +54,13 @@ type Range = "focus" | "tomorrow" | "week";
 function AdminHomeView({ data }: { data: PortalData }) {
   const [sheet, setSheet] = useState<AdminSheet>(null);
   const [range, setRange] = useState<Range>("focus");
+  const [split, setSplit] = useTeamKind();
+  // Gleicher Schlüssel wie „Neueste Spieler“ und das Archiv: teilt den Cache.
+  const archive = useEverything<ArchivePlayer>(
+    "archive:0",
+    async (signal) =>
+      ((await json("/api/player-archive", signal)) as ArchivePage).rows,
+  );
   const now = new Date();
   const today = dayStart(now);
   const active = data.events.filter((e) => e.status !== "cancelled");
@@ -114,6 +125,12 @@ function AdminHomeView({ data }: { data: PortalData }) {
   const byLocation = tally(in14.map((e) => e.location_name));
   const byCoach = tally(in14.map((e) => e.trainer_name));
   const byTeam = tally(data.players.map((p) => p.team ?? undefined));
+  const byKind = archive.rows
+    ? playerKinds(
+        data.players.map((p) => p.id),
+        archive.rows,
+      )
+    : null;
   const seats14 = in14.reduce((s, e) => s + e.participants.length, 0);
   const playerName = (id: string) => {
     const p =
@@ -482,20 +499,31 @@ function AdminHomeView({ data }: { data: PortalData }) {
         open={sheet?.kind === "players"}
         onClose={() => setSheet(null)}
         eyebrow={`${data.players.length} Spieler`}
-        title="Nach Team"
+        title={split === "team" ? "Nach Team" : "Nach Art"}
         footer={
           <Link href="/admin/spieler" className="d26-btn is-primary">
             Alle Familien <ArrowRight size={16} />
           </Link>
         }
       >
-        <BreakdownBars
-          rows={byTeam.map(([label, value]) => ({
-            label,
-            value,
-            tone: "purple",
-          }))}
-        />
+        <TeamKindSwitch value={split} onChange={setSplit} />
+        {split === "team" ? (
+          <BreakdownBars
+            rows={byTeam.map(([label, value]) => ({
+              label,
+              value,
+              tone: "purple",
+            }))}
+          />
+        ) : byKind ? (
+          <BreakdownBars rows={byKind} />
+        ) : archive.failed ? (
+          <p className="d26-empty">
+            Die Aufschlüsselung nach Art konnte nicht geladen werden.
+          </p>
+        ) : (
+          <p className="d26-empty">Wird geladen …</p>
+        )}
       </Sheet>
       <Sheet
         open={sheet?.kind === "week"}
