@@ -147,6 +147,26 @@ function AdminHomeView({ data }: { data: PortalData }) {
         : isToday
           ? "Heute auf dem Platz"
           : `Als Nächstes · ${formatDate(focusDay.toISOString(), { weekday: "long", day: "numeric", month: "long" })}`;
+  // Kurzer Text für die Kachel (der lange fieldTitle bleibt Titel im Sheet).
+  const shortDay = (d: Date | string) =>
+    formatDate(typeof d === "string" ? d : d.toISOString(), {
+      weekday: "short",
+      day: "numeric",
+      month: "numeric",
+    });
+  const trainingWord = (n: number) => (n === 1 ? "Training" : "Trainings");
+  const fieldLabel =
+    range === "week"
+      ? `${trainingWord(shown.length)} in 7 Tagen`
+      : range === "tomorrow"
+        ? `${trainingWord(shown.length)} morgen`
+        : isToday
+          ? `${trainingWord(shown.length)} heute`
+          : shown.length
+            ? `Nächstes · ${shortDay(focusDay)}`
+            : "Keins in 14 Tagen";
+  const fieldSeats = shown.reduce((s, e) => s + e.participants.length, 0);
+  const fieldTip = `${fieldTitle}: ${shown.length} ${trainingWord(shown.length)}, ${fieldSeats} Teilnehmer. Tippen für alle Termine mit Ort, Trainer und Teilnehmern.`;
   const nextUp = shown.find((e) => Date.parse(e.ends_at) >= Date.now());
   const nextLive = !!nextUp && Date.parse(nextUp.starts_at) <= Date.now();
   const actions = [
@@ -278,7 +298,9 @@ function AdminHomeView({ data }: { data: PortalData }) {
             <div className="d26-segments is-small" role="tablist">
               {(
                 [
-                  ["focus", "Heute", "Heute"],
+                  isToday
+                    ? (["focus", "Heute", "Heute"] as const)
+                    : (["focus", "Nächstes", "Nächst."] as const),
                   ["tomorrow", "Morgen", "Morgen"],
                   ["week", "7 Tage", "7 T"],
                 ] as const
@@ -301,31 +323,35 @@ function AdminHomeView({ data }: { data: PortalData }) {
           <button
             type="button"
             className="d26-onfield-main"
+            data-tip={fieldTip}
+            aria-label={fieldTip}
             onClick={() => setSheet({ kind: "field" })}
           >
             <b>
               <CountUp value={shown.length} />
             </b>
             <span>
-              {fieldTitle} <ChevronRight size={13} />
+              {fieldLabel} <ChevronRight size={13} />
             </span>
           </button>
           <p className={`d26-onfield-next ${nextLive ? "is-live" : ""}`}>
             {nextUp ? (
               <>
                 <i aria-hidden="true" />
-                <span>
-                  {nextLive ? "Läuft" : formatTime(nextUp.starts_at)}
-                  {range === "week" && !nextLive
-                    ? ` · ${formatDate(nextUp.starts_at, { weekday: "short" })}`
-                    : ""}
-                </span>
-                <b>{nextUp.title}</b>
+                <time>
+                  {nextLive
+                    ? "Läuft"
+                    : range === "week" || (range === "focus" && !isToday)
+                      ? `${formatDate(nextUp.starts_at, { weekday: "short" })} ${formatTime(nextUp.starts_at)}`
+                      : formatTime(nextUp.starts_at)}
+                </time>
+                <em>{nextUp.location_name || nextUp.title}</em>
+                <small>{nextUp.participants.length} TN</small>
               </>
             ) : (
-              <span>
+              <em>
                 {shown.length ? "Alles gelaufen" : "Kein Training geplant"}
-              </span>
+              </em>
             )}
           </p>
         </div>
