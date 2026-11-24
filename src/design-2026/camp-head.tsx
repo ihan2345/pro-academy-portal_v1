@@ -1,6 +1,7 @@
 "use client";
 // Design 2026: Seitenkopf der Camps (Eltern und Team) wie die Zentrale.
 // Rechnet nur mit den bereits geladenen Camp-Daten.
+import { useState } from "react";
 import { CalendarDays, Euro, Ticket, Users } from "lucide-react";
 import { formatDate } from "@/lib/domain";
 import { maximumSeats } from "@/lib/camps/domain";
@@ -142,37 +143,7 @@ export function CampHead({
         vergangene und archivierte. Stornierte und erstattete Buchungen zählen
         nicht mit.
       </p>
-      {revenueGroups.map((g) => (
-        <div key={g.id} className="d26-sheet-group">
-          <h4>
-            {g.camp?.title ?? "Unbekanntes Camp"}
-            <span>{euro(g.sum)}</span>
-          </h4>
-          <p className="d26-footnote">
-            {[
-              g.camp?.days[0] && formatDate(g.camp.days[0].starts_at),
-              g.camp?.location,
-              campState(g.camp),
-              `${g.rows.length} ${g.rows.length === 1 ? "Buchung" : "Buchungen"}`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-          <div className="d26-mini-list">
-            {g.rows.map((b) => (
-              <SheetRow
-                key={b.id}
-                title={`${b.child_data.first_name} ${b.child_data.last_name}`}
-                meta={
-                  b.paid_at ? `Bezahlt am ${formatDate(b.paid_at)}` : "Bezahlt"
-                }
-                pill={b.paid_amount != null ? euro(b.paid_amount) : "Bezahlt"}
-                href={g.camp ? `/camps/${g.id}` : undefined}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
+      <RevenueByCamp groups={revenueGroups} euro={euro} state={campState} />
       {!paid.length && (
         <div className="d26-mini-list">
           <p className="d26-empty">Noch keine bezahlte Buchung.</p>
@@ -241,5 +212,75 @@ export function CampHead({
           : []),
       ]}
     />
+  );
+}
+
+type RevenueGroup = {
+  id: string;
+  camp?: CampLite;
+  rows: BookingLite[];
+  sum: number;
+};
+
+// Auswahl-Leiste: ein Chip je Camp mit Zahlsumme, darunter nur die
+// Zahlungen des gewählten Camps.
+function RevenueByCamp({
+  groups,
+  euro,
+  state,
+}: {
+  groups: RevenueGroup[];
+  euro: (cents: number, digits?: number) => string;
+  state: (c?: CampLite) => string;
+}) {
+  const [pick, setPick] = useState(groups[0]?.id);
+  const g = groups.find((x) => x.id === pick) ?? groups[0];
+  if (!g) return null;
+  return (
+    <>
+      <div className="d26-chips d26-revenue-switch" aria-label="Camps">
+        {groups.map((x) => (
+          <button
+            key={x.id}
+            type="button"
+            className={`d26-chip ${x.id === g.id ? "is-active" : ""}`}
+            aria-pressed={x.id === g.id}
+            onClick={() => setPick(x.id)}
+          >
+            {x.camp?.title ?? "Unbekanntes Camp"}
+            <em>{euro(x.sum, 0)}</em>
+          </button>
+        ))}
+      </div>
+      <div className="d26-sheet-group">
+        <h4>
+          {g.camp?.title ?? "Unbekanntes Camp"}
+          <span>{euro(g.sum)}</span>
+        </h4>
+        <p className="d26-footnote">
+          {[
+            g.camp?.days[0] && formatDate(g.camp.days[0].starts_at),
+            g.camp?.location,
+            state(g.camp),
+            `${g.rows.length} ${g.rows.length === 1 ? "Buchung" : "Buchungen"}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+        <div className="d26-mini-list">
+          {g.rows.map((b) => (
+            <SheetRow
+              key={b.id}
+              title={`${b.child_data.first_name} ${b.child_data.last_name}`}
+              meta={
+                b.paid_at ? `Bezahlt am ${formatDate(b.paid_at)}` : "Bezahlt"
+              }
+              pill={b.paid_amount != null ? euro(b.paid_amount) : "Bezahlt"}
+              href={g.camp ? `/camps/${g.id}` : undefined}
+            />
+          ))}
+        </div>
+      </div>
+    </>
   );
 }

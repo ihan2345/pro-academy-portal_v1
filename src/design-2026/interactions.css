@@ -2180,4 +2180,14 @@
       width: 100%;
     }
   }
+
+  /* Bezahlt gesamt: Auswahl-Leiste je Camp im Sheet */
+  & .d26-revenue-switch {
+    margin: 0 -24px;
+    padding: 6px 24px 8px;
+    scrollbar-width: none;
+  }
+  & .d26-revenue-switch::-webkit-scrollbar {
+    display: none;
+  }
 }
