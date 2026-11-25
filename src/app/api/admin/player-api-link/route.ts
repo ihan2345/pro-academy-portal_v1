@@ -1,3 +1,4 @@
+import { viewerRoute } from "@/lib/server/viewer";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { sessionUser } from "@/lib/server/supabase";
@@ -9,6 +10,9 @@ async function handle(request: Request, write: boolean) {
     if (write) requireOrigin(request);
     const session = await sessionUser();
     assertRole(session?.role, "admin");
+    // Der Link öffnet alle Spielerdaten ohne Anmeldung: nie für Lese-Konten.
+    if (session?.viewer)
+      throw new HttpError(403, "Für den Lesezugriff nicht verfügbar.");
     let row: { enabled: boolean; token: string | null } | null;
     if (write) {
       const { action } = z
@@ -61,9 +65,5 @@ async function handle(request: Request, write: boolean) {
     );
   }
 }
-export function GET(request: Request) {
-  return handle(request, false);
-}
-export function POST(request: Request) {
-  return handle(request, true);
-}
+export const GET = viewerRoute((request: Request) => handle(request, false));
+export const POST = viewerRoute((request: Request) => handle(request, true));

@@ -51,6 +51,8 @@ export async function profileSession() {
 }
 export function profileShell(s: ProfileSession): PortalData {
   return {
+    read_only: !!s.viewer,
+    clear_names: s.viewer?.clearNames,
     products_enabled: productsEnabled(),
     trial_access:
       s.trialEnabled && ["trial", "mixed"].includes(s.customerStatus),

@@ -44,7 +44,38 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await db.auth.getUser();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  const method = request.method.toUpperCase();
+  const path = request.nextUrl.pathname;
+  // Nur-lesende POST-Anfragen; gleiche Liste wie VIEWER_READ_POSTS (viewer.ts).
+  const write =
+    !["GET", "HEAD", "OPTIONS"].includes(method) &&
+    path !== "/api/admin/user-activity";
+  const blockedPage =
+    /^\/(?:pai|admin\/(?:pai|einstellungen|funktionen|einladungen|stripe))(?:\/|$)/.test(
+      path,
+    );
+  if (user && (write || blockedPage) && !/^\/(?:api\/)?auth\//.test(path)) {
+    // Lese-Rolle (Release 061): nichts ändern, Einstellungen und pAi nie.
+    const { data: profile } = await db
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profile?.role === "viewer") {
+      if (write)
+        return NextResponse.json(
+          {
+            error:
+              "Nur Lesezugriff: Mit diesem Konto lassen sich keine Änderungen speichern.",
+          },
+          { status: 403, headers: { "Cache-Control": "private, no-store" } },
+        );
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
+  }
   return response;
 }
 export const config = {

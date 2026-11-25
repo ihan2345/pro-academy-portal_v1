@@ -44,19 +44,28 @@ const adminItems = [
 export function AdminNavigation({
   section,
   role = "admin",
+  readOnly = false,
   collapsed,
   expandSidebar,
   navigate,
 }: {
   section: string;
   role?: "admin" | "staff";
+  readOnly?: boolean;
   collapsed: boolean;
   expandSidebar: () => void;
   navigate: () => void;
 }) {
   const base = role === "admin" ? "/admin" : "/team";
   const items = [
-    ...(role === "admin" ? adminItems : []),
+    ...(role === "admin"
+      ? adminItems.filter(
+          // Lese-Rolle: keine Stripe-Zuordnung und keine Einladungen.
+          (item) =>
+            !readOnly ||
+            !["/admin/stripe", "/admin/einladungen"].includes(item.href),
+        )
+      : []),
     {
       href: `${base}/aktivitaeten`,
       title: "Aktivitäten",

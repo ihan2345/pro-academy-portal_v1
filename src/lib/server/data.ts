@@ -9,6 +9,7 @@ import { campPaymentMode } from "../camps/runtime";
 import { redirect } from "next/navigation";
 import type { PortalData, Training, Report } from "../types";
 import { sessionUser } from "./supabase";
+import { maskForViewer, viewerBlockedSection } from "./viewer";
 import { periodLabel, disciplineStats, isRemovedParticipant } from "../domain";
 import {
   campAccessRedirect,
@@ -20,6 +21,7 @@ export async function loadPortal(section: string): Promise<PortalData> {
   if (!session?.role) redirect("/login");
   if (!canOpenPortalSection(session.role, section))
     redirect(portalHome(session.role));
+  if (session.viewer && viewerBlockedSection(section)) redirect("/admin");
   const campsEnabled =
     campEnabled() &&
     (campLocalEnabled() ||
@@ -118,7 +120,9 @@ export async function loadPortal(section: string): Promise<PortalData> {
     else if (row.kind === "attendance_sent")
       attendanceSent.add(`${row.event_id}:${row.player_id}`);
   }
-  return {
+  return maskForViewer(session.viewer, {
+    read_only: !!session.viewer,
+    clear_names: session.viewer?.clearNames,
     products_enabled: productsEnabled(),
     trial_players: (trialPlayers.data ?? []).map((p) => ({
       ...p,
@@ -190,5 +194,5 @@ export async function loadPortal(section: string): Promise<PortalData> {
     locations: locations as PortalData["locations"],
     trainers: trainers.map((t) => ({ id: t.id, name: t.display_name })),
     whatsapp: process.env.WHATSAPP_NUMBER ?? "",
-  };
+  } as PortalData);
 }

@@ -167,6 +167,38 @@ export function Portal({
     const timer = setTimeout(() => setToast(""), 5000);
     return () => clearTimeout(timer);
   }, [toast]);
+  // Lese-Rolle „Einsicht“: jede Änderung wird schon im Browser abgefangen
+  // (der Server lehnt sie ohnehin ab) und mit einem klaren Hinweis beantwortet.
+  const readOnly = !!data.read_only;
+  useEffect(() => {
+    if (!readOnly) return;
+    const original = window.fetch;
+    const message =
+      "Nur Lesezugriff: Mit diesem Konto lassen sich keine Änderungen speichern.";
+    window.fetch = (input, init) => {
+      const method = (
+        init?.method ?? (input instanceof Request ? input.method : "GET")
+      ).toUpperCase();
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.href,
+      );
+      if (
+        !["GET", "HEAD", "OPTIONS"].includes(method) &&
+        url.origin === window.location.origin &&
+        !["/api/auth/logout", "/api/admin/user-activity"].includes(url.pathname)
+      ) {
+        setToast(message);
+        return Promise.resolve(
+          Response.json({ error: message }, { status: 403 }),
+        );
+      }
+      return original(input, init);
+    };
+    return () => {
+      window.fetch = original;
+    };
+  }, [readOnly]);
   useEffect(() => {
     if ("serviceWorker" in navigator)
       navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -278,7 +310,15 @@ export function Portal({
     { href: "/admin/mitarbeiter", title: "Mitarbeiter", icon: UserRound },
     { href: "/admin/standorte", title: "Standorte", icon: MapPin },
     { href: "#verwaltung", title: "Verwaltung", icon: Settings },
-    { href: "/admin/einstellungen", title: "Einstellungen", icon: Settings },
+    ...(data.read_only
+      ? []
+      : [
+          {
+            href: "/admin/einstellungen",
+            title: "Einstellungen",
+            icon: Settings,
+          },
+        ]),
   ];
   const activeNav = admin
     ? adminNav
@@ -467,6 +507,7 @@ export function Portal({
               item.href === "#verwaltung" ? (
                 <AdminNavigation
                   key="verwaltung"
+                  readOnly={readOnly}
                   role={admin ? "admin" : "staff"}
                   section={section}
                   collapsed={sidebarCollapsed && !mobile}
@@ -583,6 +624,18 @@ export function Portal({
             </b>
           </div>
           <div className="topbar-right">
+            {readOnly && (
+              <span
+                className="badge neutral read-only-badge"
+                title={
+                  data.clear_names
+                    ? "Nur lesen, Klarnamen freigeschaltet"
+                    : "Nur lesen, Kinder und Eltern als Initialen"
+                }
+              >
+                Lesezugriff
+              </span>
+            )}
             <Spotlight items={designNav} extra={spotlightExtra(data)} />
             {DESIGN_2026 && (
               <>

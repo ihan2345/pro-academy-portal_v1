@@ -1,3 +1,4 @@
+import { viewerRoute } from "@/lib/server/viewer";
 import { paiEnabled } from "@/lib/server/pai/switch";
 import { z } from "zod";
 import { HttpError, requireOrigin } from "@/lib/server/security";
@@ -125,6 +126,6 @@ async function handle(
     );
   }
 }
-export const GET = handle;
-export const POST = handle;
-export const DELETE = handle;
+export const GET = viewerRoute(handle);
+export const POST = viewerRoute(handle);
+export const DELETE = viewerRoute(handle);

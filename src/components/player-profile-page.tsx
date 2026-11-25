@@ -8,6 +8,7 @@ import { PlayerProfileEditor } from "@/components/player-profile-editor";
 import { formatDate } from "@/lib/domain";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { PlayerCard } from "@/design-2026/player-card";
+import { maskForViewer } from "@/lib/server/viewer";
 export async function PlayerProfilePage({
   area,
   params,
@@ -29,7 +30,10 @@ export async function PlayerProfilePage({
     throw error;
   }
   if (session.role !== (area === "admin" ? "admin" : "staff")) notFound();
-  const player = (await loadPlayerExport(id)).find((p) => p.id === id);
+  const player = await maskForViewer(
+    session.viewer,
+    (await loadPlayerExport(id)).find((p) => p.id === id),
+  );
   if (!player) notFound();
   const editable = await session.db
     .from("players")
@@ -41,6 +45,9 @@ export async function PlayerProfilePage({
   if (editable.error)
     throw new HttpError(503, "Kinderdaten konnten nicht geladen werden.");
   if (!editable.data) notFound();
+  editable.data = await maskForViewer(session.viewer, editable.data);
+  // Lese-Konten sehen keinen Bearbeiten-Bereich.
+  const canEdit = session.role === "admin" && !session.viewer;
   const fields = [
     ["Elternteil", player.elternteile.join(", ")],
     ["Geburtsjahr", player.geburtsjahr],
@@ -62,7 +69,7 @@ export async function PlayerProfilePage({
           team={editable.data.team}
           back={`/${area}/spielerprofile`}
           editor={
-            session.role === "admin" ? (
+            canEdit ? (
               <PlayerProfileEditor
                 key={`${id}:${edit}`}
                 player={editable.data}
@@ -79,7 +86,7 @@ export async function PlayerProfilePage({
         <Link href={`/${area}/spielerprofile`}>← Spielerprofile</Link>
         <h1>{player.spielername}</h1>
         <p>Spielerkarte{player.archiviert ? " · Archiviert" : ""}</p>
-        {session.role === "admin" && (
+        {canEdit && (
           <PlayerProfileEditor
             key={`${id}:${edit}`}
             player={editable.data}

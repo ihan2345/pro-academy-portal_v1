@@ -1,3 +1,4 @@
+import { viewerRoute } from "@/lib/server/viewer";
 import { z } from "zod";
 import { featureManager } from "@/lib/server/platform-features";
 import { HttpError, requireOrigin } from "@/lib/server/security";
@@ -46,5 +47,5 @@ async function handle(request: Request) {
     return json({ error: "Funktionen derzeit nicht verfügbar." }, 503);
   }
 }
-export const GET = handle;
-export const POST = handle;
+export const GET = viewerRoute(handle);
+export const POST = viewerRoute(handle);

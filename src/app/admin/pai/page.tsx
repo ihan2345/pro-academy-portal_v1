@@ -9,6 +9,7 @@ export default async function Page() {
   if (!(await paiEnabled())) notFound();
   const s = await sessionUser();
   if (!s?.role) redirect("/login");
+  if (s.viewer) redirect("/admin");
   if (s.role !== "admin") redirect("/pai");
   return (
     <Portal initial={profileShell(s)} section="admin/pai">

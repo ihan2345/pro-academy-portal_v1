@@ -1,3 +1,4 @@
+import { viewerRoute } from "@/lib/server/viewer";
 import { sessionUser } from "@/lib/server/supabase";
 import { requireOrigin } from "@/lib/server/security";
 import { z } from "zod";
@@ -34,5 +35,5 @@ async function handle(request: Request) {
     );
   }
 }
-export const GET = handle;
-export const POST = handle;
+export const GET = viewerRoute(handle);
+export const POST = viewerRoute(handle);
