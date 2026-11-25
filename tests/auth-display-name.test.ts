@@ -77,3 +77,29 @@ it("Clients können den Abgleich nicht selbst aufrufen", async () => {
   );
   expect(r.rows[0].ok).toBe(false);
 });
+
+it("neue Login-Konten bekommen den Namen des noch nicht verknüpften Elternteils", async () => {
+  await db.query(
+    "insert into parents(id,full_name,contact_email) values($1,'Serkan Shop',' Shop@Test.invalid ')",
+    [id(13)],
+  );
+  await db.query(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,'shop@test.invalid',now())",
+    [id(3)],
+  );
+  expect((await meta(id(3)))?.full_name).toBe("Serkan Shop");
+  // Ohne passendes Elternteil bleibt das Konto unverändert.
+  await db.query(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,'fremd@test.invalid',now())",
+    [id(4)],
+  );
+  expect(await meta(id(4))).toBeNull();
+});
+
+it("neu angelegte Profile mit Namen schreiben den Namen ins Auth-Konto", async () => {
+  await db.query(
+    "insert into profiles(id,role,full_name) values($1,'staff','Ayse Einsicht')",
+    [id(4)],
+  );
+  expect((await meta(id(4)))?.full_name).toBe("Ayse Einsicht");
+});
