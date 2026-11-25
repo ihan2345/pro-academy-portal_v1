@@ -65,6 +65,7 @@ export function productSchemaFiles() {
       "059-auth-display-name.sql",
       "060-activity-details.sql",
       "061-viewer-role.sql",
+      "062-invitation-wave.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }

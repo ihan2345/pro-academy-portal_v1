@@ -1,5 +1,6 @@
 "use client";
 import { PlatformFeatures } from "@/components/platform-features";
+import { InvitationWave } from "@/components/invitation-wave";
 import { StripeParentInputs } from "./stripe-parent-inputs";
 import { SubscriptionReviews } from "./subscription-reviews";
 import { useEffect, useState } from "react";
@@ -839,6 +840,7 @@ export function AdminView({
           <PlayerApiShare notify={notify} />
           <PlatformFeatures optional only="product_shop" />
           <PlatformFeatures optional only="parent_auto_mail" />
+          <InvitationWave />
         </>
       )}
       {edit && config && (
