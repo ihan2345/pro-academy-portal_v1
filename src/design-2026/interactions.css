@@ -2190,4 +2190,30 @@
   & .d26-revenue-switch::-webkit-scrollbar {
     display: none;
   }
+  /* Camp-Detail: Camp-Auswahl als Chip-Leiste */
+  & .d26-camp-chips {
+    padding: 8px 2px 18px;
+    margin-bottom: -8px;
+    background: transparent;
+    box-shadow: none;
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+      90deg,
+      transparent,
+      #000 16px,
+      #000 calc(100% - 16px),
+      transparent
+    );
+  }
+  & .d26-camp-chips::-webkit-scrollbar {
+    display: none;
+  }
+  & .d26-camp-chips .d26-chip {
+    text-decoration: none;
+    font-size: 14px;
+    padding: 9px 16px;
+  }
+  & .d26-camp-chips .d26-chip.is-archived:not(.is-active) {
+    opacity: 0.6;
+  }
 }

@@ -28,6 +28,7 @@ import { StripeReview } from "./stripe-review";
 import { FreeCampReview } from "./free-review";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { CampHead } from "@/design-2026/camp-head";
+import { CampChips } from "@/design-2026/camp-chips";
 type Booking = {
   id: string;
   camp_id: string;
@@ -635,7 +636,14 @@ export function CampDashboard({
           {!campId && !!data.camps.length && (
             <CampOverview camps={data.camps} offers={data.offers ?? []} />
           )}
-          {!!campId && !!data.camps.length && (
+          {!!campId && !!data.camps.length && DESIGN_2026 && (
+            <CampChips
+              camps={data.camps}
+              selected={selected}
+              statusLabel={statusLabel}
+            />
+          )}
+          {!!campId && !!data.camps.length && !DESIGN_2026 && (
             <label className="camp-select">
               Camp auswählen
               <select
