@@ -11,6 +11,7 @@ import {
   readNoticeDecisions,
 } from "@/lib/server/notice-decisions";
 import { stripeBillingConflicts } from "@/lib/server/stripe-conflicts";
+import { portalAccessEvents } from "@/lib/server/portal-events";
 import { stripeParentInputs } from "@/lib/server/stripe-parent-inputs";
 import { activityList, activitySummary } from "@/lib/server/activities";
 import {
@@ -279,6 +280,14 @@ async function handler(
       if (request.method !== "POST")
         throw new HttpError(405, "Methode nicht erlaubt.");
       return json(await decideStripeNotice(session, await request.json()));
+    }
+    if (path === "admin/portal-events") {
+      if (request.method !== "GET")
+        throw new HttpError(
+          405,
+          "Portal-Ereignisse sind ausschließlich lesbar.",
+        );
+      return json(await portalAccessEvents(session));
     }
     if (path === "admin/stripe-conflicts") {
       if (request.method !== "GET")
