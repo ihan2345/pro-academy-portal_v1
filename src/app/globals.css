@@ -6053,3 +6053,19 @@ label {
   align-items: center;
   gap: 6px;
 }
+
+/* Einladungswelle (Release 062) */
+.invitation-wave-list {
+  margin: 8px 0;
+}
+.invitation-wave-list summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.invitation-wave-list ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  max-height: 260px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}

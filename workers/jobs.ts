@@ -41,6 +41,7 @@ import {
 } from "../src/lib/mail";
 import { firstName, greet, type MailLook } from "../src/lib/mail-2026/from-text";
 import { mailCalendar } from "../src/lib/mail-2026/ics-link";
+import { invitationWaveText } from "../src/lib/invitation-wave-mail";
 import { parentFirstName } from "../src/lib/server/parent-name";
 import {
   attendanceStats,
@@ -156,8 +157,13 @@ export async function compose(job: Record<string, unknown>): Promise<Email> {
       },
     ];
   } else if (kind === "invitation") {
-    subject = "Deine Einladung zur ProAcademy";
-    text = `Hallo ${payload.parent_name},\nwillkommen in deinem Elternportal. Deine persönliche Einladung ist sieben Tage gültig.\n${payload.url}`;
+    if (payload.invitation_wave || payload.invitation_wave_test) {
+      subject = `${payload.invitation_wave_test ? "[Test] " : ""}Dein ProAcademy-Elternportal ist bereit`;
+      text = invitationWaveText(payload);
+    } else {
+      subject = "Deine Einladung zur ProAcademy";
+      text = `Hallo ${payload.parent_name},\nwillkommen in deinem Elternportal. Deine persönliche Einladung ist sieben Tage gültig.\n${payload.url}`;
+    }
     url = payload.url;
   } else if (kind === "report") {
     subject = `Dein Trainingsbericht für ${payload.player_name}`;
