@@ -30,6 +30,7 @@ import {
   matchesFacet,
 } from "@/design-2026/directory";
 import { PlayerApiShare } from "./player-api-share";
+import { SettingsHub } from "@/design-2026/settings";
 import { ViewerAccessPanel } from "./viewer-access";
 import { api } from "./team";
 import {
@@ -791,8 +792,18 @@ export function AdminView({
         </>
       )}
       {slug === "protokolle" && <Logs data={data} notify={notify} />}
-      {slug === "einstellungen" && <PlatformFeatures linkOnly />}
-      {slug === "einstellungen" && (
+      {slug === "einstellungen" && DESIGN_2026 && (
+        <SettingsHub
+          isAdmin={data.role === "admin"}
+          notify={notify}
+          reportTime={reportTime}
+          setReportTime={setReportTime}
+        />
+      )}
+      {slug === "einstellungen" && !DESIGN_2026 && (
+        <PlatformFeatures linkOnly />
+      )}
+      {slug === "einstellungen" && !DESIGN_2026 && (
         <form
           className="panel account-panel settings-panel"
           onSubmit={async (e) => {
@@ -835,7 +846,7 @@ export function AdminView({
           <button className="primary-button">Einstellungen speichern</button>
         </form>
       )}
-      {slug === "einstellungen" && data.role === "admin" && (
+      {slug === "einstellungen" && !DESIGN_2026 && data.role === "admin" && (
         <>
           <PlayerApiShare notify={notify} />
           <PlatformFeatures optional only="product_shop" />

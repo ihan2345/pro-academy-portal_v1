@@ -20,7 +20,24 @@ import {
   previewTrials,
   previewTrialPastEvents,
   previewTrialNotices,
+  previewInvitationWave,
 } from "./mock-pages";
+
+let previewFeatures = [
+  ["pai", true, "2026-11-12T09:15:00Z"],
+  ["pai_mascot", false, "2026-11-12T09:16:00Z"],
+  ["parent_auto_mail", false, "2026-11-20T18:02:00Z"],
+  ["product_shop", true, "2026-11-17T11:40:00Z"],
+  ["trial_training", true, "2026-11-05T08:30:00Z"],
+].map(([key, enabled, updated_at]) => ({
+  key: String(key),
+  enabled: Boolean(enabled),
+  updated_at: String(updated_at),
+}));
+let previewShare: { enabled: boolean; url: string | null } = {
+  enabled: true,
+  url: "https://portal.example.com/api/public/players?token=vorschau-3k9x",
+};
 
 if (
   typeof window !== "undefined" &&
@@ -158,6 +175,45 @@ if (
           ],
         },
       });
+    // Einstellungen: Funktionen, Spieler-API und Einladungswelle mit
+    // Beispieldaten. Schalter ändern nur den Stand in diesem Tab.
+    if (path === "/api/platform/features") {
+      if (init?.method === "POST") {
+        const body = JSON.parse(String(init.body ?? "{}"));
+        previewFeatures = previewFeatures.map((f) =>
+          f.key === body.key
+            ? {
+                ...f,
+                enabled: body.enabled,
+                updated_at: new Date().toISOString(),
+              }
+            : f,
+        );
+      }
+      return Response.json({ features: previewFeatures });
+    }
+    if (path === "/api/admin/player-api-link") {
+      if (init?.method === "POST") {
+        const action = JSON.parse(String(init.body ?? "{}")).action;
+        previewShare =
+          action === "disable"
+            ? { enabled: false, url: null }
+            : {
+                enabled: true,
+                url: `https://portal.example.com/api/public/players?token=vorschau-${Date.now().toString(36)}`,
+              };
+      }
+      return Response.json(previewShare);
+    }
+    if (path === "/api/admin/product-showcase")
+      return Response.json({ token: null, code: null });
+    if (path === "/api/admin/invitation-wave")
+      return init?.method === "POST"
+        ? Response.json(
+            { error: "In der Vorschau wird nichts verschickt." },
+            { status: 409 },
+          )
+        : Response.json({ overview: previewInvitationWave() });
     const table = path.match(/^\/api\/admin\/([a-z_]+)$/)?.[1];
     if (table && (!init?.method || init.method === "GET"))
       return Response.json({ rows: previewAdminRows(table) });

@@ -1,12 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Copy, RefreshCw, Ban } from "lucide-react";
-type Share = { enabled: boolean; url: string | null };
-export function PlayerApiShare({
-  notify,
-}: {
-  notify: (message: string) => void;
-}) {
+export type Share = { enabled: boolean; url: string | null };
+
+/** Status und Aktionen des Spieler-API-Links (nur Admins). */
+export function usePlayerApiShare(notify: (message: string) => void) {
   const [share, setShare] = useState<Share | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +60,15 @@ export function PlayerApiShare({
       notify("Bitte den Link im Feld markieren und kopieren.");
     }
   }
+  return { share, busy, error, change, copy };
+}
+
+export function PlayerApiShare({
+  notify,
+}: {
+  notify: (message: string) => void;
+}) {
+  const { share, busy, error, change, copy } = usePlayerApiShare(notify);
   return (
     <section className="panel account-panel settings-panel">
       <h2>Spieler-API</h2>

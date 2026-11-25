@@ -441,6 +441,8 @@ export function previewAdminRows(table: string): Record<string, unknown>[] {
       { id: "t-1", display_name: "Coach Max", active: true },
       { id: "t-2", display_name: "Coach Ayşe", active: true },
     ];
+  if (table === "system_settings")
+    return [{ key: "report_send_time", value: "08:00" }];
   return [];
 }
 

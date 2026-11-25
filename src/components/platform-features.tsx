@@ -4,16 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShowcaseSettings } from "./products/showcase-settings";
 import "./products/showcase-embed.css";
-type Feature = { key: string; enabled: boolean; updated_at: string };
-export function PlatformFeatures({
-  linkOnly = false,
-  optional = false,
-  only,
-}: {
-  linkOnly?: boolean;
-  optional?: boolean;
-  only?: string;
-}) {
+export type Feature = { key: string; enabled: boolean; updated_at: string };
+
+/** Lädt die globalen Funktionen und schaltet sie um (nur Super-Admins). */
+export function useFeatures({ quiet = false }: { quiet?: boolean } = {}) {
   const router = useRouter();
   const [features, setFeatures] = useState<Feature[] | null>(null);
   const [error, setError] = useState("");
@@ -30,14 +24,117 @@ export function PlatformFeatures({
         if (live) setFeatures(data.features);
       })
       .catch((e) => {
-        if (live && !linkOnly) setError(e.message);
+        if (live && !quiet) setError(e.message);
       });
     return () => {
       live = false;
     };
-  }, [linkOnly]);
+  }, [quiet]);
+  async function toggle(feature: Feature) {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fetch("/api/platform/features", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: feature.key,
+          enabled: !feature.enabled,
+          expected: feature.enabled,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw Error(data.error);
+      setFeatures(data.features);
+      router.refresh();
+      window.dispatchEvent(new Event("platform-features-changed"));
+      try {
+        localStorage.setItem("platform-features-changed", String(Date.now()));
+      } catch {}
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
   const paiActive =
     features?.some((f) => f.key === "pai" && f.enabled) === true;
+  return { features, error, busy, toggle, paiActive };
+}
+
+export function featureName(key: string) {
+  return key === "pai"
+    ? "PAiLTON"
+    : key === "pai_mascot"
+      ? "PAiLTON-Maskottchen"
+      : key === "trial_training"
+        ? "Probetraining"
+        : key === "product_shop"
+          ? "Produkt-Shop"
+          : key === "parent_auto_mail"
+            ? "Automatische Mails an aktive Eltern"
+            : key;
+}
+
+/** Erklärung zu einer Funktion (gleich in alter und neuer Darstellung). */
+export function FeatureNote({
+  feature,
+  paiActive,
+}: {
+  feature: Feature;
+  paiActive: boolean;
+}) {
+  return (
+    <>
+      {feature.key === "product_shop" && (
+        <p className="muted">
+          Steuert den Zugriff auf /produkte und neue Käufe. Bereits bezahlte
+          Buchungen und die Synchronisierung bestehender Abos laufen weiter. Nur
+          Super-Admins können diesen Schalter ändern.
+        </p>
+      )}
+      {feature.key === "parent_auto_mail" && (
+        <p className="muted">
+          {feature.enabled
+            ? "An: Trainingsplanung, Erinnerung, Teilnahme, Berichte und Stempelkarten gehen automatisch an alle aktiven Eltern (Konto, E-Mail bestätigt)."
+            : "Aus: Diese Mails gehen nur an eingetragene Test-Adressen."}{" "}
+          Einladungen bleiben unverändert aus. Persönliche Abmeldungen und
+          „Eltern benachrichtigen“ am Termin gelten weiter. Bereits
+          zurückgehaltene Mails werden nicht nachgeschickt. Nur Super-Admins
+          können diesen Schalter ändern.
+        </p>
+      )}
+      {feature.key === "trial_training" && (
+        <p className="muted">
+          Steuert Anfragen, Probetraining-Bereiche und zugehörige Mails. Beim
+          Deaktivieren bleiben Daten und bestehende Campzugänge erhalten.
+        </p>
+      )}
+      {feature.key === "pai_mascot" && (
+        <p className="muted">
+          {paiActive
+            ? "Nur die Figuren. Chatleiste und Sprechblasen bleiben sichtbar."
+            : "Zuerst PAiLTON aktivieren."}
+        </p>
+      )}
+    </>
+  );
+}
+
+export function PlatformFeatures({
+  linkOnly = false,
+  optional = false,
+  only,
+}: {
+  linkOnly?: boolean;
+  optional?: boolean;
+  only?: string;
+}) {
+  const { features, error, busy, toggle, paiActive } = useFeatures({
+    quiet: linkOnly,
+  });
   if (optional && !features) return null;
   if (only && features && !features.some((f) => f.key === only)) return null;
   if (linkOnly)
@@ -74,52 +171,9 @@ export function PlatformFeatures({
             data-feature={feature.key}
           >
             <div>
-              <strong>
-                {feature.key === "pai"
-                  ? "PAiLTON"
-                  : feature.key === "pai_mascot"
-                    ? "PAiLTON-Maskottchen"
-                    : feature.key === "trial_training"
-                      ? "Probetraining"
-                      : feature.key === "product_shop"
-                        ? "Produkt-Shop"
-                        : feature.key === "parent_auto_mail"
-                          ? "Automatische Mails an aktive Eltern"
-                          : feature.key}
-              </strong>
+              <strong>{featureName(feature.key)}</strong>
               <p>{feature.enabled ? "Aktiviert" : "Deaktiviert"}</p>
-              {feature.key === "product_shop" && (
-                <p className="muted">
-                  Steuert den Zugriff auf /produkte und neue Käufe. Bereits
-                  bezahlte Buchungen und die Synchronisierung bestehender Abos
-                  laufen weiter. Nur Super-Admins können diesen Schalter ändern.
-                </p>
-              )}
-              {feature.key === "parent_auto_mail" && (
-                <p className="muted">
-                  {feature.enabled
-                    ? "An: Trainingsplanung, Erinnerung, Teilnahme, Berichte und Stempelkarten gehen automatisch an alle aktiven Eltern (Konto, E-Mail bestätigt)."
-                    : "Aus: Diese Mails gehen nur an eingetragene Test-Adressen."}{" "}
-                  Einladungen bleiben unverändert aus. Persönliche Abmeldungen
-                  und „Eltern benachrichtigen“ am Termin gelten weiter. Bereits
-                  zurückgehaltene Mails werden nicht nachgeschickt. Nur
-                  Super-Admins können diesen Schalter ändern.
-                </p>
-              )}
-              {feature.key === "trial_training" && (
-                <p className="muted">
-                  Steuert Anfragen, Probetraining-Bereiche und zugehörige Mails.
-                  Beim Deaktivieren bleiben Daten und bestehende Campzugänge
-                  erhalten.
-                </p>
-              )}
-              {feature.key === "pai_mascot" && (
-                <p className="muted">
-                  {paiActive
-                    ? "Nur die Figuren. Chatleiste und Sprechblasen bleiben sichtbar."
-                    : "Zuerst PAiLTON aktivieren."}
-                </p>
-              )}
+              <FeatureNote feature={feature} paiActive={paiActive} />
               <small>
                 Zuletzt geändert:{" "}
                 {new Date(feature.updated_at).toLocaleString("de-DE", {
@@ -135,36 +189,7 @@ export function PlatformFeatures({
               }
               disabled={busy || (feature.key === "pai_mascot" && !paiActive)}
               aria-pressed={feature.enabled}
-              onClick={async () => {
-                setBusy(true);
-                setError("");
-                try {
-                  const r = await fetch("/api/platform/features", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      key: feature.key,
-                      enabled: !feature.enabled,
-                      expected: feature.enabled,
-                    }),
-                  });
-                  const data = await r.json();
-                  if (!r.ok) throw Error(data.error);
-                  setFeatures(data.features);
-                  router.refresh();
-                  window.dispatchEvent(new Event("platform-features-changed"));
-                  try {
-                    localStorage.setItem(
-                      "platform-features-changed",
-                      String(Date.now()),
-                    );
-                  } catch {}
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
+              onClick={() => void toggle(feature)}
             >
               {feature.enabled ? "Deaktivieren" : "Aktivieren"}
             </button>
