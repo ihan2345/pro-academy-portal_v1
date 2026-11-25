@@ -1,14 +1,14 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 
-type Family = {
+export type Family = {
   parent_id: string;
   name: string;
   email: string;
   basis: "abo" | "camp";
   reason?: string;
 };
-type Overview = {
+export type Overview = {
   delivery_enabled: boolean;
   invite: Family[];
   skipped: Family[];
@@ -17,13 +17,14 @@ type Overview = {
   wave_jobs: Record<string, number>;
   accepted: number;
 };
-const reasons: Record<string, string> = {
+export const reasons: Record<string, string> = {
   dublette: "Adresse doppelt vergeben",
   mail_ungueltig: "E-Mail ungültig",
   team_konto: "Adresse gehört zu einem Team-Konto",
   einladung_offen: "Einladung bereits offen",
 };
-const basisLabel = (b: string) => (b === "abo" ? "Abo" : "Aktuelles Camp");
+export const basisLabel = (b: string) =>
+  b === "abo" ? "Abo" : "Aktuelles Camp";
 
 async function call(body?: unknown) {
   const r = await fetch("/api/admin/invitation-wave", {
@@ -65,8 +66,11 @@ function List({
   );
 }
 
-/** Einladungswelle (Release 062). Nur für Super-Admins sichtbar. */
-export function InvitationWave() {
+/**
+ * Daten und Aktionen der Einladungswelle (Release 062). Testeinladung und
+ * Start mit Zahl-Bestätigung bleiben in beiden Darstellungen gleich.
+ */
+export function useInvitationWave() {
   const [data, setData] = useState<Overview | null>(null);
   const [hidden, setHidden] = useState(false);
   const [error, setError] = useState("");
@@ -85,12 +89,92 @@ export function InvitationWave() {
   useEffect(() => {
     void load();
   }, [load]);
-  if (hidden) return null;
   const sent = data
     ? Object.values(data.wave_jobs).reduce((a, b) => a + b, 0)
     : 0;
   const invite = data?.invite.length ?? 0,
     releases = data?.release_holds.length ?? 0;
+  const canStart =
+    !!data &&
+    !busy &&
+    data.delivery_enabled &&
+    !(invite === 0 && releases === 0) &&
+    Number(confirm) === invite &&
+    confirm !== "";
+  async function test() {
+    setBusy(true);
+    setError("");
+    setInfo("");
+    try {
+      await call({ action: "test" });
+      setInfo(
+        "Testeinladung ist unterwegs (Versand innerhalb von etwa 5 Minuten).",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function start() {
+    if (!canStart) return;
+    setBusy(true);
+    setError("");
+    setInfo("");
+    try {
+      const r = await call({
+        action: "start",
+        expected_invitations: invite,
+        expected_releases: releases,
+        confirm: Number(confirm),
+      });
+      setData(r.overview);
+      setConfirm("");
+      setInfo(
+        `${r.result.invited} Einladungen erstellt, ${r.result.released} Familien freigegeben. Der Versand läuft in Paketen von 20 alle 5 Minuten.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+      void load();
+    } finally {
+      setBusy(false);
+    }
+  }
+  return {
+    data,
+    hidden,
+    error,
+    info,
+    busy,
+    confirm,
+    setConfirm: (v: string) => setConfirm(v.replace(/\D/g, "")),
+    sent,
+    invite,
+    releases,
+    canStart,
+    test,
+    start,
+  };
+}
+
+/** Einladungswelle (Release 062). Nur für Super-Admins sichtbar. */
+export function InvitationWave() {
+  const {
+    data,
+    hidden,
+    error,
+    info,
+    busy,
+    confirm,
+    setConfirm,
+    sent,
+    invite,
+    releases,
+    canStart,
+    test,
+    start,
+  } = useInvitationWave();
+  if (hidden) return null;
   return (
     <section
       className="panel account-panel settings-panel"
@@ -164,50 +248,16 @@ export function InvitationWave() {
               type="button"
               className="secondary-button"
               disabled={busy || !data.delivery_enabled}
-              onClick={async () => {
-                setBusy(true);
-                setError("");
-                setInfo("");
-                try {
-                  await call({ action: "test" });
-                  setInfo(
-                    "Testeinladung ist unterwegs (Versand innerhalb von etwa 5 Minuten).",
-                  );
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
+              onClick={() => void test()}
             >
               Testeinladung an mich
             </button>
           </div>
           <form
             className="account-row"
-            onSubmit={async (e) => {
+            onSubmit={(e) => {
               e.preventDefault();
-              setBusy(true);
-              setError("");
-              setInfo("");
-              try {
-                const r = await call({
-                  action: "start",
-                  expected_invitations: invite,
-                  expected_releases: releases,
-                  confirm: Number(confirm),
-                });
-                setData(r.overview);
-                setConfirm("");
-                setInfo(
-                  `${r.result.invited} Einladungen erstellt, ${r.result.released} Familien freigegeben. Der Versand läuft in Paketen von 20 alle 5 Minuten.`,
-                );
-              } catch (e) {
-                setError((e as Error).message);
-                void load();
-              } finally {
-                setBusy(false);
-              }
+              void start();
             }}
           >
             <div>
@@ -220,20 +270,11 @@ export function InvitationWave() {
                 inputMode="numeric"
                 aria-label="Anzahl der Empfänger bestätigen"
                 value={confirm}
-                onChange={(e) => setConfirm(e.target.value.replace(/\D/g, ""))}
+                onChange={(e) => setConfirm(e.target.value)}
                 placeholder={String(invite)}
               />
             </div>
-            <button
-              className="primary-button"
-              disabled={
-                busy ||
-                !data.delivery_enabled ||
-                (invite === 0 && releases === 0) ||
-                Number(confirm) !== invite ||
-                confirm === ""
-              }
-            >
+            <button className="primary-button" disabled={!canStart}>
               Welle starten
             </button>
           </form>

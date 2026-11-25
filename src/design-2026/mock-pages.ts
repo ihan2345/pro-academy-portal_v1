@@ -883,3 +883,51 @@ export function previewStripeActivities(search: string) {
     },
   };
 }
+
+// Vorschau: Einladungswelle mit erfundenen Familien.
+export function previewInvitationWave() {
+  const fam = (
+    i: number,
+    name: string,
+    basis: "abo" | "camp",
+    reason?: string,
+  ) => ({
+    parent_id: `wave-${i}`,
+    name,
+    email: `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.com`,
+    basis,
+    ...(reason ? { reason } : {}),
+  });
+  const names = [
+    "Sabine Brandt",
+    "Murat Celik",
+    "Laura Fischer",
+    "Sven Hoffmann",
+    "Aylin Kaya",
+    "Jana Meier",
+    "Tim Neumann",
+    "Nina Schulz",
+    "Deniz Yilmaz",
+    "Paula Wagner",
+    "Ali Demir",
+    "Lena Becker",
+    "Jonas Richter",
+    "Merve Aydin",
+  ];
+  return {
+    delivery_enabled: true,
+    invite: names.map((n, i) => fam(i, n, i % 3 ? "abo" : "camp")),
+    release_holds: [
+      fam(20, "Katrin Wolf", "abo"),
+      fam(21, "Emre Öztürk", "abo"),
+      fam(22, "Julia Krüger", "camp"),
+    ],
+    skipped: [
+      fam(30, "Marco Lange", "abo", "dublette"),
+      fam(31, "Sophie Braun", "camp", "mail_ungueltig"),
+    ],
+    old_held_invitations: 6,
+    wave_jobs: {},
+    accepted: 0,
+  };
+}
