@@ -1,5 +1,6 @@
+import { viewerRoute } from "@/lib/server/viewer";
 import { showcaseSettings } from "@/lib/server/products/showcase-settings-api";
 export const dynamic = "force-dynamic";
-export function GET(request: Request) {
-  return showcaseSettings(request, true);
-}
+export const GET = viewerRoute((request: Request) =>
+  showcaseSettings(request, true),
+);

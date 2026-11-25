@@ -6026,3 +6026,30 @@ label {
     cursor: pointer;
   }
 }
+
+/* Lese-Rolle „Einsicht“ (Release 061) */
+.read-only-badge {
+  white-space: nowrap;
+}
+.viewer-access .muted {
+  max-width: 70ch;
+}
+.viewer-access-table {
+  width: 100%;
+  margin: 12px 0 16px;
+}
+.viewer-access-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+.viewer-access-form label {
+  display: grid;
+  gap: 4px;
+}
+.viewer-access-form label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

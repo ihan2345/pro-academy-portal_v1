@@ -1,3 +1,4 @@
+import { viewerRoute } from "@/lib/server/viewer";
 import { NextRequest } from "next/server";
 import { productApi } from "@/lib/server/products/api";
 export const runtime = "nodejs";
@@ -7,5 +8,5 @@ async function handler(
 ) {
   return productApi(request, (await context.params).action ?? [], false);
 }
-export const GET = handler;
-export const POST = handler;
+export const GET = viewerRoute(handler);
+export const POST = viewerRoute(handler);

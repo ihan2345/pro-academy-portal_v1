@@ -3,7 +3,9 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { required } from "./config";
 import { trialFeatureEnabled } from "../trials/feature";
-export { serviceDb } from "./service-db";
+import { serviceDb } from "./service-db";
+import { enterViewer, readOnlyDb, type Viewer } from "./viewer";
+export { serviceDb };
 export async function sessionDb() {
   const store = await cookies();
   return createServerClient(
@@ -38,6 +40,27 @@ export async function sessionUser() {
     .eq("id", user.id)
     .single();
   const { data: effectiveRole } = await db.rpc("current_role");
+  if (effectiveRole === "viewer") {
+    // Lese-Rolle (Release 061): eigene DB-Rechte hat sie keine. Gelesen wird
+    // serverseitig schreibgeschützt; Antworten werden vor dem Browser gekürzt.
+    const access = await db
+      .from("viewer_access")
+      .select("clear_names,active,display_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (access.error || !access.data?.active) return null;
+    const viewer: Viewer = { clearNames: !!access.data.clear_names };
+    enterViewer(viewer);
+    return {
+      trialEnabled: await trialFeatureEnabled(),
+      customerStatus: "none" as const,
+      db: readOnlyDb(serviceDb(), db.auth, viewer.clearNames),
+      user,
+      role: "admin" as const,
+      viewer: viewer as Viewer | undefined,
+      name: access.data.display_name || profile?.full_name || "",
+    };
+  }
   let customerStatus: "none" | "trial" | "mixed" | "subscriber" = "none";
   if (
     effectiveRole === "parent" &&
@@ -57,6 +80,7 @@ export async function sessionUser() {
     db,
     user,
     role: effectiveRole as "parent" | "staff" | "admin" | undefined,
+    viewer: undefined as Viewer | undefined,
     name: profile?.full_name ?? "",
   };
 }

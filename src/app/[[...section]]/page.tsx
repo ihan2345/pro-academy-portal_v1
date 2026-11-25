@@ -18,6 +18,7 @@ import { HttpError } from "@/lib/server/security";
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { loadPortal } from "@/lib/server/data";
+import { maskForViewer } from "@/lib/server/viewer";
 import { Portal } from "@/components/portal";
 export const dynamic = "force-dynamic";
 const routes = [
@@ -139,7 +140,10 @@ export default async function Page({
         ) : (
           <ProfileView
             key={`${session.role}:${section}`}
-            initial={await loadParentProfile(session, profileRoute[2])}
+            initial={await maskForViewer(
+              session.viewer,
+              await loadParentProfile(session, profileRoute[2]),
+            )}
             base={base}
             full={!!(profileRoute[3] || profileRoute[4])}
           />

@@ -1,3 +1,4 @@
+import { viewerRoute } from "@/lib/server/viewer";
 import { safeBookingReturn } from "@/lib/booking-return";
 import { parentCanActivate } from "@/lib/server/parent-activation";
 import { verifyLoginCode } from "@/lib/server/login-code";
@@ -720,6 +721,59 @@ async function handler(
           },
         });
       }
+      if (action === "viewers") {
+        // Lese-Rolle „Einsicht“ (Release 061): nur echte Admins verwalten sie.
+        if (session.viewer)
+          throw new HttpError(403, "Für den Lesezugriff nicht verfügbar.");
+        if (request.method === "GET") {
+          const result = await db.rpc("list_viewer_access");
+          if (result.error)
+            throw new HttpError(
+              503,
+              /list_viewer_access/.test(result.error.message)
+                ? "Lesezugriff ist noch nicht eingerichtet (Release 061 fehlt)."
+                : result.error.message,
+            );
+          return json({ rows: result.data ?? [] });
+        }
+        const input = z
+          .object({
+            email: z.email().max(320),
+            name: z.string().trim().max(120).default(""),
+            clear_names: z.boolean().default(false),
+            active: z.boolean().default(true),
+          })
+          .strict()
+          .parse(await request.json());
+        // Konto anlegen, falls es die E-Mail noch nicht gibt. Anmeldung danach
+        // wie bei allen anderen per Code an diese E-Mail.
+        const created = await serviceDb().auth.admin.createUser({
+          email: input.email,
+          email_confirm: true,
+          user_metadata: { full_name: input.name },
+        });
+        if (
+          created.error &&
+          !["email_exists", "user_already_exists"].includes(
+            created.error.code ?? "",
+          )
+        )
+          throw new HttpError(503, "Konto konnte nicht angelegt werden.");
+        const result = await db.rpc("set_viewer_access", {
+          target_email: input.email,
+          name: input.name,
+          clear_names: input.clear_names,
+          active: input.active,
+        });
+        if (result.error)
+          throw new HttpError(
+            /set_viewer_access/.test(result.error.message) ? 503 : 400,
+            /set_viewer_access/.test(result.error.message)
+              ? "Lesezugriff ist noch nicht eingerichtet (Release 061 fehlt)."
+              : result.error.message,
+          );
+        return json({ ok: true, id: result.data });
+      }
       if (action === "user-activity" && request.method === "POST") {
         const { ids } = z
           .object({ ids: z.array(z.uuid()).min(1).max(100) })
@@ -1092,5 +1146,5 @@ async function handler(
     );
   }
 }
-export const GET = handler;
-export const POST = handler;
+export const GET = viewerRoute(handler);
+export const POST = viewerRoute(handler);

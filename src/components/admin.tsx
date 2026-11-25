@@ -29,6 +29,7 @@ import {
   matchesFacet,
 } from "@/design-2026/directory";
 import { PlayerApiShare } from "./player-api-share";
+import { ViewerAccessPanel } from "./viewer-access";
 import { api } from "./team";
 import {
   filterCustomers,
@@ -773,6 +774,9 @@ export function AdminView({
             router.refresh();
           }}
         />
+      )}
+      {slug === "mitarbeiter" && !data.read_only && (
+        <ViewerAccessPanel notify={notify} />
       )}
       {slug === "stripe" && <StripeImport data={data} notify={notify} />}
       {slug === "einladungen" && (

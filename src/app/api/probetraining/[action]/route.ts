@@ -1,3 +1,4 @@
+import { viewerRoute } from "@/lib/server/viewer";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { readTrialGrant } from "@/lib/trials/tokens";
@@ -148,5 +149,5 @@ async function handle(
     );
   }
 }
-export const GET = handle;
-export const POST = handle;
+export const GET = viewerRoute(handle);
+export const POST = viewerRoute(handle);

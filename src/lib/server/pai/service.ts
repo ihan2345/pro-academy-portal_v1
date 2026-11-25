@@ -19,6 +19,11 @@ import {
 export async function paiSession() {
   const s = await sessionUser();
   if (!s?.role) throw new HttpError(401, "Bitte melde dich an.");
+  if (s.viewer)
+    throw new HttpError(
+      403,
+      "PAiLTON ist für den Lesezugriff nicht verfügbar.",
+    );
   if (s.customerStatus === "trial")
     throw new HttpError(
       403,

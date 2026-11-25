@@ -204,6 +204,18 @@ function AdminHomeView({ data }: { data: PortalData }) {
       tone: "gray",
     },
   ];
+  // Lese-Rolle: keine Schnellaktionen zu Einstellungen, Stripe, Einladungen, Planung.
+  const shownActions = data.read_only
+    ? actions.filter(
+        (a) =>
+          ![
+            "/admin/einstellungen",
+            "/admin/stripe",
+            "/admin/einladungen",
+            "/admin/trainingsplanung",
+          ].includes(a.href),
+      )
+    : actions;
   const daySheet =
     sheet?.kind === "day" ? onDay(sheet.day) : ([] as Training[]);
   const kpis = [
@@ -439,7 +451,7 @@ function AdminHomeView({ data }: { data: PortalData }) {
           <h2>Schnellzugriff</h2>
         </div>
         <div className="d26-actions">
-          {actions.map((a) => (
+          {shownActions.map((a) => (
             <Link key={a.href} href={a.href} className="d26-action">
               <span className={`d26-app-icon tone-${a.tone}`}>
                 <a.icon size={22} />

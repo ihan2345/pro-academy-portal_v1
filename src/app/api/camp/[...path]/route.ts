@@ -1,3 +1,4 @@
+import { viewerRoute } from "@/lib/server/viewer";
 import { prepareCampShopBooking } from "@/lib/camps/shop-booking";
 import { guestEmailRequiresLogin } from "@/lib/server/parent-activation";
 import { updateCamp, saveCampBookingOption } from "@/lib/camps/management";
@@ -358,4 +359,5 @@ async function handler(
     );
   }
 }
-export { handler as GET, handler as POST };
+export const GET = viewerRoute(handler);
+export const POST = viewerRoute(handler);

@@ -65,6 +65,9 @@ export interface Report {
   athletics_units?: number;
 }
 export interface PortalData {
+  /** Lese-Rolle „Einsicht“ (Release 061): nichts ändern, Namen ggf. gekürzt. */
+  read_only?: boolean;
+  clear_names?: boolean;
   products_enabled?: boolean;
   trial_access?: boolean;
   trial_enabled?: boolean;
