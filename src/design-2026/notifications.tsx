@@ -27,7 +27,9 @@ import {
   CreditCard,
   ExternalLink,
   FileText,
+  Globe,
   Inbox,
+  LogIn,
   Mail,
   Siren,
   Layers,
@@ -45,6 +47,7 @@ import { formatDate, formatTime } from "@/lib/domain";
 import { addDays, calendarDate } from "@/lib/calendar";
 import { CHANGED, useDecisions } from "./decisions";
 import type { TrialBellEvent } from "@/lib/trials/bell";
+import type { PortalAccessEvent } from "@/lib/portal-events";
 
 type Tone = "sos" | "urgent" | "warn" | "info" | "good";
 type Action =
@@ -76,12 +79,13 @@ export type Note = {
 };
 
 /** Aufklappbare Kategorien unter "Jetzt wichtig", in dieser Reihenfolge. */
-export type Cat = "trial" | "pay" | "training" | "reports" | "other";
+export type Cat = "trial" | "pay" | "training" | "reports" | "portal" | "other";
 export const CATS: { id: Cat; label: string; icon: LucideIcon }[] = [
   { id: "trial", label: "Probetraining", icon: UserPlus },
   { id: "pay", label: "Zahlungen & Abos", icon: CreditCard },
   { id: "training", label: "Training", icon: CalendarDays },
   { id: "reports", label: "Berichte", icon: FileText },
+  { id: "portal", label: "Portal", icon: Globe },
   { id: "other", label: "Sonstiges", icon: Inbox },
 ];
 
@@ -89,6 +93,12 @@ export const CATS: { id: Cat; label: string; icon: LucideIcon }[] = [
 export function activityCat(title: string): Cat {
   const t = title.toLowerCase();
   if (t.startsWith("probetraining")) return "trial";
+  if (
+    t.startsWith("einladung") ||
+    t.startsWith("testeinladung") ||
+    t.startsWith("elternprofil aktiviert")
+  )
+    return "portal";
   if (
     ["abo", "zahlung", "stripe", "rechnung", "gutschein", "kündigung"].some(
       (w) => t.includes(w),
@@ -108,6 +118,7 @@ export function noteCat(n: Pick<Note, "key" | "cat">): Cat {
   if (["pay", "pay-check", "parent-pay", "ending"].includes(k)) return "pay";
   if (["confirm", "today", "next"].includes(k)) return "training";
   if (k === "report") return "reports";
+  if (k === "portal") return "portal";
   return "other";
 }
 
@@ -604,6 +615,7 @@ function activityNotes(
   issues: Activity[] = [],
   hidden: (key: string) => boolean = () => false,
   trialsShown = false,
+  portalShown = false,
 ): Note[] {
   const notes: Note[] = [];
   // Offene Vorgänge einzeln, damit jeder für sich erledigt, ignoriert oder
@@ -644,7 +656,13 @@ function activityNotes(
   const fresh = rows
     .filter((r) => !issues.some((i) => i.id === r.id))
     // Probetraining-Mails erscheinen schon als eigene Probetraining-Hinweise.
-    .filter((r) => !trialsShown || !r.title.startsWith("Probetraining"));
+    .filter((r) => !trialsShown || !r.title.startsWith("Probetraining"))
+    // Verschickte Einladungen fasst die Kategorie „Portal“ schon zusammen.
+    .filter(
+      (r) =>
+        !portalShown ||
+        !(r.title.startsWith("Einladung") && r.tone !== "problem"),
+    );
   for (const g of groupActivities(fresh).slice(0, 6)) {
     const a = g.lead,
       target = activityTarget(a, base, players)!;
@@ -681,6 +699,274 @@ function activityNotes(
       ...(many
         ? { steps: g.rows.map((r) => ({ title: r.title, at: r.at })) }
         : {}),
+    });
+  }
+  return notes;
+}
+
+/** Wer: Familie bzw. Teammitglied, wie in den übrigen Hinweisen. */
+export function accessWho(e: Pick<PortalAccessEvent, "name" | "role">) {
+  if (!e.role || e.role === "parent")
+    return e.name ? `Familie ${e.name}` : "Eine Familie";
+  const name = e.name || "Teammitglied";
+  return `${name} (${e.role === "viewer" ? "Lesezugriff" : "Team"})`;
+}
+
+/** Höchstens so viele Namen je Sammelhinweis, der Rest als Zahl. */
+const ACCESS_STEPS = 8;
+/** Ab so vielen Ereignissen am Tag wird zusammengefasst. */
+const ACCESS_SINGLE = 3;
+
+/**
+ * Kategorie „Portal“: verschickte Einladungen, Annahmen, Anmeldungen und wer
+ * gerade im Portal ist. Massenereignisse (Einladungswelle, viele Anmeldungen)
+ * werden je Tag zu einem Hinweis zusammengefasst; ein neues Ereignis macht den
+ * Sammelhinweis wieder ungelesen.
+ */
+export function accessNotes(rows: PortalAccessEvent[], now: number): Note[] {
+  const notes: Note[] = [];
+  const recent = rows.filter((r) => now - Date.parse(r.at) < 7 * DAY);
+  const byDay = (list: PortalAccessEvent[]) => {
+    const m = new Map<string, PortalAccessEvent[]>();
+    for (const r of [...list].sort(
+      (a, b) => Date.parse(b.at) - Date.parse(a.at),
+    )) {
+      const d = calendarDate(new Date(r.at));
+      m.set(d, [...(m.get(d) ?? []), r]);
+    }
+    return [...m.entries()];
+  };
+  const profile = (r: PortalAccessEvent) =>
+    r.parent_id
+      ? {
+          label: "Elternprofil öffnen",
+          href: `/admin/elternprofile/${r.parent_id}`,
+        }
+      : { label: "Elternprofile öffnen", href: "/admin/elternprofile" };
+  const steps = (list: PortalAccessEvent[]) =>
+    list.slice(0, ACCESS_STEPS).map((r) => ({ title: accessWho(r), at: r.at }));
+  const more = (list: PortalAccessEvent[]) =>
+    list.length > ACCESS_STEPS
+      ? ` Dazu ${list.length - ACCESS_STEPS} weitere.`
+      : "";
+  const plural = (n: number, one: string, many: string) =>
+    `${n} ${n === 1 ? one : many}`;
+
+  /** Einzeln bis ACCESS_SINGLE am Tag, sonst ein Sammelhinweis. */
+  const each = (
+    type: string,
+    list: PortalAccessEvent[],
+    single: (r: PortalAccessEvent) => Pick<Note, "title" | "text">,
+    many: (n: number) => Pick<Note, "title" | "text">,
+    tone: Tone,
+    icon: LucideIcon,
+  ) => {
+    for (const [day, items] of byDay(list)) {
+      if (items.length <= ACCESS_SINGLE) {
+        for (const r of items)
+          notes.push({
+            id: `portal-${type}:${r.parent_id ?? r.user_id ?? r.name}:${r.at}`,
+            key: `portal:${type}:${r.parent_id ?? r.user_id ?? r.name}:${day}`,
+            cat: "portal",
+            tone,
+            icon,
+            ...single(r),
+            at: r.at,
+            href: profile(r).href,
+            open: profile(r),
+            group: "news",
+          });
+        continue;
+      }
+      const m = many(items.length);
+      notes.push({
+        id: `portal-${type}:${day}:${items.length}`,
+        key: `portal:${type}:${day}`,
+        cat: "portal",
+        tone,
+        icon: Layers,
+        title: m.title,
+        text: `${m.text}${more(items)}`,
+        at: items[0].at,
+        href: "/admin/elternprofile",
+        open: { label: "Elternprofile öffnen", href: "/admin/elternprofile" },
+        group: "news",
+        steps: steps(items),
+      });
+    }
+  };
+
+  // 1. Einladungen: Welle je Tag immer als ein Hinweis.
+  const invites = recent.filter(
+    (r) => r.kind === "invite_sent" || r.kind === "invite_failed",
+  );
+  for (const [day, items] of byDay(invites.filter((r) => r.wave))) {
+    const sent = items.filter((r) => r.kind === "invite_sent");
+    const failed = items.length - sent.length;
+    notes.push({
+      id: `portal-wave:${day}:${sent.length}:${failed}`,
+      key: `portal:wave:${day}`,
+      cat: "portal",
+      tone: failed ? "warn" : "info",
+      icon: Mail,
+      title: `Einladungswelle: ${plural(sent.length, "Einladung", "Einladungen")} verschickt`,
+      text:
+        (failed
+          ? `${plural(failed, "Einladung konnte", "Einladungen konnten")} nicht verschickt werden.`
+          : "Jede Familie bekommt einen eigenen Link, der 14 Tage gilt.") +
+        more(sent),
+      at: items[0].at,
+      href: "/admin/einstellungen",
+      open: { label: "Einladungswelle ansehen", href: "/admin/einstellungen" },
+      group: "news",
+      steps: steps(sent),
+    });
+  }
+  for (const r of invites.filter((r) => r.test))
+    notes.push({
+      id: `portal-test:${r.at}`,
+      key: `portal:test:${r.at}`,
+      cat: "portal",
+      tone: r.kind === "invite_sent" ? "info" : "warn",
+      icon: Mail,
+      title:
+        r.kind === "invite_sent"
+          ? "Testeinladung verschickt"
+          : "Testeinladung fehlgeschlagen",
+      text:
+        r.kind === "invite_sent"
+          ? "Die Testeinladung ging an deine eigene Adresse."
+          : "Die Testeinladung konnte nicht verschickt werden.",
+      at: r.at,
+      href: "/admin/einstellungen",
+      open: { label: "Einladungswelle ansehen", href: "/admin/einstellungen" },
+      group: "news",
+    });
+  each(
+    "invite",
+    invites.filter((r) => !r.wave && !r.test && r.kind === "invite_sent"),
+    (r) => ({
+      title: "Einladung verschickt",
+      text: `${accessWho(r)} hat eine Einladung ins Portal bekommen.`,
+    }),
+    (n) => ({
+      title: `${plural(n, "Einladung", "Einladungen")} verschickt`,
+      text: "Einzelne Einladungen ins Portal.",
+    }),
+    "info",
+    Mail,
+  );
+
+  // 2. Angenommen bzw. selbst aktiviert.
+  each(
+    "accepted",
+    recent.filter((r) => r.kind === "invite_accepted"),
+    (r) => ({
+      title: "Einladung angenommen",
+      text: `${accessWho(r)} hat die Einladung angenommen und ist jetzt im Portal.`,
+    }),
+    (n) => ({
+      title: `${plural(n, "Einladung", "Einladungen")} angenommen`,
+      text: "Diese Familien sind jetzt mit dem Portal verbunden.",
+    }),
+    "good",
+    UserRoundCheck,
+  );
+  each(
+    "self",
+    recent.filter((r) => r.kind === "self_activated"),
+    (r) => ({
+      title: "Elternkonto selbst aktiviert",
+      text: `${accessWho(r)} hat sich ohne Einladung mit Code angemeldet und das Konto verbunden.`,
+    }),
+    (n) => ({
+      title: `${plural(n, "Elternkonto", "Elternkonten")} selbst aktiviert`,
+      text: "Ohne Einladung mit Code angemeldet und verbunden.",
+    }),
+    "good",
+    UserRoundCheck,
+  );
+
+  // 3. Zum ersten Mal im Portal.
+  const first = recent.filter((r) => r.kind === "login" && r.first);
+  each(
+    "first",
+    first,
+    (r) => ({
+      title: "Zum ersten Mal im Portal",
+      text: `${accessWho(r)} hat sich zum ersten Mal angemeldet.`,
+    }),
+    (n) => ({
+      title: `${n} zum ersten Mal im Portal`,
+      text: "Erste Anmeldung im Portal.",
+    }),
+    "good",
+    Sparkles,
+  );
+
+  // 4. Weitere Anmeldungen: je Tag ein Hinweis, je Person die letzte.
+  const firstDay = new Set(
+    first.map((r) => `${r.user_id}:${calendarDate(new Date(r.at))}`),
+  );
+  for (const [day, items] of byDay(recent.filter((r) => r.kind === "login"))) {
+    const people = new Map<string, PortalAccessEvent>();
+    for (const r of items) {
+      const k = r.user_id ?? r.name ?? r.at;
+      if (!people.has(k) && !firstDay.has(`${r.user_id}:${day}`))
+        people.set(k, r);
+    }
+    const list = [...people.values()];
+    if (!list.length) continue;
+    const families = list.filter((r) => !r.role || r.role === "parent").length;
+    const team = list.length - families;
+    notes.push({
+      id: `portal-login:${day}:${list.length}:${list[0].at}`,
+      key: `portal:login:${day}`,
+      cat: "portal",
+      tone: "info",
+      icon: LogIn,
+      title: `${plural(list.length, "Anmeldung", "Anmeldungen")} im Portal`,
+      text:
+        [
+          families ? plural(families, "Familie", "Familien") : "",
+          team ? `${team} aus dem Team` : "",
+        ]
+          .filter(Boolean)
+          .join(", ") +
+        " angemeldet." +
+        more(list),
+      at: list[0].at,
+      href: "/admin/elternprofile",
+      open: { label: "Elternprofile öffnen", href: "/admin/elternprofile" },
+      group: "news",
+      steps: steps(list),
+    });
+  }
+
+  // 5. Gerade im Portal (letzte Stunde). Neue Person = wieder ungelesen.
+  const online = rows
+    .filter((r) => r.kind === "online" && now - Date.parse(r.at) < HOUR)
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  if (online.length) {
+    const ids = online
+      .map((r) => r.user_id ?? r.name)
+      .sort()
+      .join(",");
+    let h = 0;
+    for (const c of ids) h = (h * 31 + c.charCodeAt(0)) | 0;
+    notes.push({
+      id: `portal-online:${calendarDate(new Date(now))}:${(h >>> 0).toString(36)}`,
+      key: "portal:online",
+      cat: "portal",
+      tone: "info",
+      icon: Globe,
+      title: `Gerade im Portal: ${online.length}`,
+      text: "In der letzten Stunde im Portal aktiv." + more(online),
+      at: online[0].at,
+      href: "/admin/elternprofile",
+      open: { label: "Elternprofile öffnen", href: "/admin/elternprofile" },
+      group: "news",
+      steps: steps(online),
     });
   }
   return notes;
@@ -935,29 +1221,38 @@ export function NotificationBell({
     let alive = true;
     // Erst nach dem Seitenaufbau laden, damit die Seite selbst Vorrang hat.
     const timer = setTimeout(async () => {
-      const [summary, list, issues, conflicts, trials] = await Promise.all([
-        cached<ActivitySummary>("/api/activities/summary", 5 * 60000),
-        cached<{ rows: Activity[] }>(
-          "/api/activities?window=0&limit=50",
-          5 * 60000,
-        ),
-        cached<{ rows: Activity[] }>(
-          "/api/activities?window=issues&limit=50",
-          5 * 60000,
-        ),
-        data.role === "admin"
-          ? cached<StripeBillingConflictPage>(
-              "/api/admin/stripe-conflicts",
-              30 * 60000,
-              true,
-            )
-          : Promise.resolve(null),
-        // Probetraining: 404, solange das Modul ausgeschaltet ist.
-        cached<{ rows: TrialBellEvent[] }>(
-          "/api/probetraining/notices",
-          5 * 60000,
-        ),
-      ]);
+      const [summary, list, issues, conflicts, trials, access] =
+        await Promise.all([
+          cached<ActivitySummary>("/api/activities/summary", 5 * 60000),
+          cached<{ rows: Activity[] }>(
+            "/api/activities?window=0&limit=50",
+            5 * 60000,
+          ),
+          cached<{ rows: Activity[] }>(
+            "/api/activities?window=issues&limit=50",
+            5 * 60000,
+          ),
+          data.role === "admin"
+            ? cached<StripeBillingConflictPage>(
+                "/api/admin/stripe-conflicts",
+                30 * 60000,
+                true,
+              )
+            : Promise.resolve(null),
+          // Probetraining: 404, solange das Modul ausgeschaltet ist.
+          cached<{ rows: TrialBellEvent[] }>(
+            "/api/probetraining/notices",
+            5 * 60000,
+          ),
+          // Portal (Release 064): nur Admins; ohne 064 bleibt die Liste leer.
+          data.role === "admin"
+            ? cached<{ ready: boolean; rows: PortalAccessEvent[] }>(
+                "/api/admin/portal-events",
+                2 * 60000,
+              )
+            : Promise.resolve(null),
+        ]);
+      const portal = access?.ok && access.v.ready ? access.v.rows : null;
       if (!alive) return;
       const t = Date.now();
       const unavailable: Note[] =
@@ -989,8 +1284,10 @@ export function NotificationBell({
           issues.ok ? issues.v.rows : [],
           undefined,
           trials.ok,
+          !!portal,
         ),
         ...(trials.ok ? trialNotes(trials.v.rows, base, t) : []),
+        ...(portal ? accessNotes(portal, t) : []),
       ]);
     }, 2500);
     return () => {
