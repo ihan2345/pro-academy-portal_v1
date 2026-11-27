@@ -332,7 +332,7 @@ function PlayerFeed({
                   </span>
                   <Link
                     className="player-directory-stamp-link"
-                    href={`${base.startsWith("/admin/") ? "/admin" : "/team"}/stempelkarten?child=${encodeURIComponent(c.id)}`}
+                    href={`${base.startsWith("/admin/") ? "/admin" : "/team"}/spieler/${c.id}#stempelkarte`}
                     aria-label={`Stempelkarte von ${c.name} öffnen`}
                     title="Stempelkarte öffnen"
                     prefetch={false}

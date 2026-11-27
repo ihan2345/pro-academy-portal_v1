@@ -93,6 +93,10 @@ if (
       return Response.json(
         previewActivities(path + new URL(url, location.origin).search),
       );
+    if (path === "/api/stamp-card/player")
+      return Response.json(
+        previewInlineStampCard(new URL(url, location.origin).searchParams),
+      );
     if (path === "/api/team/stamp-card")
       return Response.json(
         {
@@ -256,4 +260,81 @@ if (
 
 export function PreviewFetch() {
   return null;
+}
+
+/** Vorschau: Stempelkarte im Spieler-/Elternprofil (Testdaten). */
+function previewInlineStampCard(params: URLSearchParams) {
+  const player = params.get("player_id") ?? "p";
+  const seed = [...player].reduce((n, c) => n + c.charCodeAt(0), 0);
+  const day = 86400000,
+    now = Date.now();
+  const periods = [0, 1, 2].map((i) => {
+    const start = new Date(now - (i * 30 + 12) * day);
+    return {
+      id: `${player}-z${i}`,
+      player_id: player,
+      product_name: seed % 2 ? "GameChanger" : "Pro-Player",
+      starts_at: start.toISOString(),
+      ends_at: new Date(start.getTime() + 30 * day).toISOString(),
+      included_units: 8,
+      status: "active",
+      subscription_id: "abo",
+      subscription_status: "active",
+    };
+  });
+  const period =
+    periods.find((p) => p.id === params.get("period_id")) ?? periods[0];
+  const idx = periods.indexOf(period);
+  const statuses = (
+    idx === 0
+      ? [
+          "attended_auto",
+          "attended_auto",
+          "attended_manual",
+          "absent",
+          "attended_auto",
+          "planned",
+        ]
+      : [
+          "attended_auto",
+          "attended_auto",
+          "excused",
+          "attended_auto",
+          "attended_manual",
+          "attended_auto",
+          "attended_auto",
+          "absent",
+        ]
+  ).slice(0, Math.min(8, 4 + (seed % 3) + (idx ? 2 : 0)));
+  const start = Date.parse(period.starts_at);
+  const events = statuses.map((status, i) => ({
+    id: `${period.id}-e${i}`,
+    title: i % 3 === 2 ? "Athletik" : "Techniktraining",
+    event_type: "Training",
+    starts_at: new Date(start + (i * 4 + 1) * day + 16 * 3600000).toISOString(),
+    ends_at: new Date(start + (i * 4 + 1) * day + 17.5 * 3600000).toISOString(),
+    status,
+    location_name: "Sportpark",
+    trainer_name: "Coach",
+  }));
+  return {
+    periods,
+    period,
+    card: {
+      snapshot: {
+        player_name: "Vorschau",
+        product_name: period.product_name,
+        starts_at: period.starts_at,
+        ends_at: period.ends_at,
+        included_units: 8,
+        completed: 0,
+        minutes: 0,
+        created_at: new Date().toISOString(),
+        version: 1,
+        whatsapp: "",
+        events,
+      },
+      backfillsAvailable: true,
+    },
+  };
 }

@@ -10,7 +10,6 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Mail,
   MapPin,
   Phone,
@@ -50,6 +49,7 @@ import {
 import "./parent-profile-details.css";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { FamilyHero } from "@/design-2026/family";
+import { StampCardInline } from "@/design-2026/stamp-card-inline";
 import { ParentListFilters, ParentListHead } from "@/design-2026/people-heads";
 
 /**
@@ -629,6 +629,22 @@ export function ProfileView({
   const stampChildren = data.children.filter((c) => !c.archived);
   const chosenStampChild =
     stampChildren.find((c) => c.id === stampChild)?.id ?? stampChildren[0]?.id;
+  const stampRef = useRef<HTMLElement>(null);
+  // Klick auf den Stempel einer Kinderkarte: Kind wählen und zur Karte.
+  function showStamp(id: string) {
+    setStampChild(id);
+    const el = stampRef.current;
+    if (!el) return;
+    el.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+      block: "start",
+    });
+    el.classList.remove("is-flash");
+    void el.offsetWidth;
+    el.classList.add("is-flash");
+  }
   const filters = (
     <>
       <select
@@ -912,16 +928,16 @@ export function ProfileView({
                     <small>{c.age}</small>
                   </div>
                   {c.archived && <Badge>Archiviert</Badge>}
-                  {!c.archived && (
-                    <Link
+                  {!c.archived && !full && (
+                    <button
+                      type="button"
                       className="profile-child-stamp-link"
-                      href={`${data.role === "parent" ? "/stempelkarte" : data.role === "admin" ? "/admin/stempelkarten" : "/team/stempelkarten"}?child=${encodeURIComponent(c.id)}`}
-                      aria-label={`Stempelkarte von ${c.name} öffnen`}
-                      title="Stempelkarte öffnen"
-                      prefetch={false}
+                      onClick={() => showStamp(c.id)}
+                      aria-label={`Stempelkarte von ${c.name} anzeigen`}
+                      title="Stempelkarte anzeigen"
                     >
                       <Stamp size={18} aria-hidden="true" />
-                    </Link>
+                    </button>
                   )}
                 </div>
                 <p className="profile-product">
@@ -1231,32 +1247,20 @@ export function ProfileView({
         </section>
       </div>
       {!full && chosenStampChild && (
-        <section className="panel profile-stamp-picker">
-          <div>
-            <span className="eyebrow">TRAININGSFORTSCHRITT</span>
-            <h2>Stempelkarte anzeigen</h2>
-          </div>
-          <div className="ios-child-select">
-            <select
-              aria-label="Kind für Stempelkarte auswählen"
-              value={chosenStampChild}
-              onChange={(e) => setStampChild(e.target.value)}
-            >
-              {stampChildren.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={18} aria-hidden="true" />
-          </div>
-          <Link
-            className="primary-button"
-            href={`${data.role === "parent" ? "/stempelkarte" : data.role === "admin" ? "/admin/stempelkarten" : "/team/stempelkarten"}?child=${encodeURIComponent(chosenStampChild)}`}
-          >
-            Stempelkarte anzeigen <ArrowRight size={16} />
-          </Link>
-        </section>
+        <StampCardInline
+          ref={stampRef}
+          kids={stampChildren.map((c) => ({ id: c.id, name: c.name }))}
+          childId={chosenStampChild}
+          onChildChange={setStampChild}
+          fullHref={
+            data.role === "parent"
+              ? "/stempelkarte"
+              : data.role === "admin"
+                ? "/admin/stempelkarten"
+                : "/team/stempelkarten"
+          }
+          className="profile-stamp-picker"
+        />
       )}
       {editableChild && (
         <Modal

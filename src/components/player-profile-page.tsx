@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/domain";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { PlayerCard } from "@/design-2026/player-card";
 import { maskForViewer } from "@/lib/server/viewer";
+import { StampCardInline } from "@/design-2026/stamp-card-inline";
 export async function PlayerProfilePage({
   area,
   params,
@@ -58,6 +59,13 @@ export async function PlayerProfilePage({
     ["Größe", player.groesse_cm ? `${player.groesse_cm} cm` : null],
     ["Aktive Monate insgesamt", player.aktive_monate],
   ];
+  // Stempelkarte direkt im Spielerprofil (archivierte Kinder haben keine).
+  const stamp = player.archiviert ? null : (
+    <StampCardInline
+      kids={[{ id, name: player.spielername }]}
+      fullHref={`/${area}/stempelkarten`}
+    />
+  );
   if (DESIGN_2026)
     return (
       <Portal
@@ -68,6 +76,7 @@ export async function PlayerProfilePage({
           player={player}
           team={editable.data.team}
           back={`/${area}/spielerprofile`}
+          stamp={stamp}
           editor={
             canEdit ? (
               <PlayerProfileEditor
@@ -99,6 +108,7 @@ export async function PlayerProfilePage({
             <strong>{value ?? "Nicht hinterlegt"}</strong>
           </div>
         ))}
+        {stamp}
         <h2>Entwicklungsziele</h2>
         <p style={{ whiteSpace: "pre-wrap" }}>
           {player.entwicklungsziele || "Noch keine Ziele hinterlegt."}

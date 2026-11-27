@@ -82,6 +82,7 @@ import {
   loadStampCard,
   stampCardRecipients,
   sendStampCard,
+  loadPlayerStampCard,
 } from "@/lib/server/stamp-cards";
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
@@ -537,6 +538,16 @@ async function handler(
         .createSignedUrl(file.storage_path, 60, { download: true });
       if (signError) throw signError;
       return NextResponse.redirect(signed.signedUrl, 303);
+    }
+    // Stempelkarte direkt im Spieler- bzw. Elternprofil (Eltern: nur eigene
+    // Kinder über RLS; Team/Verwaltung: alle).
+    if (path === "stamp-card/player" && request.method === "GET") {
+      const params = request.nextUrl.searchParams;
+      const playerId = z.uuid().parse(params.get("player_id"));
+      const periodId = params.get("period_id")
+        ? z.uuid().parse(params.get("period_id"))
+        : null;
+      return json(await loadPlayerStampCard(db, role, playerId, periodId));
     }
     if (["team/stamp-card", "team/stamp-card-send"].includes(path)) {
       assertRole(role, "team");
