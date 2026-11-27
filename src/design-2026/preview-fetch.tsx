@@ -88,7 +88,9 @@ if (
     if (path === "/api/player-profiles")
       return Response.json(previewPlayerProfiles());
     if (path === "/api/parent-profiles/list")
-      return Response.json(previewParentList());
+      return Response.json(
+        previewParentList(new URL(url, location.origin).searchParams),
+      );
     if (path.startsWith("/api/activities"))
       return Response.json(
         previewActivities(path + new URL(url, location.origin).search),

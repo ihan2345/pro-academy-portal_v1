@@ -23,7 +23,7 @@ import { activityStatus, ONLINE_WINDOW } from "@/lib/user-activity";
 import type { ArchivePage, ArchivePlayer } from "@/lib/player-archive";
 import { PageHead, SheetRow } from "./page-head";
 import { PlayerArchive } from "./player-archive";
-import { BreakdownBars } from "./ui";
+import { BreakdownBars, CountUp } from "./ui";
 import { TeamKindSwitch, useTeamKind } from "./team-kind-switch";
 import { familyKinds, familyTeams } from "@/lib/player-kinds";
 
@@ -286,6 +286,38 @@ async function loadParents(
     if (!d.more) return [...new Map(out.map((r) => [r.id, r])).values()];
   }
   throw new Error("zu viele Seiten");
+}
+
+/**
+ * Zahlen für die Filter-Chips der Elternliste. Kommen aus demselben
+ * Zwischenspeicher wie die Kacheln (ParentListHead lädt die anderen
+ * Kombinationen vorab), erscheinen also ohne eigene Wartezeit.
+ */
+export function useParentChipCounts(
+  search: string,
+  includeInactive: boolean,
+  campOnly: boolean,
+) {
+  const load = (inactive: boolean, camp: boolean) => (signal: AbortSignal) =>
+    loadParents(search, inactive, camp, signal);
+  const plainOn = includeInactive;
+  const plain = useEverything<ProfileListRow>(
+    parentKey(search, plainOn, false),
+    load(plainOn, false),
+  ).rows?.length;
+  const camp = useEverything<ProfileListRow>(
+    parentKey(search, true, true),
+    load(true, true),
+  ).rows?.length;
+  const toggled = useEverything<ProfileListRow>(
+    parentKey(search, !includeInactive, campOnly),
+    load(!includeInactive, campOnly),
+  ).rows?.length;
+  return {
+    all: plain,
+    camp,
+    withInactive: includeInactive ? undefined : toggled,
+  };
 }
 
 export function ParentListHead({
@@ -577,17 +609,27 @@ function PortalSwitch({
   );
 }
 
+function ChipCount({ n }: { n?: number }) {
+  return n === undefined ? null : (
+    <em>
+      <CountUp value={n} duration={600} />
+    </em>
+  );
+}
+
 export function ParentListFilters({
   campOnly,
   sort,
   includeInactive,
   revenue,
+  counts,
   set,
 }: {
   campOnly: boolean;
   sort: string;
   includeInactive: boolean;
   revenue: boolean;
+  counts?: { all?: number; camp?: number; withInactive?: number };
   set: (patch: {
     campOnly?: boolean;
     sort?: string;
@@ -610,6 +652,7 @@ export function ParentListFilters({
           onClick={() => set({ campOnly: false })}
         >
           Alle
+          <ChipCount n={counts?.all} />
         </button>
         <button
           type="button"
@@ -617,10 +660,19 @@ export function ParentListFilters({
           onClick={() => set({ campOnly: true })}
         >
           Campfamilien
+          <ChipCount n={counts?.camp} />
         </button>
         <button
           type="button"
           className={`d26-chip ${includeInactive ? "is-active" : ""}`}
+          aria-pressed={includeInactive}
+          data-tip={
+            includeInactive
+              ? "Zeigt auch Familien ohne laufendes Abo"
+              : counts?.withInactive !== undefined
+                ? `Mit Familien ohne aktives Abo: ${counts.withInactive}`
+                : undefined
+          }
           onClick={() => set({ includeInactive: !includeInactive })}
         >
           Auch ohne aktives Abo
