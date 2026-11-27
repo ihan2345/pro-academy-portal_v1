@@ -29,6 +29,7 @@ import { FreeCampReview } from "./free-review";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { CampHead } from "@/design-2026/camp-head";
 import { CampChips } from "@/design-2026/camp-chips";
+import { loadCached, useCached } from "@/design-2026/swr";
 type Booking = {
   id: string;
   camp_id: string;
@@ -501,8 +502,14 @@ export function CampDashboard({
 }) {
   const router = useRouter();
   const selected = campId;
-  const [data, setData] = useState<Data | null>(null),
-    [player, setPlayer] = useState(""),
+  // Zwischenspeicher (stale-while-revalidate): Beim Wechsel zwischen Camps
+  // (Chips) und der Übersicht stehen die zuletzt geladenen Zahlen sofort da,
+  // frische Werte kommen still im Hintergrund.
+  const cached = useCached<Data>("camp:dashboard", () => campApi("dashboard"), {
+    maxAge: Infinity,
+  });
+  const data = cached.data ?? null;
+  const [player, setPlayer] = useState(""),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [creating, setCreating] = useState(false),
@@ -511,17 +518,21 @@ export function CampDashboard({
     [readiness, setReadiness] = useState<{
       checks: { name: string; status: string; detail: string }[];
     } | null>(null);
-  async function load() {
+  // Nach Änderungen immer frisch laden, beim Öffnen an eine laufende Ladung
+  // anhängen.
+  async function load(force = true) {
     setError("");
     try {
-      const d = await campApi("dashboard");
-      setData(d);
+      await loadCached<Data>("camp:dashboard", () => campApi("dashboard"), {
+        force,
+      });
     } catch (e) {
       setError((e as Error).message);
     }
   }
   useEffect(() => {
-    void load();
+    void load(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   async function action(path: string, body: unknown) {
     setBusy(true);
@@ -1231,7 +1242,7 @@ export function CampDashboard({
                 ...data.offers.map((o) => o.camp_id),
                 ...data.bookings.map((b) => b.camp_id),
               ]}
-              onChanged={load}
+              onChanged={() => load()}
             />
           )}
           {data.role === "admin" && view === "overview" && (

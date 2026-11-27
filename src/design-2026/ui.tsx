@@ -97,7 +97,11 @@ export function Sheet({
   );
 }
 
-/** Zahl zählt beim Erscheinen hoch. */
+/**
+ * Zahl zählt beim Erscheinen hoch. Ändert sich der Wert danach (anderer Chip,
+ * frischer Wert aus dem Hintergrund), zählt sie vom gerade gezeigten Wert zum
+ * neuen weiter und springt nicht auf 0 zurück.
+ */
 export function CountUp({
   value,
   duration = 900,
@@ -106,14 +110,22 @@ export function CountUp({
   duration?: number;
 }) {
   const [shown, setShown] = useState(prefersReducedMotion() ? value : 0);
+  const current = useRef(shown);
   useEffect(() => {
-    if (prefersReducedMotion()) return setShown(value);
+    if (prefersReducedMotion()) {
+      current.current = value;
+      return setShown(value);
+    }
+    const from = current.current;
+    if (from === value) return;
     let frame = 0;
     const start = performance.now();
     const tick = (t: number) => {
       const k = Math.min(1, (t - start) / duration);
       const eased = 1 - Math.pow(1 - k, 3);
-      setShown(Math.round(value * eased));
+      const next = Math.round(from + (value - from) * eased);
+      current.current = next;
+      setShown(next);
       if (k < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
