@@ -324,10 +324,16 @@ test("admin edits child, opens selected stamp card and confirms unlink without d
   try {
     await login(page, "admin");
     await page.goto(`/admin/elternprofile/${parent.data!.id}`);
+    // Stempel der Kinderkarte wählt das Kind in der eingebetteten Stempelkarte.
     await page
-      .getByLabel("Kind für Stempelkarte auswählen")
-      .selectOption(child.id);
-    await page.getByRole("link", { name: "Stempelkarte anzeigen" }).click();
+      .getByRole("button", {
+        name: `Stempelkarte von ${child.first_name} ${child.last_name} anzeigen`,
+      })
+      .click();
+    await page
+      .getByRole("region", { name: "Stempelkarte" })
+      .getByRole("link", { name: "Alle Details" })
+      .click();
     await expect(
       page.getByRole("combobox", { name: "Kind auswählen", exact: true }),
     ).toHaveValue(child.id, { timeout: 15000 });

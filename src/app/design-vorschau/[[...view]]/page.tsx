@@ -10,6 +10,7 @@ import { PreviewFetch } from "@/design-2026/preview-fetch";
 import { previewFamily, previewPlayer } from "@/design-2026/mock-pages";
 import { ProfileView } from "@/components/parent-profile";
 import { PlayerCard } from "@/design-2026/player-card";
+import { StampCardInline } from "@/design-2026/stamp-card-inline";
 import { ProductStore } from "@/components/products/store";
 import "@/components/products/products.css";
 import { GiftAccountOverview } from "@/components/products/gift-account";
@@ -83,6 +84,12 @@ export default async function Page({
             player={previewPlayer()}
             team="U11"
             back="/design-vorschau/admin"
+            stamp={
+              <StampCardInline
+                kids={[{ id: "vorschau-spieler", name: "Vorschau" }]}
+                fullHref="/design-vorschau/admin/stempelkarten"
+              />
+            }
           />
         </Portal>
       </>

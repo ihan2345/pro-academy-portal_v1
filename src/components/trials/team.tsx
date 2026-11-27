@@ -14,6 +14,8 @@ import { DESIGN_2026 } from "@/design-2026/flag";
 import { PageHead } from "@/design-2026/page-head";
 import { Archive, CalendarDays, Inbox, Star, UserCheck } from "lucide-react";
 import { DashboardDisclosure } from "../dashboard-disclosure";
+import { peekCached, setCached } from "@/design-2026/swr";
+import { CountUp } from "@/design-2026/ui";
 export function TrialMenuBadge() {
   const [counts, setCounts] = useState<{ new: number; review: number } | null>(
     null,
@@ -26,9 +28,16 @@ export function TrialMenuBadge() {
         signal: abort.signal,
       })
         .then((r) => (r.ok ? r.json() : null))
-        .then(setCounts)
+        .then((d) => {
+          if (d) setCached("trials:summary", d);
+          setCounts(d);
+        })
         .catch(() => {});
     };
+    const hit = peekCached<{ new: number; review: number }>(
+      "trials:summary",
+    ).data;
+    if (hit) setCounts(hit);
     load();
     window.addEventListener("trial-updated", load);
     const timer = window.setInterval(load, 60000);
@@ -43,7 +52,7 @@ export function TrialMenuBadge() {
       className="badge purple"
       title={`${counts.new} neue Anfragen, ${counts.review} Bewertungen offen`}
     >
-      {counts.new + counts.review}
+      <CountUp value={counts.new + counts.review} />
     </span>
   ) : null;
 }
@@ -173,6 +182,7 @@ export function TrialTeam() {
       const r = await fetch("/api/probetraining/team", { cache: "no-store" });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
+      setCached("trials:team", d);
       setData(d);
       window.dispatchEvent(new Event("trial-updated"));
     } catch (e) {
@@ -183,6 +193,9 @@ export function TrialTeam() {
     setSelected(
       new URLSearchParams(window.location.search).get("request") ?? "",
     );
+    // Zuletzt geladenen Stand sofort zeigen, frisch im Hintergrund.
+    const hit = peekCached<Parameters<typeof setData>[0]>("trials:team").data;
+    if (hit) setData(hit);
     void load();
   }, [load]);
   if (!data)
@@ -904,6 +917,7 @@ export function TrialDashboard({
           return r.json();
         })
         .then((d) => {
+          setCached("trials:team", d);
           setRows(d.rows);
           setError("");
         })
@@ -913,6 +927,11 @@ export function TrialDashboard({
         .finally(() => {
           if (!controller.signal.aborted) setLoaded(true);
         });
+    const hit = peekCached<{ rows: TrialRow[] }>("trials:team").data;
+    if (hit) {
+      setRows(hit.rows);
+      setLoaded(true);
+    }
     load();
     window.addEventListener("trial-updated", load);
     const timer = setInterval(load, 60000);

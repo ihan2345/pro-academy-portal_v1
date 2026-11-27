@@ -26,6 +26,58 @@ export async function loadStampCard(
     .maybeSingle();
   if (error) throw error;
   if (!period) throw new HttpError(404, "Leistungszeitraum nicht gefunden.");
+  return buildStampCard(db, period as Period, true);
+}
+
+/**
+ * Stempelkarte eines Kindes direkt im Spielerprofil bzw. Elternprofil:
+ * alle Leistungszeiträume des Kindes plus die Karte des gewählten (sonst
+ * laufenden) Zeitraums. Eltern sehen über RLS nur eigene Kinder und keine
+ * internen Nachtrag-Notizen.
+ */
+export async function loadPlayerStampCard(
+  db: SupabaseClient,
+  role: string,
+  playerId: string,
+  periodId?: string | null,
+) {
+  if (!["parent", "staff", "admin"].includes(role))
+    throw new HttpError(403, "Keine Berechtigung.");
+  const { data, error } = await db
+    .from("entitlement_periods")
+    .select("*,subscriptions(status)")
+    .eq("player_id", playerId)
+    .order("starts_at", { ascending: false });
+  if (error) throw error;
+  const periods = (data ?? []).map((p: any) => ({
+    ...p,
+    subscription_status: p.subscriptions?.status ?? null,
+    subscriptions: undefined,
+  })) as Period[];
+  const now = new Date().toISOString();
+  const period =
+    periods.find((p) => p.id === periodId) ??
+    periods.find((p) => p.starts_at <= now && p.ends_at > now) ??
+    periods.find((p) => p.starts_at <= now) ??
+    periods[periods.length - 1];
+  if (!period) return { periods, period: null, card: null };
+  const card = await buildStampCard(db, period, role !== "parent");
+  return {
+    periods,
+    period,
+    card: {
+      snapshot: card.snapshot,
+      backfillsAvailable: card.backfillsAvailable,
+      privateNotes: role === "parent" ? {} : card.privateNotes,
+    },
+  };
+}
+
+async function buildStampCard(
+  db: SupabaseClient,
+  period: Period,
+  privateNotes: boolean,
+) {
   const [playerResult, eventsResult, backfillsResult] = await Promise.all([
     db
       .from("players")
@@ -38,14 +90,18 @@ export async function loadStampCard(
       .select(
         "*,training_events!inner(id,title,event_type,status,starts_at,ends_at,locations(name),staff_profiles(display_name))",
       )
-      .eq("period_id", periodId)
+      .eq("period_id", period.id)
       .eq("player_id", period.player_id)
       .limit(1000),
     optionalBackfills(
       db
         .from("training_backfills")
-        .select(`${backfillColumns},training_backfill_private_notes(note)`)
-        .eq("period_id", periodId)
+        .select(
+          privateNotes
+            ? `${backfillColumns},training_backfill_private_notes(note)`
+            : backfillColumns,
+        )
+        .eq("period_id", period.id)
         .eq("player_id", period.player_id)
         .limit(1000),
     ),

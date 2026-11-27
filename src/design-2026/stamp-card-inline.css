@@ -1,0 +1,107 @@
+/* Stempelkarte direkt im Spieler- und Elternprofil. */
+.inline-stamp-card {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  scroll-margin-top: 90px;
+}
+.inline-stamp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.inline-stamp-head h2 {
+  margin: 2px 0 4px;
+}
+.inline-stamp-head p {
+  margin: 0;
+}
+.inline-stamp-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.inline-stamp-tools .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+.inline-stamp-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+/* Ohne Design 2026: schlichte Pillen. */
+:root:not([data-design="2026"]) .inline-stamp-chips button {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 99px;
+  border: 1px solid currentColor;
+  background: transparent;
+  font-weight: 600;
+}
+:root:not([data-design="2026"]) .inline-stamp-chips button.is-active {
+  background: #111;
+  color: #fff;
+}
+.inline-stamp-chips.is-periods .d26-chip {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+.inline-stamp-card .inline-stamp-body {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  margin: 0;
+  background: none;
+  box-shadow: none;
+  border: 0;
+}
+.inline-stamp-sum {
+  margin: 0;
+}
+.inline-stamp-card .is-spinning {
+  animation: inline-stamp-spin 0.9s linear infinite;
+}
+@keyframes inline-stamp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inline-stamp-card .is-spinning {
+    animation: none;
+  }
+}
+@media (max-width: 640px) {
+  .inline-stamp-card {
+    padding: 18px 16px;
+  }
+}
+/* Kurzes Aufleuchten nach Klick auf einen Stempel. */
+.inline-stamp-card.is-flash {
+  animation: inline-stamp-flash 1.2s ease;
+}
+@keyframes inline-stamp-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(124, 58, 237, 0);
+  }
+}
+.inline-stamp-card .large-stamp .stamps {
+  margin: 4px auto 0;
+  padding: 8px 0 0;
+}
+.inline-stamp-card .stamp-legend {
+  padding: 6px 0 0;
+}
+.inline-stamp-card .inline-stamp-sum {
+  text-align: center;
+  padding: 0;
+}

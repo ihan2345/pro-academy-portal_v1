@@ -6012,6 +6012,10 @@ label {
   margin-left: auto;
   border-radius: 10px;
   color: inherit;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
 }
 .profile-child-stamp-link:hover {
   background: color-mix(in srgb, currentColor 12%, transparent);

@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Sheet } from "@/design-2026/ui";
+import { CountUp, Sheet } from "@/design-2026/ui";
 
 /**
  * Design 2026 (Admin-Zentrale): Steht ein Aufklapp-Bereich in diesem Kontext,
@@ -57,7 +57,9 @@ export function DashboardDisclosure({
           onClick={() => setOpen(true)}
         >
           {icon}
-          <b aria-live="polite">{loading ? "…" : error ? "!" : count}</b>
+          <b aria-live="polite">
+            {loading ? "…" : error ? "!" : <CountUp value={count} />}
+          </b>
           <span>
             {title} <ChevronRight size={13} />
           </span>

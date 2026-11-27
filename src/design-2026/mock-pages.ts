@@ -367,36 +367,186 @@ export function previewPlayerProfiles() {
   return { rows, next: null, total: rows.length };
 }
 
-export function previewParentList() {
-  const rows = kidNames.slice(0, 5).map(([, last, , product, months], i) => ({
-    id: `f-${i + 1}`,
-    name: `Familie ${last}`,
-    email: `${last.toLowerCase()}@example.com`,
-    children: last === "Becker" ? 2 : 1,
-    products: [product],
-    months,
-    portal_access: {
-      activated: i < 3,
-      signed_in: i < 3,
-      // Vorschau: eine Familie gerade online, eine vor 10 Minuten.
-      last_seen_at:
-        i === 0
-          ? new Date().toISOString()
-          : i === 1
-            ? new Date(Date.now() - 10 * 60000).toISOString()
-            : i === 2
-              ? iso(-2)
-              : null,
-      // Vorschau: Familie 4 hat sich schon eingeloggt, ist aber nicht freigeschaltet.
-      signed_up_at: i === 3 ? iso(-1) : null,
-      invitation: {
-        status: i === 3 ? "sent" : i === 4 ? "none" : "accepted",
-        sent_at: i === 4 ? null : iso(-60),
-        accepted_at: i < 3 ? iso(-59) : null,
+const parentLastNames = [
+  "Becker",
+  "Kaya",
+  "Yilmaz",
+  "Schulz",
+  "Wagner",
+  "Hoffmann",
+  "Demir",
+  "Neumann",
+  "Krüger",
+  "Öztürk",
+  "Schmitt",
+  "Arslan",
+  "Lehmann",
+  "Weber",
+  "Koch",
+  "Richter",
+  "Şahin",
+  "Klein",
+  "Wolf",
+  "Schröder",
+  "Aydın",
+  "Zimmermann",
+  "Braun",
+  "Hartmann",
+  "Çelik",
+  "Lange",
+  "Werner",
+  "Krause",
+  "Meier",
+  "Doğan",
+  "Jung",
+  "Hahn",
+  "Keller",
+  "Vogel",
+  "Polat",
+  "Frank",
+  "Berger",
+  "Winkler",
+  "Roth",
+  "Kurt",
+  "Beck",
+  "Lorenz",
+  "Baumann",
+  "Franke",
+  "Albrecht",
+  "Güler",
+  "Ludwig",
+  "Simon",
+  "Böhm",
+  "Winter",
+  "Kraus",
+  "Martin",
+  "Schuster",
+  "Erdem",
+  "Krämer",
+  "Vogt",
+  "Stein",
+  "Jäger",
+  "Otto",
+  "Sommer",
+  "Groß",
+  "Seidel",
+  "Heinrich",
+  "Brandt",
+  "Haas",
+  "Schreiber",
+  "Graf",
+  "Dietrich",
+] as const;
+const parentFirstNames = [
+  "Sandra",
+  "Selin",
+  "Mehmet",
+  "Julia",
+  "Thomas",
+  "Anna",
+  "Murat",
+  "Katrin",
+  "Stefan",
+  "Ayşe",
+  "Christian",
+  "Elif",
+  "Nadine",
+  "Michael",
+  "Sabine",
+] as const;
+const parentProducts = [
+  ["Gamechanger"],
+  ["First Touch"],
+  ["Next Level Pro"],
+  ["Gamechanger", "First Touch"],
+  [],
+] as const;
+
+/**
+ * Vorschau: 68 erfundene Familien, damit Seiten, Filter und Sortierung wie
+ * im echten Portal wirken. Wertet dieselben Parameter aus wie die echte API.
+ */
+export function previewParentFamilies() {
+  return parentLastNames.map((last, i) => {
+    const products = [...parentProducts[(i * 7) % parentProducts.length]];
+    const subscribed = products.length > 0;
+    const activated = subscribed && i % 6 !== 4;
+    const minutesAgo =
+      i === 0 ? 0 : i === 3 ? 4 : i === 9 ? 18 : i === 14 ? 25 : null;
+    const seen =
+      minutesAgo !== null
+        ? new Date(Date.now() - minutesAgo * 60000).toISOString()
+        : activated && i % 3 !== 2
+          ? iso(-1 - (i % 9))
+          : null;
+    const status = activated
+      ? "accepted"
+      : i % 5 === 0
+        ? "none"
+        : i % 5 === 1
+          ? "held"
+          : "sent";
+    return {
+      id: `f-${i + 1}`,
+      name: `${parentFirstNames[i % parentFirstNames.length]} ${last}`,
+      email: `${parentFirstNames[i % parentFirstNames.length].toLowerCase().replace("ş", "s")}.${last
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[^a-z]/g, "")}@example.com`,
+      children: 1 + (i % 4 === 1 ? 1 : 0) + (i % 11 === 3 ? 1 : 0),
+      products,
+      months: subscribed ? (i * 13) % 22 : (i * 5) % 4,
+      camp: i % 4 === 0 || i % 9 === 2,
+      created: iso(-((i * 37) % 400)),
+      revenue: subscribed ? 9000 + ((i * 7919) % 140000) : i % 3 ? 18900 : null,
+      portal_access: {
+        activated,
+        signed_in: !!seen,
+        complete: true,
+        last_seen_at: seen,
+        // Eingeloggt, aber nicht freigeschaltet (z. B. Launch-Sperre).
+        signed_up_at: !activated && i % 4 === 2 ? iso(-(i % 6) - 1) : null,
+        invitation: {
+          status,
+          kind: "invitation",
+          sent_at: status === "none" ? null : iso(-60 + (i % 20)),
+          accepted_at: status === "accepted" ? iso(-58 + (i % 20)) : null,
+        },
       },
-    },
-  }));
-  return { rows, total: rows.length, more: false };
+    };
+  });
+}
+
+export function previewParentList(params = new URLSearchParams()) {
+  const search = (params.get("search") ?? "").toLowerCase().trim();
+  const inactive = params.get("includeInactive") === "true";
+  const camp = params.get("campOnly") === "true";
+  const sort = params.get("sort") ?? "name";
+  const offset = Number(params.get("offset") ?? 0);
+  const limit = Number(params.get("limit") ?? 25);
+  const all = previewParentFamilies()
+    .filter((f) => inactive || f.products.length > 0)
+    .filter((f) => !camp || f.camp)
+    .filter(
+      (f) =>
+        !search ||
+        f.name.toLowerCase().includes(search) ||
+        f.email.includes(search),
+    )
+    .sort((a, b) =>
+      sort === "months"
+        ? b.months - a.months || a.name.localeCompare(b.name, "de")
+        : sort === "revenue"
+          ? (b.revenue ?? -1) - (a.revenue ?? -1)
+          : sort === "newest"
+            ? b.created.localeCompare(a.created)
+            : a.name.localeCompare(b.name, "de"),
+    );
+  const rows = all
+    .slice(offset, offset + limit)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    .map(({ camp: _c, created: _d, ...row }) => row);
+  return { rows, total: all.length, more: offset + limit < all.length };
 }
 
 export function previewActivities(path: string) {

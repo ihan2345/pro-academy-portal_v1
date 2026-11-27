@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -21,6 +21,18 @@ import {
   type StripeNoticePage,
   type StripeNoticeState,
 } from "@/lib/stripe-notices";
+import { loadCached, peekCached, setCached } from "@/design-2026/swr";
+import { CountUp } from "@/design-2026/ui";
+
+async function loadOverview(url: string): Promise<StripeNoticePage> {
+  const r = await fetch(url, { cache: "no-store" });
+  const result = await r.json();
+  if (!r.ok)
+    throw Error(
+      result.error ?? "Stripe-Meldungen konnten nicht geladen werden.",
+    );
+  return result;
+}
 
 export function StripeNoticeOverview({
   section,
@@ -40,49 +52,83 @@ export function StripeNoticeOverview({
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0),
     [saving, setSaving] = useState(""),
-    [saveError, setSaveError] = useState("");
+    [saveError, setSaveError] = useState(""),
+    [refreshing, setRefreshing] = useState(false);
   const requestWindow = conflicts || window === "open" ? "all" : window,
     requestState = !conflicts && window === "open" ? "open" : "all",
     requestPage = conflicts ? 1 : page;
-  useEffect(() => {
-    const abort = new AbortController();
-    setLoading(true);
-    setError("");
-    const query = new URLSearchParams({
+  const overviewUrl = (w: string, st: string, t: StripeNoticeType) =>
+    `/api/admin/stripe-overview?${new URLSearchParams({
       section,
-      window: requestWindow,
-      state: requestState,
+      window: w,
+      state: st,
       page: String(requestPage),
-      ...(conflicts ? {} : { type }),
-    });
-    fetch(`/api/admin/stripe-overview?${query}`, {
-      signal: abort.signal,
-      cache: "no-store",
-    })
-      .then(async (r) => {
-        const result = await r.json();
-        if (!r.ok)
-          throw Error(
-            result.error ?? "Stripe-Meldungen konnten nicht geladen werden.",
-          );
-        if (!abort.signal.aborted) setData(result);
+      ...(conflicts ? {} : { type: t }),
+    })}`;
+  const url = overviewUrl(requestWindow, requestState, type);
+  // Zwischenspeicher (stale-while-revalidate): zuletzt geladener Stand je
+  // Filter erscheint sofort, frische Werte kommen still im Hintergrund.
+  const lastUrl = useRef("");
+  useEffect(() => {
+    let live = true;
+    // Gleicher Filter erneut (Aktualisieren, Fokus, nach Speichern): frisch
+    // laden. Neuer Filter: an eine laufende Vorab-Ladung anhängen.
+    const force = lastUrl.current === url;
+    lastUrl.current = url;
+    const hit = peekCached<StripeNoticePage>(`stripe:${url}`).data;
+    if (hit) setData(hit);
+    setLoading(!hit);
+    setRefreshing(true);
+    setError("");
+    loadCached(`stripe:${url}`, () => loadOverview(url), { force })
+      .then((result) => {
+        if (live) setData(result);
       })
       .catch((e) => {
-        if (!abort.signal.aborted) setError(e.message);
+        if (live && !hit) setError(e.message);
       })
       .finally(() => {
-        if (!abort.signal.aborted) setLoading(false);
+        if (!live) return;
+        setLoading(false);
+        setRefreshing(false);
       });
-    return () => abort.abort();
-  }, [
-    section,
-    requestWindow,
-    requestState,
-    requestPage,
-    type,
-    retry,
-    revision,
-  ]);
+    return () => {
+      live = false;
+    };
+  }, [url, retry, revision]);
+  // Werte der anderen Chips (Alle / Neue Abos / Kündigungen und die Zeiträume)
+  // vorab holen, damit der Wechsel ohne Wartezeit läuft.
+  const ready = !!data && !loading;
+  useEffect(() => {
+    if (conflicts || !ready || requestPage !== 1) return;
+    let stop = false;
+    const urls = [
+      ...(["all", "new", "cancel"] as const).map((t) =>
+        overviewUrl(requestWindow, requestState, t),
+      ),
+      ...(
+        [
+          ["month", "all"],
+          ["all", "all"],
+          ["all", "open"],
+        ] as const
+      ).map(([w, st]) => overviewUrl(w, st, type)),
+    ].filter((u) => u !== url);
+    const timer = setTimeout(async () => {
+      for (const u of urls) {
+        if (stop) return;
+        if (peekCached(`stripe:${u}`).data) continue;
+        await loadCached(`stripe:${u}`, () => loadOverview(u)).catch(
+          () => undefined,
+        );
+      }
+    }, 600);
+    return () => {
+      stop = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, url]);
   useEffect(() => {
     const refresh = () => {
       if (!saving) setRetry((n) => n + 1);
@@ -123,6 +169,11 @@ export function StripeNoticeOverview({
           result.error ?? "Bearbeitungsstand konnte nicht gespeichert werden.",
         );
       setData((old) => {
+        const next = patch(old);
+        if (next && next !== old) setCached(`stripe:${url}`, next);
+        return next;
+      });
+      function patch(old: StripeNoticePage | null) {
         if (!old) return old;
         const previous = old.rows.find(
           (r) => r.id === row.id && r.kind === row.kind,
@@ -141,7 +192,7 @@ export function StripeNoticeOverview({
             r.id === row.id && r.kind === row.kind ? { ...r, state } : r,
           ),
         };
-      });
+      }
       // Refill the server-paged open list after a successful acknowledgement.
       if (!conflicts && window === "open") setRetry((n) => n + 1);
     } catch (e) {
@@ -336,7 +387,7 @@ export function StripeNoticeOverview({
     <DashboardDisclosure
       title={conflicts ? "Stripe/Abo-Konflikte" : "Stripe-Aktivitäten"}
       count={data?.openCount ?? 0}
-      loading={loading}
+      loading={loading && !data}
       error={!!error || !!data?.warning}
       description="Der Badge zählt offene Aktionen der letzten 30 Tage – unabhängig vom gewählten Filter und der Seite. Erledigte und ignorierte Meldungen bleiben im Verlauf sichtbar."
       icon={conflicts ? <Repeat size={18} /> : <CreditCard size={18} />}
@@ -411,7 +462,7 @@ export function StripeNoticeOverview({
                   : "Kündigungen"}
               {data?.typeCounts && (
                 <span className="stripe-notice-type-count">
-                  {data.typeCounts[value]}
+                  <CountUp value={data.typeCounts[value]} />
                 </span>
               )}
             </button>
@@ -602,6 +653,7 @@ export function StripeNoticeOverview({
             <small className="profile-muted">
               Geprüft: {formatDate(data.checkedAt)} ·{" "}
               {formatTime(data.checkedAt)}
+              {refreshing && " · wird aktualisiert …"}
             </small>
           )}
         </>

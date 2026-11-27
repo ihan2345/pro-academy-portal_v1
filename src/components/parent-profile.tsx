@@ -1,6 +1,7 @@
 "use client";
 import { GiftAccountOverview } from "./products/gift-account";
 import { useEffect, useRef, useState } from "react";
+import { loadCached, peekCached, setCached } from "@/design-2026/swr";
 import Link from "next/link";
 import { useProfileListState } from "./profile-list-state";
 import { useRouter } from "next/navigation";
@@ -9,14 +10,15 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Mail,
   MapPin,
   Phone,
+  RefreshCw,
   Search,
   Stamp,
   UserRound,
   Users,
+  X,
 } from "lucide-react";
 import { Modal, Badge } from "./portal";
 import { api } from "./team";
@@ -49,7 +51,14 @@ import {
 import "./parent-profile-details.css";
 import { DESIGN_2026 } from "@/design-2026/flag";
 import { FamilyHero } from "@/design-2026/family";
-import { ParentListFilters, ParentListHead } from "@/design-2026/people-heads";
+import { StampCardInline } from "@/design-2026/stamp-card-inline";
+import {
+  ParentListFilters,
+  ParentListHead,
+  useParentChipCounts,
+} from "@/design-2026/people-heads";
+import { CountUp } from "@/design-2026/ui";
+import "@/design-2026/parent-list.css";
 
 /**
  * Design 2026: Einladung direkt am Elternprofil. Nutzt dieselbe Admin-Aktion
@@ -180,6 +189,279 @@ async function request(path: string, body?: unknown, signal?: AbortSignal) {
   if (!res.ok) throw new Error(data.error ?? "Anfrage fehlgeschlagen.");
   return data;
 }
+type ListPage = {
+  rows: ProfileListRow[];
+  total?: number | null;
+  more: boolean;
+};
+const listPath = (
+  search: string,
+  offset: number,
+  includeInactive: boolean,
+  sort: string,
+  campOnly: boolean,
+) =>
+  `list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=${sort}&campOnly=${campOnly}`;
+/** Lädt Listen-Seiten nacheinander vor (still, ohne den Server zu fluten). */
+function prefetchSequential(paths: string[]) {
+  void (async () => {
+    for (const path of paths) {
+      const key = `parents-list:${path}`;
+      const known = peekCached(key);
+      if (known.data && Date.now() - known.at < 60000) continue;
+      await loadCached(key, () => request(path)).catch(() => undefined);
+    }
+  })();
+}
+
+/** Design 2026: Portalstatus einer Familie in einem Wort plus Details. */
+function portalState(access?: ProfileAccess) {
+  if (!access) return { tone: "off", label: "Unbekannt", tip: "" };
+  const details = [
+    invitationLabel(access),
+    access.invitation.sent_at &&
+      `gesendet ${formatDate(access.invitation.sent_at)}`,
+    access.invitation.accepted_at &&
+      `angenommen ${formatDate(access.invitation.accepted_at)}`,
+    access.last_seen_at &&
+      `zuletzt im Portal ${formatDate(access.last_seen_at)}`,
+    !access.activated &&
+      access.signed_up_at &&
+      `eingeloggt ${formatDate(access.signed_up_at)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return access.activated
+    ? { tone: "on", label: "Portal aktiv", tip: details }
+    : access.signed_up_at
+      ? { tone: "signed", label: "Angemeldet, nicht aktiv", tip: details }
+      : { tone: "off", label: "Nicht angemeldet", tip: details };
+}
+
+const ONLINE_MS = 5 * 60000,
+  IDLE_MS = 30 * 60000;
+function presenceOf(at?: string | null) {
+  const t = at ? Date.parse(at) : NaN;
+  if (!Number.isFinite(t)) return "off";
+  const age = Date.now() - t;
+  return age < ONLINE_MS ? "live" : age < IDLE_MS ? "idle" : "off";
+}
+const initialsOf = (name: string) =>
+  name
+    .replace(/^Familie\s+/i, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+function ParentRows2026({
+  rows,
+  base,
+  offset,
+  total,
+  more,
+  loading,
+  refreshing,
+  error,
+  sort,
+  search,
+  setOffset,
+}: {
+  rows: ProfileListRow[];
+  base: string;
+  offset: number;
+  total: number | null;
+  more: boolean;
+  loading: boolean;
+  refreshing: boolean;
+  error: string;
+  sort: string;
+  search: string;
+  setOffset: (n: number) => void;
+}) {
+  const admin = /(^|\/)admin\//.test(base);
+  const pages = total ? Math.max(1, Math.ceil(total / 25)) : null;
+  const page = Math.floor(offset / 25) + 1;
+  const go = (n: number) => {
+    setOffset(n);
+    document
+      .querySelector(".d26-plist-rows")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  return (
+    <section className="d26-plist-card" aria-busy={loading}>
+      <header className="d26-plist-status" role="status">
+        <span>
+          {total === null ? (
+            "Elternprofile werden geladen …"
+          ) : (
+            <>
+              <b>
+                <CountUp value={total} duration={600} />
+              </b>{" "}
+              {total === 1 ? "Familie" : "Familien"}
+              {total > 0 && (
+                <>
+                  {" "}
+                  · {offset + 1}–{offset + rows.length}
+                </>
+              )}
+            </>
+          )}
+        </span>
+        <span className={`d26-plist-sync${refreshing ? " is-on" : ""}`}>
+          <RefreshCw size={12} />
+          {refreshing ? "wird aktualisiert …" : "aktuell"}
+        </span>
+      </header>
+      {error && (
+        <p role="alert" className="profile-error d26-plist-error">
+          {error}
+        </p>
+      )}
+      <div className="d26-plist-rows">
+        {loading && !rows.length ? (
+          Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="d26-plist-row is-skeleton" aria-hidden>
+              <span className="d26-plist-avatar" />
+              <span className="d26-plist-main">
+                <i />
+                <i />
+              </span>
+            </div>
+          ))
+        ) : !error && rows.length === 0 ? (
+          <p className="d26-empty d26-plist-empty">
+            {search
+              ? `Keine Familie passt zu „${search}“.`
+              : "Keine passenden Elternprofile in dieser Auswahl."}
+          </p>
+        ) : (
+          rows.map((r, i) => {
+            const st = familyStatus(r.months);
+            const portal = portalState(r.portal_access);
+            const seen = r.portal_access?.last_seen_at ?? r.last_seen_at;
+            const live = presenceOf(seen);
+            return (
+              <Link
+                className={`d26-plist-row${refreshing ? " is-stale" : ""}`}
+                href={`${base}/${r.id}`}
+                key={r.id}
+                style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}
+              >
+                <span className={`d26-plist-avatar ${st.tier}`}>
+                  {initialsOf(r.name)}
+                  {live !== "off" && (
+                    <i
+                      className={`d26-plist-dot is-${live}`}
+                      aria-label={
+                        live === "live" ? "Gerade online" : "Vor Kurzem online"
+                      }
+                    />
+                  )}
+                </span>
+                <span className="d26-plist-main">
+                  <strong>{r.name}</strong>
+                  <small>{r.email}</small>
+                  <span className="d26-plist-tags">
+                    <span
+                      className={`d26-plist-tag is-${portal.tone}`}
+                      data-tip={portal.tip || undefined}
+                    >
+                      {portal.label}
+                    </span>
+                    {r.portal_access &&
+                      !r.portal_access.activated &&
+                      r.portal_access.invitation.status !== "none" && (
+                        <span className="d26-plist-tag is-invite">
+                          {invitationLabel(r.portal_access)}
+                        </span>
+                      )}
+                    {admin && r.portal_access && (
+                      <span
+                        className="d26-plist-invite"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                      >
+                        <InviteAction
+                          parentId={r.id}
+                          access={r.portal_access}
+                        />
+                      </span>
+                    )}
+                  </span>
+                </span>
+                <span className="d26-plist-kids">
+                  <b>
+                    {r.children} {r.children === 1 ? "Kind" : "Kinder"}
+                  </b>
+                  <span className="d26-plist-products">
+                    {r.products.length ? (
+                      r.products.map((p) => (
+                        <em key={p} className={`is-${childCardTheme([p])}`}>
+                          {p}
+                        </em>
+                      ))
+                    ) : (
+                      <em className="is-none">Kein aktuelles Abo</em>
+                    )}
+                  </span>
+                </span>
+                {sort === "revenue" && (
+                  <span className="d26-plist-revenue">
+                    <b>{r.revenue == null ? "–" : money(r.revenue, "eur")}</b>
+                    <small>
+                      {r.revenue == null ? "nicht eindeutig" : "Gesamtumsatz"}
+                    </small>
+                  </span>
+                )}
+                <span
+                  className={`profile-tier ${st.tier} d26-plist-tier`}
+                  data-tip={`${r.months} ${r.months === 1 ? "Statusmonat" : "Statusmonate"} gesamt`}
+                >
+                  {st.label}
+                  <small>
+                    {r.months} {r.months === 1 ? "Monat" : "Monate"}
+                  </small>
+                </span>
+                <ChevronRight size={18} className="d26-plist-go" />
+              </Link>
+            );
+          })
+        )}
+      </div>
+      {(offset > 0 || more) && (
+        <nav className="d26-plist-pager" aria-label="Seiten">
+          <button
+            type="button"
+            className="d26-chip"
+            disabled={!offset}
+            onClick={() => go(Math.max(0, offset - 25))}
+          >
+            <ChevronLeft size={15} /> Zurück
+          </button>
+          <span>
+            Seite <b>{page}</b>
+            {pages ? ` von ${pages}` : ""}
+          </span>
+          <button
+            type="button"
+            className="d26-chip"
+            disabled={!more}
+            onClick={() => go(offset + 25)}
+          >
+            Weiter <ChevronRight size={15} />
+          </button>
+        </nav>
+      )}
+    </section>
+  );
+}
+
 export function ProfileList({ base }: { base: string }) {
   const {
     search,
@@ -197,34 +479,144 @@ export function ProfileList({ base }: { base: string }) {
     [total, setTotal] = useState<number | null>(null),
     [more, setMore] = useState(false),
     [error, setError] = useState(""),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(true),
+    [refreshing, setRefreshing] = useState(false);
+  // Zwischenspeicher (stale-while-revalidate): zuletzt geladene Liste für
+  // diese Filter sofort, frische Daten still im Hintergrund. Danach werden
+  // Nachbarseiten und die anderen Sortierungen vorgeladen, damit Blättern
+  // und Chip-Wechsel ohne Wartezeit laufen.
   useEffect(() => {
-    const abort = new AbortController();
-    setLoading(true);
+    const path = listPath(search, offset, includeInactive, sort, campOnly);
+    const apply = (d: ListPage) => {
+      setRows(d.rows);
+      setTotal(d.total ?? null);
+      setMore(d.more);
+      setLoading(false);
+    };
+    const key = `parents-list:${path}`;
+    const hit = peekCached<ListPage>(key).data;
+    if (hit) apply(hit);
+    else setLoading(true);
+    setRefreshing(!!hit);
     setError("");
-    const timer = setTimeout(() => {
-      request(
-        `list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=${sort}&campOnly=${campOnly}`,
-        undefined,
-        abort.signal,
-      )
-        .then((d) => {
-          setRows(d.rows);
-          setTotal(d.total ?? null);
-          setMore(d.more);
-        })
-        .catch((e) => {
-          if (!abort.signal.aborted) setError(e.message);
-        })
-        .finally(() => {
-          if (!abort.signal.aborted) setLoading(false);
-        });
-    }, 250);
+    let live = true;
+    const timer = setTimeout(
+      () => {
+        loadCached(key, () => request(path))
+          .then((d: ListPage) => {
+            if (!live) return;
+            apply(d);
+            const next: string[] = [];
+            if (d.more)
+              next.push(
+                listPath(search, offset + 25, includeInactive, sort, campOnly),
+              );
+            if (offset)
+              next.push(
+                listPath(
+                  search,
+                  Math.max(0, offset - 25),
+                  includeInactive,
+                  sort,
+                  campOnly,
+                ),
+              );
+            for (const other of ["name", "months", "newest"])
+              if (other !== sort)
+                next.push(
+                  listPath(search, 0, includeInactive, other, campOnly),
+                );
+            prefetchSequential(next);
+          })
+          .catch((e) => {
+            if (live && !hit) setError(e.message);
+          })
+          .finally(() => {
+            if (live) {
+              setLoading(false);
+              setRefreshing(false);
+            }
+          });
+      },
+      hit ? 0 : 250,
+    );
     return () => {
+      live = false;
       clearTimeout(timer);
-      abort.abort();
     };
   }, [search, offset, includeInactive, sort, campOnly]);
+  const counts = useParentChipCounts(search, includeInactive, campOnly);
+  if (DESIGN_2026)
+    return (
+      <div className="parent-profile d26-plist">
+        <ParentListHead
+          rows={rows}
+          total={total}
+          loading={loading}
+          base={base}
+          search={search}
+          includeInactive={includeInactive}
+          campOnly={campOnly}
+        />
+        <div className="d26-plist-bar">
+          <label className="d26-search">
+            <Search size={16} />
+            <input
+              aria-label="Eltern nach Name oder E-Mail suchen"
+              placeholder="Familie, Name oder E-Mail suchen"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setOffset(0);
+              }}
+            />
+            {search && (
+              <button
+                type="button"
+                className="d26-plist-clear"
+                aria-label="Suche leeren"
+                onClick={() => {
+                  setSearch("");
+                  setOffset(0);
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </label>
+        </div>
+        <ParentListFilters
+          campOnly={campOnly}
+          sort={sort}
+          includeInactive={includeInactive}
+          revenue={base.startsWith("/admin/")}
+          counts={counts}
+          set={(patch) => {
+            if (patch.campOnly !== undefined) {
+              setCampOnly(patch.campOnly);
+              if (patch.campOnly) setIncludeInactive(true);
+            }
+            if (patch.sort !== undefined) setSort(patch.sort);
+            if (patch.includeInactive !== undefined)
+              setIncludeInactive(patch.includeInactive);
+            setOffset(0);
+          }}
+        />
+        <ParentRows2026
+          rows={rows}
+          base={base}
+          offset={offset}
+          total={total}
+          more={more}
+          loading={loading}
+          refreshing={refreshing}
+          error={error}
+          sort={sort}
+          search={search}
+          setOffset={setOffset}
+        />
+      </div>
+    );
   return (
     <div className="parent-profile">
       {DESIGN_2026 ? (
@@ -497,16 +889,21 @@ export function ProfileView({
   useEffect(() => {
     if (data.role !== "admin" || full) return;
     const abort = new AbortController();
-    setFinance(null);
+    // Zuletzt geladene Finanzen dieser Familie sofort zeigen, dann frisch.
+    const key = `parent-finance:${data.id}`;
+    const hit = peekCached<Parameters<typeof setFinance>[0]>(key).data;
+    setFinance(hit ?? null);
     setFinanceError("");
-    setFinanceBusy(true);
+    setFinanceBusy(!hit);
     const timer = setTimeout(
       async () => {
         try {
           const result = await request(`${data.id}/finances`, {}, abort.signal);
+          setCached(key, result);
           if (!abort.signal.aborted) setFinance(result);
         } catch (e) {
-          if (!abort.signal.aborted) setFinanceError((e as Error).message);
+          if (!abort.signal.aborted && !hit)
+            setFinanceError((e as Error).message);
         } finally {
           if (!abort.signal.aborted) setFinanceBusy(false);
         }
@@ -610,6 +1007,22 @@ export function ProfileView({
   const stampChildren = data.children.filter((c) => !c.archived);
   const chosenStampChild =
     stampChildren.find((c) => c.id === stampChild)?.id ?? stampChildren[0]?.id;
+  const stampRef = useRef<HTMLElement>(null);
+  // Klick auf den Stempel einer Kinderkarte: Kind wählen und zur Karte.
+  function showStamp(id: string) {
+    setStampChild(id);
+    const el = stampRef.current;
+    if (!el) return;
+    el.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+      block: "start",
+    });
+    el.classList.remove("is-flash");
+    void el.offsetWidth;
+    el.classList.add("is-flash");
+  }
   const filters = (
     <>
       <select
@@ -893,16 +1306,16 @@ export function ProfileView({
                     <small>{c.age}</small>
                   </div>
                   {c.archived && <Badge>Archiviert</Badge>}
-                  {!c.archived && (
-                    <Link
+                  {!c.archived && !full && (
+                    <button
+                      type="button"
                       className="profile-child-stamp-link"
-                      href={`${data.role === "parent" ? "/stempelkarte" : data.role === "admin" ? "/admin/stempelkarten" : "/team/stempelkarten"}?child=${encodeURIComponent(c.id)}`}
-                      aria-label={`Stempelkarte von ${c.name} öffnen`}
-                      title="Stempelkarte öffnen"
-                      prefetch={false}
+                      onClick={() => showStamp(c.id)}
+                      aria-label={`Stempelkarte von ${c.name} anzeigen`}
+                      title="Stempelkarte anzeigen"
                     >
                       <Stamp size={18} aria-hidden="true" />
-                    </Link>
+                    </button>
                   )}
                 </div>
                 <p className="profile-product">
@@ -1212,32 +1625,20 @@ export function ProfileView({
         </section>
       </div>
       {!full && chosenStampChild && (
-        <section className="panel profile-stamp-picker">
-          <div>
-            <span className="eyebrow">TRAININGSFORTSCHRITT</span>
-            <h2>Stempelkarte anzeigen</h2>
-          </div>
-          <div className="ios-child-select">
-            <select
-              aria-label="Kind für Stempelkarte auswählen"
-              value={chosenStampChild}
-              onChange={(e) => setStampChild(e.target.value)}
-            >
-              {stampChildren.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={18} aria-hidden="true" />
-          </div>
-          <Link
-            className="primary-button"
-            href={`${data.role === "parent" ? "/stempelkarte" : data.role === "admin" ? "/admin/stempelkarten" : "/team/stempelkarten"}?child=${encodeURIComponent(chosenStampChild)}`}
-          >
-            Stempelkarte anzeigen <ArrowRight size={16} />
-          </Link>
-        </section>
+        <StampCardInline
+          ref={stampRef}
+          kids={stampChildren.map((c) => ({ id: c.id, name: c.name }))}
+          childId={chosenStampChild}
+          onChildChange={setStampChild}
+          fullHref={
+            data.role === "parent"
+              ? "/stempelkarte"
+              : data.role === "admin"
+                ? "/admin/stempelkarten"
+                : "/team/stempelkarten"
+          }
+          className="profile-stamp-picker"
+        />
       )}
       {editableChild && (
         <Modal

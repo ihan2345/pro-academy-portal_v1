@@ -1,5 +1,6 @@
 "use client";
 import { SiteFooter } from "./site-footer";
+import { clearCached } from "@/design-2026/swr";
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -1246,8 +1247,11 @@ export function Portal({
                   return;
                 }
                 const res = await fetch("/api/auth/logout", { method: "POST" });
-                if (res.ok) window.location.assign("/login");
-                else
+                if (res.ok) {
+                  // Zwischengespeicherte Zahlen gehören zu diesem Konto.
+                  clearCached();
+                  window.location.assign("/login");
+                } else
                   setToast("Abmeldung fehlgeschlagen. Bitte erneut versuchen.");
               }}
             >

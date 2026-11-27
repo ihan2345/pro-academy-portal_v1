@@ -35,12 +35,15 @@ export function PlayerCard({
   team,
   back,
   editor,
+  stamp,
   now = Date.now(),
 }: {
   player: PlayerCardData;
   team?: string | null;
   back: string;
   editor?: React.ReactNode;
+  /** Stempelkarte des Kindes, direkt unter den Kennzahlen. */
+  stamp?: React.ReactNode;
   now?: number;
 }) {
   const initials = player.spielername
@@ -144,6 +147,8 @@ export function PlayerCard({
           </div>
         ))}
       </div>
+
+      {stamp}
 
       <div className="d26-player-grid">
         <div className="d26-settings-group">

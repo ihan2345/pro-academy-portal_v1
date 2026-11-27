@@ -4,6 +4,7 @@
 // deshalb über dieselben, rein lesenden Endpunkte alle Treffer des aktuellen
 // Filters, damit Summen, Durchschnitte und Top 10 über alle Familien stimmen.
 import { useEffect, useState } from "react";
+import { loadCached, peekCached, useCached } from "./swr";
 import {
   Archive,
   CalendarRange,
@@ -22,7 +23,7 @@ import { activityStatus, ONLINE_WINDOW } from "@/lib/user-activity";
 import type { ArchivePage, ArchivePlayer } from "@/lib/player-archive";
 import { PageHead, SheetRow } from "./page-head";
 import { PlayerArchive } from "./player-archive";
-import { BreakdownBars } from "./ui";
+import { BreakdownBars, CountUp } from "./ui";
 import { TeamKindSwitch, useTeamKind } from "./team-kind-switch";
 import { familyKinds, familyTeams } from "@/lib/player-kinds";
 
@@ -49,55 +50,32 @@ function Led({ state }: { state: "live" | "idle" | "off" }) {
   );
 }
 
-/** Lädt alle Seiten einer Liste (im Tab 5 Minuten gemerkt). */
+/**
+ * Lädt alle Seiten einer Liste. Zwischenspeicher nach stale-while-revalidate:
+ * der zuletzt geladene Stand erscheint sofort, ab 2 Minuten Alter wird im
+ * Hintergrund still nachgeladen.
+ */
 export function useEverything<T extends { id: string }>(
   key: string,
   load: (signal: AbortSignal) => Promise<T[]>,
 ) {
-  const [state, setState] = useState<{
-    key: string;
-    rows: T[] | null;
-    failed: boolean;
-  }>({ key: "", rows: null, failed: false });
-  useEffect(() => {
-    const store = `d26-all:${key}`;
-    try {
-      const hit = JSON.parse(sessionStorage.getItem(store) ?? "null");
-      if (hit && Date.now() - hit.t < 5 * 60000) {
-        setState({ key, rows: hit.rows, failed: false });
-        return;
-      }
-    } catch {
-      /* Kein Zwischenspeicher. */
-    }
-    const abort = new AbortController();
-    const timer = setTimeout(() => {
-      load(abort.signal)
-        .then((rows) => {
-          const unique = [...new Map(rows.map((r) => [r.id, r])).values()];
-          try {
-            sessionStorage.setItem(
-              store,
-              JSON.stringify({ t: Date.now(), rows: unique }),
-            );
-          } catch {
-            /* Egal. */
-          }
-          setState({ key, rows: unique, failed: false });
-        })
-        .catch(() => {
-          if (!abort.signal.aborted)
-            setState({ key, rows: null, failed: true });
-        });
-    }, 400);
-    return () => {
-      clearTimeout(timer);
-      abort.abort();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return state.key === key ? state : { key, rows: null, failed: false };
+  const cached = useCached<T[]>(
+    `all:${key}`,
+    async () => {
+      // Geteilte Ladung: läuft zu Ende, auch wenn eine Kachel schließt.
+      const rows = await load(new AbortController().signal);
+      return [...new Map(rows.map((r) => [r.id, r])).values()];
+    },
+    { maxAge: 2 * 60000, delay: 400 },
+  );
+  return {
+    key,
+    rows: cached.data ?? null,
+    failed: cached.failed,
+    at: cached.at,
+  };
 }
+
 export async function json(url: string, signal: AbortSignal) {
   const r = await fetch(url, { signal, cache: "no-store" });
   if (!r.ok) throw new Error(String(r.status));
@@ -290,6 +268,58 @@ export function PlayerDirectoryHead({
   );
 }
 
+const parentKey = (search: string, inactive: boolean, camp: boolean) =>
+  `parents:${search}:${inactive}:${camp}`;
+async function loadParents(
+  search: string,
+  includeInactive: boolean,
+  campOnly: boolean,
+  signal: AbortSignal,
+) {
+  const out: ProfileListRow[] = [];
+  for (let offset = 0; offset < 5000; offset += 100) {
+    const d = await json(
+      `/api/parent-profiles/list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=name&campOnly=${campOnly}&limit=100`,
+      signal,
+    );
+    out.push(...(d.rows as ProfileListRow[]));
+    if (!d.more) return [...new Map(out.map((r) => [r.id, r])).values()];
+  }
+  throw new Error("zu viele Seiten");
+}
+
+/**
+ * Zahlen für die Filter-Chips der Elternliste. Kommen aus demselben
+ * Zwischenspeicher wie die Kacheln (ParentListHead lädt die anderen
+ * Kombinationen vorab), erscheinen also ohne eigene Wartezeit.
+ */
+export function useParentChipCounts(
+  search: string,
+  includeInactive: boolean,
+  campOnly: boolean,
+) {
+  const load = (inactive: boolean, camp: boolean) => (signal: AbortSignal) =>
+    loadParents(search, inactive, camp, signal);
+  const plainOn = includeInactive;
+  const plain = useEverything<ProfileListRow>(
+    parentKey(search, plainOn, false),
+    load(plainOn, false),
+  ).rows?.length;
+  const camp = useEverything<ProfileListRow>(
+    parentKey(search, true, true),
+    load(true, true),
+  ).rows?.length;
+  const toggled = useEverything<ProfileListRow>(
+    parentKey(search, !includeInactive, campOnly),
+    load(!includeInactive, campOnly),
+  ).rows?.length;
+  return {
+    all: plain,
+    camp,
+    withInactive: includeInactive ? undefined : toggled,
+  };
+}
+
 export function ParentListHead({
   rows: loaded,
   total,
@@ -308,20 +338,33 @@ export function ParentListHead({
   campOnly?: boolean;
 }) {
   const all = useEverything<ProfileListRow>(
-    `parents:${search}:${includeInactive}:${campOnly}`,
-    async (signal) => {
-      const out: ProfileListRow[] = [];
-      for (let offset = 0; offset < 5000; offset += 100) {
-        const d = await json(
-          `/api/parent-profiles/list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=name&campOnly=${campOnly}&limit=100`,
-          signal,
-        );
-        out.push(...(d.rows as ProfileListRow[]));
-        if (!d.more) return out;
-      }
-      throw new Error("zu viele Seiten");
-    },
+    parentKey(search, includeInactive, campOnly),
+    (signal) => loadParents(search, includeInactive, campOnly, signal),
   );
+  // Werte der anderen Filter-Chips vorab holen, damit der Wechsel ohne
+  // Wartezeit läuft. Nacheinander, um den Server nicht zu fluten.
+  const mainReady = !!all.rows;
+  useEffect(() => {
+    if (!mainReady) return;
+    let stop = false;
+    const combos = [false, true]
+      .flatMap((inactive) => [false, true].map((camp) => [inactive, camp]))
+      .filter(([i, c]) => i !== includeInactive || c !== campOnly);
+    const timer = setTimeout(async () => {
+      for (const [i, c] of combos) {
+        if (stop) return;
+        const key = `all:${parentKey(search, i, c)}`;
+        if (peekCached(key).data) continue;
+        await loadCached(key, () =>
+          loadParents(search, i, c, new AbortController().signal),
+        ).catch(() => undefined);
+      }
+    }, 800);
+    return () => {
+      stop = true;
+      clearTimeout(timer);
+    };
+  }, [mainReady, search, includeInactive, campOnly]);
   // Gleicher Schlüssel wie Archiv und Zentrale: teilt den Tab-Cache.
   const archive = useEverything<ArchivePlayer>(
     "archive:0",
@@ -566,17 +609,27 @@ function PortalSwitch({
   );
 }
 
+function ChipCount({ n }: { n?: number }) {
+  return n === undefined ? null : (
+    <em>
+      <CountUp value={n} duration={600} />
+    </em>
+  );
+}
+
 export function ParentListFilters({
   campOnly,
   sort,
   includeInactive,
   revenue,
+  counts,
   set,
 }: {
   campOnly: boolean;
   sort: string;
   includeInactive: boolean;
   revenue: boolean;
+  counts?: { all?: number; camp?: number; withInactive?: number };
   set: (patch: {
     campOnly?: boolean;
     sort?: string;
@@ -599,6 +652,7 @@ export function ParentListFilters({
           onClick={() => set({ campOnly: false })}
         >
           Alle
+          <ChipCount n={counts?.all} />
         </button>
         <button
           type="button"
@@ -606,10 +660,19 @@ export function ParentListFilters({
           onClick={() => set({ campOnly: true })}
         >
           Campfamilien
+          <ChipCount n={counts?.camp} />
         </button>
         <button
           type="button"
           className={`d26-chip ${includeInactive ? "is-active" : ""}`}
+          aria-pressed={includeInactive}
+          data-tip={
+            includeInactive
+              ? "Zeigt auch Familien ohne laufendes Abo"
+              : counts?.withInactive !== undefined
+                ? `Mit Familien ohne aktives Abo: ${counts.withInactive}`
+                : undefined
+          }
           onClick={() => set({ includeInactive: !includeInactive })}
         >
           Auch ohne aktives Abo

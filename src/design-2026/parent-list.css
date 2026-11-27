@@ -1,0 +1,428 @@
+/*
+ * Design 2026: Elternprofile-Liste (/admin/elternprofile, /team/elternprofile).
+ * Suche, Filter-Chips mit Zahlen, Familienzeilen mit Initialen, Portalstatus,
+ * Abo-Chips, Treue-Stufe und Seitenwechsel. Nur unter data-design="2026".
+ */
+:root[data-design="2026"] {
+  & .d26-plist {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  & .d26-plist .d26-shop-filters {
+    margin: 0 0 4px;
+  }
+  & .d26-plist-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    max-width: 560px;
+  }
+  & .d26-plist-bar .d26-search {
+    height: 42px;
+    background: #fff;
+    box-shadow: var(--d26-shadow);
+  }
+  & .d26-plist-clear {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(118, 118, 128, 0.18);
+    color: var(--d26-ink);
+  }
+
+  /* ---------- Karte mit Zeilen ---------- */
+  & .d26-plist-card {
+    border-radius: var(--d26-radius);
+    background: #fff;
+    box-shadow: var(--d26-shadow);
+    overflow: hidden;
+  }
+  & .d26-plist-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    font-size: 13px;
+    color: var(--d26-muted);
+    border-bottom: 1px solid rgba(60, 60, 67, 0.08);
+  }
+  & .d26-plist-status b {
+    color: var(--d26-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  & .d26-plist-sync {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    opacity: 0.55;
+    transition: opacity 0.3s;
+  }
+  & .d26-plist-sync.is-on {
+    opacity: 1;
+    color: var(--purple);
+  }
+  & .d26-plist-sync.is-on svg {
+    animation: d26-plist-spin 1s linear infinite;
+  }
+  & .d26-plist-error {
+    margin: 12px 20px;
+  }
+  & .d26-plist-empty {
+    padding: 36px 20px;
+    text-align: center;
+  }
+
+  & .d26-plist-row {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr) minmax(150px, 230px) 176px 18px;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    color: var(--d26-ink);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(60, 60, 67, 0.07);
+    transition:
+      background 0.2s,
+      opacity 0.3s;
+    animation: d26-rise 0.4s var(--d26-ease) backwards;
+  }
+  & .d26-plist-row:has(.d26-plist-revenue) {
+    grid-template-columns: 46px minmax(0, 1fr) minmax(
+        150px,
+        230px
+      ) 120px 176px 18px;
+  }
+  & .d26-plist-row:last-child {
+    border-bottom: 0;
+  }
+  & .d26-plist-row:hover {
+    background: rgba(139, 83, 254, 0.05);
+  }
+  & .d26-plist-row:hover .d26-plist-go {
+    transform: translateX(3px);
+    color: var(--purple);
+  }
+  & .d26-plist-row.is-stale {
+    opacity: 0.82;
+  }
+
+  & .d26-plist-avatar {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    font-weight: 750;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    color: var(--d26-ink);
+    background: linear-gradient(
+      135deg,
+      var(--metal-light, #f1f1f5),
+      color-mix(in srgb, var(--metal, #c7c7cc) 35%, white)
+    );
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
+  & .d26-plist-avatar.ultimate {
+    background: linear-gradient(135deg, #202714, #3a4719);
+    color: #e7ff35;
+    box-shadow: 0 0 0 1px #d7f329;
+  }
+  & .d26-plist-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 2.5px solid #fff;
+    background: #f59e0b;
+  }
+  & .d26-plist-dot.is-live {
+    background: #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+  }
+
+  & .d26-plist-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 1px;
+  }
+  & .d26-plist-main strong {
+    font-size: 15.5px;
+    letter-spacing: -0.01em;
+  }
+  & .d26-plist-main > small {
+    color: var(--d26-muted);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  & .d26-plist-tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  & .d26-plist-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 11.5px;
+    font-weight: 650;
+    background: rgba(118, 118, 128, 0.12);
+    color: #4a4a52;
+  }
+  & .d26-plist-tag::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.8;
+  }
+  & .d26-plist-tag.is-on {
+    background: rgba(52, 199, 89, 0.14);
+    color: #1f7a35;
+  }
+  & .d26-plist-tag.is-signed {
+    background: rgba(255, 159, 10, 0.15);
+    color: #8a5200;
+  }
+  & .d26-plist-tag.is-invite {
+    background: rgba(139, 83, 254, 0.1);
+    color: #6a35d8;
+  }
+  & .d26-plist-tag.is-invite::before {
+    display: none;
+  }
+  & .d26-plist-invite {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  & .d26-plist-invite .profile-invite-action {
+    padding: 2px 10px;
+    font-size: 11.5px;
+  }
+  & .d26-plist-invite small {
+    font-size: 11.5px;
+    color: var(--d26-muted);
+  }
+
+  & .d26-plist-kids {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+  }
+  & .d26-plist-kids b {
+    font-size: 13.5px;
+  }
+  & .d26-plist-products {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  & .d26-plist-products em {
+    font-style: normal;
+    font-size: 11px;
+    font-weight: 650;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(118, 118, 128, 0.12);
+    color: #3a3a40;
+    white-space: nowrap;
+  }
+  & .d26-plist-products em.is-purple {
+    background: #8b53fe;
+    color: #fff;
+  }
+  & .d26-plist-products em.is-black {
+    background: #1c1c1e;
+    color: #fff;
+  }
+  & .d26-plist-products em.is-neon {
+    background: #d7f329;
+    color: #1c1c1e;
+  }
+  & .d26-plist-products em.is-none {
+    background: transparent;
+    padding: 0;
+    color: var(--d26-muted);
+    font-weight: 500;
+  }
+
+  & .d26-plist-revenue {
+    display: flex;
+    flex-direction: column;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  & .d26-plist-revenue small {
+    font-size: 11px;
+    color: var(--d26-muted);
+  }
+  & .d26-plist-tier {
+    display: flex;
+    flex-direction: column;
+    min-width: 118px;
+    justify-self: start;
+    line-height: 1.25;
+  }
+  & .d26-plist-tier small {
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.7;
+  }
+  & .d26-plist-tier.ultimate {
+    background: linear-gradient(115deg, #202714, #354019);
+    color: #e7ff35;
+  }
+  & .d26-plist-go {
+    color: #c7c7cc;
+    transition:
+      transform 0.25s var(--d26-ease),
+      color 0.25s;
+  }
+
+  /* ---------- Platzhalter beim ersten Laden ---------- */
+  & .d26-plist-row.is-skeleton {
+    grid-template-columns: 46px 1fr;
+    animation: none;
+  }
+  & .d26-plist-row.is-skeleton .d26-plist-avatar,
+  & .d26-plist-row.is-skeleton i {
+    background: linear-gradient(
+      90deg,
+      rgba(118, 118, 128, 0.1),
+      rgba(118, 118, 128, 0.2),
+      rgba(118, 118, 128, 0.1)
+    );
+    background-size: 200% 100%;
+    animation: d26-plist-shimmer 1.2s linear infinite;
+  }
+  & .d26-plist-row.is-skeleton i {
+    display: block;
+    height: 12px;
+    width: 40%;
+    border-radius: 6px;
+    margin: 4px 0;
+  }
+  & .d26-plist-row.is-skeleton i + i {
+    width: 25%;
+  }
+
+  /* ---------- Seiten ---------- */
+  & .d26-plist-pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-top: 1px solid rgba(60, 60, 67, 0.08);
+    font-size: 13px;
+    color: var(--d26-muted);
+  }
+  & .d26-plist-pager b {
+    color: var(--d26-ink);
+  }
+  & .d26-plist-pager .d26-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  & .d26-plist-pager .d26-chip:disabled {
+    opacity: 0.4;
+    box-shadow: none;
+    cursor: default;
+  }
+
+  /* ---------- Handy ---------- */
+  @media (max-width: 760px) {
+    & .d26-plist-bar {
+      max-width: none;
+    }
+    & .d26-plist-row,
+    & .d26-plist-row:has(.d26-plist-revenue) {
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      grid-template-areas:
+        "avatar main tier"
+        "avatar kids kids";
+      gap: 6px 12px;
+      padding: 14px 16px;
+      align-items: start;
+    }
+    & .d26-plist-avatar {
+      grid-area: avatar;
+      width: 42px;
+      height: 42px;
+      font-size: 14px;
+    }
+    & .d26-plist-main {
+      grid-area: main;
+    }
+    & .d26-plist-kids {
+      grid-area: kids;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    & .d26-plist-kids b {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--d26-muted);
+    }
+    & .d26-plist-revenue {
+      grid-column: 2 / 4;
+      grid-row: 3;
+      flex-direction: row;
+      gap: 6px;
+      text-align: left;
+      align-items: baseline;
+    }
+    & .d26-plist-tier {
+      grid-area: tier;
+      min-width: 0;
+      padding: 4px 10px;
+      font-size: 11px;
+      text-align: right;
+    }
+    & .d26-plist-go {
+      display: none;
+    }
+    & .d26-plist-status {
+      padding: 12px 16px;
+    }
+  }
+}
+
+@keyframes d26-plist-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes d26-plist-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="2026"] .d26-plist-row,
+  :root[data-design="2026"] .d26-plist-sync svg {
+    animation: none !important;
+  }
+}

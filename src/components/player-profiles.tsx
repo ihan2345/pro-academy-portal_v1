@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { peekCached, setCached } from "@/design-2026/swr";
 import Link from "next/link";
 import { ArrowUpRight, Search, Stamp, Trophy, Users } from "lucide-react";
 import {
@@ -164,16 +165,24 @@ function PlayerFeed({
     async (cursor: string | null) => {
       if (pending.current) return;
       pending.current = true;
-      setLoading(true);
       setError("");
       const abort = new AbortController();
       controller.current = abort;
+      const params = new URLSearchParams({
+        sort,
+        search,
+        ...(cursor ? { cursor } : {}),
+      });
+      // Erste Seite: zuletzt geladenen Stand sofort zeigen, dann frisch laden.
+      const key = cursor ? null : `player-profiles:${params}`;
+      const hit = key ? peekCached<PlayerProfilePage>(key).data : undefined;
+      if (hit) {
+        setRows(hit.rows);
+        setNext(hit.next);
+        setTotal(hit.total);
+        setLoading(false);
+      } else setLoading(true);
       try {
-        const params = new URLSearchParams({
-          sort,
-          search,
-          ...(cursor ? { cursor } : {}),
-        });
         const response = await fetch(`/api/player-profiles?${params}`, {
           signal: abort.signal,
           cache: "no-store",
@@ -187,6 +196,7 @@ function PlayerFeed({
         }
         if (abort.signal.aborted) return;
         const page = data as PlayerProfilePage;
+        if (key) setCached(key, page);
         setRows((previous) =>
           cursor
             ? [
@@ -200,7 +210,7 @@ function PlayerFeed({
         setNext(page.next);
         setTotal(page.total);
       } catch (e) {
-        if (!abort.signal.aborted)
+        if (!abort.signal.aborted && !hit)
           setError(e instanceof Error ? e.message : "Laden fehlgeschlagen.");
       } finally {
         if (!abort.signal.aborted) {
@@ -322,7 +332,7 @@ function PlayerFeed({
                   </span>
                   <Link
                     className="player-directory-stamp-link"
-                    href={`${base.startsWith("/admin/") ? "/admin" : "/team"}/stempelkarten?child=${encodeURIComponent(c.id)}`}
+                    href={`${base.startsWith("/admin/") ? "/admin" : "/team"}/spieler/${c.id}#stempelkarte`}
                     aria-label={`Stempelkarte von ${c.name} öffnen`}
                     title="Stempelkarte öffnen"
                     prefetch={false}
