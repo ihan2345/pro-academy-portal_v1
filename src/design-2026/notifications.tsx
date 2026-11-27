@@ -6,6 +6,7 @@
 // werden nur im Browser dieses Geräts gespeichert, nichts geht an den Server.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CountUp } from "./ui";
 import {
   Fragment,
   useCallback,
@@ -214,6 +215,24 @@ function save(s: Store) {
  * Liest einen Endpunkt höchstens alle `ttl` Millisekunden. `shared` merkt das
  * Ergebnis für alle Tabs dieses Browsers (localStorage), sonst nur im Tab.
  */
+/**
+ * Zuletzt gemerkter Stand, egal wie alt (stale-while-revalidate): die Glocke
+ * zeigt ihn sofort und lädt danach still nach. null = noch nie geladen.
+ */
+function peekCached<T>(
+  url: string,
+  shared = false,
+): { ok: true; v: T } | { ok: false } | null {
+  try {
+    const box = shared ? localStorage : sessionStorage;
+    const hit = JSON.parse(box.getItem(`d26-notify:${url}`) ?? "null");
+    if (!hit) return null;
+    return hit.ok === false ? { ok: false } : { ok: true, v: hit.v as T };
+  } catch {
+    return null;
+  }
+}
+
 async function cached<T>(
   url: string,
   ttl: number,
@@ -1215,45 +1234,37 @@ export function NotificationBell({
     return () => clearInterval(id);
   }, []);
 
-  // Rein lesende Endpunkte, im Tab zwischengespeichert.
+  // Rein lesende Endpunkte, im Tab zwischengespeichert. Stale-while-
+  // revalidate: der zuletzt gemerkte Stand erscheint sofort, frische Werte
+  // kommen still nach, die Zahl an der Glocke zählt dann von alt zu neu.
   useEffect(() => {
     if (!staff) return;
     let alive = true;
-    // Erst nach dem Seitenaufbau laden, damit die Seite selbst Vorrang hat.
-    const timer = setTimeout(async () => {
-      const [summary, list, issues, conflicts, trials, access] =
-        await Promise.all([
-          cached<ActivitySummary>("/api/activities/summary", 5 * 60000),
-          cached<{ rows: Activity[] }>(
-            "/api/activities?window=0&limit=50",
-            5 * 60000,
-          ),
-          cached<{ rows: Activity[] }>(
-            "/api/activities?window=issues&limit=50",
-            5 * 60000,
-          ),
-          data.role === "admin"
-            ? cached<StripeBillingConflictPage>(
-                "/api/admin/stripe-conflicts",
-                30 * 60000,
-                true,
-              )
-            : Promise.resolve(null),
-          // Probetraining: 404, solange das Modul ausgeschaltet ist.
-          cached<{ rows: TrialBellEvent[] }>(
-            "/api/probetraining/notices",
-            5 * 60000,
-          ),
-          // Portal (Release 064): nur Admins; ohne 064 bleibt die Liste leer.
-          data.role === "admin"
-            ? cached<{ ready: boolean; rows: PortalAccessEvent[] }>(
-                "/api/admin/portal-events",
-                2 * 60000,
-              )
-            : Promise.resolve(null),
-        ]);
+    type R<T> = { ok: true; v: T } | { ok: false };
+    const sources = [
+      { url: "/api/activities/summary", ttl: 5 * 60000 },
+      { url: "/api/activities?window=0&limit=50", ttl: 5 * 60000 },
+      { url: "/api/activities?window=issues&limit=50", ttl: 5 * 60000 },
+      data.role === "admin"
+        ? { url: "/api/admin/stripe-conflicts", ttl: 30 * 60000, shared: true }
+        : null,
+      // Probetraining: 404, solange das Modul ausgeschaltet ist.
+      { url: "/api/probetraining/notices", ttl: 5 * 60000 },
+      // Portal (Release 064): nur Admins; ohne 064 bleibt die Liste leer.
+      data.role === "admin"
+        ? { url: "/api/admin/portal-events", ttl: 2 * 60000 }
+        : null,
+    ];
+    const build = (results: (R<unknown> | null)[]) => {
+      const [summary, list, issues, conflicts, trials, access] = results as [
+        R<ActivitySummary>,
+        R<{ rows: Activity[] }>,
+        R<{ rows: Activity[] }>,
+        R<StripeBillingConflictPage> | null,
+        R<{ rows: TrialBellEvent[] }>,
+        R<{ ready: boolean; rows: PortalAccessEvent[] }> | null,
+      ];
       const portal = access?.ok && access.v.ready ? access.v.rows : null;
-      if (!alive) return;
       const t = Date.now();
       const unavailable: Note[] =
         conflicts && !conflicts.ok
@@ -1271,7 +1282,7 @@ export function NotificationBell({
               },
             ]
           : [];
-      setRemote([
+      return [
         ...unavailable,
         ...(conflicts?.ok ? conflicts.v.rows : []).map((r) =>
           paymentNote(r, t),
@@ -1288,8 +1299,29 @@ export function NotificationBell({
         ),
         ...(trials.ok ? trialNotes(trials.v.rows, base, t) : []),
         ...(portal ? accessNotes(portal, t) : []),
-      ]);
-    }, 2500);
+      ];
+    };
+    // Sofort: gemerkter Stand (auch wenn älter als die TTL).
+    const stale = sources.map((src) =>
+      src ? peekCached(src.url, src.shared) : null,
+    );
+    const anyStale = stale.some(Boolean);
+    if (anyStale)
+      setRemote(
+        build(stale.map((r, i) => (sources[i] ? (r ?? { ok: false }) : null))),
+      );
+    // Danach still nachladen, nach dem Seitenaufbau (die Seite hat Vorrang).
+    const timer = setTimeout(
+      async () => {
+        const fresh = await Promise.all(
+          sources.map((src) =>
+            src ? cached(src.url, src.ttl, src.shared) : Promise.resolve(null),
+          ),
+        );
+        if (alive) setRemote(build(fresh));
+      },
+      anyStale ? 1500 : 2500,
+    );
     return () => {
       alive = false;
       clearTimeout(timer);
@@ -1558,7 +1590,9 @@ export function NotificationBell({
       >
         <Bell size={17} />
         {(unseen.length > 0 || sos) && (
-          <span className="d26-bell-badge">{unseen.length || "!"}</span>
+          <span className="d26-bell-badge">
+            {unseen.length ? <CountUp value={unseen.length} /> : "!"}
+          </span>
         )}
       </button>
       {open && (

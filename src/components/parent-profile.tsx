@@ -1,6 +1,7 @@
 "use client";
 import { GiftAccountOverview } from "./products/gift-account";
 import { useEffect, useRef, useState } from "react";
+import { loadCached, peekCached, setCached } from "@/design-2026/swr";
 import Link from "next/link";
 import { useProfileListState } from "./profile-list-state";
 import { useRouter } from "next/navigation";
@@ -198,31 +199,44 @@ export function ProfileList({ base }: { base: string }) {
     [more, setMore] = useState(false),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
+  // Zwischenspeicher (stale-while-revalidate): zuletzt geladene Liste für
+  // diese Filter sofort, frische Daten still im Hintergrund.
   useEffect(() => {
-    const abort = new AbortController();
-    setLoading(true);
+    const path = `list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=${sort}&campOnly=${campOnly}`;
+    const apply = (d: {
+      rows: ProfileListRow[];
+      total?: number | null;
+      more: boolean;
+    }) => {
+      setRows(d.rows);
+      setTotal(d.total ?? null);
+      setMore(d.more);
+      setLoading(false);
+    };
+    const key = `parents-list:${path}`;
+    const hit = peekCached<Parameters<typeof apply>[0]>(key).data;
+    if (hit) apply(hit);
+    else setLoading(true);
     setError("");
-    const timer = setTimeout(() => {
-      request(
-        `list?search=${encodeURIComponent(search)}&offset=${offset}&includeInactive=${includeInactive}&sort=${sort}&campOnly=${campOnly}`,
-        undefined,
-        abort.signal,
-      )
-        .then((d) => {
-          setRows(d.rows);
-          setTotal(d.total ?? null);
-          setMore(d.more);
-        })
-        .catch((e) => {
-          if (!abort.signal.aborted) setError(e.message);
-        })
-        .finally(() => {
-          if (!abort.signal.aborted) setLoading(false);
-        });
-    }, 250);
+    let live = true;
+    const timer = setTimeout(
+      () => {
+        loadCached(key, () => request(path))
+          .then((d) => {
+            if (live) apply(d);
+          })
+          .catch((e) => {
+            if (live && !hit) setError(e.message);
+          })
+          .finally(() => {
+            if (live) setLoading(false);
+          });
+      },
+      hit ? 0 : 250,
+    );
     return () => {
+      live = false;
       clearTimeout(timer);
-      abort.abort();
     };
   }, [search, offset, includeInactive, sort, campOnly]);
   return (
@@ -497,16 +511,21 @@ export function ProfileView({
   useEffect(() => {
     if (data.role !== "admin" || full) return;
     const abort = new AbortController();
-    setFinance(null);
+    // Zuletzt geladene Finanzen dieser Familie sofort zeigen, dann frisch.
+    const key = `parent-finance:${data.id}`;
+    const hit = peekCached<Parameters<typeof setFinance>[0]>(key).data;
+    setFinance(hit ?? null);
     setFinanceError("");
-    setFinanceBusy(true);
+    setFinanceBusy(!hit);
     const timer = setTimeout(
       async () => {
         try {
           const result = await request(`${data.id}/finances`, {}, abort.signal);
+          setCached(key, result);
           if (!abort.signal.aborted) setFinance(result);
         } catch (e) {
-          if (!abort.signal.aborted) setFinanceError((e as Error).message);
+          if (!abort.signal.aborted && !hit)
+            setFinanceError((e as Error).message);
         } finally {
           if (!abort.signal.aborted) setFinanceBusy(false);
         }

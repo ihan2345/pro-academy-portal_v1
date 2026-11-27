@@ -197,3 +197,39 @@ export function useCached<T>(
     refresh,
   };
 }
+
+/**
+ * Für bestehende Ladeeffekte: gibt den gemerkten Stand sofort an apply,
+ * lädt dann frisch (force: nicht an eine ältere Ladung anhängen) und gibt
+ * den neuen Stand ebenfalls an apply. cancel() nach dem Aushängen aufrufen.
+ */
+export function revalidate<T>(
+  key: string,
+  loader: () => Promise<T>,
+  apply: (data: T) => void,
+  { force = false }: { force?: boolean } = {},
+) {
+  let live = true;
+  const hit = read(key).data as T | undefined;
+  if (hit !== undefined) apply(hit);
+  const done = loadCached(key, loader, { force }).then((data) => {
+    if (live) apply(data);
+    return data;
+  });
+  return {
+    hadData: hit !== undefined,
+    done,
+    cancel: () => {
+      live = false;
+    },
+  };
+}
+
+/** JSON-GET mit Fehlermeldung aus der Antwort. */
+export async function getJson<T>(url: string, fallback: string): Promise<T> {
+  const r = await fetch(url, { cache: "no-store" });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok)
+    throw Object.assign(new Error(d.error ?? fallback), { status: r.status });
+  return d as T;
+}

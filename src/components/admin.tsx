@@ -4,6 +4,7 @@ import { InvitationWave } from "@/components/invitation-wave";
 import { StripeParentInputs } from "./stripe-parent-inputs";
 import { SubscriptionReviews } from "./subscription-reviews";
 import { useEffect, useState } from "react";
+import { peekCached, setCached } from "@/design-2026/swr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -1531,10 +1532,15 @@ function Logs({
     window.addEventListener("hashchange", fromHash);
     return () => window.removeEventListener("hashchange", fromHash);
   }, []);
+  // Zwischenspeicher je Reiter: zuletzt geladene Zeilen sofort, dann frisch.
   useEffect(() => {
     let active = true;
+    const key = `admin-log:${tab}`;
+    const hit = peekCached<typeof rows>(key).data;
+    if (hit) setRows(hit);
     api(`admin/${tab}`, undefined, "GET")
       .then((r) => {
+        setCached(key, r.rows);
         if (active) setRows(r.rows);
       })
       .catch((e) => {

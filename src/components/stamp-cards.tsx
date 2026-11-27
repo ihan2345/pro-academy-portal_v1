@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { peekCached, setCached } from "@/design-2026/swr";
 import { useRouter } from "next/navigation";
 import { BackfillForm } from "./backfill-form";
 import { Download, Mail, RefreshCw } from "lucide-react";
@@ -83,7 +84,15 @@ export function StampCards({
       return;
     }
 
-    setLoading(true);
+    // Zuletzt geladene Karte dieses Zeitraums sofort, frisch im Hintergrund.
+    const key = `stamp-card:${activeId}`;
+    const hit = peekCached<Card>(key).data;
+    if (hit) {
+      setCard(hit);
+      setRecipient(hit.recipients[0]?.id ?? "");
+      setEmail(hit.recipients[0]?.email ?? "");
+    }
+    setLoading(!hit);
     fetch(`/api/team/stamp-card?period_id=${encodeURIComponent(activeId)}`, {
       cache: "no-store",
     })
@@ -93,14 +102,18 @@ export function StampCards({
         return result as Card;
       })
       .then((result) => {
+        setCached(key, result);
         if (!cancelled) {
           setCard(result);
-          setRecipient(result.recipients[0]?.id ?? "");
-          setEmail(result.recipients[0]?.email ?? "");
+          // Eine schon getroffene Auswahl nicht überschreiben.
+          if (!hit) {
+            setRecipient(result.recipients[0]?.id ?? "");
+            setEmail(result.recipients[0]?.email ?? "");
+          }
         }
       })
       .catch((e) => {
-        if (!cancelled)
+        if (!cancelled && !hit)
           setError(
             e instanceof Error
               ? e.message

@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useId, useState } from "react";
+import { getJson, loadCached, peekCached, setCached } from "@/design-2026/swr";
+import { CountUp } from "@/design-2026/ui";
 import Link from "next/link";
 import {
   Activity as ActivityIcon,
@@ -35,9 +37,14 @@ export function ActivityBadge() {
           if (!r.ok) throw Error();
           return r.json();
         })
-        .then((d: ActivitySummary) => setCount(d.open))
+        .then((d: ActivitySummary) => {
+          setCached("activities:summary", d);
+          setCount(d.open);
+        })
         .catch(() => {});
     };
+    const hit = peekCached<ActivitySummary>("activities:summary").data;
+    if (hit) setCount(hit.open);
     update();
     const timer = setInterval(update, 60000);
     window.addEventListener("focus", update);
@@ -53,7 +60,7 @@ export function ActivityBadge() {
       title={`${count} offene Vorgänge mit Handlungsbedarf`}
       aria-label={`${count} offene Vorgänge mit Handlungsbedarf`}
     >
-      {count}
+      <CountUp value={count} />
     </span>
   );
 }
@@ -72,25 +79,31 @@ export function Activities({
   const anyDecided = Object.keys(decisions.map).some((k) =>
     k.startsWith("act:"),
   );
+  // Zwischenspeicher: zuletzt geladene Übersicht sofort, frisch im Hintergrund.
   useEffect(() => {
-    const abort = new AbortController();
     setError("");
-    setSummary(null);
     setOpenCount(null);
-    fetch("/api/activities/summary", {
-      signal: abort.signal,
-      cache: "no-store",
-    })
-      .then(async (r) => {
-        const d = await r.json();
-        if (!r.ok) throw Error(d.error ?? "Aktivitäten nicht verfügbar.");
-        return d;
+    const hit = peekCached<ActivitySummary>("activities:summary").data;
+    setSummary(hit ?? null);
+    let live = true;
+    loadCached(
+      "activities:summary",
+      () =>
+        getJson<ActivitySummary>(
+          "/api/activities/summary",
+          "Aktivitäten nicht verfügbar.",
+        ),
+      { force: true },
+    )
+      .then((d) => {
+        if (live) setSummary(d);
       })
-      .then(setSummary)
       .catch((e) => {
-        if (!abort.signal.aborted) setError(e.message);
+        if (live && !hit) setError(e.message);
       });
-    return () => abort.abort();
+    return () => {
+      live = false;
+    };
   }, [revision]);
   const open = openCount ?? summary?.open ?? 0;
   return (
@@ -284,7 +297,15 @@ function ActivityFeed({
     [retry, setRetry] = useState(0);
   useEffect(() => {
     const abort = new AbortController();
-    setLoading(true);
+    // Erste Seite je Zeitraum gemerkt: sofort zeigen, frisch nachladen.
+    const key = cursor ? null : `activities:feed:${window}`;
+    const hit = key ? peekCached<ActivityPage>(key).data : undefined;
+    if (hit) {
+      setRows(hit.rows);
+      setNext(hit.next);
+      setTotal(hit.total);
+    }
+    setLoading(!hit);
     setError("");
     const params = new URLSearchParams({
       window,
@@ -301,6 +322,7 @@ function ActivityFeed({
         return d as ActivityPage;
       })
       .then((d) => {
+        if (key) setCached(key, d);
         setRows((old) =>
           cursor
             ? [...old, ...d.rows.filter((r) => !old.some((o) => o.id === r.id))]
@@ -310,7 +332,7 @@ function ActivityFeed({
         setTotal(d.total);
       })
       .catch((e) => {
-        if (!abort.signal.aborted) setError(e.message);
+        if (!abort.signal.aborted && !hit) setError(e.message);
       })
       .finally(() => {
         if (!abort.signal.aborted) setLoading(false);
