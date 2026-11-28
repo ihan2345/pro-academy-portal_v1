@@ -26,6 +26,7 @@ import {
   Settings2,
   ShieldCheck,
   ShoppingBag,
+  Timer,
   Sparkles,
   TriangleAlert,
   Trophy,
@@ -302,6 +303,7 @@ export function SettingsHub({
           share={apiShare.share}
           error={apiShare.error}
           showcase={has("product_shop")}
+          superAdmin={!wave.hidden}
           onApi={() => setSheet({ kind: "api" })}
           onShowcase={() => setSheet({ kind: "showcase" })}
         />
@@ -769,12 +771,15 @@ function DataGroup({
   share,
   error,
   showcase,
+  superAdmin,
   onApi,
   onShowcase,
 }: {
   share: ApiState["share"];
   error: string;
   showcase: boolean;
+  /** Nur Super-Admins sehen die Online-Zeit (Release 065). */
+  superAdmin: boolean;
   onApi: () => void;
   onShowcase: () => void;
 }) {
@@ -821,6 +826,19 @@ function DataGroup({
             <span />
             <ChevronRight size={17} className="d26-chevron" />
           </button>
+        )}
+        {superAdmin && (
+          <Link href="/admin/online-zeit" className="d26-setting d26-set-line">
+            <span className="d26-setting-icon tone-purple">
+              <Timer size={17} />
+            </span>
+            <span className="d26-setting-main">
+              <b>Online-Zeit</b>
+              <small>Gesamte Zeit im Portal je Konto · tt:hh:mm</small>
+            </span>
+            <span />
+            <ChevronRight size={17} className="d26-chevron" />
+          </Link>
         )}
       </div>
     </div>

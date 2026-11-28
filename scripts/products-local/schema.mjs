@@ -68,6 +68,7 @@ export function productSchemaFiles() {
       "062-invitation-wave.sql",
       "063-auth-display-name-gaps.sql",
       "064-portal-bell-events.sql",
+      "065-online-time.sql",
     ].map((f) => `supabase/release/${f}`),
   ];
 }
