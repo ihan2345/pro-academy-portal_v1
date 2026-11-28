@@ -16,11 +16,13 @@ import { Archive, CalendarDays, Inbox, Star, UserCheck } from "lucide-react";
 import { DashboardDisclosure } from "../dashboard-disclosure";
 import { peekCached, setCached } from "@/design-2026/swr";
 import { CountUp } from "@/design-2026/ui";
-export function TrialMenuBadge() {
+/** Offene Probetrainings (neu + zu bewerten), mit Zwischenspeicher. */
+export function useTrialCounts(enabled = true) {
   const [counts, setCounts] = useState<{ new: number; review: number } | null>(
     null,
   );
   useEffect(() => {
+    if (!enabled) return;
     const abort = new AbortController();
     const load = () => {
       fetch("/api/probetraining/summary", {
@@ -46,7 +48,11 @@ export function TrialMenuBadge() {
       abort.abort();
       window.removeEventListener("trial-updated", load);
     };
-  }, []);
+  }, [enabled]);
+  return enabled ? counts : null;
+}
+export function TrialMenuBadge() {
+  const counts = useTrialCounts();
   return counts && counts.new + counts.review > 0 ? (
     <span
       className="badge purple"

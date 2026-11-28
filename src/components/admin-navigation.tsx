@@ -41,23 +41,13 @@ const adminItems = [
     sections: ["admin/einladungen"],
   },
 ];
-export function AdminNavigation({
-  section,
-  role = "admin",
+/** Unterpunkte von „Verwaltung“ je Rolle (auch für das Handy-Menü). */
+export function adminNavigationItems(
+  role: "admin" | "staff" = "admin",
   readOnly = false,
-  collapsed,
-  expandSidebar,
-  navigate,
-}: {
-  section: string;
-  role?: "admin" | "staff";
-  readOnly?: boolean;
-  collapsed: boolean;
-  expandSidebar: () => void;
-  navigate: () => void;
-}) {
+) {
   const base = role === "admin" ? "/admin" : "/team";
-  const items = [
+  return [
     ...(role === "admin"
       ? adminItems.filter(
           // Lese-Rolle: keine Stripe-Zuordnung und keine Einladungen.
@@ -77,6 +67,23 @@ export function AdminNavigation({
       ],
     },
   ];
+}
+export function AdminNavigation({
+  section,
+  role = "admin",
+  readOnly = false,
+  collapsed,
+  expandSidebar,
+  navigate,
+}: {
+  section: string;
+  role?: "admin" | "staff";
+  readOnly?: boolean;
+  collapsed: boolean;
+  expandSidebar: () => void;
+  navigate: () => void;
+}) {
+  const items = adminNavigationItems(role, readOnly);
   const active = items.some((item) => item.sections.includes(section));
   const [open, setOpen] = useState(active);
   useEffect(() => {

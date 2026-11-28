@@ -76,8 +76,14 @@ export function Spotlight({
       }
       if (e.key === "Escape") setOpen(false);
     };
+    // Suchfeld im Menü und „Mehr“-Sheet öffnen dieselbe Suche.
+    const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("d26-spotlight-open", onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("d26-spotlight-open", onOpen);
+    };
   }, []);
   useEffect(() => {
     if (!open) return;

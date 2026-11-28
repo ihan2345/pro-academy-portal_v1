@@ -7,7 +7,7 @@ import Link from "next/link";
 import { TrialMenuBadge, TrialDashboard } from "./trials/team";
 import { PaiLauncher } from "./pai/chat";
 import { usePaiAvailability } from "./pai/availability";
-import { AdminNavigation } from "./admin-navigation";
+import { AdminNavigation, adminNavigationItems } from "./admin-navigation";
 import { EmailPreference, flushEmailPreference } from "./email-preference";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -80,6 +80,18 @@ import { AdminHome } from "@/design-2026/admin-home";
 import { AccountExperience, StaffAccount } from "@/design-2026/account";
 import { PageHead } from "@/design-2026/page-head";
 import { spotlightExtra } from "@/design-2026/spotlight-extra";
+import {
+  MoreSheet,
+  NavChip,
+  NavGroupToggle,
+  NavProfileTile,
+  NavSearch,
+  NavTodayTile,
+  ProfileSheet,
+  initialsOf,
+  useClosedGroups,
+  useNavCounts,
+} from "@/design-2026/nav-2026";
 export function Brand() {
   return (
     <div className="brand">
@@ -123,6 +135,9 @@ export function Portal({
     [sidebarCollapsed, setSidebarCollapsed] = useState(false),
     [detail, setDetail] = useState<Training | null>(null),
     [toast, setToast] = useState("");
+  // Design 2026: Profil-Sheet (Desktop + Handy) und „Mehr“-Sheet (Handy).
+  const [profileOpen, setProfileOpen] = useState(false),
+    [moreOpen, setMoreOpen] = useState(false);
   const router = useRouter();
   const giftNav = useGiftNav(data.role === "parent");
   const [onGiftPage, setOnGiftPage] = useState(false);
@@ -387,6 +402,66 @@ export function Portal({
   const designNav = shownNav
     .filter((n) => n.href !== "#verwaltung")
     .map((n) => ({ ...n, group: navGroup(n.href, data.role) }));
+  // Design 2026: Zahlen, aufklappbare Kategorien und Kacheln für „Mehr“.
+  const navCounts = useNavCounts(data, shownNav);
+  const { closed: closedGroups, toggle: toggleGroup } = useClosedGroups();
+  const railMode = sidebarCollapsed && !mobile;
+  const verwaltungItems =
+    admin || team
+      ? adminNavigationItems(admin ? "admin" : "staff", readOnly)
+      : [];
+  const verwaltungActive = verwaltungItems.some((i) =>
+    i.sections.includes(section),
+  );
+  const itemActive = (href: string) =>
+    href === "#verwaltung" ? verwaltungActive : isActiveNav(href);
+  const freshIn = (group: string) =>
+    shownNav
+      .filter((n) => navGroup(n.href, data.role) === group)
+      .reduce(
+        (sum, n) =>
+          sum +
+          (navCounts[n.href]?.tone === "new" ? navCounts[n.href].value : 0),
+        0,
+      );
+  const moreGroups: {
+    group: string;
+    items: ((typeof designNav)[number] & { active: boolean })[];
+  }[] = [];
+  const addTile = (
+    group: string,
+    tile: (typeof designNav)[number] & { active: boolean },
+  ) => {
+    const bucket = moreGroups.find((g) => g.group === group);
+    if (bucket) bucket.items.push(tile);
+    else moreGroups.push({ group, items: [tile] });
+  };
+  for (const n of designNav)
+    addTile(n.group ?? "Menü", { ...n, active: isActiveNav(n.href) });
+  for (const v of verwaltungItems)
+    addTile("Betrieb", {
+      href: v.href,
+      title: v.title,
+      icon: v.icon,
+      group: "Betrieb",
+      active: v.sections.includes(section),
+    });
+  async function logout() {
+    try {
+      await flushEmailPreference();
+    } catch {
+      setToast(
+        "E-Mail-Einstellung konnte nicht gespeichert werden. Bitte vor dem Abmelden erneut versuchen.",
+      );
+      return;
+    }
+    const res = await fetch("/api/auth/logout", { method: "POST" });
+    if (res.ok) {
+      // Zwischengespeicherte Zahlen gehören zu diesem Konto.
+      clearCached();
+      window.location.assign("/login");
+    } else setToast("Abmeldung fehlgeschlagen. Bitte erneut versuchen.");
+  }
   // Handy-Tabs: die wichtigsten Seiten je Rolle zuerst, der Rest über „Mehr“.
   const tabOrder = admin
     ? [
@@ -493,16 +568,43 @@ export function Portal({
         <div className="portal-label">
           {admin ? "ADMINBEREICH" : team ? "MITARBEITERPORTAL" : "ELTERNPORTAL"}
         </div>
-        <nav>
+        <nav className={DESIGN_2026 ? "d26-nav" : undefined}>
+          {DESIGN_2026 && <NavSearch />}
+          {DESIGN_2026 && (admin || team) && !railMode && (
+            <NavTodayTile
+              data={data}
+              href={admin ? "/admin/trainingsplanung" : "/team"}
+              onNavigate={() => setMobile(false)}
+            />
+          )}
           {shownNav.map((item, index) => {
             const group = navGroup(item.href, data.role);
+            const groupOpen = !group || !closedGroups.includes(group);
             const groupLabel =
               group &&
               group !== navGroup(shownNav[index - 1]?.href ?? "", data.role) ? (
-                <div className="d26-nav-group" key={`group-${group}`}>
-                  {group}
-                </div>
+                DESIGN_2026 ? (
+                  <NavGroupToggle
+                    key={`group-${group}`}
+                    group={group}
+                    open={groupOpen}
+                    fresh={freshIn(group)}
+                    onToggle={() => toggleGroup(group)}
+                  />
+                ) : (
+                  <div className="d26-nav-group" key={`group-${group}`}>
+                    {group}
+                  </div>
+                )
               ) : null;
+            // Zugeklappte Kategorie: nur der gerade offene Punkt bleibt sichtbar.
+            if (
+              DESIGN_2026 &&
+              !groupOpen &&
+              !railMode &&
+              !itemActive(item.href)
+            )
+              return [groupLabel];
             return [
               groupLabel,
               item.href === "#verwaltung" ? (
@@ -530,17 +632,38 @@ export function Portal({
                   href={item.href}
                   aria-label={item.title}
                   aria-current={isActiveNav(item.href) ? "page" : undefined}
-                  title={sidebarCollapsed ? item.title : undefined}
+                  title={
+                    sidebarCollapsed && !DESIGN_2026 ? item.title : undefined
+                  }
+                  data-tip={
+                    DESIGN_2026 && railMode
+                      ? [item.title, navCounts[item.href]?.tip]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : undefined
+                  }
                   onClick={() => setMobile(false)}
                 >
-                  <item.icon size={19} />
-                  <span>{item.title}</span>
-                  {item.title === "Probetraining" && <TrialMenuBadge />}
-                  {"count" in item &&
-                    typeof item.count === "number" &&
-                    item.count > 0 && (
-                      <span className="nav-count">{item.count}</span>
-                    )}
+                  {DESIGN_2026 ? (
+                    <>
+                      <i className="d26-nav-icon">
+                        <item.icon size={17} />
+                      </i>
+                      <span>{item.title}</span>
+                      <NavChip count={navCounts[item.href]} />
+                    </>
+                  ) : (
+                    <>
+                      <item.icon size={19} />
+                      <span>{item.title}</span>
+                      {item.title === "Probetraining" && <TrialMenuBadge />}
+                      {"count" in item &&
+                        typeof item.count === "number" &&
+                        item.count > 0 && (
+                          <span className="nav-count">{item.count}</span>
+                        )}
+                    </>
+                  )}
                 </Link>
               ),
             ];
@@ -554,7 +677,7 @@ export function Portal({
             showSuggestions={section !== "pai"}
           />
         )}
-        <div className="sidebar-bottom">
+        <div className={DESIGN_2026 ? "d26-nav-bottom" : "sidebar-bottom"}>
           {(!pailtonInMenu || narrow) && (
             <div className="support-box">
               <MessageCircle size={24} />
@@ -573,12 +696,27 @@ export function Portal({
               </a>
             </div>
           )}
-          <div className="sidebar-motto">
-            BUILT.
-            <br />
-            <span>NOT BORN.</span>
-          </div>
-          <div className="sidebar-footer">ProAcademy by Ayhan & Karaman</div>
+          {DESIGN_2026 ? (
+            <NavProfileTile
+              data={data}
+              collapsed={railMode}
+              onOpen={() => {
+                setMobile(false);
+                setProfileOpen(true);
+              }}
+            />
+          ) : (
+            <>
+              <div className="sidebar-motto">
+                BUILT.
+                <br />
+                <span>NOT BORN.</span>
+              </div>
+              <div className="sidebar-footer">
+                ProAcademy by Ayhan & Karaman
+              </div>
+            </>
+          )}
         </div>
       </aside>
       <div className="main-shell">
@@ -586,7 +724,9 @@ export function Portal({
           <div className="breadcrumb">
             <button
               className="icon-button mobile-toggle"
-              onClick={() => setMobile(!mobile)}
+              onClick={() =>
+                DESIGN_2026 ? setMoreOpen(true) : setMobile(!mobile)
+              }
               aria-label={mobile ? "Menü schließen" : "Menü öffnen"}
               aria-expanded={mobile}
               aria-controls="portal-sidebar"
@@ -655,18 +795,24 @@ export function Portal({
               })}
             </span>
             <span className="topbar-divider" />
-            <Link
-              href="/konto"
-              className="avatar user-avatar"
-              aria-label="Mein Konto"
-            >
-              {data.user_name
-                .split(/\s+/)
-                .filter(Boolean)
-                .slice(0, 2)
-                .map((w) => w.charAt(0).toUpperCase())
-                .join("") || "?"}
-            </Link>
+            {DESIGN_2026 ? (
+              <button
+                type="button"
+                className="avatar user-avatar"
+                aria-label="Profil und Konto öffnen"
+                onClick={() => setProfileOpen(true)}
+              >
+                {initialsOf(data.user_name)}
+              </button>
+            ) : (
+              <Link
+                href="/konto"
+                className="avatar user-avatar"
+                aria-label="Mein Konto"
+              >
+                {initialsOf(data.user_name)}
+              </Link>
+            )}
           </div>
         </header>
         <main className="main-content">
@@ -1235,26 +1381,7 @@ export function Portal({
             </>
           )}
           {section === "konto" && (
-            <button
-              className="secondary-button"
-              onClick={async () => {
-                try {
-                  await flushEmailPreference();
-                } catch {
-                  setToast(
-                    "E-Mail-Einstellung konnte nicht gespeichert werden. Bitte vor dem Abmelden erneut versuchen.",
-                  );
-                  return;
-                }
-                const res = await fetch("/api/auth/logout", { method: "POST" });
-                if (res.ok) {
-                  // Zwischengespeicherte Zahlen gehören zu diesem Konto.
-                  clearCached();
-                  window.location.assign("/login");
-                } else
-                  setToast("Abmeldung fehlgeschlagen. Bitte erneut versuchen.");
-              }}
-            >
+            <button className="secondary-button" onClick={logout}>
               <LogOut size={17} />
               {"Sicher abmelden"}
             </button>
@@ -1279,8 +1406,29 @@ export function Portal({
           ...designNav.filter((n) => !tabOrder.includes(n.href)),
         ]}
         isActive={(href) => isActiveNav(href)}
-        openMenu={() => setMobile(true)}
+        counts={navCounts}
+        openMenu={() => (DESIGN_2026 ? setMoreOpen(true) : setMobile(true))}
       />
+      {DESIGN_2026 && (
+        <>
+          <ProfileSheet
+            open={profileOpen}
+            onClose={() => setProfileOpen(false)}
+            data={data}
+            onLogout={logout}
+            collapsed={sidebarCollapsed}
+            toggleCollapsed={narrow ? undefined : toggleSidebar}
+          />
+          <MoreSheet
+            open={moreOpen}
+            onClose={() => setMoreOpen(false)}
+            data={data}
+            groups={moreGroups}
+            counts={navCounts}
+            onLogout={logout}
+          />
+        </>
+      )}
       {detail && (
         <EventDetail
           event={detail}

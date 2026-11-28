@@ -117,6 +117,8 @@ if (
       return Response.json(previewConflicts());
     if (path === "/api/probetraining/team" && init?.method !== "POST")
       return Response.json(previewTrials());
+    if (path === "/api/probetraining/summary")
+      return Response.json({ new: 2, review: 1 });
     if (path === "/api/probetraining/notices")
       return Response.json(previewTrialNotices());
     if (path === "/api/probetraining/past-events")
